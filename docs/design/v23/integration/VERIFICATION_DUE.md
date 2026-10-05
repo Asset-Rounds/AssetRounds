@@ -1,3 +1,35 @@
+## Current C11 obligations — 2026-10-05
+
+- Published integration remains5ba97704719e12b2061b96ad9e008ea7ae18b2a8; exact ten-Source C11 V3 is now imported into Primary and final16-path checkpoint review has genuine C9 Sol6.1/xhigh PASS for an explicitly incomplete DEVELOPMENT checkpoint. Mainb1d04ae5 remains unchanged; allfivegatesOPEN/releaseReadyfalse.
+- Local full cold-macro app compilation PASS0errors313.323s; current nativeCI394PASS0/368s and retainedreader41PASS0/353s. Earlier firstmacro/flock/header/derived failures are retained as history.
+- Narrow DEVELOPMENT predecessorselection42PASS598s reused after independent54file/Python/107fixedhistorical-object/currentprofile equality proof. It did not executeV3 and gives no gate credit.
+- Current V3 coldHOLDs:focused18 sixERROR outcomes/fourmethods at receipt-parent ownbirth; affecteddispatcher104103PASS/onecoldfixtureFAIL due missing synthetic durableproof. Ordinary affected classes pass; no unchanged failing replay.
+- Separate V4 receipt Source independentlyPASS and firstprivate19/19PASS0/2s. It is NOT the Primary V3 checkpoint; its import/newcandidatefullCI/affected verification remain due.
+- New-head ordinary hosted27 must confirm the former pinned26.6 array compiler error is corrected. WholeappfailurecountUNKNOWN; genuine full3716/33 development sweep remains due.
+- Next isolated cold family:receipt birth, missing proof fixture, authentic transitive NativeSource/currentPFP join, safe payload/no-rebuild/execution adapters and versioned qualificationV2. Genuine coldapp/context/completeemittedtransport/latewrite proof and pinned fullcoverage remain due.
+- Complete emittedtransport remainsmandatory; totalcall/kernelcohort/perPIDretirement are separateUNPROVEN claims. No stale v1PENDING/false field is promoted. All fivegates/ownerhumanUI/physicalprivacy/fullV23/release obligations remain.
+
+Earlier checkpoint sections below are retained historical obligations and observations, superseded wherever this current section differs.
+
+## Historical C11 pre-verification corrected-macro obligations — 2026-10-05
+
+- Exact isolated10 apply and current-only PS/seven-holder originals have genuine independent DATA PASS; Primary Source/main unchanged.
+- First local27 coldmacro compile failed4diagnostics/oneflock binding family;93 originals/failedDD preserved. Unqualified public two-call typecheck passed; genuine Source correction/review/dependent pins/isolated apply/freshDD full macro compile remain due.
+- Baseline current nativeCI/selection originals are still running on frozen Source. Retain originals; changed4path pin successor requires mandatory current CI/affected verification. New focused16 remainsUNRUN; preserve prior fixture bodies/errors/pins.
+- Published5ba hosted typecheck1error remains unresolved on pinned26.6 until the distinct corrected-head compiler27 original executes. FullappfailurecountUNKNOWN.
+- Cold26 dynamic closure excludes StoreMigration/Policy; app Source tuple binds those separately. Genuine hosted cold original must cover all3716/33 with authentic plan. Process-lifetime/descriptor-retirement and complete cold payload/execution/qualification producers remain due; no pending flag substitution.
+- AllfivePhase1gatesOPEN/releaseReadyfalse/fullscope/ownerreviews/physicalprivacy/release obligations unchanged.
+
+## Historical C10 publication and execution observations — 2026-10-05
+
+- Published integration5ba97704719e12b2061b96ad9e008ea7ae18b2a8, independently reviewed C10 nine-path checkpoint; main remains b1d04ae5. All five Phase1 gates OPEN; releaseReady=false.
+- Pinned GitHub DEVELOPMENT27 original37351628429 finished1Swift compiler error/27NotStarted; sole collection completed and69 manifest members SHA-256 verified. Genuine actual DATA review pending. Correct the proven64726 seven-value for-array with separate review/compile/affected verification; do not retry unchanged5ba/f06 or transfer development into gates.
+- Full current app failure count UNKNOWN; 3716methods/33partitions census is not execution. Required full stabilization sweep and frozen-head coverage/UI/review/human/main/exact-main remain due.
+- Cold DATA2 later-base2 and durable seven-path V2 have genuine independent Source PASS at exact5ba; preserve canonical fullTEN correction, raw-pin provenance/beforeimages and fixtureV1 HOLD. Root isolated apply-check/once integration, actual macro Swift compile, new16 focused methods/current required CI/affected verification and final combined review remain due.
+- Actual app-bound sink write/sync/readback, behavior/termination/relaunch/vanished-stream/poison/late-writer transport, genuine cold safe extraction/no-rebuild/payload/per-method qualification remain due. Reuse unchanged bounded grammar/cold14/26/435 scopes without inferring qualification.
+- Host argv-display/lifetime HOLD and canonical COMMAND alias/completion HOLD/ledger34pending remain. Future local-native admission needs the existing supported additive current checked physical/holder/resource/artifact/Source-Products disposition and independent DATA; no original rewrite, guard weakening or Native7 rerun.
+- Four current Root records are dirty bookkeeping to fold into the next real Source checkpoint; both protected untracked drafts and all historical obligations below remain preserved.
+
 ## C10 current five-source checkpoint and remaining gates — 2026-10-05
 
 - Five-source Primary import PASSED once with all2805 outside tracked and2 protected untracked inputs preserved. Complete362 original files/hash manifest retained. Genuine independent actual import and exact nine-path candidate reviews PASS (Sol6.1/xhigh, current-endpoint DEVELOPMENT scope only). Faithful verdict-only final binding check, explicit nine-path commit/non-force publication and new-head hosted DEVELOPMENT27 remain due.
@@ -1377,3 +1409,8 @@ Separate selected native Data/gens/control PRE→ownedPOST causal joins, common 
 
 2026-10-05 successor: Q10 actual3 combined DATA review COMPLETE/PASS3427/670ecdb3; boundfreezer Source review COMPLETE/PASS2929/39dd524d and originalpublication retained19915/ffe1e58b. Due: genuine freeze config, current Source/Products/process/resource guards, prospective registration, fresh preflight/Host composition/admission and originalNative7. Then actualNative DATA review, currentPrimary3 import/checkpoint review/publication/new-head pinneddev27. No current SourceReady/Products/native/lifetime/global64/gate promotion. Keep immutable proof's old affectedQ10ActualDataReviewPending=true; later genuine receipt is additive evidence. All original failures/HOLDs and five gates remain.
 2026-10-05 next bounded blocker: pre-effect FREEZE path mismatch preserved17340/d2f2cfaa. Exact existing Source path corrected in genuine frame530/0d4495e8; new QUESTIONS5535/a17a5fc4/binding19076/8ad2387d/Native92035/bc60b994 Source composition review active. After genuine GO, propagate new Native package/review/seed/frame refs to immutable corrected freezer and config, then affected genuine FREEZE/fresh scratch/Host/preflight/native7. No unchanged failed original retry, compiler rebuild or weakened path/metadata guard. Full app failure total remains UNKNOWN, one preparation-family blocker remains until affected execution passes.
+
+
+C11 DEVELOPMENT obligations, 2026-10-05: current ten-Source checkpoint has local cold-macro compile0errors313.323s, CI394PASS/reader41PASS, actual predecessor42 reused after54file+107historical-object/current-Python proof. Retained cold-only failures: focused18 sixERROR outcomes/fourmethods at receipt-parent ownbirth; affecteddispatcher104 hasoneFAIL missing synthetic durable-proof fixture (ordinary classes pass). Sevenoutcomes/fivemethods remain recorded HOLDs in V3; no unchanged replay. Isolated V4 Source independentlyPASS and private19PASS0errors2s; import/currentfullCI+affected checks remain due. Next ordinary hosted27 new-head compilation must address former GitHub26.6 array-inference error. FullappfailurecountUNKNOWN; current27 is not full3716/33coverage.
+
+Next isolated cold batch: validated receipt-parent ownbirth + corresponding synthetic dispatcher proof fixture, genuine transitive NativeSource-current-PFP binding (closed plan omitsPFP), cold payload/envelope/no-rebuild/execution joins and separately reviewed versioned qualification V2. Existing v1 PENDING/false/originals remain; total-call/kernelcohort/perPIDretirement claims stayUNPROVEN while complete authentic emitted transport is mandatory. Genuine compiled cold context/app external sink/lock/seal/latewrite and full3716/33 pinned original remainDUE. Allfivefrozen-head gates/owner human UI/exactmain/physicalprivacy/fullV23/release obligations stayunchanged.

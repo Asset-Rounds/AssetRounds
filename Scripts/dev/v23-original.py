@@ -1860,7 +1860,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "D8AEC80A54CBC116A8EA8733426280098813AACAEF390C0DA07838540A68A53F"
+PHASE1_RETAINED_READER_SHA256 = "5EF4EACFDE84B80DFA81EAD2B684DAEA99E8B36A09CD74118F7FC64E8660E333"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -4291,6 +4291,164 @@ def cold_api_original(gate, value, run_id, plan, attempt):
 
 
 
+def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
+    """Read-only additive emitted-byte proof; every old cold predicate stays due."""
+    import stat
+    require = gate.require
+    native_path = ROOT / "Scripts/v23-native-ci.py"
+    before = os.lstat(native_path)
+    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+            and not before.st_flags & 0x40000000 and before.st_size <= 32 * 1024 * 1024,
+            "cold emitted native Source singleton/bound")
+    descriptor = os.open(native_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    first = None
+    raw = None
+    close_error = None
+    ten = lambda x: tuple(getattr(x,k) for k in ("st_dev","st_ino","st_mode","st_uid","st_gid",
+                              "st_nlink","st_size","st_mtime_ns","st_ctime_ns","st_flags"))
+    try:
+        require(ten(os.fstat(descriptor)) == ten(before) == ten(os.lstat(native_path)), "cold emitted Source opened endpoint")
+        pieces, count = [], 0
+        while True:
+            piece = os.read(descriptor, 1024 * 1024)
+            if not piece:
+                break
+            count += len(piece)
+            require(count <= before.st_size, "cold emitted finite Source stream")
+            pieces.append(piece)
+        raw = b"".join(pieces)
+        require(count == before.st_size and os.lseek(descriptor,0,os.SEEK_CUR) == count
+                and ten(os.fstat(descriptor)) == ten(before) == ten(os.lstat(native_path))
+                and gate.sha(raw) == plan["sources"]["Scripts/v23-native-ci.py"],
+                "cold emitted frozen actual native Source EOF/hash/fullTEN")
+    except BaseException as error:
+        first = error
+    try:
+        os.close(descriptor)
+    except BaseException as error:
+        close_error = error
+    if first is not None:
+        raise first
+    if close_error is not None:
+        raise close_error
+    require(ten(os.lstat(native_path)) == ten(before), "cold emitted Source positive onceclose endpoint")
+    namespace = {"__name__":"cold_emitted_retained_source","__file__":str(native_path)}
+    exec(compile(raw,str(native_path),"exec"),namespace)
+    owners, close_rows = [], []
+    first = None
+    result = None
+    try:
+        read_root = namespace["_cold_durable_root"]
+        read_leaf = namespace["_cold_durable_leaf"]
+        read_finite = namespace["_cold_durable_read"]
+        identity = namespace["_cold_durable_identity"]
+        full = namespace["_cold_durable_ten"]
+        proof_raw = gate.regular_bytes(worker / namespace["COLD_DURABLE_PROOF"],limit=32*1024*1024)
+        proof = gate.decode(proof_raw,limit=32*1024*1024)
+        require(set(proof) == {"schema","status","interrupted","nativeExitStatus",
+                "countsAreTotalInvocations","trailingRepeatCountsMayBeUnobserved","processLifetimesProven",
+                "appDescriptorRetirementProven","functionalQualification","providerQualification","acceptance",
+                "releaseReady","io","firstError","context","bindingSHA256","authoritativePath","observed",
+                "files","emittedBoundary"}, "cold emitted closed scoped producer proof")
+        require(proof["schema"] == "v23-cold-emitted-durable-proof.v1"
+                and proof["status"] == "SEALED_EMITTED_TRANSPORT_ONLY"
+                and proof["interrupted"] is False and proof["nativeExitStatus"] == 0
+                and proof["firstError"] is None and proof["countsAreTotalInvocations"] is False
+                and proof["trailingRepeatCountsMayBeUnobserved"] is True
+                and proof["processLifetimesProven"] is False and proof["appDescriptorRetirementProven"] is False
+                and proof["functionalQualification"] == "PENDING"
+                and all(proof.get(key) is False for key in ("providerQualification","acceptance","releaseReady")),
+                "cold emitted strictly scoped genuine terminal proof")
+        require(proof["emittedBoundary"] == "SOURCE_WIRED_APPEND_CLOSED_BY_ACTUAL_SHARED_LOCK_AND_SEALED_STATE"
+                and type(proof["io"]) is list and any(row.get("terminalDataFsyncReturned") is True for row in proof["io"])
+                and all(row.get("closeReturned") is True and row.get("closeUncertain") is False and row.get("error") is None
+                        for row in proof["io"] if row.get("closeEntered") is True),
+                "cold emitted actual producer owner closes")
+        context = proof["context"]
+        require(context["originalEventSHA256"] == gate.sha(event_raw)
+                and context["eventBindingSHA256"] == gate.sha(gate.canonical(record["coldOriginal"]))
+                and context["admissionSHA256"] == gate.sha(gate.canonical(record))
+                and context["head"] == plan["head"] and context["tree"] == plan["tree"]
+                and context["runID"] == record["runID"] and context["runAttempt"] == "1"
+                and context["role"] == "consumer" and context["partitionID"] == record["sharedCoverage"]["partitionID"]
+                and context["planSHA256"] == record["coldOriginal"]["planSHA256"]
+                and context["selectionSHA256"] == plan["selectionSHA256"]
+                and context["writerSourceSHA256"] == plan["sources"][namespace["SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]],
+                "cold emitted same frozen original/source/partition")
+        directory, before_dir = read_root(worker / namespace["COLD_DURABLE_ROOT"],owners,"retainedSink")
+        require(sorted(os.listdir(directory)) == ["BINDING.json","EMITTED.jsonl","STATE"],
+                "cold emitted complete retained authoritative roster")
+        header_fd, header_before = read_leaf(directory,"BINDING.json",os.O_RDONLY,owners,"retainedBinding")
+        header_raw, _ = read_finite(header_fd,8192,lambda:None)
+        header = json.loads(header_raw,object_pairs_hook=namespace["unique_pairs"])
+        require(namespace["canonical"](header) == header_raw and gate.sha(header_raw) == context["durableSinkBindingSHA256"]
+                == proof["bindingSHA256"] and header["schema"] == namespace["COLD_DURABLE_SCHEMA"]
+                and header["originalContext"] == {k:v for k,v in context.items()
+                    if k not in ("durableSinkPath","durableSinkBindingSHA256")}, "cold emitted retained immutable header")
+        # Relocation changes physical IDs. Original IDs stay provenance, never
+        # required as this collector's newly acquired extraction identities.
+        state_fd, state_before = read_leaf(directory,"STATE",os.O_RDONLY,owners,"retainedSealState")
+        state_raw, _ = read_finite(state_fd,8,lambda:None)
+        require(state_raw == b"SEALED\n", "cold emitted actual retained terminal state")
+        data_fd, data_before = read_leaf(directory,"EMITTED.jsonl",os.O_RDONLY,owners,"retainedEmittedBytes")
+        stream_hashes, stream_bytes = {}, {}
+        def consume(stream,line):
+            stream_hashes.setdefault(stream,hashlib.sha256()).update(line)
+            stream_bytes[stream] = stream_bytes.get(stream,0)+len(line)
+        observed = namespace["_cold_durable_parse"](data_fd,context,proof["bindingSHA256"],lambda:None,consume)
+        require(observed == proof["observed"], "cold emitted independently recomputed complete raw/committed union")
+        require(proof["files"] == [{"name":x["streamID"]+".jsonl","bytes":x["bytes"],"sha256":x["sha256"]}
+                                for x in observed["streams"]], "cold emitted derived stream union")
+        output = worker / namespace["SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY"]
+        out_fd, out_before = read_root(output,owners,"retainedDerivedDirectory")
+        require(sorted(os.listdir(out_fd)) == sorted(x["name"] for x in proof["files"]),
+                "cold emitted exact retained derived membership")
+        for row in proof["files"]:
+            before = os.stat(row["name"],dir_fd=out_fd,follow_symlinks=False)
+            require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and not before.st_flags&0x40000000,
+                    "cold emitted derived retained singleton")
+            fd = os.open(row["name"],os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK,dir_fd=out_fd)
+            owners.append(("retainedDerived:"+row["name"],fd))
+            require(full(os.fstat(fd)) == full(before), "cold emitted derived opened frame")
+            sha, count = hashlib.sha256(),0
+            while True:
+                chunk = os.read(fd,1024*1024)
+                if not chunk:
+                    break
+                count += len(chunk)
+                require(count <= row["bytes"], "cold emitted derived exact finite bound")
+                sha.update(chunk)
+            require(count == row["bytes"] == before.st_size and sha.hexdigest().upper() == row["sha256"]
+                    and os.lseek(fd,0,os.SEEK_CUR) == count and full(os.fstat(fd)) == full(before)
+                    == full(os.stat(row["name"],dir_fd=out_fd,follow_symlinks=False)), "cold emitted derived raw EOF/hash/TEN")
+        require(full(os.fstat(out_fd)) == full(out_before) == full(os.lstat(output))
+                and str(output.resolve(strict=True)) == str(output)
+                and sorted(os.listdir(out_fd)) == sorted(x["name"] for x in proof["files"]),
+                "cold emitted retained derived complete current endpoint and exact roster")
+        require(full(os.fstat(header_fd)) == full(header_before)
+                == full(os.stat("BINDING.json",dir_fd=directory,follow_symlinks=False))
+                and full(os.fstat(data_fd)) == full(data_before)
+                == full(os.stat("EMITTED.jsonl",dir_fd=directory,follow_symlinks=False))
+                and full(os.fstat(state_fd)) == full(state_before)
+                == full(os.stat("STATE",dir_fd=directory,follow_symlinks=False))
+                and full(os.fstat(directory)) == full(before_dir) == full(os.lstat(worker/namespace["COLD_DURABLE_ROOT"])),
+                "cold emitted complete retained read endpoint fence")
+        transport = gate.decode(gate.regular_bytes(worker/namespace["SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS"],limit=32*1024*1024),limit=32*1024*1024)
+        require(transport["status"] in ("AVAILABLE","ZERO_USE") and "error" not in transport
+                and transport["files"] == proof["files"] and transport["collectionMode"] == "completed",
+                "cold emitted same successful collection disposition")
+        result = {"schema":"v23-cold-retained-emitted-transport-facts.v1","proofSHA256":gate.sha(proof_raw),
+            "observed":observed,"files":proof["files"],"committedEmittedBytesComplete":True,
+            "countsAreTotalInvocations":False,"processLifetimesProven":False,"physicalRetirementProven":False,
+            "functionalQualification":"PENDING","providerQualification":False,"acceptance":False,"releaseReady":False}
+    except BaseException as error:
+        first = error
+    first = namespace["_cold_durable_close"](owners,close_rows,first)
+    if first is not None:
+        raise first
+    result["retainedReadCloseRows"] = close_rows
+    return result
+
 def collect_cold(run_id, resume):
     """Actual API/retention caller; complete functional proof remains INCOMPLETE.
 
@@ -4499,6 +4657,7 @@ def collect_cold(run_id, resume):
                 notes.append("artifact[%d] refused (%s): %s" %
                              (artifact_index, type(error).__name__, str(error)[:1000]))
         input_bindings = {}
+        emitted_bindings = {}
         matched_jobs = match_shared_jobs(jobs["jobs"], partitions)
         notes.extend("cold jobs: " + problem for problem in matched_jobs["problems"])
         if (matched_jobs["selection"] is None or matched_jobs["producer"] is None
@@ -4566,6 +4725,8 @@ def collect_cold(run_id, resume):
                     retained_observations[stage] = value
                 gate.exact(checkpoint.get("coldSharedObservations"), retained_observations,
                            "cold checkpoint retains exact actual shared-step originals")
+                if role == "consumer":
+                    emitted_bindings[label] = cold_emitted_retained_proof(gate, worker, record, event_raw, plan)
             except (ValueError, OSError) as error:
                 notes.append("worker " + label + " original dispatch input binding: " + str(error)[:1000])
         def retain_partial():
@@ -4601,6 +4762,12 @@ def collect_cold(run_id, resume):
             retain_partial()
         request_outcome, discovery_history = cold_read_lifecycle(gate, plan, attempt)
         retain("cold-lifecycle.json", gate.canonical({"request": request_outcome, "history": discovery_history}))
+        retain("cold-emitted-retained-facts.json", gate.canonical({
+            "schema":"v23-cold-emitted-retained-facts.v1", "runID":run_id, "runAttempt":1,
+            "head":plan["head"], "tree":plan["tree"], "planSHA256":attempt["planSHA256"],
+            "consumerFacts":emitted_bindings, "countsAreTotalInvocations":False,
+            "functionalQualification":gate.PENDING, "providerQualification":False,
+            "acceptance":False, "releaseReady":False}))
         proof = {"schema": "v23-cold-raw-proof.v1", "status": "INCOMPLETE", "runID": run_id,
                  "runAttempt": 1, "planSHA256": attempt["planSHA256"], "head": plan["head"], "tree": plan["tree"],
                  "originalAttribution": attribution(), "artifacts": proof_artifacts, "dispatchInputBindings": input_bindings,

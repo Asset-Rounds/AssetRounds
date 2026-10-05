@@ -39,6 +39,7 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
     private let framesPerStream: Int
     private let maximumStreams: Int
     private let maximumTotalBytes: Int64
+    private let coldContextRequired: Bool
     private let append: @Sendable (Int32, Data) throws -> Void
     private let synchronize: @Sendable (Int32) throws -> Void
     private var cachesDescriptor: Int32 = -1
@@ -58,6 +59,7 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         framesPerStream: Int = 100_000,
         maximumStreams: Int = 64,
         maximumTotalBytes: Int64 = 1_024 * 1_024 * 1_024,
+        coldContextRequired: Bool = false,
         append: @escaping @Sendable (Int32, Data) throws -> Void = { descriptor, data in
             let written = data.withUnsafeBytes { bytes in
                 Darwin.write(descriptor, bytes.baseAddress, bytes.count)
@@ -76,6 +78,7 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         self.framesPerStream = framesPerStream
         self.maximumStreams = maximumStreams
         self.maximumTotalBytes = maximumTotalBytes
+        self.coldContextRequired = coldContextRequired
         self.append = append
         self.synchronize = synchronize
     }
@@ -91,6 +94,9 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         defer { lock.unlock() }
         guard !poisoned else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
         do {
+            #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+            if coldContextRequired { try ColdEmittedOriginalContextV1.shared.requireBoundOriginalContext() }
+            #endif
             guard !payload.isEmpty, payload.count <= 4_096,
                   payload.last == 10,
                   !payload.dropLast().contains(10), !payload.contains(13),
@@ -100,8 +106,15 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
                   (1...(1_024 * 1_024 * 1_024)).contains(maximumTotalBytes) else {
                 throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
             }
+            #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+            if !coldContextRequired {
+                if fileDescriptor < 0 { try openJournal() }
+                try verifyJournal()
+            }
+            #else
             if fileDescriptor < 0 { try openJournal() }
             try verifyJournal()
+            #endif
             if sequence == framesPerStream { try rotateStream() }
             let next = sequence + 1
             var frame = try JSONSerialization.data(withJSONObject: [
@@ -117,6 +130,20 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
                   totalByteCount <= maximumTotalBytes - Int64(frame.count) else {
                 throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
             }
+            #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+            if coldContextRequired {
+                guard sequence != 0 || streamCount < maximumStreams else {
+                    throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+                }
+                try ColdEmittedDurableSinkV1.shared.write(frame, streamID: streamID, sequence: next,
+                    append: append, synchronize: synchronize)
+                if sequence == 0 { streamCount += 1 }
+                byteCount += Int64(frame.count)
+                totalByteCount += Int64(frame.count)
+                sequence = next
+                return
+            }
+            #endif
             try append(fileDescriptor, frame)
             byteCount += Int64(frame.count)
             totalByteCount += Int64(frame.count)
@@ -164,6 +191,14 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         guard streamCount < maximumStreams else {
             throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
         }
+        #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+        if coldContextRequired {
+            streamID = nextStreamID()
+            sequence = 0
+            byteCount = 0
+            return
+        }
+        #endif
         try verifyJournal()
         let previousDescriptor = fileDescriptor
         fileDescriptor = -1
@@ -487,7 +522,11 @@ enum ProtectedFilePolicyV1 {
     #endif
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
+    #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+    private static let diagnosticJournal = ProtectedFileSimulatorDiagnosticJournalV1(coldContextRequired: true)
+    #else
     private static let diagnosticJournal = ProtectedFileSimulatorDiagnosticJournalV1()
+    #endif
     private static let simulatorTiming = ProtectedFileSimulatorTimingV1(writer: diagnosticWriter)
     private static let diagnosticSummary: ProtectedFileSimulatorDiagnosticSummaryV1 = {
         let summary = ProtectedFileSimulatorDiagnosticSummaryV1(journal: diagnosticJournal,
@@ -1131,6 +1170,13 @@ enum ProtectedFilePolicyV1 {
     ) throws {
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
         guard result == .simulatorFileProtectionUnsupported else { return }
+        #if V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+        do { try ColdEmittedOriginalContextV1.shared.requireBoundOriginalContext() }
+        catch {
+            diagnosticWriter.write("V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=cold-original-context error=\(error)\n")
+            throw error
+        }
+        #endif
         let journalStart = DispatchTime.now().uptimeNanoseconds
         defer { simulatorTiming.recordJournal(startedAt: journalStart) }
         try diagnosticSummary.record(kind) {
@@ -19534,3 +19580,344 @@ extension ProtectedFilePolicyV1 {
     }
 }
 // COMPLETED_SESSION_NATIVE_CURRENT_TYPED_POLICY_COMPONENT_V1_END
+
+#if DEBUG && os(iOS) && targetEnvironment(simulator) && V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+/// Original-context binding only. This class issues no transport-completion,
+/// protection, invocation-count, process-census or qualification authority.
+fileprivate final class ColdEmittedOriginalContextV1: @unchecked Sendable {
+    static let shared = ColdEmittedOriginalContextV1()
+    private let lock = NSLock()
+    private var frozenEnvironment: [String: String]?
+    private var frozenContext: [String: String]?
+    private var poisoned = false
+    private let prefix = "V23_COLD_EMITTED_"
+    private let mode = "required-original-context-v2"
+
+    func requireBoundOriginalContext() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !poisoned else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+        do {
+            let environment = ProcessInfo.processInfo.environment
+            let supplied = environment.filter { $0.key.hasPrefix(prefix) }
+            let keys = Set([prefix + "MODE", prefix + "CONTEXT", prefix + "CONTEXT_SHA256"])
+            guard Set(supplied.keys) == keys, supplied[prefix + "MODE"] == mode else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            if let frozenEnvironment, let frozenContext {
+                guard supplied == frozenEnvironment else {
+                    throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+                }
+                try requireActualHost(frozenContext, environment: environment)
+                return
+            }
+            guard let encoded = supplied[prefix + "CONTEXT"],
+                  encoded.utf8.count <= 4 * ((8_192 + 2) / 3),
+                  let raw = Data(base64Encoded: encoded), raw.count <= 8_192,
+                  raw.last == 10, !raw.dropLast().contains(10), !raw.contains(13),
+                  raw.allSatisfy({ $0 < 128 }),
+                  raw.base64EncodedString() == encoded,
+                  supplied[prefix + "CONTEXT_SHA256"] == KernelCanonicalHashV1.sha256(raw).uppercased(),
+                  let value = try JSONSerialization.jsonObject(with: raw) as? [String: String] else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            let contextKeys: Set<String> = ["schema", "originalEventSHA256", "eventBindingSHA256",
+                "admissionSHA256", "planSHA256", "selectionSHA256", "writerSourceSHA256", "head", "tree",
+                "runID", "runAttempt", "role", "partitionID", "simulatorUDID", "executionScope",
+                "durableSinkPath", "durableSinkBindingSHA256"]
+            guard Set(value.keys) == contextKeys,
+                  value["schema"] == "v23-cold-emitted-original-context.v2",
+                  let durablePath = value["durableSinkPath"], durablePath.hasPrefix("/"),
+                  durablePath.utf8.count <= 4_096,
+                  !durablePath.contains("\n"), !durablePath.contains("\r"), !durablePath.contains("\0"),
+                  Self.matches(value["durableSinkBindingSHA256"], "^[0-9A-F]{64}$"),
+                  value["role"] == "consumer", value["runAttempt"] == "1",
+                  value["executionScope"] == "cold-shared-route-development-v1",
+                  Self.matches(value["partitionID"], "^S[0-9]{2}$"),
+                  Self.matches(value["runID"], "^[1-9][0-9]*$"),
+                  Self.matches(value["head"], "^[0-9a-f]{40}$"),
+                  Self.matches(value["tree"], "^[0-9a-f]{40}$"),
+                  ["originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256",
+                   "selectionSHA256", "writerSourceSHA256"].allSatisfy({ Self.matches(value[$0], "^[0-9A-F]{64}$") }) else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            var canonical = try JSONSerialization.data(withJSONObject: value,
+                options: [.sortedKeys, .withoutEscapingSlashes])
+            canonical.append(10)
+            guard canonical == raw else { throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload }
+            try requireActualHost(value, environment: environment)
+            // Immutable original association, never a cached acceptance decision.
+            frozenContext = value
+            frozenEnvironment = supplied
+        } catch {
+            poisoned = true
+            throw error
+        }
+    }
+
+    func durableConfiguration() throws -> [String: String] {
+        try requireBoundOriginalContext()
+        lock.lock()
+        defer { lock.unlock() }
+        guard !poisoned, let frozenContext else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+        return frozenContext
+    }
+
+    private static func matches(_ value: String?, _ pattern: String) -> Bool {
+        guard let value else { return false }
+        guard let matched = value.range(of: pattern, options: .regularExpression) else { return false }
+        return matched == (value.startIndex..<value.endIndex)
+    }
+
+    private func requireActualHost(_ value: [String: String], environment: [String: String]) throws {
+        guard let udid = value["simulatorUDID"],
+              UUID(uuidString: udid)?.uuidString == udid,
+              environment["SIMULATOR_UDID"] == udid,
+              Bundle.main.bundleIdentifier == "com.palatis3.fieldrecord",
+              Bundle.main.executableURL?.lastPathComponent == "FieldEvidenceApp" else {
+            throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+        }
+    }
+}
+#endif
+
+#if DEBUG && os(iOS) && targetEnvironment(simulator) && V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1
+/// One cold-only authoritative emitted-byte sink. Neither its UUIDs nor its
+/// acquired descriptors issue process-lifetime, protection or gate authority.
+fileprivate final class ColdEmittedDurableSinkV1: @unchecked Sendable {
+    static let shared = ColdEmittedDurableSinkV1()
+    private let emitterID = UUID().uuidString.lowercased()
+    private var frozenBinding: [String: String]?
+    private var poisoned = false
+    private(set) var closeFailures: [String] = []
+
+    private static func identity(_ value: stat) -> [String: String] {
+        ["device": String(value.st_dev), "inode": String(value.st_ino),
+         "mode": String(value.st_mode), "uid": String(value.st_uid),
+         "gid": String(value.st_gid), "links": String(value.st_nlink),
+         "flags": String(value.st_flags)]
+    }
+
+    private static func regular(_ value: stat) -> Bool {
+        value.st_mode & S_IFMT == S_IFREG && value.st_nlink == 1
+            && value.st_flags & UInt32(0x40000000) == 0
+    }
+
+    private static func sameFull(_ a: stat, _ b: stat) -> Bool {
+        identity(a) == identity(b) && a.st_size == b.st_size
+            && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec
+            && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
+            && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec
+            && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+    }
+
+    private static func line(_ value: [String: Any]) throws -> Data {
+        var raw = try JSONSerialization.data(withJSONObject: value,
+            options: [.sortedKeys, .withoutEscapingSlashes])
+        raw.append(10)
+        guard raw.count <= 8_192 else { throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload }
+        return raw
+    }
+
+    private static func readFinite(_ descriptor: Int32, limit: Int) throws -> Data {
+        var value = Data()
+        var buffer = [UInt8](repeating: 0, count: 1_024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, $0.count) }
+            guard count >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+            if count == 0 { break }
+            guard value.count <= limit - count else { throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload }
+            value.append(contentsOf: buffer.prefix(count))
+        }
+        guard Darwin.lseek(descriptor, 0, SEEK_CUR) == off_t(value.count) else {
+            throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+        }
+        return value
+    }
+
+    /// Called only under the existing production journal lock. Each acquisition
+    /// is retained before its first postcheck; every actual close is tried once.
+    func write(_ frame: Data, streamID: UUID, sequence: Int,
+               append: (Int32, Data) throws -> Void,
+               synchronize: (Int32) throws -> Void) throws {
+        guard !poisoned else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+        var descriptors: [(String, Int32)] = []
+        var locked: Int32 = -1
+        var stateDescriptor: Int32 = -1
+        var first: Error?
+        var returned = false
+        var verifiedOpenState = false
+        do {
+            let context = try ColdEmittedOriginalContextV1.shared.durableConfiguration()
+            guard let path = context["durableSinkPath"], let expectedHash = context["durableSinkBindingSHA256"] else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            let url = URL(fileURLWithPath: path, isDirectory: true)
+            let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).resolvingSymlinksInPath().path
+            guard path == url.standardizedFileURL.path,
+                  path == url.resolvingSymlinksInPath().path,
+                  path != home, !path.hasPrefix(home + "/"), path.utf8.count <= 4_096 else {
+                throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+            }
+            let directory = Darwin.open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+            guard directory >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unavailable }
+            descriptors.append(("sinkDirectory", directory))
+            var root = stat(), namedRoot = stat()
+            guard Darwin.fstat(directory, &root) == 0, Darwin.lstat(path, &namedRoot) == 0,
+                  root.st_mode & S_IFMT == S_IFDIR, root.st_uid == getuid(),
+                  root.st_mode & mode_t(0o777) == mode_t(0o700),
+                  Self.sameFull(root, namedRoot) else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+
+            let header = Darwin.openat(directory, "BINDING.json", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+            guard header >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unavailable }
+            descriptors.append(("sinkBinding", header))
+            var headerBefore = stat(), headerNamed = stat(), headerAfter = stat()
+            guard Darwin.fstat(header, &headerBefore) == 0,
+                  Darwin.fstatat(directory, "BINDING.json", &headerNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.regular(headerBefore), Self.sameFull(headerBefore, headerNamed),
+                  headerBefore.st_mode & mode_t(0o777) == mode_t(0o444), headerBefore.st_size <= 8_192 else {
+                throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+            }
+            let headerRaw = try Self.readFinite(header, limit: 8_192)
+            guard off_t(headerRaw.count) == headerBefore.st_size,
+                  KernelCanonicalHashV1.sha256(headerRaw).uppercased() == expectedHash,
+                  Darwin.fstat(header, &headerAfter) == 0,
+                  Darwin.fstatat(directory, "BINDING.json", &headerNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.sameFull(headerBefore, headerAfter), Self.sameFull(headerBefore, headerNamed),
+                  let object = try JSONSerialization.jsonObject(with: headerRaw) as? [String: Any],
+                  Set(object.keys) == Set(["schema", "originalContext", "directoryIdentity", "dataIdentity", "stateIdentity"]),
+                  object["schema"] as? String == "v23-cold-emitted-durable-binding.v1",
+                  let original = object["originalContext"] as? [String: String],
+                  let expectedRoot = object["directoryIdentity"] as? [String: String],
+                  let expectedData = object["dataIdentity"] as? [String: String],
+                  let expectedState = object["stateIdentity"] as? [String: String] else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            guard try Self.line(object) == headerRaw,
+                  original == context.filter({ !["durableSinkPath", "durableSinkBindingSHA256"].contains($0.key) }),
+                  expectedRoot == Self.identity(root),
+                  frozenBinding == nil || frozenBinding == context else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            frozenBinding = context
+
+            let data = Darwin.openat(directory, "EMITTED.jsonl", O_RDWR | O_APPEND | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+            guard data >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unavailable }
+            descriptors.append(("authoritativeEmittedBytes", data))
+            var dataBefore = stat(), dataNamed = stat()
+            guard Darwin.fstat(data, &dataBefore) == 0,
+                  Darwin.fstatat(directory, "EMITTED.jsonl", &dataNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.regular(dataBefore), Self.identity(dataNamed) == expectedData,
+                  Self.identity(dataBefore) == expectedData else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+            // Other admitted writers may append before this acquisition obtains
+            // the shared lock; only fixed identity is required before the lock.
+            guard flock(data, LOCK_EX | LOCK_NB) == 0 else {
+                throw ProtectedFileDiagnosticTransportErrorV1.unavailable
+            }
+            locked = data
+            guard Darwin.fstat(data, &dataBefore) == 0,
+                  Darwin.fstatat(directory, "EMITTED.jsonl", &dataNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.regular(dataBefore), Self.sameFull(dataBefore, dataNamed),
+                  Self.identity(dataBefore) == expectedData else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+
+            stateDescriptor = Darwin.openat(directory, "STATE", O_RDWR | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+            guard stateDescriptor >= 0 else { throw ProtectedFileDiagnosticTransportErrorV1.unavailable }
+            descriptors.append(("sinkState", stateDescriptor))
+            var stateBefore = stat(), stateNamed = stat(), stateAfter = stat()
+            guard Darwin.fstat(stateDescriptor, &stateBefore) == 0,
+                  Darwin.fstatat(directory, "STATE", &stateNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.regular(stateBefore), Self.sameFull(stateBefore, stateNamed),
+                  Self.identity(stateBefore) == expectedState,
+                  try Self.readFinite(stateDescriptor, limit: 8) == Data("OPEN\n".utf8),
+                  Darwin.fstat(stateDescriptor, &stateAfter) == 0,
+                  Self.sameFull(stateBefore, stateAfter) else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+
+            verifiedOpenState = true
+            let frameHash = KernelCanonicalHashV1.sha256(frame).uppercased()
+            let common: [String: Any] = ["schema": "v23-cold-emitted-durable-record.v1",
+                "streamID": streamID.uuidString.lowercased(), "emitterID": emitterID,
+                "contextSHA256": KernelCanonicalHashV1.sha256(try Self.line(context)).uppercased(),
+                "bindingSHA256": expectedHash]
+            var pieces: [Data] = []
+            if sequence == 1 {
+                var start = common
+                start["kind"] = "STREAM_START"
+                start["actualPID"] = getpid()
+                start["actualHome"] = home
+                start["actualBundleID"] = Bundle.main.bundleIdentifier ?? ""
+                start["actualExecutable"] = Bundle.main.executableURL?.path ?? ""
+                pieces.append(try Self.line(start))
+            }
+            var prepare = common
+            prepare["kind"] = "FRAME_PREPARE"
+            prepare["sequence"] = sequence
+            prepare["frameBytes"] = frame.count
+            prepare["frameSHA256"] = frameHash
+            pieces.append(try Self.line(prepare))
+            pieces.append(frame)
+            var commit = prepare
+            commit["kind"] = "FRAME_COMMIT"
+            let commitRaw = try Self.line(commit)
+            let count = pieces.reduce(0) { $0 + $1.count } + commitRaw.count
+            guard frame.count <= 8_192, sequence > 0, sequence <= 100_000,
+                  dataBefore.st_size >= 0,
+                  dataBefore.st_size <= 1_024 * 1_024 * 1_024 - Int64(count) else {
+                throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+            }
+            for piece in pieces { try append(data, piece) }
+            try synchronize(data)
+            var synced = stat()
+            guard Darwin.fstat(data, &synced) == 0, Self.identity(synced) == expectedData,
+                  synced.st_size == dataBefore.st_size + Int64(count - commitRaw.count) else {
+                throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+            }
+            try append(data, commitRaw)
+            try synchronize(data)
+            var after = stat()
+            guard Darwin.fstat(data, &after) == 0,
+                  Darwin.fstatat(directory, "EMITTED.jsonl", &dataNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.regular(after), Self.sameFull(after, dataNamed), Self.identity(after) == expectedData,
+                  after.st_size == dataBefore.st_size + Int64(count),
+                  Darwin.fstat(stateDescriptor, &stateAfter) == 0,
+                  Darwin.fstatat(directory, "STATE", &stateNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.sameFull(stateBefore, stateAfter), Self.sameFull(stateBefore, stateNamed),
+                  Darwin.fstat(directory, &namedRoot) == 0, Self.sameFull(root, namedRoot),
+                  Darwin.lstat(path, &namedRoot) == 0, Self.sameFull(root, namedRoot) else {
+                throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal
+            }
+            returned = true
+        } catch {
+            first = error
+            poisoned = true
+            // If acquired under the actual data lock, retain a positive failure
+            // latch where possible. Failure to latch never replaces first.
+            if locked >= 0 && stateDescriptor >= 0 && verifiedOpenState {
+                let failed = Data("FAILED\n".utf8)
+                let written = failed.withUnsafeBytes { Darwin.pwrite(stateDescriptor, $0.baseAddress, $0.count, 0) }
+                if written != failed.count || Darwin.ftruncate(stateDescriptor, off_t(failed.count)) != 0
+                    || Darwin.fsync(stateDescriptor) != 0 {
+                    closeFailures.append("failure-latch-write-or-sync-uncertain")
+                }
+            }
+        }
+        if locked >= 0 {
+            let descriptor = locked
+            locked = -1
+            if flock(descriptor, LOCK_UN) != 0 {
+                closeFailures.append("data-unlock-failed")
+                poisoned = true
+                if first == nil { first = ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+            }
+        }
+        for (role, descriptor) in descriptors.reversed() {
+            if Darwin.close(descriptor) != 0 {
+                closeFailures.append(role + "-once-close-uncertain")
+                poisoned = true
+                if first == nil { first = ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+            }
+        }
+        if let first { throw first }
+        guard returned else { throw ProtectedFileDiagnosticTransportErrorV1.unsafeJournal }
+    }
+}
+#endif

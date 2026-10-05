@@ -381,7 +381,43 @@ SHARED_TEST_SMOKE_POST = '''  if [ "$v23_shared_role" = consumer ]; then
 '''
 
 
+# Historical Source comparisons alone reverse these independently reviewed cold
+# macro/context shell additions. Actual current cold tests never use this inverse.
+# Both whole-file input/output hashes and closed literal contexts remain required.
+COLD_ORIGINAL_CONTEXT_SOURCE_SHA256 = {'Scripts/build-smoke.sh': ('3b64cef151bc2db1c491b893502eb96b4bda10b93c0143c6e2b20461b6d7b2c2', '6e995c8fe1e4c900e457ed87810f75288f0978123e8ce3757245c7a058d3ce65'), 'Scripts/test-smoke.sh': ('cf23bea598adbe7260de8756b45ac78305c0bed4cd51967cdf0d94d14b0a65a7', '80ff64159fa698e4b6fd2f3a71ce73287909f047f99022efca3d117d68b2be20')}
+COLD_ORIGINAL_CONTEXT_REPLACEMENTS = {'Scripts/build-smoke.sh': [('  ${v23_index_setting:+"$v23_index_setting"} \\\n  ${v23_cold_original_context_setting:+"$v23_cold_original_context_setting"} \\\n  build-for-testing\n', '  ${v23_index_setting:+"$v23_index_setting"} \\\n  build-for-testing\n'), ('# Cold-only original-context compilation; every other route retains its argv.\nv23_cold_original_context_setting=""\nif [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then\n  test "${V23_SHARED_ROLE:-}" = producer\n  test "${CI_V23_RUN_KIND:-}" = development\n  test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-}" = v23.integration.current-native.v1\n  v23_cold_original_context_setting=\'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1\'\nfi\n\n# Passive observation is closed to the current interruption diagnostic.\n', '# Passive observation is closed to the current interruption diagnostic.\n')], 'Scripts/test-smoke.sh': [('  local collector_args=(collect-diagnostics)\n  if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then\n    collector_args+=(--native-exit-status "$command_status")\n  fi\n', '  local collector_args=(collect-diagnostics)\n'), ('# The compiled cold writer requires this original-bound context; never source/eval a file.\nif [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then\n  test "${V23_SHARED_ROLE:-}" = consumer\n  python3 Scripts/v23-native-ci.py cold-context-forward --output "$CI_ARTIFACT_DIR/cold-emitted-original-context.env"\n  cold_forwarded_keys=0\n  while IFS= read -r cold_forwarded_line; do\n    cold_forwarded_key="${cold_forwarded_line%%=*}"\n    cold_forwarded_value="${cold_forwarded_line#*=}"\n    case "$cold_forwarded_key" in\n      TEST_RUNNER_V23_COLD_EMITTED_MODE | TEST_RUNNER_V23_COLD_EMITTED_CONTEXT | TEST_RUNNER_V23_COLD_EMITTED_CONTEXT_SHA256) ;;\n      *) printf \'invalid cold original-context forwarding key\\n\' >&2; exit 65 ;;\n    esac\n    test -n "$cold_forwarded_value"\n    export "$cold_forwarded_key=$cold_forwarded_value"\n    cold_forwarded_keys=$((cold_forwarded_keys + 1))\n  done < "$CI_ARTIFACT_DIR/cold-emitted-original-context.env"\n  test "$cold_forwarded_keys" -eq 3\nfi\n\nonly_testing_args=()\n', 'only_testing_args=()\n')]}
+COLD_ORIGINAL_CONTEXT_MARKERS = (
+    b"v23_cold_original_context_setting", b"V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1",
+    b"cold-context-forward", b"TEST_RUNNER_V23_COLD_EMITTED_",
+    b"cold_forwarded_", b"--native-exit-status",
+)
+
+
+def before_cold_original_context(relative, raw):
+    """Restore only exact cold shell additions before incumbent historical checks."""
+    if type(raw) is not bytes:
+        raise AssertionError("cold original-context inverse requires exact bytes")
+    if relative not in COLD_ORIGINAL_CONTEXT_SOURCE_SHA256:
+        return raw
+    current_sha, prior_sha = COLD_ORIGINAL_CONTEXT_SOURCE_SHA256[relative]
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest == prior_sha:
+        return raw
+    if not any(marker in raw for marker in COLD_ORIGINAL_CONTEXT_MARKERS):
+        return raw  # Earlier inputs still face their incumbent exact historical checks.
+    if digest != current_sha:
+        raise AssertionError("changed frozen cold original-context input: " + relative)
+    text = raw.decode("utf-8")
+    for current, previous in COLD_ORIGINAL_CONTEXT_REPLACEMENTS[relative]:
+        text = remove_exactly_once(text, current, previous)
+    restored = text.encode("utf-8")
+    if hashlib.sha256(restored).hexdigest() != prior_sha:
+        raise AssertionError("cold original-context inverse changed historical Source: " + relative)
+    return restored
+
+
 def test_smoke_before_shared_coverage(raw):
+    raw = before_cold_original_context("Scripts/test-smoke.sh", raw)
     text = remove_exactly_once(raw.decode('utf-8'), SHARED_TEST_SMOKE_GUARD)
     return remove_exactly_once(text, SHARED_TEST_SMOKE_POST).encode('utf-8')
 
@@ -3354,8 +3390,10 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(CI.TIERS['D50'], (300, 1800, 3000, 0, 5100))
         self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
         # C9 raw-source successor preserves prior current724 as the twelfth historical pin.
+        # Cold durable candidate retains the exact f06 current4F0E as the new first historical pin.
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
-                         ('7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38',
+                         ('4F0E5780EA2EA56E869F90E1C316011252164D0BD2E561C8834722CE0123685A',
+                          '7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38',
                           'FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',
                           'A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139',
                           'D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E',
@@ -11383,6 +11421,7 @@ def before_cold_development(relative, raw):
     """Exact inverse for two historical fixtures; reject partial/unknown cold bytes."""
     if type(raw) is not bytes:
         raise AssertionError("cold historical inverse requires exact bytes")
+    raw = before_cold_original_context(relative, raw)
     if relative not in COLD_HISTORICAL_SOURCE_SHA256:
         return raw
     if b"v23-cold" not in raw and b"v23_cold" not in raw:
@@ -11442,13 +11481,43 @@ class ColdHistoricalInverseTests(unittest.TestCase):
     def test_actual_frozen_cold_bytes_reverse_exactly_to_incumbent_j2_inputs(self):
         for relative, after in COLD_HISTORICAL_SOURCE_SHA256.items():
             with self.subTest(relative=relative):
-                raw = (ROOT / relative).read_bytes()
+                raw = before_cold_original_context(relative, (ROOT / relative).read_bytes())
                 self.assertEqual(hashlib.sha256(raw).hexdigest(), after)
                 previous = before_cold_development(relative, raw)
                 self.assertEqual(hashlib.sha256(previous).hexdigest(), J2_SOURCE_SHA256[relative])
                 self.assertEqual(before_cold_development(relative, previous), previous)
                 self.assertNotIn(b"v23-cold", previous)
                 self.assertNotIn(b"v23_cold", previous)
+
+    def test_original_context_shell_inverse_restores_exact_inputs_and_rejects_closed_hunk_tampering(self):
+        for relative, (current_sha, prior_sha) in COLD_ORIGINAL_CONTEXT_SOURCE_SHA256.items():
+            with self.subTest(relative=relative):
+                raw = (ROOT / relative).read_bytes()
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), current_sha)
+                previous = before_cold_original_context(relative, raw)
+                self.assertEqual(hashlib.sha256(previous).hexdigest(), prior_sha)
+                self.assertEqual(before_cold_original_context(relative, previous), previous)
+                changed_inputs = [raw + b" ", raw + b"# unknown cold original-context override\n"]
+                for current, _ in COLD_ORIGINAL_CONTEXT_REPLACEMENTS[relative]:
+                    hunk = current.encode("utf-8")
+                    self.assertEqual(raw.count(hunk), 1)
+                    changed_inputs.extend((raw.replace(hunk, b"", 1),
+                        raw.replace(hunk, hunk + hunk, 1),
+                        raw.replace(hunk, hunk[:-1] + b" # changed\n", 1),
+                        raw.replace(hunk, b"", 1) + hunk))
+                for changed in changed_inputs:
+                    with self.subTest(changedSHA256=hashlib.sha256(changed).hexdigest()):
+                        self.assertNotEqual(changed, raw)
+                        with self.assertRaises(AssertionError):
+                            before_cold_original_context(relative, changed)
+                        # Pin only the synthetic input to isolate literal/context and
+                        # unchanged whole historical output checks; never pin output.
+                        with mock.patch.dict(COLD_ORIGINAL_CONTEXT_SOURCE_SHA256,
+                                {relative: (hashlib.sha256(changed).hexdigest(), prior_sha)}):
+                            with self.assertRaises(AssertionError):
+                                before_cold_original_context(relative, changed)
+                with self.assertRaises(AssertionError):
+                    before_cold_original_context(relative, raw.decode("utf-8"))
 
     def test_missing_duplicated_partial_unknown_and_moved_cold_hunks_refuse_even_with_synthetic_pin(self):
         relative = ".github/workflows/ios-ci.yml"
@@ -11472,7 +11541,8 @@ class ColdHistoricalInverseTests(unittest.TestCase):
                 # checks and unchanged historical output hash from the input pin.
                 with mock.patch.dict(COLD_HISTORICAL_SOURCE_SHA256, {relative: hashlib.sha256(changed).hexdigest()}):
                     with self.assertRaises(AssertionError): before_cold_development(relative, changed)
-        relative = "Scripts/build-smoke.sh"; raw = (ROOT / relative).read_bytes()
+        relative = "Scripts/build-smoke.sh"
+        raw = before_cold_original_context(relative, (ROOT / relative).read_bytes())
         line = b'   [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ] || \\\n'
         for changed in (raw.replace(line, line + line, 1),
                         raw.replace(b"v23-cold-shared-original-v1", b"v23-cold-shared-original-v1-forged", 1),
@@ -11715,7 +11785,10 @@ class ColdSharedWorkerBoundaryTests(unittest.TestCase):
                            self.gate.COLD_SELECTION + "-forged", "v23-cold-shared-original-v2"):
             with self.subTest(identifier=identifier), tempfile.TemporaryDirectory() as temporary, \
                     mock.patch.dict(os.environ, {"CI_V23_COMPILER_OBSERVATION": "false",
-                                                "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false"}):
+                                                "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false",
+                        **({"V23_SHARED_ROLE": "producer", "CI_V23_RUN_KIND": "development",
+                            "CI_NATIVE_ACCEPTANCE_CONTRACT": "v23.integration.current-native.v1"}
+                           if identifier == self.gate.COLD_SELECTION else {})}):
                 result, e, events, args = NoIndexBuildDiagnosticTests.run_mock_build(self, temporary, identifier)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 expected = ["-project", "FieldEvidenceApp.xcodeproj", "-scheme", "FieldEvidenceApp",
@@ -11730,7 +11803,19 @@ class ColdSharedWorkerBoundaryTests(unittest.TestCase):
                 else:
                     self.assertEqual(events, ["build"])
                     self.assertFalse((Path(temporary) / "receipt-args").exists())
+                if identifier == self.gate.COLD_SELECTION:
+                    expected.append("SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1")
                 self.assertEqual(args, expected + ["build-for-testing"])
+        for key, value in (("V23_SHARED_ROLE", ""), ("CI_V23_RUN_KIND", "gate"),
+                           ("CI_NATIVE_ACCEPTANCE_CONTRACT", "foreign")):
+            with self.subTest(requiredContext=key), tempfile.TemporaryDirectory() as temporary, \
+                    mock.patch.dict(os.environ, {"CI_V23_COMPILER_OBSERVATION": "false",
+                        "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false", "V23_SHARED_ROLE": "producer",
+                        "CI_V23_RUN_KIND": "development",
+                        "CI_NATIVE_ACCEPTANCE_CONTRACT": "v23.integration.current-native.v1", key: value}):
+                result, _, events, args = NoIndexBuildDiagnosticTests.run_mock_build(self, temporary, self.gate.COLD_SELECTION)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((events, args), (["receipt"], []))
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {
                 "CI_V23_COMPILER_OBSERVATION": "true", "CI_V23_RUN_KIND": "development",
                 "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false"}):

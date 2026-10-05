@@ -788,7 +788,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "4F0E5780EA2EA56E869F90E1C316011252164D0BD2E561C8834722CE0123685A"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
@@ -819,7 +819,8 @@ SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "4F0E5780EA2EA56E869F90E1C316011252164D0BD2
 # 2026-10-04: prospective C9 pin is SHA-256 of actual 1115737-byte
 # ProtectedFilePolicy.swift; prior724 remains historical replay only.
 # This source binding grants no execution, qualification or acceptance.
-SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38",
+SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("4F0E5780EA2EA56E869F90E1C316011252164D0BD2E561C8834722CE0123685A",
+                                                 "7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38",
                                                  "FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
                                                  "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139",
                                                  "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E",
@@ -1230,7 +1231,7 @@ def phase1_diagnostic_lookup(environment, run, remaining, lookup_seconds):
 
 def collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=False,
                                            run=None, monotonic=time.monotonic, read_chunk=None,
-                                           phase1_admission_artifact=None, _started=None):
+                                           phase1_admission_artifact=None, _started=None, native_exit_status=None):
     """Select actual gate provenance within the same collection clock, never by a bool."""
     require(type(interrupted) is bool, "diagnostic interruption mode")
     started = monotonic() if _started is None else _started
@@ -1239,6 +1240,11 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
     def remaining():
         _require_collection_time(started, monotonic, work)
         return work - (monotonic() - started)
+    if environment.get("NATIVE_SELECTION_ID") == COLD_SELECTION_ID:
+        require(phase1_admission_artifact is None, "cold durable cannot borrow Phase1 admission")
+        with _diagnostic_real_time_limit(remaining()):
+            return cold_durable_collect(root, artifact, environment, interrupted,
+                native_exit_status, started, monotonic)
     session = None
     try:
         with _diagnostic_real_time_limit(remaining()):
@@ -3434,6 +3440,699 @@ def build_order_observations(artifact, record, selected_udid):
             "acceptance": False, "performanceImprovementProven": False}
 
 
+COLD_EMITTED_CONTEXT_SCHEMA = "v23-cold-emitted-original-context.v2"
+COLD_EMITTED_FORWARD_SCHEMA = "v23-cold-emitted-context-forwarding.v2"
+COLD_EMITTED_BUILD_SCHEMA = "v23-cold-context-build-command.v1"
+COLD_EMITTED_CONTEXT_DEFINE = "V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1"
+COLD_EMITTED_BUILD_SETTING = "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG " + COLD_EMITTED_CONTEXT_DEFINE
+COLD_EMITTED_CONTEXT_ENV = "cold-emitted-original-context.env"
+COLD_EMITTED_FORWARD_RECEIPT = "cold-emitted-context-forwarding.json"
+COLD_EMITTED_MODE = "required-original-context-v2"
+
+
+COLD_DURABLE_SCHEMA = "v23-cold-emitted-durable-binding.v1"
+COLD_DURABLE_RECORD_SCHEMA = "v23-cold-emitted-durable-record.v1"
+COLD_DURABLE_ROOT = "cold-emitted-durable-original"
+COLD_DURABLE_PROOF = "cold-emitted-durable-proof.json"
+COLD_DURABLE_CONTEXT_SCHEMA = "v23-cold-emitted-original-context.v2"
+COLD_DURABLE_MODE = "required-original-context-v2"
+
+
+def _cold_durable_ten(info):
+    return {key: getattr(info, key) for key in ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+            "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")}
+
+
+def _cold_durable_identity(info):
+    return {name: str(getattr(info, key)) for name, key in (
+            ("device", "st_dev"), ("inode", "st_ino"), ("mode", "st_mode"),
+            ("uid", "st_uid"), ("gid", "st_gid"), ("links", "st_nlink"), ("flags", "st_flags"))}
+
+
+def _cold_durable_close(owners, rows, primary):
+    # Ownership is registered immediately after each actual open returns.
+    for role, descriptor in reversed(owners):
+        row = {"role": role, "descriptor": descriptor, "closeEntered": True,
+               "closeReturned": False, "closeUncertain": False, "error": None}
+        rows.append(row)
+        try:
+            os.close(descriptor)
+            row["closeReturned"] = True
+        except BaseException as error:
+            row.update(closeUncertain=True, error=repr(error))
+            if primary is None:
+                primary = error
+    return primary
+
+
+def _cold_durable_root(path, owners, role):
+    import stat
+    require(isinstance(path, Path) and path.is_absolute() and str(path) == str(path.resolve(strict=True))
+            and str(path) == os.path.normpath(str(path)), "cold durable canonical directory")
+    cursor = Path(path.anchor)
+    for part in path.parts[1:]:
+        cursor /= part
+        require(stat.S_ISDIR(os.lstat(cursor).st_mode) and not cursor.is_symlink(),
+                "cold durable actual directory ancestor")
+    before = os.lstat(path)
+    require(stat.S_ISDIR(before.st_mode) and before.st_uid == os.getuid(), "cold durable directory owner")
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    owners.append((role, descriptor))
+    require(_cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(before)
+            == _cold_durable_ten(os.lstat(path)), "cold durable named/held directory")
+    return descriptor, before
+
+
+def _cold_durable_mkdir(parent, parent_path, before, name, owners, role, row):
+    """Admit only this returned mkdir's +1 link and exact member transition."""
+    import stat
+    inventory = sorted(os.listdir(parent))
+    path = parent_path / name
+    require(type(name) is str and name and "/" not in name and name not in inventory
+            and not os.path.lexists(path), "cold durable new owned directory leaf")
+    require(_cold_durable_ten(os.fstat(parent)) == _cold_durable_ten(before)
+            == _cold_durable_ten(os.lstat(parent_path))
+            and str(parent_path.resolve(strict=True)) == str(parent_path),
+            "cold durable immediate parent before mkdir")
+    os.mkdir(name,0o700,dir_fd=parent)
+    row.update(mkdirReturned=True,path=str(path))
+    born = os.stat(name,dir_fd=parent,follow_symlinks=False)
+    row["namedBirthBeforeOpen"] = _cold_durable_ten(born)
+    after_parent = os.fstat(parent)
+    six = lambda x:tuple(getattr(x,k) for k in ("st_dev","st_ino","st_mode","st_uid","st_gid","st_flags"))
+    require(six(after_parent) == six(before) and after_parent.st_nlink == before.st_nlink + 1
+            and _cold_durable_ten(after_parent) == _cold_durable_ten(os.lstat(parent_path))
+            and sorted(os.listdir(parent)) == sorted(inventory+[name])
+            and str(parent_path.resolve(strict=True)) == str(parent_path),
+            "cold durable exact owned mkdir parent projection")
+    descriptor = os.open(name,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK,dir_fd=parent)
+    owners.append((role,descriptor))
+    require(stat.S_ISDIR(born.st_mode) and born.st_mode&0o777 == 0o700 and born.st_uid == os.getuid()
+            and _cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(born)
+            == _cold_durable_ten(os.stat(name,dir_fd=parent,follow_symlinks=False))
+            == _cold_durable_ten(os.lstat(path)) and str(path.resolve(strict=True)) == str(path),
+            "cold durable relative acquired child joins actual own birth")
+    row["openedBirthJoined"] = True
+    return descriptor,born
+
+
+def _cold_durable_leaf(directory, name, flags, owners, role, identity=None, shared_append=False):
+    import stat
+    require(name in ("BINDING.json", "EMITTED.jsonl", "STATE"), "cold durable closed leaf")
+    before = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+            and not before.st_flags & 0x40000000, "cold durable regular singleton materialized leaf")
+    if identity is not None:
+        require(_cold_durable_identity(before) == identity, "cold durable immutable owner identity")
+    descriptor = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, dir_fd=directory)
+    owners.append((role, descriptor))
+    if shared_append:
+        require(_cold_durable_identity(os.fstat(descriptor)) == _cold_durable_identity(before)
+                == _cold_durable_identity(os.stat(name, dir_fd=directory, follow_symlinks=False)),
+                "cold durable shared append acquisition fixed identity")
+    else:
+        require(_cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(before)
+                == _cold_durable_ten(os.stat(name, dir_fd=directory, follow_symlinks=False)),
+                "cold durable leaf before/opened/named")
+    return descriptor, before
+
+
+def _cold_durable_read(descriptor, limit, fence):
+    before = os.fstat(descriptor)
+    require(0 <= before.st_size <= limit, "cold durable finite read bound")
+    pieces = []
+    count = 0
+    while True:
+        fence()
+        value = os.read(descriptor, min(1024 * 1024, limit + 1 - count))
+        if not value:
+            break
+        count += len(value)
+        require(count <= limit, "cold durable finite read overflow")
+        pieces.append(value)
+    fence()
+    require(count == before.st_size and os.lseek(descriptor, 0, os.SEEK_CUR) == count
+            and _cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(before),
+            "cold durable raw EOF/cursor/held endpoint")
+    return b"".join(pieces), before
+
+
+def _cold_durable_write(directory, name, raw, owners, rows, *, mode=0o600, binding_payload=None):
+    descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                         mode, dir_fd=directory)
+    owners.append((name + "Writer", descriptor))
+    first = None
+    row = {"name": name, "descriptor": descriptor, "exclusiveReturned": True,
+           "writeReturned": False, "fsyncReturned": False, "fchmodReturned": False}
+    rows.append(row)
+    try:
+        if binding_payload is not None:
+            # Only the genuine header may defer composition until its own fd exists.
+            require(name == "BINDING.json" and mode == 0o444 and raw is None
+                    and type(binding_payload) is dict
+                    and set(binding_payload) == {"schema", "originalContext", "dataIdentity", "stateIdentity"}
+                    and binding_payload["schema"] == COLD_DURABLE_SCHEMA
+                    and type(binding_payload["originalContext"]) is dict
+                    and binding_payload["originalContext"].get("schema") == COLD_DURABLE_CONTEXT_SCHEMA
+                    and binding_payload["originalContext"].get("role") == "consumer",
+                    "cold durable deferred actual binding payload only")
+            require(binding_payload["dataIdentity"] == _cold_durable_identity(
+                        os.stat("EMITTED.jsonl", dir_fd=directory, follow_symlinks=False))
+                    and binding_payload["stateIdentity"] == _cold_durable_identity(
+                        os.stat("STATE", dir_fd=directory, follow_symlinks=False))
+                    and sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                    "cold durable header actual own birth and retained data/state identities")
+            directory_after_birth = os.fstat(directory)
+            row["bindingDirectoryAfterExclusiveBirth"] = _cold_durable_ten(directory_after_birth)
+            binding_payload["directoryIdentity"] = _cold_durable_identity(directory_after_birth)
+            raw = canonical(binding_payload)
+            require(len(raw) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "cold durable binding frame bound")
+            row["bindingPayloadReturned"] = True
+        # Generation, length and hash failure remain inside this actual fd owner.
+        row.update(bytes=len(raw), sha256=sha256(raw))
+        require(os.write(descriptor, raw) == len(raw), "cold durable exclusive full write")
+        row["writeReturned"] = True
+        os.fsync(descriptor)
+        row["fsyncReturned"] = True
+        os.fchmod(descriptor, mode)
+        row["fchmodReturned"] = True
+        row["afterWriteBeforeClose"] = _cold_durable_ten(os.fstat(descriptor))
+        require(row["afterWriteBeforeClose"] == _cold_durable_ten(
+                os.stat(name, dir_fd=directory, follow_symlinks=False)), "cold durable writer named/held")
+    except BaseException as error:
+        first = error
+    # This owner's actual close is attempted once now; remove only this entry.
+    actual = owners.pop()
+    require(actual == (name + "Writer", descriptor), "cold durable actual writer owner")
+    first = _cold_durable_close([actual], rows, first)
+    if first is not None:
+        raise first
+    post_close = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    require(_cold_durable_ten(post_close) == row["afterWriteBeforeClose"],
+            "cold durable writer post-positive-onceclose exact named endpoint")
+    return post_close
+
+def cold_durable_prepare(artifact, context, retained):
+    """Actual host birth only; app accessibility/durability is not assumed here."""
+    require(type(retained) is dict and not retained, "cold durable fresh retained owner journal")
+    require(context["schema"] == COLD_DURABLE_CONTEXT_SCHEMA and context["role"] == "consumer",
+            "cold durable current original consumer context")
+    owners, rows = [], []
+    retained.update(owners=owners, io=rows, outputBirthReturned=False, firstError=None)
+    first = None
+    result = None
+    try:
+        parent, parent_before = _cold_durable_root(artifact, owners, "artifactParent")
+        path = artifact / COLD_DURABLE_ROOT
+        require(not os.path.lexists(path), "cold durable exclusive original path")
+        birth = {"role":"sinkDirectory","mkdirReturned":False}
+        rows.append(birth)
+        directory, born = _cold_durable_mkdir(parent,artifact,parent_before,COLD_DURABLE_ROOT,
+                                            owners,"sinkDirectory",birth)
+        retained["outputBirthReturned"] = birth["mkdirReturned"]
+        data = _cold_durable_write(directory, "EMITTED.jsonl", b"", owners, rows)
+        state = _cold_durable_write(directory, "STATE", b"OPEN\n", owners, rows)
+        binding = {"schema": COLD_DURABLE_SCHEMA, "originalContext": dict(context),
+                   "dataIdentity": _cold_durable_identity(data), "stateIdentity": _cold_durable_identity(state)}
+        header = _cold_durable_write(directory, "BINDING.json", None, owners, rows,
+                                     mode=0o444, binding_payload=binding)
+        raw = canonical(binding)
+        os.fsync(directory)
+        retained["directorySyncReturned"] = True
+        require(sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                "cold durable exclusive member roster")
+        result = {"path": str(path), "bindingSHA256": sha256(raw), "binding": binding,
+                  "bindingFullTEN": _cold_durable_ten(header), "sinkBirthIdentity": _cold_durable_identity(born),
+                  "appAccessibilityProved": False, "outsideAppContainerProved": False,
+                  "actualAppReadWriteSyncStillRequired": True, "qualification": False}
+        retained["result"] = result
+    except BaseException as error:
+        first = error
+        retained["outputBirthReturned"] = any(row.get("mkdirReturned") is True for row in rows)
+        retained["firstError"] = error
+    first = _cold_durable_close(owners, rows, first)
+    if first is not None:
+        retained["firstError"] = first
+        raise first
+    return result
+
+
+def _cold_durable_parse(descriptor, context, binding_hash, fence, consume_frame):
+    """Stream the one raw original. Reuse _strict_frame; no second payload parser."""
+    sequences, starts, digests, byte_counts = {}, {}, {}, {}
+    pending = None
+    frame_pending = None
+    raw_hash = hashlib.sha256()
+    total = 0
+    buffer = b""
+    def receive(line):
+        nonlocal pending, frame_pending
+        require(0 < len(line) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES and line.endswith(b"\n")
+                and b"\n" not in line[:-1] and b"\r" not in line, "cold durable line bound/delimiter")
+        value = json.loads(line[:-1].decode("utf-8"), object_pairs_hook=unique_pairs)
+        if type(value) is dict and value.get("schema") == SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA:
+            require(pending is not None and frame_pending is None, "cold durable prepared frame adjacency")
+            frame, _payload, _event, _occurrences = _strict_frame(line)
+            require(frame["streamID"] == pending["streamID"] and frame["sequence"] == pending["sequence"]
+                    and len(line) == pending["frameBytes"] and sha256(line) == pending["frameSHA256"],
+                    "cold durable exact prepared framed bytes")
+            frame_pending = line
+            return
+        require(type(value) is dict and value.get("schema") == COLD_DURABLE_RECORD_SCHEMA
+                and canonical(value) == line, "cold durable canonical control")
+        common = {"schema", "kind", "streamID", "emitterID", "contextSHA256", "bindingSHA256"}
+        require(value.get("contextSHA256") == sha256(canonical(context))
+                and value.get("bindingSHA256") == binding_hash
+                and type(value.get("streamID")) is str
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["streamID"])
+                and type(value.get("emitterID")) is str
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["emitterID"]),
+                "cold durable original/stream/emitter association")
+        stream = value["streamID"]
+        if value["kind"] == "STREAM_START":
+            require(set(value) == common | {"actualPID", "actualHome", "actualBundleID", "actualExecutable"}
+                    and pending is None and stream not in starts and len(starts) < SIMULATOR_DIAGNOSTIC_MAX_FILES
+                    and type(value["actualPID"]) is int and value["actualPID"] > 0
+                    and value["actualBundleID"] == SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID
+                    and type(value["actualExecutable"]) is str
+                    and Path(value["actualExecutable"]).name == "FieldEvidenceApp"
+                    and type(value["actualHome"]) is str and value["actualHome"].startswith("/")
+                    and context["durableSinkPath"] != value["actualHome"]
+                    and not context["durableSinkPath"].startswith(value["actualHome"] + "/"),
+                    "cold durable actual host/outside-container stream start")
+            starts[stream] = value
+            sequences[stream] = 0
+            digests[stream] = hashlib.sha256()
+            byte_counts[stream] = 0
+            return
+        require(set(value) == common | {"sequence", "frameBytes", "frameSHA256"}
+                and stream in starts and value["emitterID"] == starts[stream]["emitterID"]
+                and type(value["sequence"]) is int and type(value["frameBytes"]) is int
+                and 0 < value["frameBytes"] <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES
+                and type(value["frameSHA256"]) is str and re.fullmatch(r"[0-9A-F]{64}", value["frameSHA256"]),
+                "cold durable committed record fields")
+        if value["kind"] == "FRAME_PREPARE":
+            require(pending is None and frame_pending is None
+                    and value["sequence"] == sequences[stream] + 1
+                    and value["sequence"] <= SIMULATOR_DIAGNOSTIC_MAX_EVENTS,
+                    "cold durable contiguous prepare")
+            pending = value
+            return
+        require(value["kind"] == "FRAME_COMMIT" and pending is not None and frame_pending is not None
+                and {**pending, "kind": "FRAME_COMMIT"} == value, "cold durable genuine complete commit")
+        consume_frame(stream, frame_pending)
+        digests[stream].update(frame_pending)
+        byte_counts[stream] += len(frame_pending)
+        sequences[stream] = value["sequence"]
+        pending = frame_pending = None
+    before = os.fstat(descriptor)
+    require(0 <= before.st_size <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES, "cold durable total raw bytes")
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    while True:
+        fence()
+        chunk = os.read(descriptor, 1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        require(total <= before.st_size, "cold durable streamed raw bound")
+        raw_hash.update(chunk)
+        buffer += chunk
+        while b"\n" in buffer:
+            line, buffer = buffer.split(b"\n", 1)
+            receive(line + b"\n")
+            fence()
+        require(len(buffer) < SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "cold durable unfinished line bound")
+    require(not buffer and pending is None and frame_pending is None
+            and total == before.st_size and os.lseek(descriptor, 0, os.SEEK_CUR) == total
+            and _cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(before),
+            "cold durable complete raw EOF/cursor/committed frontier")
+    require(all(value > 0 for value in sequences.values()), "cold durable no abandoned stream start")
+    return {"rawBytes": total, "rawSHA256": raw_hash.hexdigest().upper(),
+            "streamStarts": starts, "streams": [{"streamID": stream, "lastCommittedSequence": sequences[stream],
+            "bytes": byte_counts[stream], "sha256": digests[stream].hexdigest().upper()} for stream in sorted(starts)]}
+
+
+def _cold_durable_emit(path, raw):
+    """Exclusive immutable receipt; positive actual close before returning facts."""
+    import stat
+    owners, rows = [], []
+    first = None
+    result = None
+    try:
+        parent, before = _cold_durable_root(path.parent, owners, "receiptParent")
+        inventory = sorted(os.listdir(parent))
+        require(path.name not in inventory and not os.path.lexists(path), "cold durable receipt never replaces original")
+        descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
+        owners.append(("receiptWriter", descriptor))
+        require(os.write(descriptor, raw) == len(raw), "cold durable exact immutable receipt write")
+        os.fsync(descriptor)
+        os.fchmod(descriptor, 0o444)
+        written = os.fstat(descriptor)
+        require(stat.S_ISREG(written.st_mode) and written.st_nlink == 1
+                and written.st_size == len(raw) and _cold_durable_ten(written)
+                == _cold_durable_ten(os.stat(path.name,dir_fd=parent,follow_symlinks=False))
+                and _cold_durable_identity(os.fstat(parent)) == _cold_durable_identity(before)
+                and _cold_durable_ten(os.fstat(parent)) == _cold_durable_ten(os.lstat(path.parent))
+                and sorted(os.listdir(parent)) == sorted(inventory + [path.name]),
+                "cold durable receipt held/name/owned-birth membership")
+        result = {"path":str(path),"bytes":len(raw),"sha256":sha256(raw),
+            "exclusiveOpenReturned":True,"writeReturned":True,"fsyncReturned":True,
+            "fchmodReturned":True,"afterWriteBeforeClose":_cold_durable_ten(written),"closeRows":rows}
+    except BaseException as error:
+        first = error
+    first = _cold_durable_close(owners, rows, first)
+    if first is not None:
+        raise first
+    require(_cold_durable_ten(os.lstat(path)) == result["afterWriteBeforeClose"],
+            "cold durable receipt post-onceclose endpoint")
+    return result
+
+
+def cold_durable_collect(root, artifact, environment, interrupted, native_exit_status, started, monotonic):
+    """Seal emitted bytes under the writer's actual lock, inside the old clock."""
+    import fcntl
+    require(type(interrupted) is bool and type(native_exit_status) is int and 0 <= native_exit_status <= 255,
+            "cold durable actual shell command disposition")
+    work = SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_WORK_SECONDS
+    bound = SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS
+    def fence():
+        _require_collection_time(started, monotonic, work)
+    owners, rows, writers = [], [], {}
+    locked = None
+    first = None
+    proof = {"schema": "v23-cold-emitted-durable-proof.v1", "status": "INCOMPLETE",
+             "interrupted": interrupted, "nativeExitStatus": native_exit_status,
+             "countsAreTotalInvocations": False, "trailingRepeatCountsMayBeUnobserved": True,
+             "processLifetimesProven": False, "appDescriptorRetirementProven": False,
+             "functionalQualification": "PENDING", "providerQualification": False,
+             "acceptance": False, "releaseReady": False, "io": rows, "firstError": None}
+    try:
+        fence()
+        binding, event_raw, _selected, _selection = cold_worker_context(root, environment, remaining=lambda: work-(monotonic()-started))
+        record = read_json(artifact / "native-admission.json")
+        require(record.get("coldOriginal") == binding and shared_role(record) == "consumer"
+                and record["selectionID"] == COLD_SELECTION_ID and "phase1Gate" not in record,
+                "cold durable original consumer admission")
+        forwarded = read_json(artifact / COLD_EMITTED_FORWARD_RECEIPT)
+        context = forwarded["context"]
+        require(context["schema"] == COLD_DURABLE_CONTEXT_SCHEMA
+                and context["originalEventSHA256"] == sha256(event_raw)
+                and context["eventBindingSHA256"] == sha256(canonical(binding))
+                and context["admissionSHA256"] == sha256(canonical(record))
+                and context["writerSourceSHA256"] == sha256(load_phase1_gates(root).regular_bytes(
+                    root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH, limit=PHASE1_WITNESS_BYTES))
+                and context["simulatorUDID"] == environment["CI_SIMULATOR_UDID"]
+                and context["partitionID"] == record[SHARED_KEY]["partitionID"]
+                and context["head"] == record["head"] and context["tree"] == record["gitTree"]
+                and context["runID"] == record["runID"] and context["runAttempt"] == "1"
+                and context["role"] == "consumer" and context["executionScope"] == "cold-shared-route-development-v1"
+                and forwarded["contextSHA256"] == sha256(canonical(context))
+                and context["durableSinkPath"] == str(artifact / COLD_DURABLE_ROOT),
+                "cold durable same original/source/destination/context")
+        path = artifact / COLD_DURABLE_ROOT
+        directory, root_before = _cold_durable_root(path, owners, "sinkDirectory")
+        require(sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                "cold durable closed original member roster")
+        header_fd, header_before = _cold_durable_leaf(directory, "BINDING.json", os.O_RDONLY, owners, "bindingReader")
+        header_raw, _ = _cold_durable_read(header_fd, SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, fence)
+        header = json.loads(header_raw, object_pairs_hook=unique_pairs)
+        require(canonical(header) == header_raw and sha256(header_raw) == context["durableSinkBindingSHA256"]
+                and set(header) == {"schema", "originalContext", "directoryIdentity", "dataIdentity", "stateIdentity"}
+                and header["schema"] == COLD_DURABLE_SCHEMA
+                and header["originalContext"] == {k:v for k,v in context.items()
+                    if k not in ("durableSinkPath", "durableSinkBindingSHA256")}
+                and header["directoryIdentity"] == _cold_durable_identity(root_before),
+                "cold durable actual immutable binding")
+        data_fd, _ = _cold_durable_leaf(directory, "EMITTED.jsonl", os.O_RDWR, owners, "authoritativeReader", header["dataIdentity"], shared_append=True)
+        fcntl.flock(data_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        locked = data_fd
+        require(_cold_durable_ten(os.fstat(data_fd)) == _cold_durable_ten(
+                os.stat("EMITTED.jsonl", dir_fd=directory, follow_symlinks=False)),
+                "cold durable shared append full TEN under actual lock")
+        rows.append({"role":"authoritativeReader", "lockEntered":True, "lockReturned":True, "nonblocking":True})
+        state_fd, state_before = _cold_durable_leaf(directory, "STATE", os.O_RDWR, owners, "sealState", header["stateIdentity"])
+        state_raw, _ = _cold_durable_read(state_fd, 8, fence)
+        require(state_raw == b"OPEN\n", "cold durable seal refuses failed/prior terminal state")
+        os.fsync(data_fd)
+        require(_cold_durable_identity(os.fstat(data_fd)) == header["dataIdentity"],
+                "cold durable positive terminal data sync fixed identity")
+        rows.append({"role":"authoritativeReader","terminalDataFsyncReturned":True})
+        # This genuine state transition prohibits every subsequent Source-wired append.
+        require(os.pwrite(state_fd, b"SEALED\n", 0) == 7, "cold durable exact terminal state write")
+        os.ftruncate(state_fd, 7)
+        os.fsync(state_fd)
+        require(os.pread(state_fd, 8, 0) == b"SEALED\n", "cold durable terminal state readback")
+        rows.append({"role":"sealState", "writeReturned":True, "fsyncReturned":True,
+                     "readbackExact":True, "before":_cold_durable_ten(state_before),
+                     "after":_cold_durable_ten(os.fstat(state_fd))})
+        out = _transport_directory(artifact)
+        artifact_fd, artifact_before = _cold_durable_root(artifact, owners, "artifactOutputParent")
+        require(out.parent == artifact,"cold durable new derived directory parent")
+        birth = {"role":"transportDirectory","mkdirReturned":False}
+        rows.append(birth)
+        out_fd, out_born = _cold_durable_mkdir(artifact_fd,artifact,artifact_before,out.name,
+                                             owners,"transportDirectory",birth)
+        out_identity = _cold_durable_identity(out_born)
+        out_expected = _cold_durable_ten(out_born)
+        require(not os.listdir(out_fd), "cold durable exclusive derived stream directory")
+        def derived_fence():
+            require(_cold_durable_identity(os.fstat(out_fd)) == out_identity
+                    and _cold_durable_ten(os.fstat(out_fd)) == out_expected
+                    == _cold_durable_ten(os.stat(out.name,dir_fd=artifact_fd,follow_symlinks=False))
+                    == _cold_durable_ten(os.lstat(out))
+                    and str(out.resolve(strict=True)) == str(out)
+                    and sorted(os.listdir(out_fd)) == sorted(x + ".jsonl" for x in writers),
+                    "cold durable derived current held/name/canonical/exact-roster endpoint")
+        def consume(stream, line):
+            nonlocal out_expected, out_identity
+            fence()
+            derived_fence()
+            if stream not in writers:
+                descriptor = os.open(stream + ".jsonl", os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                    | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=out_fd)
+                owners.append(("derivedStream:" + stream, descriptor))
+                writers[stream] = descriptor
+                returned_birth = os.fstat(out_fd)
+                after_birth = _cold_durable_ten(returned_birth)
+                require(all(after_birth[key] == out_expected[key] for key in
+                            ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_flags"))
+                        and after_birth["st_nlink"] == out_expected["st_nlink"] + 1
+                        and after_birth == _cold_durable_ten(os.stat(out.name,dir_fd=artifact_fd,follow_symlinks=False))
+                        == _cold_durable_ten(os.lstat(out))
+                        and str(out.resolve(strict=True)) == str(out)
+                        and sorted(os.listdir(out_fd)) == sorted(x + ".jsonl" for x in writers),
+                        "cold durable exact own returned derived-leaf birth transition")
+                rows.append({"role":"transportDirectory","ownLeafExclusiveReturned":True,
+                             "leaf":stream + ".jsonl","before":out_expected,"after":after_birth})
+                out_expected = after_birth
+                out_identity = _cold_durable_identity(returned_birth)
+                derived_fence()
+            require(os.write(writers[stream], line) == len(line), "cold durable exact derived frame write")
+        observed = _cold_durable_parse(data_fd, context, context["durableSinkBindingSHA256"], fence, consume)
+        originals = []
+        for item in observed["streams"]:
+            descriptor = writers[item["streamID"]]
+            os.fsync(descriptor)
+            before = os.fstat(descriptor)
+            name = item["streamID"] + ".jsonl"
+            require(before.st_size == item["bytes"] and _cold_durable_ten(before)
+                    == _cold_durable_ten(os.stat(name, dir_fd=out_fd, follow_symlinks=False)),
+                    "cold durable derived held/name/size")
+            originals.append({"name":name,"bytes":item["bytes"],"sha256":item["sha256"]})
+        derived_fence()
+        require(sorted(x["name"] for x in originals) == sorted(os.listdir(out_fd)),
+                "cold durable terminal derived roster is the exact published union")
+        rows.append({"role":"transportDirectory","finalEndpointChecked":True,
+                     "fullTEN":out_expected,"files":[x["name"] for x in originals]})
+        require(_cold_durable_ten(os.fstat(header_fd)) == _cold_durable_ten(header_before)
+                == _cold_durable_ten(os.stat("BINDING.json",dir_fd=directory,follow_symlinks=False))
+                and _cold_durable_identity(os.fstat(directory)) == header["directoryIdentity"]
+                and _cold_durable_ten(os.fstat(directory)) == _cold_durable_ten(os.lstat(path))
+                and _cold_durable_identity(os.fstat(data_fd)) == header["dataIdentity"]
+                and _cold_durable_identity(os.fstat(state_fd)) == header["stateIdentity"]
+                and _cold_durable_ten(os.fstat(data_fd)) == _cold_durable_ten(
+                    os.stat("EMITTED.jsonl",dir_fd=directory,follow_symlinks=False))
+                and _cold_durable_ten(os.fstat(state_fd)) == _cold_durable_ten(
+                    os.stat("STATE",dir_fd=directory,follow_symlinks=False)), "cold durable terminal endpoints")
+        proof.update(context=context, bindingSHA256=sha256(header_raw), authoritativePath=str(path / "EMITTED.jsonl"),
+                     observed=observed, files=originals, emittedBoundary="SOURCE_WIRED_APPEND_CLOSED_BY_ACTUAL_SHARED_LOCK_AND_SEALED_STATE",
+                     status="SEALED_EMITTED_TRANSPORT_ONLY" if not interrupted and native_exit_status == 0 else "SEALED_FAILED_EXECUTION_PREFIX_ONLY")
+    except BaseException as error:
+        first = error
+        proof["firstError"] = repr(error)
+    if locked is not None:
+        try:
+            fcntl.flock(locked, fcntl.LOCK_UN)
+            rows.append({"role":"authoritativeReader","unlockReturned":True})
+        except BaseException as error:
+            rows.append({"role":"authoritativeReader","unlockReturned":False,"error":repr(error)})
+            if first is None:
+                first = error
+    first = _cold_durable_close(owners, rows, first)
+    if first is not None:
+        proof.update(status="INCOMPLETE", firstError=repr(first))
+    # Reporting happens only after every retained data/state/derived owner
+    # close attempt. A deadline/reporting failure remains secondary to first.
+    secondary = []
+    try:
+        _require_collection_time(started, monotonic, bound)
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        # There is no renewed clock or receipt-write grace after the old bound.
+        raise first
+    try:
+        proof_writer = _cold_durable_emit(artifact / COLD_DURABLE_PROOF, canonical(proof))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        proof_writer = None
+    status = {"schema":SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA,
+        "status":"INTERRUPTED" if interrupted else ("UNSAFE" if first is not None else ("AVAILABLE" if proof.get("files") else "ZERO_USE")),
+        "simulatorUDID":environment.get("CI_SIMULATOR_UDID"),"appBundleID":SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory":SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,"sourcePath":SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256":proof.get("context",{}).get("writerSourceSHA256"),"files":proof.get("files",[]),
+        "fileCount":len(proof.get("files",[])),"totalBytes":sum(x["bytes"] for x in proof.get("files",[])),
+        "inventorySHA256":sha256(canonical(proof.get("files",[]))),"collectionBoundSeconds":bound,
+        "collectionMode":"interrupted" if interrupted else "completed"}
+    if first is not None or interrupted:
+        status["error"] = repr(first) if first is not None else "native command interrupted"
+    try:
+        status_writer = _cold_durable_emit(_transport_status_path(artifact), canonical(status))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        status_writer = None
+    try:
+        _require_collection_time(started,monotonic,bound)
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+    # Do not infer stdout's OS close; retain these actual writer returns in the
+    # worker's existing complete raw console originals, not a self-close flag.
+    try:
+        print(json.dumps({"schema":"v23-cold-emitted-durable-final-return.v1",
+            "status":status["status"],"proofPath":str(artifact/COLD_DURABLE_PROOF),
+            "proofWriter":proof_writer,"transportStatusWriter":status_writer,
+            "firstError":None if first is None else repr(first),"secondaryErrors":secondary,
+            "qualification":False,"acceptance":False,"releaseReady":False},sort_keys=True))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+    if first is not None:
+        raise first
+    return status
+
+def cold_emitted_build_receipt(root, artifact, record, arguments, *, unpinned):
+    require(record.get("coldOriginal", {}).get("schema") == "v23-cold-shared-original-event-binding.v1"
+            and record["selectionID"] == COLD_SELECTION_ID and shared_role(record) == "producer"
+            and record.get("runAttempt") == "1", "cold compiled-context genuine producer")
+    # Legacy argv is preserved byte-for-byte; one exact cold-only setting precedes its action.
+    require(arguments[-1] == "build-for-testing" and COLD_EMITTED_BUILD_SETTING not in arguments,
+            "cold compiled-context argument insertion")
+    argv = [*arguments[:-1], COLD_EMITTED_BUILD_SETTING, arguments[-1]]
+    return {"schemaVersion": 1, "schema": COLD_EMITTED_BUILD_SCHEMA,
+            "selectionID": record["selectionID"], "head": record["head"],
+            "parent": None if unpinned else NO_INDEX_ROUTES[record["selectionID"]][0],
+            "runID": record["runID"], "runAttempt": record["runAttempt"],
+            "admissionSHA256": sha256(canonical(record)),
+            "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
+            "sourceTrees": None if unpinned else no_index_source_trees(record["selectionID"]),
+            "argv": argv, "requiredOriginalContextDefine": COLD_EMITTED_CONTEXT_DEFINE,
+            "diagnosticOnly": True, "acceptance": False}
+
+
+def cold_emitted_compiler_context_guard(compiler_lines):
+    require(compiler_lines, "cold compiled-context actual SwiftDriver commands")
+    for line in compiler_lines:
+        tokens = shlex.split(line)
+        require(("-D" + COLD_EMITTED_CONTEXT_DEFINE) in tokens
+                or any(token == "-D" and index + 1 < len(tokens)
+                       and tokens[index + 1] == COLD_EMITTED_CONTEXT_DEFINE
+                       for index, token in enumerate(tokens)),
+                "cold compiled-context define missing from actual SwiftDriver")
+
+
+def cold_emitted_context_forwarding(root, artifact, record, environment):
+    """Return genuine joined context DATA; no stream, emitter or qualification claim."""
+    require(record["selectionID"] == COLD_SELECTION_ID and "phase1Gate" not in record
+            and shared_role(record) == "consumer", "cold context forwarding consumer only")
+    require(not any(key.startswith(("V23_COLD_EMITTED_", "TEST_RUNNER_V23_COLD_EMITTED_"))
+                    for key in environment), "cold context forwarding refuses inherited values")
+    binding, event_raw, _selected, _selection_record = cold_worker_context(root, environment)
+    require(record.get("coldOriginal") == binding
+            and read_json(artifact / "native-admission.json") == record,
+            "cold context forwarding event/admission changed")
+    require(all(record.get(key) == value for key, value in source_binding(root).items()),
+            "cold context forwarding current protocol Source")
+    simulator = environment.get("CI_SIMULATOR_UDID")
+    require(type(simulator) is str and re.fullmatch(r"[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}", simulator)
+            and environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID") == simulator
+            and environment.get("CI_DESTINATION") == "platform=iOS Simulator,id=" + simulator,
+            "cold context forwarding actual destination")
+    gate = load_phase1_gates(root)
+    # Existing restore/fingerprint producers and product-tree helper remain authoritative.
+    # This narrow read-before-launch join is not the later verify_shared_consumer result.
+    metadata_raw = gate.regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    metadata = gate.decode(metadata_raw, limit=PHASE1_WITNESS_BYTES)
+    restore = read_json(artifact / SHARED_RESTORE_RECEIPT)
+    before = read_json(artifact / "v23-shared-fingerprint-before.json")
+    require(restore.get("metadataSHA256") == sha256(metadata_raw)
+            and restore.get("partitionID") == record[SHARED_KEY]["partitionID"]
+            and restore.get("simulatorUDID") == simulator
+            and (restore.get("head"), restore.get("gitTree"), restore.get("workspace"))
+            == (record["head"], record["gitTree"], str(root)),
+            "cold context forwarding genuine restore binding")
+    require(before.get("phase") == "before" and before.get("matchesProducer") is True
+            and before.get("buildEvidence") == [] and before.get("error") is None
+            and before.get("partitionID") == record[SHARED_KEY]["partitionID"],
+            "cold context forwarding existing before fingerprint")
+    temp = Path(environment["RUNNER_TEMP"])
+    require(shared_build_evidence(artifact, temp) == []
+            and shared_products_binding(load_payload_kernel(root), temp) == metadata.get("products"),
+            "cold context forwarding restored current Products")
+    require(all(before.get(key) == metadata["products"].get({"productsTreeSHA256": "treeSHA256",
+                "xctestrunSHA256": "xctestrunSHA256", "entryCount": "entryCount"}[key])
+                for key in SHARED_FINGERPRINT_PRODUCT_KEYS)
+            and type(metadata.get("buildCommandReceiptSHA256")) is str
+            and re.fullmatch(r"[0-9A-F]{64}", metadata["buildCommandReceiptSHA256"]),
+            "cold context forwarding payload/before immutable command digest")
+    value = {"schema": COLD_EMITTED_CONTEXT_SCHEMA,
+        "originalEventSHA256": sha256(event_raw), "eventBindingSHA256": sha256(canonical(binding)),
+        "admissionSHA256": sha256(canonical(record)), "planSHA256": binding["planSHA256"],
+        "selectionSHA256": record[SHARED_KEY]["planSHA256"],
+        "writerSourceSHA256": sha256(gate.regular_bytes(root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+                                                       limit=PHASE1_WITNESS_BYTES)),
+        "head": record["head"], "tree": record["gitTree"], "runID": record["runID"],
+        "runAttempt": record["runAttempt"], "role": "consumer",
+        "partitionID": record[SHARED_KEY]["partitionID"], "simulatorUDID": simulator,
+        "executionScope": "cold-shared-route-development-v1"}
+    require(all(type(item) is str for item in value.values()), "cold context forwarding closed string values")
+    preparation_retained = {}
+    prepared = cold_durable_prepare(artifact, value, preparation_retained)
+    value.update(durableSinkPath=prepared["path"], durableSinkBindingSHA256=prepared["bindingSHA256"])
+    raw = canonical(value)
+    require(len(raw) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "cold original-context bound")
+    import base64
+    forwarded = {"TEST_RUNNER_V23_COLD_EMITTED_MODE": COLD_EMITTED_MODE,
+                 "TEST_RUNNER_V23_COLD_EMITTED_CONTEXT": base64.b64encode(raw).decode("ascii"),
+                 "TEST_RUNNER_V23_COLD_EMITTED_CONTEXT_SHA256": sha256(raw)}
+    receipt = {"schema": COLD_EMITTED_FORWARD_SCHEMA, "context": value,
+        "contextSHA256": sha256(raw), "forwardedEnvironment": forwarded,
+        "payloadBuildCommandReceiptSHA256": metadata["buildCommandReceiptSHA256"],
+        "durableSinkPreparation": prepared, "durableSinkPreparationIO": preparation_retained["io"],
+        "transportCompletion": "PENDING", "countsAreTotalInvocations": False,
+        "developmentOnly": True, "providerQualification": False, "acceptance": False, "releaseReady": False}
+    environment_raw = "".join(key + "=" + forwarded[key] + "\n" for key in sorted(forwarded)).encode("ascii")
+    return receipt, environment_raw
+
+
 def no_index_build_receipt(root, artifact, record, environment, *, command_artifact=None):
     development_batch = record["selectionID"] == DEV_BATCH_SELECTION_ID
     shared = record["selectionID"] in SHARED_SELECTION_IDS
@@ -3457,6 +4156,8 @@ def no_index_build_receipt(root, artifact, record, environment, *, command_artif
                  "-derivedDataPath", str(runner_temp / "FieldEvidenceDerivedData"),
                  "-resultBundlePath", str(command_root / "Build.xcresult"),
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
+    if "coldOriginal" in record:
+        return cold_emitted_build_receipt(root, artifact, record, arguments, unpinned=unpinned)
     # The development batch and shared producer pin no parent or trees; their admission
     # record (bound by admissionSHA256) carries the exact head, head tree and list digest.
     return {"schemaVersion": 1, "selectionID": record["selectionID"],
@@ -3486,6 +4187,11 @@ def verify_no_index_build(root, artifact, record, environment, *, command_artifa
             "no-index compiler still emits index data or command missing")
     require(any(line.strip() == "** TEST BUILD SUCCEEDED **" for line in lines),
             "no-index complete test build required")
+    if "coldOriginal" in record:
+        require(expected.get("schema") == COLD_EMITTED_BUILD_SCHEMA
+                and expected.get("requiredOriginalContextDefine") == COLD_EMITTED_CONTEXT_DEFINE,
+                "cold exact compiled-context receipt version")
+        cold_emitted_compiler_context_guard(compiler_lines)
     return {"commandReceiptSHA256": sha256(canonical(expected)),
             "executedCommandExact": True, "compilerDriverCommands": len(compiler_lines),
             "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": expected["sourceTrees"],
@@ -4995,10 +5701,12 @@ def phase1_retained_worker_chain(root, request_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build",
-                                            "shared-seal", "shared-restore", "shared-fingerprint", "phase1-retained-chain"))
+                                            "shared-seal", "shared-restore", "shared-fingerprint", "phase1-retained-chain",
+                                            "cold-context-forward"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
+    parser.add_argument("--native-exit-status", type=int)
     parser.add_argument("--phase", choices=SHARED_FINGERPRINT_PHASES)
     parser.add_argument("--phase1-request", type=Path)
     args = parser.parse_args()
@@ -5010,7 +5718,7 @@ def main():
     if args.command == "collect-diagnostics":
         artifact = Path(os.environ["CI_ARTIFACT_DIR"])
         collect_simulator_diagnostic_transport(
-            root, artifact, os.environ, interrupted=args.interrupted
+            root, artifact, os.environ, interrupted=args.interrupted, native_exit_status=args.native_exit_status
         )
         return
     selection, selection_record = selected_input(root, os.environ)
@@ -5042,7 +5750,7 @@ def main():
                         tiers, separators=(",", ":")) + "\n")
         return
     if args.command in ("observe-build-before-boot", "record-no-index-build",
-                        "shared-seal", "shared-restore", "shared-fingerprint"):
+                        "shared-seal", "shared-restore", "shared-fingerprint", "cold-context-forward"):
         require(record is not None, "diagnostic command requires admitted integration route")
     if record is None:
         return
@@ -5075,6 +5783,12 @@ def main():
             else:
                 require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
                         "cold worker original event changed")
+    if args.command == "cold-context-forward":
+        require(args.output == str(artifact / COLD_EMITTED_CONTEXT_ENV), "cold exact context-output path")
+        receipt, environment_raw = cold_emitted_context_forwarding(root, artifact, record, os.environ)
+        _cold_durable_emit(artifact / COLD_EMITTED_FORWARD_RECEIPT, canonical(receipt))
+        _cold_durable_emit(artifact / COLD_EMITTED_CONTEXT_ENV, environment_raw)
+        return
     if args.command == "observe-build-before-boot":
         raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
     if args.command == "record-no-index-build":

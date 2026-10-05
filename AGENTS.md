@@ -92,7 +92,7 @@ Owner decision 24 (2026-09-26) prospectively permits the pinned DEBUG Simulator 
   - S10 brand protection comes from the design system, the closed-vocabulary test, behaviour tests and screenshot review.
 - **Diagnostics.** Build in named DEBUG step and error reporting, so one failing run names its cause.
 - **CI changes.**
-  - Run `Scripts/test-v23-native-ci.py` and `Scripts/test-v23-selection-generator.py` through `Scripts/dev/prun.py` (or plain `python3 <suite>` until the tools batch lands).
+  - Run `Scripts/test-v23-native-ci.py` and `Scripts/test-v23-selection-generator.py` through `Scripts/dev/prun.py` (or plain `python3 <suite>` until the tools batch lands). For DEVELOPMENT only, a completed successful selection-generator original may be reused for a narrow internal cold-helper correction plus its required raw pins when independent delta/coupling review proves complete selection test/generator/manifest/generated maps, Swift declaration and historical reconstruction inputs, roster, interpreter, runner/context profile and budgets unchanged. Record the predecessor's exact head/input/result scope and current dependency-equality proof; do not call it new-candidate execution or gate evidence. Full current native-CI and every affected behavior/reader/dispatcher/template check remain required. Run the full pair for routing, workflow, selection, census, exported producer/consumer interface or unknown coupling changes, and for every frozen merge candidate. This owner-authorized October 5 prospective optimization does not change any main gate.
   - Keep the template-budget guard: called-workflow content stays under 5.75 MiB, because GitHub rejects about 6 MiB.
 
 ## Records (short)

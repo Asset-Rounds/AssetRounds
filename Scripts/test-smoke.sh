@@ -27,6 +27,9 @@ collect_v23_diagnostic_transport() {
   trap - EXIT HUP INT TERM
   local collector_status=0
   local collector_args=(collect-diagnostics)
+  if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then
+    collector_args+=(--native-exit-status "$command_status")
+  fi
   if [ "$diagnostic_transport_interrupted" = true ]; then
     collector_args+=(--interrupted)
   fi
@@ -43,6 +46,25 @@ interrupt_v23_diagnostic_transport() {
 if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = "v23.integration.current-native.v1" ]; then
   trap collect_v23_diagnostic_transport EXIT
   trap interrupt_v23_diagnostic_transport HUP INT TERM
+fi
+
+# The compiled cold writer requires this original-bound context; never source/eval a file.
+if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then
+  test "${V23_SHARED_ROLE:-}" = consumer
+  python3 Scripts/v23-native-ci.py cold-context-forward --output "$CI_ARTIFACT_DIR/cold-emitted-original-context.env"
+  cold_forwarded_keys=0
+  while IFS= read -r cold_forwarded_line; do
+    cold_forwarded_key="${cold_forwarded_line%%=*}"
+    cold_forwarded_value="${cold_forwarded_line#*=}"
+    case "$cold_forwarded_key" in
+      TEST_RUNNER_V23_COLD_EMITTED_MODE | TEST_RUNNER_V23_COLD_EMITTED_CONTEXT | TEST_RUNNER_V23_COLD_EMITTED_CONTEXT_SHA256) ;;
+      *) printf 'invalid cold original-context forwarding key\n' >&2; exit 65 ;;
+    esac
+    test -n "$cold_forwarded_value"
+    export "$cold_forwarded_key=$cold_forwarded_value"
+    cold_forwarded_keys=$((cold_forwarded_keys + 1))
+  done < "$CI_ARTIFACT_DIR/cold-emitted-original-context.env"
+  test "$cold_forwarded_keys" -eq 3
 fi
 
 only_testing_args=()
