@@ -1,3 +1,30 @@
+C13 final actualimport and eleven-path DEVELOPMENT checkpoint reviews PASS by independent NONAUTHOR GPT-6.1 Sol/xhigh. Source7 conserved;593 distinct tooling-method scopes resolved, appfailurecountUNKNOWN. Root faithful verdict-only records then explicit11path commit/non-force publication due. Next cold DEVELOPMENT3716/33 awaits provider recovery; mainb1/allfivegatesOPEN(0/5)/releaseReadyfalse, originals/HOLDs/fullV23/owner reviews preserved.
+
+C13 final correctedNative wholemethod1PASS96s, all broader current tooling suites PASS. SevenSource paths importedonce; fourrecords/final11pathcheckpoint review pending. Known bounded tooling failures resolved by genuine reviewed scoped correction; appfailurecountUNKNOWN. Mainunchanged/allfivegatesOPEN(0/5)/releaseReadyfalse. NextdedicatedcoldDEVELOPMENT3716/33 awaits publication/providerrecovery.
+
+Historical pre-correction observation (superseded above):
+
+Current correction: all current CI394/selection42/reader41/collector34 checks PASS; private reader32 is resolved through reviewed scoped reuse31 plus corrected1. Native payload original9PASS/1FAIL is the sole bounded tooling blocker, under same author/reviewer fixture diagnosis. All five main gates remain OPEN(0/5), full app failurecountUNKNOWN, releaseReady=false.
+
+Historical pre-verification observation (superseded above):
+
+Current published integration remains **622967850ad8505431b111478b92b0b91d8b37f1**. C13 current DATA35 passes; private reader31PASS/1diagnostic-expectationFAIL is under same-author/reviewer correction. Full CI/selection/legacyreader and affected collector originals are running in an isolated coherent checkout. Both latest pinned hosted DEVELOPMENT27 originals failed runner acquisition without executing app tests; all originals are retained and independently reviewed. **Main remains b1d04ae5; all five Phase1 gates OPEN(0/5); releaseReady=false.** Genuine cold qualification/full3716/33/qualifiedUI/independent and owner reviews/exact-main remain due. Full app failure count UNKNOWN. Earlier entries retain their original scope.
+
+Historical pre-terminal observation (superseded above):
+## Current published C12 and C13 obligations — 2026-10-05
+
+- Published integration622967850ad8505431b111478b92b0b91d8b37f1 exact8-path checkpoint; genuine C9 Sol6.1/xhigh current488/import/candidate PASS; non-force origin verified. Mainb1unchanged. No duplicate unchanged Swiftcompile/testing/review bookkeeping.
+- Collect new-head pinned GitHub DEVELOPMENT27 original37370383563 once from actual reviewed successor collector Source41b31; session7097 active. No terminal compiler/test result yet; GitHub runner incident still reported.
+- Priorc54 original37366161165 remains bootstrapFAILURE/27NotStarted; six originalraw+monitorprefix/claim preserved, sevenmanifesthashes verified, successfulsolecollectorresume terminal0/independent DATA PASS. GenericemptyZIP4PASS and all setup/collection/Root-retention failures retained, no native rerun or qualification.
+- C13 NativeV3 genuine SourceGO; exactpublished622 isolated onceapply/outside2811conservation completed. Ten synthetic methods RUNNING, Source/API/runtime scope separate; no actual cold app/runtime/transport qualification.
+- DATA2v2 production interval SourceGO; combinedSource+35test fixtureHOLD on ZIP fullTEN case order requires same author/reviewer correction. Reader32/dispatcher5 Source reviews pending; all methodsUNRUN.
+- Compose exact reviewed C13 latepins/Rootgenericextractliteral+test4; required current behavior35/32/5 and fullCI+selection pair, remaining affected reader/dispatcher coverage and final independent DATA/candidate review remain due.
+- Genuine coldapp/context/completeauthenticemittedtransport/latewrite proof plus full coldDEVELOPMENT3716/33 and meaningful stabilization sweep remain due. OldV1PENDING/false/INCOMPLETE/HOLDs unchanged; stronger totalcall/cohort/perPIDretirement UNPROVEN.
+- Freeze candidate and satisfy allfive same-head coverage/qualifiedUI/independentcandidate/genuineownercriticalstates/mainFF+pinnedexactmain gates. FullV23/physical/minruntime/privacy/C55/storeowner obligations unchanged; releaseReadyfalse/no signing/distribution.
+- FourRootrecords are bookkeeping for next realSource checkpoint. Current488selectedchecks0fail/errors; fullappfailurecountUNKNOWN.
+
+Earlier checkpoint entries below remain historical observations and obligations, superseded by this current entry.
+
 ## Current C12 verified-checkpoint obligations — 2026-10-05
 
 - Published integrationc54c64d; current reviewedC12fourSource imported once into Primary, outside2808raw/FULL10+protected2 preserved at import. Final exact8-path Source+records independent C9 Sol6.1/xhigh DATA/candidate review PASS; faithful finalbinding/commit/non-force publication due.

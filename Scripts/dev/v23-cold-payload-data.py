@@ -561,3 +561,266 @@ def read_cold_payload_data(original_directory, source_root, expected):
         "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
         "physicalProtectionReleaseBlocker": True, "providerQualification": False, "acceptance": False,
         "gateQualification": False, "exactMainVerification": False, "releaseReady": False}
+
+
+# V2 is additive. V1 schemas, bodies and six PENDING facts remain exact.
+INPUT_SCHEMA_V2 = "v23-cold-payload-data-input.v2"
+FACT_SCHEMA_V2 = "v23-cold-payload-data-facts.v2"
+QUALIFICATION_CONTRACT_SCHEMA_V2 = "v23-cold-qualification-contract.v2"
+EMITTED_NATIVE_SOURCE_PATH_V2 = "Scripts/v23-native-ci.py"
+# Exact Native candidate Source dependency; independent review/current binding remain Root prerequisites.
+EMITTED_NATIVE_SOURCE_SHA256_V2 = "AB26A4D60553FACB664A357934881DE47467313534204394FFE85AEBF6328E89"
+STRONGER_CLAIMS_V2 = ("totalPolicyCallCounts", "exhaustiveAppKernelLifetimeCohorts",
+                      "perPIDDescriptorRetirement", "exactRepeatCounts")
+
+
+def qualification_contract_v2():
+    """Prospective requirements only. No supplied review or count grants a gate."""
+    return {"schema": QUALIFICATION_CONTRACT_SCHEMA_V2, "status": "CONTRACT_ONLY_NO_AUTHORITY",
+        "executionScope": "cold-shared-route-development-v1",
+        "requiredEmittedTransport": ["AUTHENTIC_ORIGINAL_RUNTIME_AND_SOURCE_CONTEXT",
+            "SOURCE_WIRED_AUTHORITATIVE_RAW_SINK", "ACTUAL_SHARED_LOCK_AND_SEALED_STATE",
+            "POSITIVE_TERMINAL_SYNC_AND_ONCE_OWNER_CLOSES", "COMPLETE_COMMITTED_RAW_AND_DERIVED_STREAM_UNION",
+            "REFUSAL_OF_INTERRUPTION_UNRESOLVED_WRITES_OR_ERRORS"],
+        "remainingRequirements": ["AUTHENTICATED_ORIGINAL_AND_SOLE_COLLECTOR", "FROZEN_GIT_HEAD_TREE",
+            "SAFE_EXTRACTION_AND_PAYLOAD_CONTENTS", "LIVE_NO_REBUILD_AND_EVERY_METHOD",
+            "INDEPENDENT_COLD_QUALIFICATION_AND_GATES"],
+        "strongerClaims": {name: "UNPROVEN" for name in STRONGER_CLAIMS_V2},
+        "functionalQualification": "PENDING", "providerQualification": False, "acceptance": False,
+        "gateQualification": False, "exactMainVerification": False, "releaseReady": False,
+        "executionAuthority": False}
+
+
+def _emitted_native_v2(source, fences, facts):
+    """Only exact reviewed Source supplies the existing finite raw parser."""
+    require(digest(EMITTED_NATIVE_SOURCE_SHA256_V2), "reviewed Native Source pin pending",
+            "EMITTED_NATIVE_SOURCE_REVIEWED_PIN")
+    raw = fences.read(source / EMITTED_NATIVE_SOURCE_PATH_V2)
+    require(sha(raw) == EMITTED_NATIVE_SOURCE_SHA256_V2
+            == facts["sourceSHA256"][EMITTED_NATIVE_SOURCE_PATH_V2],
+            "exact reviewed/frozen Native parser Source", "SOURCE_CONTRACT")
+    namespace = {"__file__": str(source / EMITTED_NATIVE_SOURCE_PATH_V2), "__name__": "_cold_data_native_v2"}
+    exec(compile(raw, namespace["__file__"], "exec"), namespace)
+    return namespace
+
+
+def _emitted_close_rows_v2(rows, roles=None):
+    require(type(rows) is list and 0 < len(rows) <= 100000 and all(type(row) is dict for row in rows),
+            "emitted owner rows", "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    closed = [row for row in rows if "closeEntered" in row]
+    require(closed and all(set(row) == {"role", "descriptor", "closeEntered", "closeReturned", "closeUncertain", "error"}
+            and type(row["role"]) is str and type(row["descriptor"]) is int and row["descriptor"] >= 0
+            and row["closeEntered"] is True and row["closeReturned"] is True
+            and row["closeUncertain"] is False and row["error"] is None for row in closed)
+            and len({row["descriptor"] for row in closed}) == len(closed)
+            and len({row["role"] for row in closed}) == len(closed)
+            and all(row.get("error") is None and row.get("closeUncertain", False) is False for row in rows),
+            "emitted positive distinct once owner closes", "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    if roles is not None:
+        exact(sorted(row["role"] for row in closed), sorted(roles), "emitted complete closed owner roster")
+
+
+def _read_cold_payload_v1_with_fences_v2(root, source, expected, fences):
+    """Reuse the exact V1 code with one call-local fence factory, no globals mutation."""
+    import types
+    original = read_cold_payload_data
+    namespace = dict(original.__globals__)
+    require(namespace["ReadFences"] is ReadFences, "V1 exact original fence constructor", "SOURCE_CONTRACT")
+    namespace["ReadFences"] = lambda: fences
+    bound = types.FunctionType(original.__code__, namespace, original.__name__,
+                               original.__defaults__, original.__closure__)
+    bound.__kwdefaults__ = original.__kwdefaults__
+    return bound(root, source, expected)
+
+
+def _manifest_read_v2(root, fences, files, path, *, limit=JSON_BYTES, capture=True):
+    """Join these actual bytes to the seeded final manifest without a second ZIP pass."""
+    try:
+        name = absolute(path).relative_to(root).as_posix()
+    except ValueError as error:
+        raise Refused("COLD_DATA_BINDING", "V2 retained read outside original") from error
+    require(name in files and digest(files[name]), "V2 retained manifest member")
+    value = fences.read(path, limit=limit, capture=capture)
+    checksum = sha(value) if capture else value["SHA256"]
+    exact(checksum, files[name], "V2 actual retained raw manifest hash: " + name)
+    return value
+
+
+def _emitted_worker_v2(root, source, fences, label, plan, facts, native, manifest_files):
+    """Recompute retained emitted DATA; never authenticate a live original."""
+    worker = root / "artifacts" / label
+    proof_raw = _manifest_read_v2(root, fences, manifest_files, worker / native["COLD_DURABLE_PROOF"])
+    proof = decode(proof_raw)
+    keys = {"schema", "status", "interrupted", "nativeExitStatus", "countsAreTotalInvocations",
+        "trailingRepeatCountsMayBeUnobserved", "processLifetimesProven", "appDescriptorRetirementProven",
+        "functionalQualification", "providerQualification", "acceptance", "releaseReady", "io", "firstError",
+        "context", "bindingSHA256", "authoritativePath", "observed", "files", "emittedBoundary"}
+    require(type(proof) is dict and set(proof) == keys and proof["schema"] == "v23-cold-emitted-durable-proof.v1",
+            "closed emitted proof schema", "COLD_DATA_SCHEMA")
+    require(proof["status"] == "SEALED_EMITTED_TRANSPORT_ONLY" and proof["interrupted"] is False
+            and type(proof["nativeExitStatus"]) is int and proof["nativeExitStatus"] == 0 and proof["firstError"] is None
+            and proof["countsAreTotalInvocations"] is False and proof["trailingRepeatCountsMayBeUnobserved"] is True
+            and proof["processLifetimesProven"] is False and proof["appDescriptorRetirementProven"] is False
+            and proof["functionalQualification"] == "PENDING"
+            and all(proof[key] is False for key in ("providerQualification", "acceptance", "releaseReady"))
+            and proof["emittedBoundary"] == "SOURCE_WIRED_APPEND_CLOSED_BY_ACTUAL_SHARED_LOCK_AND_SEALED_STATE",
+            "emitted scoped terminal refuses stronger claims/errors/interruption", "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    _emitted_close_rows_v2(proof["io"])
+    require(any(row.get("role") == "authoritativeReader" and row.get("lockEntered") is True
+                and row.get("lockReturned") is True and row.get("nonblocking") is True for row in proof["io"])
+            and any(row.get("role") == "authoritativeReader" and row.get("unlockReturned") is True for row in proof["io"])
+            and any(row.get("role") == "authoritativeReader" and row.get("terminalDataFsyncReturned") is True for row in proof["io"])
+            and any(row.get("role") == "sealState" and row.get("writeReturned") is True
+                and row.get("fsyncReturned") is True and row.get("readbackExact") is True for row in proof["io"]),
+            "emitted actual lock/seal/terminal sync observations", "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    context = proof["context"]
+    context_keys = {"schema", "executionScope", "head", "tree", "runID", "runAttempt", "role", "partitionID",
+        "originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256", "selectionSHA256",
+        "writerSourceSHA256", "simulatorUDID", "durableSinkPath", "durableSinkBindingSHA256"}
+    require(type(context) is dict and set(context) == context_keys, "closed emitted original context", "COLD_DATA_SCHEMA")
+    joins = facts["workerJoins"][label]
+    expected_context = {"schema": native["COLD_DURABLE_CONTEXT_SCHEMA"], "executionScope": facts["executionScope"],
+        "head": facts["head"], "tree": facts["tree"], "runID": str(facts["runID"]), "runAttempt": "1",
+        "role": "consumer", "partitionID": label, "originalEventSHA256": sha(_manifest_read_v2(root, fences, manifest_files, worker / "cold-original-event.json")),
+        "eventBindingSHA256": joins["eventBindingSHA256"], "admissionSHA256": joins["admissionSHA256"],
+        "planSHA256": facts["planSHA256"], "selectionSHA256": plan["selectionSHA256"]}
+    exact({key: context[key] for key in expected_context}, expected_context, "emitted exact original/source/partition context")
+    writer_path = native["SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]
+    writer_sha = sha(fences.read(source / writer_path))
+    require(writer_sha == native["SIMULATOR_DIAGNOSTIC_SOURCE_SHA256"] == context["writerSourceSHA256"]
+            and digest(proof["bindingSHA256"]) and proof["bindingSHA256"] == context["durableSinkBindingSHA256"]
+            and type(context["simulatorUDID"]) is str
+            and re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", context["simulatorUDID"]),
+            "emitted current writer/binding/runtime context DATA", "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    sink_path = absolute(context["durableSinkPath"])
+    require(proof["authoritativePath"] == str(sink_path / "EMITTED.jsonl"), "emitted original authoritative path")
+    sink = worker / native["COLD_DURABLE_ROOT"]
+    exact(sorted(fences.access(sink, lambda fd: os.listdir(fd), directory=True)),
+          ["BINDING.json", "EMITTED.jsonl", "STATE"], "emitted complete retained sink roster")
+    header_raw = _manifest_read_v2(root, fences, manifest_files, sink / "BINDING.json")
+    header = decode(header_raw)
+    require(type(header) is dict and set(header) == {"schema", "originalContext", "directoryIdentity", "dataIdentity", "stateIdentity"}
+            and header["schema"] == native["COLD_DURABLE_SCHEMA"] and sha(header_raw) == proof["bindingSHA256"],
+            "emitted immutable retained header", "COLD_DATA_SCHEMA")
+    exact(header["originalContext"], {key: value for key, value in context.items()
+            if key not in ("durableSinkPath", "durableSinkBindingSHA256")}, "emitted exact original header context")
+    for name in ("directoryIdentity", "dataIdentity", "stateIdentity"):
+        value = header[name]
+        require(type(value) is dict and set(value) == {"device", "inode", "mode", "uid", "gid", "links", "flags"}
+                and all(type(item) is str and re.fullmatch(r"0|[1-9][0-9]*", item) for item in value.values()),
+                "emitted original identity provenance", "COLD_DATA_SCHEMA")
+    require(_manifest_read_v2(root, fences, manifest_files, sink / "STATE", limit=8) == b"SEALED\n", "emitted actual retained SEALED state",
+            "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT")
+    stream_hashes, stream_bytes = {}, {}
+    def consume(stream, line):
+        stream_hashes.setdefault(stream, hashlib.sha256()).update(line)
+        stream_bytes[stream] = stream_bytes.get(stream, 0) + len(line)
+    try:
+        observed = fences.access(sink / "EMITTED.jsonl", lambda fd:
+            native["_cold_durable_parse"](fd, context, proof["bindingSHA256"], lambda: None, consume))
+    except ValueError as error:
+        if isinstance(error, Refused):
+            raise
+        raise Refused("COMPLETE_AUTHENTIC_EMITTED_TRANSPORT", "Native durable raw parser refused") from error
+    raw_name = (sink / "EMITTED.jsonl").relative_to(root).as_posix()
+    require(raw_name in manifest_files and digest(manifest_files[raw_name]), "V2 emitted raw manifest member")
+    exact(observed["rawSHA256"], manifest_files[raw_name], "V2 emitted parsed raw manifest hash")
+    exact(proof["observed"], observed, "emitted independently recomputed complete raw/committed union")
+    files = [{"name": row["streamID"] + ".jsonl", "bytes": row["bytes"], "sha256": row["sha256"]}
+             for row in observed["streams"]]
+    exact(proof["files"], files, "emitted exact derived stream union")
+    _emitted_close_rows_v2(proof["io"], ["sinkDirectory", "bindingReader", "authoritativeReader", "sealState",
+        "artifactOutputParent", "transportDirectory", *["derivedStream:" + row["streamID"] for row in observed["streams"]]])
+    output = worker / native["SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY"]
+    exact(sorted(fences.access(output, lambda fd: os.listdir(fd), directory=True)), sorted(row["name"] for row in files),
+          "emitted exact derived directory membership")
+    for row in files:
+        relative(row["name"])
+        actual = _manifest_read_v2(root, fences, manifest_files, output / row["name"],
+            limit=native["SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES"], capture=False)
+        exact(actual, {"bytes": row["bytes"], "SHA256": row["sha256"]}, "emitted derived actual raw bytes")
+        require(stream_bytes[row["name"][:-6]] == row["bytes"]
+                and stream_hashes[row["name"][:-6]].hexdigest().upper() == row["sha256"], "emitted consumed stream hash")
+    transport = decode(_manifest_read_v2(root, fences, manifest_files, worker / native["SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS"]))
+    require(type(transport) is dict and transport.get("status") == ("AVAILABLE" if files else "ZERO_USE")
+            and "error" not in transport and transport.get("collectionMode") == "completed", "emitted same completed disposition")
+    exact(transport.get("files"), files, "emitted status exact stream union")
+    return {"schema": "v23-cold-retained-emitted-transport-facts.v1", "proofSHA256": sha(proof_raw),
+        "observed": observed, "files": files, "committedEmittedBytesComplete": True,
+        "countsAreTotalInvocations": False, "processLifetimesProven": False, "physicalRetirementProven": False,
+        "functionalQualification": "PENDING", "providerQualification": False, "acceptance": False, "releaseReady": False}
+
+
+def read_cold_payload_data_v2(original_directory, source_root, expected):
+    """Read final retained DATA with a prospective scope split; no qualification."""
+    require(type(expected) is dict and set(expected) == {"schema", "head", "tree", "runID", "runAttempt", "manifestSHA256"}
+            and expected["schema"] == INPUT_SCHEMA_V2, "closed cold DATA v2 input", "COLD_DATA_SCHEMA")
+    root, source, fences = absolute(original_directory), absolute(source_root), ReadFences()
+    first, result = None, None
+    try:
+        manifest_raw = fences.read(root / "manifest.json")
+        require(sha(manifest_raw) == expected["manifestSHA256"], "v2 caller manifest digest")
+        manifest = decode(manifest_raw)
+        require(type(manifest) is dict and type(manifest.get("files")) is dict
+                and 0 < len(manifest["files"]) <= MAX_FILES
+                and all(digest(value) for value in manifest["files"].values()),
+                "V2 seeded complete manifest hashes", "COLD_DATA_SCHEMA")
+        manifest_files = dict(manifest["files"])
+        native_seed = fences.read(source / EMITTED_NATIVE_SOURCE_PATH_V2)
+        facts = _read_cold_payload_v1_with_fences_v2(root, source, {**expected, "schema": INPUT_SCHEMA}, fences)
+        require(sha(native_seed) == facts["sourceSHA256"][EMITTED_NATIVE_SOURCE_PATH_V2], "v2 seeded Native closure changed")
+        registration = decode(_manifest_read_v2(root, fences, manifest_files, root / "cold-registration.json"))
+        plan = registration["plan"]
+        require(sha(canonical(plan)) == facts["planSHA256"], "v2 retained plan changed")
+        native = _emitted_native_v2(source, fences, facts)
+        consumers = sorted(set(facts["workerJoins"]) - {"producer"})
+        emitted = {label: _emitted_worker_v2(root, source, fences, label, plan, facts, native, manifest_files)
+                   for label in consumers}
+        retained = decode(_manifest_read_v2(root, fences, manifest_files, root / "cold-emitted-retained-facts.json"))
+        require(type(retained) is dict and set(retained) == {"schema", "runID", "runAttempt", "head", "tree", "planSHA256",
+            "consumerFacts", "countsAreTotalInvocations", "functionalQualification", "providerQualification", "acceptance", "releaseReady"}
+            and retained["schema"] == "v23-cold-emitted-retained-facts.v1" and retained["countsAreTotalInvocations"] is False
+            and retained["functionalQualification"] == "PENDING"
+            and all(retained[key] is False for key in ("providerQualification", "acceptance", "releaseReady")),
+            "closed retained emitted facts cannot grant qualification", "COLD_DATA_SCHEMA")
+        exact({key: retained[key] for key in ("runID", "runAttempt", "head", "tree", "planSHA256")},
+              {key: facts[key] for key in ("runID", "runAttempt", "head", "tree", "planSHA256")}, "retained emitted original binding")
+        require(type(retained["consumerFacts"]) is dict and set(retained["consumerFacts"]) == set(consumers),
+                "retained exact consumer emitted census")
+        for label, value in retained["consumerFacts"].items():
+            require(type(value) is dict and set(value) == set(emitted[label]) | {"retainedReadCloseRows"},
+                    "closed retained consumer emitted facts", "COLD_DATA_SCHEMA")
+            _emitted_close_rows_v2(value["retainedReadCloseRows"], ["retainedSink", "retainedBinding",
+                "retainedSealState", "retainedEmittedBytes", "retainedDerivedDirectory",
+                *["retainedDerived:" + row["name"] for row in emitted[label]["files"]]])
+            exact({key: value[key] for key in emitted[label]}, emitted[label], "retained emitted facts equal recomputed raw DATA")
+        require(fences.read(root / "manifest.json") == manifest_raw, "v2 final manifest unchanged")
+        result = {"schema": FACT_SCHEMA_V2, "status": "DATA_ONLY_UNQUALIFIED", "kind": "development",
+            "executionScope": facts["executionScope"], "selection": facts["selection"], "head": facts["head"], "tree": facts["tree"],
+            "runID": facts["runID"], "runAttempt": facts["runAttempt"], "manifestSHA256": facts["manifestSHA256"],
+            "v1Data": facts, "qualificationContract": qualification_contract_v2(),
+            "emittedTransport": {"status": "DATA_BOUND_RECOMPUTED", "consumerFacts": emitted},
+            "strongerClaims": {name: "UNPROVEN" for name in STRONGER_CLAIMS_V2},
+            "pendingProof": [dict(row) for row in PENDING if row["dependency"] != "COMPLETE_LIFETIME_AND_EMITTED_STREAM"] + [
+                {"dependency": "COMPLETE_AUTHENTIC_EMITTED_TRANSPORT", "status": "PENDING",
+                 "reason": "Retained raw/SEALED/union DATA is re-read; live authentic runtime/source accessibility and late-write exclusion require Root qualification."}],
+            "functionalQualification": "PENDING", "developmentOnly": True, "simulatorProtection": "UNSUPPORTED",
+            "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+            "providerQualification": False, "acceptance": False, "gateQualification": False,
+            "exactMainVerification": False, "releaseReady": False, "executionAuthority": False}
+    except BaseException as error:
+        first = error
+    try:
+        fences.finish()
+    except BaseException as error:
+        if first is None:
+            first = error
+        elif hasattr(first, "add_note"):
+            try:
+                first.add_note("additional v2 final fence failure: " + type(error).__name__)
+            except BaseException:
+                # Diagnostic annotation cannot replace the already retained first object.
+                pass
+    if first is not None:
+        raise first
+    return result

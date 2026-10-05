@@ -3,31 +3,31 @@
 ## Current state
 
 - Goal: verified V23 baseline incorporating accepted S10, then main. Full V23 remains required for release.
-- Published integration HEAD/origin: c54c64d664fa225da9a1b49249c0fd07a9b43247, tree90870dd3175f5d0d17883dc6f5db50ce6b89e756; branch codex/v23-s10-integration-20260910.
-- Main/origin remains accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6. All five Phase1 gates OPEN (0/5); releaseReady=false; no signing/distribution.
-- C11 sixteen-path DEVELOPMENT checkpoint has genuine independent C9 GPT-6.1 Sol/xhigh PASS. Non-force publication completed; tracked/index clean before this bookkeeping; protected .DS_Store/CODEX_RESUME.md untouched.
-- Pinned GitHub DEVELOPMENT27 original37366161165 ended runner-bootstrap FAILURE before runner assignment/steps/tests; no artifacts, authentic empty22-byte log ZIP. All27 tests NotStarted; no app compile result.
-- Previous hosted37351628429 failed1 compiler error/285warnings; all27 tests NotStarted. Complete69-file collection retained. C11 explicit same-type [UInt64] fixes inference.
-- Fresh local27 full cold-macro app build PASS0errors313.323s. C12 changes only Python; exact app/project/test bindings support reuse. No pinned26 or cold app runtime success inferred.
-- Published C11 V3 tooling: nativeCI394PASS0/368s, reader41PASS0/353s; selection42 predecessorPASS598s reused after independent54file/107object/currentprofile proof.
-- C11 retains7cold-only outcomes/5methods: focused18 has6ERROR outcomes across4methods at own receipt-parent birth; dispatcher104 has1missing-proof fixtureFAIL. All originals/HOLDs preserved.
-- C12 four-source correction applied once in fresh exactc54 worktree and once into Primary; allpacket/bases/applychecks pass, outside2808 raw/FULL10 and protected2 conserved at import; exact8 owned paths now staged.
-- C12 current CI394PASS0/419s, selection42PASS0/638s, reader41PASS0/393s, fullColdOriginalCollectionTests11PASS0/11s;0skips. Separate changedmethod1PASS0. Final exact8-path independent C9 GPT-6.1 Sol/xhigh DATA/checkpoint review PASS; commit/publication due.
-- Private transitive fixture first20 had19PASS/1PermissionError in hostile444proof mutation; independently reviewed fixture-onlyV3 correction changedselector1PASS0/1s. Production/other19 method bytes unchanged; no wholeV3fixture rerun claimed.
-- Collector empty-log extraction fix is independently Source-reviewed and focused4PASS0 in complete checkout. First missing-fixture setup failed before methods and is retained. Same-original sole collector resume terminal0; no native rerun or gate credit.
-- Full current app failure count UNKNOWN until applicable hosted coverage. Census3716unit methods/33partitions; selected27 is not full coverage.
+- Published integration HEAD/origin: 622967850ad8505431b111478b92b0b91d8b37f1, tree6285732525b607188fe1deeddd5d4c756317d668; branch codex/v23-s10-integration-20260910.
+- Main/origin remains accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6. All five Phase1 gates OPEN(0/5); releaseReady=false; no signing/distribution.
+- C12 DEVELOPMENT checkpoint is published after genuine independent Sol6.1/xhigh review. Actual488 tooling checks passed; successful313.323s local27 macro app compile has exact unchanged app-source scope.
+- Both pinned hosted DEVELOPMENT27 originals37366161165 and37370383563 failed to acquire a runner. No app build/tests executed; all27NotStarted. Complete originals retained and independently DATA reviewed.
+- Latest37370383563 has31 jobs: bootstrap cancelled/runner_id0 plus30 skipped/runner_idnull, allzero steps. Prior Root30-total/runner0 shorthand is superseded; null is not an observed zero.
+- GitHub Actions incident remains unresolved at21:22UTC provider update. Do not spend another unchanged original on the outage.
+- C13 shared-build evidence-tooling correction has genuine independent Source review. DATA35 fresh current checks35PASS17s and actual independent DATA PASS.
+- ReaderP3 original31PASS/1diagnosticFAIL plus correctedP4 changed1PASS7s. Genuine same C9 independent review supports scoped31reuse; no wholeP4suite execution claimed. FirstFAIL retained; productionunchanged.
+- NativeV4 original9PASS/1fixtureFAIL1711s retained. Reviewed V5 SLF fixture corrected wholemethod1PASS96s; original9 scope retained, no wholeV5run claimed. Private dispatcher5PASS1s. Changed1actual/scoped9reuse genuine C9 Sol6.1/xhigh PASS; final actualimport/developmentcheckpoint review PASS.
+- Root imported final seven reviewed Source paths from exact622 W15 into Primary once; Python syntax7PASS, no Swift/project change. Outside2617 materialized raws and189 online-only FULL10/protected2 conserved; indexempty. Historical archive stays online-only.
+- W15 affected dispatcher34PASS508s, nativeCI394PASS566s, selection42PASS829s, legacyreader41PASS416s; allzero errors/skips. Corrected reader path used a distinct original; failed launch retained.
+- Full current app failure count UNKNOWN until applicable hosted coverage. Census3716 unit methods/33 partitions; selected27 and Python tooling checks are not full app coverage.
 
 ## Next executable steps
 
-1. Genuine independent current488/Primary-import/exact8-path C12 review PASS; finish faithful verdict binding, explicit Source+records commit/non-force publication. Next new-head ordinary hosted27 remains due.
-2. Prepare separate C13 additive qualificationV2, safe retained cold payload/worker adapter and authentic uncapped DD/activitylog/no-rebuild witnesses; four disjoint private helper lanes overlap C12 tests.
-3. Genuine coldapp/context/completeemittedtransport/latewrite proof and full coldDEVELOPMENT3716/33; meaningful stabilization sweep.
-4. Freeze one merge candidate and satisfy same-head coverage, qualifiedUI, independentreview, genuine owner screenshots/checklist, non-force main fast-forward+pinned exact-main verification.
-5. Full V23, physical protection, V23 privacy owner sign-off and store/release owner obligations remain due.
+1. Genuine C9 Sol6.1/xhigh actualimport/11path DEVELOPMENT checkpoint PASS. Record faithful verdict, commit exact11 ownedpaths and publish non-force.
+2. No known unresolved failures in completed593 distinct tooling-method scopes; partial successor execution and exact reuse remain separately labelled. Main waits for allfivegates.
+3. After provider recovery, finish genuine cold app/context/complete emitted transport/late-write qualification proof and hosted3716/33 development sweep.
+4. Freeze one merge candidate; same-head full coverage, qualifiedUI, independentreview and genuine owner screenshots/checklist, then main fast-forward and pinned exact-main verification.
+5. Full V23, physical protection, V23 privacy owner sign-off and Store/release owner obligations remain due.
 
 ## Execution and evidence
 
 - Local DEVELOPMENT:Xcode27.0/27A266a,Swift6.4/language5,SDK27.0/24A430,iOS26.2/23C54. Official gates/exact-main remain GitHub26.6/26.2.
-- New Source/retained receipts:Dropbox .codex-temp/resume-20261002. Mutable originals/DD/TMP:~/Library/Caches/AssetRounds-resume-20261002. Latest13.9GiB internal diskfree/16GiB RAM; /Volumes/EXTERNAL has233GiB available for future scratch, Source staysDropbox. Recheck before native.
-- Root alone Git/native/admission/evidence/dispatch/collection; useful helpers GPT-6.1 Sol/xhigh. Completed6CI+3selection+1reader; fence classes serial1. No active native app build.
-- Preserve all drafts/frozen/V30/historical originals/HOLDs and pending ledgers. Historical archive remains online-only. Reviewed ordinary93 predecessor reuse is conditional on current fullpair/readerPASS and retains exact C11scope. Complete emitted transport required; stronger count/lifetime claims separately UNPROVEN.
+- New Source/retained receipts stay in Dropbox .codex-temp/resume-20261002. Mutable originals/DD/TMP remain together in ~/Library/Caches/AssetRounds-resume-20261002.
+- Latest13GiB internal free/16GiB RAM/66% memoryfree/swap562.94MiB; external233GiB available. Recheck before native. Required online-only Source downloaded selectively and original hashes verified; historical archive stays online-only.
+- Root alone Git/native/admission/evidence/dispatch/collection. Helpers GPT-6.1 Sol/xhigh. Current local Python originals ended; no app build. Source7/four records ready for reviewed explicit11path DEVELOPMENT commit/publication.
+- Preserve every draft/frozen/V30/original/HOLD and ledger. Complete emitted transport mandatory; stronger totalcall/cohort/perPIDretirement separately UNPROVEN. No lifetime/physical/acceptance inferred.

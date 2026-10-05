@@ -4868,6 +4868,396 @@ def cold_shared_observation(root, artifact, record, environment, stage, kernel, 
     return value
 
 
+COLD_PAYLOAD_WITNESS_SCHEMA_V2 = "v23-cold-shared-payload-witness.v2"
+COLD_PAYLOAD_WITNESS_PREFIX_V2 = "cold-shared-payload-witness-"
+COLD_ACTIVITY_DIRECTORY_V2 = "cold-activity-logs-v2"
+
+
+def _cold_payload_write_v2(path, raw, retained=None):
+    """Exclusive V2 write; retain the first object and attempt each acquired close once."""
+    require(type(raw) is bytes and isinstance(path, Path), "cold payload writer inputs")
+    if retained is None:
+        retained = {}
+    require(type(retained) is dict and not retained, "cold payload new writer controls")
+    retained.update(path=str(path), bytes=len(raw), descriptor=None,
+        openEntered=False, openReturned=False, writeEntered=False, writeReturned=False,
+        writeActualReturn=None, fsyncEntered=False, fsyncReturned=False, fsyncActualReturn=None,
+        closeEntered=False, closeReturned=False, closeActualReturn=None, closeUncertain=False,
+        firstError=None, secondaryErrors=[])
+    descriptor, first = None, None
+    try:
+        retained["openEntered"] = True
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o666)
+        # An integer owner has no destructor that could repeat an uncertain close.
+        retained.update(descriptor=descriptor, openReturned=True)
+        retained["writeEntered"] = True
+        retained["writeActualReturn"] = os.write(descriptor, raw)
+        require(type(retained["writeActualReturn"]) is int and retained["writeActualReturn"] == len(raw),
+                "cold payload short write; partial original retained")
+        retained["writeReturned"] = True
+        retained["fsyncEntered"] = True
+        retained["fsyncActualReturn"] = os.fsync(descriptor)
+        require(retained["fsyncActualReturn"] is None, "cold payload fsync actual return")
+        retained["fsyncReturned"] = True
+    except BaseException as error:
+        first = error
+        retained["firstError"] = error
+    finally:
+        if descriptor is not None:
+            retained["closeEntered"] = True
+            try:
+                retained["closeActualReturn"] = os.close(descriptor)
+                require(retained["closeActualReturn"] is None, "cold payload close actual return")
+                retained["closeReturned"] = True
+            except BaseException as error:
+                retained["closeUncertain"] = True
+                if first is None:
+                    first = error
+                    retained["firstError"] = error
+                else:
+                    retained["secondaryErrors"].append(error)
+    if first is not None:
+        # Retain actual objects for the enclosing Root collector, while raw
+        # tracebacks also name secondary failures. Neither operation may replace
+        # the first error or perform another cleanup attempt.
+        try:
+            first.cold_payload_write_io_v2 = retained
+            for error in retained["secondaryErrors"]:
+                first.add_note("cold payload V2 secondary close error: " + repr(error))
+        except BaseException as error:
+            retained["secondaryErrors"].append(error)
+        raise first
+    return retained
+
+
+def cold_payload_observation_identity_v2(root, artifact, record, expected_binding):
+    """Retained Source/identity join, never event/API authentication or qualification."""
+    gate = load_phase1_gates(root)
+    binding = record.get("coldOriginal")
+    require("phase1Gate" not in record and type(binding) is dict
+            and binding.get("schema") == gate.COLD_EVENT_SCHEMA,
+            "cold payload original event scope")
+    gate.exact(binding, expected_binding, "cold payload expected original")
+    plan = gate.validate_cold_plan(binding.get("plan"))
+    require((record.get("head"), record.get("gitTree"), record.get("ref"), record.get("selectionID"))
+            == (plan["head"], plan["tree"], plan["ref"], plan["selection"])
+            and binding.get("planSHA256") == sha256(canonical(plan))
+            and (binding.get("head"), binding.get("tree"), binding.get("ref"), binding.get("selection"))
+            == (plan["head"], plan["tree"], plan["ref"], plan["selection"])
+            and binding.get("runID") == record.get("runID")
+            and record.get("runAttempt") == binding.get("runAttempt") == "1"
+            and binding.get("kind") == "development" and binding.get("status") == "INCOMPLETE"
+            and binding.get("functionalQualification") == gate.COLD_PENDING
+            and binding.get("developmentOnly") is True
+            and all(binding.get(key) is False for key in ("providerQualification", "acceptance", "releaseReady"))
+            and gate.digest(binding.get("originalEventSHA256")), "cold payload pending original identity")
+    sources = {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES))
+               for path in gate.SOURCES}
+    gate.exact(plan["sources"], sources, "cold payload current Source closure")
+    current = source_binding(root)
+    gate.exact({key: record.get(key) for key in current}, current, "cold payload admitted protocol Source")
+    require(gate.regular_bytes(artifact / "native-admission.json", limit=PHASE1_WITNESS_BYTES)
+            == canonical(record), "cold payload exact admission bytes")
+    return {"eventBindingSHA256": sha256(canonical(binding)),
+            "originalEventSHA256": binding["originalEventSHA256"],
+            "admissionSHA256": sha256(canonical(record)), "planSHA256": binding["planSHA256"],
+            "selectionSHA256": record[SHARED_KEY]["planSHA256"], "head": record["head"],
+            "tree": record["gitTree"], "ref": record["ref"], "runID": record["runID"], "runAttempt": "1",
+            "sourceSHA256": sources, "functionalQualification": "PENDING",
+            "processLifetimes": "PENDING", "emittedTransport": "PENDING",
+            "executionScope": "cold-shared-route-development-v1", "offlineFilesystemReplay": False,
+            "developmentOnly": True, "simulatorProtection": "UNSUPPORTED",
+            "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+            "providerQualification": False, "acceptance": False, "releaseReady": False}
+
+
+def cold_product_normalization_v2(source, normalized, products, kernel_sha):
+    """Bind the original inventory to the copy whose sole permitted rewrite is .xctestrun."""
+    source = phase1_inventory(source, products=True)
+    normalized = phase1_inventory(normalized, products=True)
+    require([item["path"] for item in source] == [item["path"] for item in normalized],
+            "cold normalized Products membership changed")
+    changed = []
+    for before, after in zip(source, normalized):
+        if before == after:
+            continue
+        require(before["path"] == products["xctestrunPath"] and before["type"] == after["type"] == "file"
+                and before["mode"] == after["mode"], "cold normalization changed non-xctestrun Products")
+        changed.append(before["path"])
+    require(sum(item["type"] == "file" and item["path"].endswith(".xctestrun") for item in source) == 1,
+            "cold source sole xctestrun")
+    return {"kernelSHA256": kernel_sha, "changedProductPaths": changed,
+            "sourceProductInventorySHA256": sha256(canonical(source)),
+            "transportProductInventorySHA256": sha256(canonical(normalized))}
+
+
+def cold_shared_payload_witness_v2(root, artifact, record, environment, stage, kernel, *, source_before=None):
+    """Additive actual cold checkpoint witness; old V1 facts and authority stay unchanged."""
+    require(stage in PHASE1_WITNESS_STAGES and "phase1Gate" not in record, "cold payload witness scope")
+    binding, event_raw, _selected, _selection = cold_worker_context(root, environment)
+    identity = cold_payload_observation_identity_v2(root, artifact, record, binding)
+    require(identity["originalEventSHA256"] == sha256(event_raw), "cold payload actual event bytes")
+    role = shared_role(record)
+    require((stage == "seal") == (role == "producer"), "cold payload witness role/stage")
+    gate = load_phase1_gates(root)
+    temp = Path(environment["RUNNER_TEMP"])
+    payload = temp / SHARED_PAYLOAD_DIRECTORY if stage == "seal" else temp
+    entries = phase1_product_inventory(payload / kernel["ROOT_LABEL"], kernel)
+    products = shared_products_binding(kernel, payload)
+    require(kernel["object_sha"](entries) == products["treeSHA256"], "cold live Products inventory changed")
+    metadata_raw = gate.regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    metadata = gate.decode(metadata_raw, limit=PHASE1_WITNESS_BYTES)
+    require(products == metadata["products"], "cold live Products differ from producer")
+    expected = shared_metadata_identity(root, record, artifact, environment)
+    require(all(metadata.get(key) == item for key, item in expected.items()), "cold live metadata original")
+    value = {"schema": COLD_PAYLOAD_WITNESS_SCHEMA_V2, **identity, "stage": stage, "role": role,
+             "partitionID": record[SHARED_KEY].get("partitionID"), "workspace": str(root),
+             "runnerTemp": str(temp), "artifactDirectory": str(artifact),
+             "payloadArtifactName": record[SHARED_KEY]["payloadArtifactName"],
+             "metadataSHA256": sha256(metadata_raw), "products": products, "productInventory": entries}
+    if stage in ("seal", "restore"):
+        receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+        receipt_raw = gate.regular_bytes(artifact / receipt_name, limit=PHASE1_WITNESS_BYTES)
+        receipt = gate.decode(receipt_raw, limit=PHASE1_WITNESS_BYTES)
+        tar = temp / (SHARED_TRANSPORT_DIRECTORY if stage == "seal" else SHARED_DOWNLOAD_DIRECTORY) / SHARED_TAR
+        require(tar.is_file() and not tar.is_symlink()
+                and receipt["archive"] == {"name": SHARED_TAR, "bytes": tar.stat().st_size,
+                                           "sha256": kernel["sha256_file"](tar)}, "cold observed payload archive")
+        value.update(archive=receipt["archive"], archiveMemberCensus=phase1_tar_census(tar, kernel),
+                     receiptSHA256=sha256(receipt_raw))
+        if stage == "seal":
+            original = phase1_product_inventory(temp / "FieldEvidenceDerivedData/Build/Products", kernel)
+            require(source_before == original, "cold original Products changed while sealing")
+            value.update(sourceProductInventory=original, sourceUnchangedDuringSeal=True,
+                         sourceBeforeProductInventorySHA256=sha256(canonical(source_before)),
+                         normalization=cold_product_normalization_v2(original, entries, products,
+                                             identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL]),
+                         testsExecuted=0, diagnostics="NOT_APPLICABLE_BUILD_ONLY")
+        else:
+            value.update(safeExtractionObserved=True,
+                         extractionKernelSHA256=identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL])
+    else:
+        derived = temp / "FieldEvidenceDerivedData"
+        inventory = phase1_derived_inventory(derived, kernel)
+        value["derivedDataInventory"] = phase1_inventory([dict(inventory[p], path=p) for p in sorted(inventory)])
+        fingerprint_raw = gate.regular_bytes(artifact / ("v23-shared-fingerprint-" + stage + ".json"),
+                                             limit=PHASE1_WITNESS_BYTES)
+        value["fingerprintSHA256"] = sha256(fingerprint_raw)
+        value["activityLogs"] = []
+        if stage == "after":
+            require(shared_compile_evidence(artifact, temp) == [], "cold live no-rebuild guards")
+            directory = artifact / COLD_ACTIVITY_DIRECTORY_V2
+            directory.mkdir(mode=0o700)
+            total = 0
+            for entry in value["derivedDataInventory"]:
+                if not (entry["path"].startswith("Logs/Build/") and entry["path"].endswith(".xcactivitylog")
+                        and entry["type"] == "file"):
+                    continue
+                total += entry["size"]
+                require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "cold activity log retention bound")
+                raw = gate.regular_bytes(derived / entry["path"], limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                require(len(raw) == entry["size"] and sha256(raw) == entry["sha256"],
+                        "cold activity log changed during retention")
+                name = "%06d.xcactivitylog" % len(value["activityLogs"])
+                _cold_payload_write_v2(directory / name, raw)
+                require(shared_activity_log_compile_step(directory / name) is None,
+                        "cold retained activity log compile evidence")
+                value["activityLogs"].append({"sourcePath": entry["path"], "retainedPath": name,
+                                              "bytes": len(raw), "sha256": sha256(raw)})
+            require(inventory == phase1_derived_inventory(derived, kernel),
+                    "cold DerivedData changed during activity retention")
+        else:
+            require(shared_build_evidence(artifact, temp) == [], "cold live restored-only before tree")
+    raw = canonical(value)
+    require(len(raw) <= PHASE1_WITNESS_BYTES, "cold complete payload witness byte bound")
+    _cold_payload_write_v2(artifact / (COLD_PAYLOAD_WITNESS_PREFIX_V2 + stage + "-v2.json"), raw)
+    return value
+
+
+def cold_retained_shared_facts_v2(root, artifact, record, expected_binding):
+    """Pure retained-file recomputation; caller authenticates sole original and all artifact bytes."""
+    gate = load_phase1_gates(root)
+    identity = cold_payload_observation_identity_v2(root, artifact, record, expected_binding)
+    kernel = load_payload_kernel(root)
+    role = shared_role(record)
+    stages = ("seal",) if role == "producer" else ("restore", "before", "after")
+    metadata_raw = gate.regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    metadata = gate.decode(metadata_raw, limit=PHASE1_WITNESS_BYTES)
+    require(all(metadata.get(key) == record.get(key) for key in ("repository", "ref", "head", "gitTree", "runID", "runAttempt"))
+            and metadata.get("payloadArtifactName") == record[SHARED_KEY]["payloadArtifactName"]
+            and metadata.get("planSHA256") == record[SHARED_KEY]["planSHA256"]
+            and metadata.get("partitionsSHA256") == record[SHARED_KEY]["partitionsSHA256"],
+            "cold retained payload original identity")
+    observations = {}
+    for stage in stages:
+        raw = gate.regular_bytes(artifact / (COLD_PAYLOAD_WITNESS_PREFIX_V2 + stage + "-v2.json"),
+                                 limit=PHASE1_WITNESS_BYTES)
+        value = gate.decode(raw, limit=PHASE1_WITNESS_BYTES)
+        keys = {"schema", *identity, "stage", "role", "partitionID", "workspace", "runnerTemp",
+                "artifactDirectory", "payloadArtifactName", "metadataSHA256", "products", "productInventory"}
+        keys |= ({"archive", "archiveMemberCensus", "receiptSHA256"} if stage in ("seal", "restore")
+                 else {"derivedDataInventory", "fingerprintSHA256", "activityLogs"})
+        keys |= ({"sourceProductInventory", "sourceUnchangedDuringSeal", "sourceBeforeProductInventorySHA256",
+                  "normalization", "testsExecuted", "diagnostics"} if stage == "seal"
+                 else {"safeExtractionObserved", "extractionKernelSHA256"} if stage == "restore" else set())
+        require(type(value) is dict and set(value) == keys and value["schema"] == COLD_PAYLOAD_WITNESS_SCHEMA_V2,
+                "cold closed payload witness")
+        gate.exact({key: value[key] for key in identity}, identity, "cold payload witness identity")
+        require((value["stage"], value["role"], value["partitionID"], value["payloadArtifactName"])
+                == (stage, role, record[SHARED_KEY].get("partitionID"), record[SHARED_KEY]["payloadArtifactName"])
+                and value["metadataSHA256"] == sha256(metadata_raw), "cold witness payload/role")
+        for name in ("workspace", "runnerTemp", "artifactDirectory"):
+            require(type(value[name]) is str and value[name].startswith("/") and "\x00" not in value[name]
+                    and all(part not in (".", "..") for part in value[name].split("/")),
+                    "cold original runner path spelling")
+        require(value["workspace"] == metadata.get("workspace"), "cold original workspace binding")
+        if observations:
+            require(all(value[key] == observations[stages[0]][key]
+                        for key in ("workspace", "runnerTemp", "artifactDirectory")), "cold inconsistent runner paths")
+        entries = phase1_inventory(value["productInventory"], products=True)
+        products = value["products"]
+        require(products == metadata["products"] and kernel["object_sha"](entries) == products["treeSHA256"]
+                and len(entries) == products["entryCount"]
+                and sum(item.get("size", 0) for item in entries) == products["fileBytes"],
+                "cold retained Products inventory binding")
+        xctestruns = [entry for entry in entries if entry["path"].endswith(".xctestrun") and entry["type"] == "file"]
+        require(len(xctestruns) == 1 and (xctestruns[0]["path"], xctestruns[0]["sha256"])
+                == (products["xctestrunPath"], products["xctestrunSHA256"]), "cold retained xctestrun binding")
+        if stage in ("seal", "restore"):
+            receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+            receipt_raw = gate.regular_bytes(artifact / receipt_name, limit=PHASE1_WITNESS_BYTES)
+            receipt = gate.decode(receipt_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["receiptSHA256"] == sha256(receipt_raw) and value["archive"] == receipt["archive"]
+                    and receipt["metadataSHA256"] == value["metadataSHA256"]
+                    and receipt["productsTreeSHA256"] == products["treeSHA256"]
+                    and receipt["xctestrunSHA256"] == products["xctestrunSHA256"], "cold retained payload receipt")
+            require(receipt.get("schema") == ("v23-shared-payload-receipt.v1" if stage == "seal" else "v23-shared-restore.v1")
+                    and receipt.get("role") == role
+                    and receipt.get("payloadArtifactName") == value["payloadArtifactName"]
+                    and (receipt.get("head"), receipt.get("gitTree"), receipt.get("workspace"))
+                    == (record["head"], record["gitTree"], value["workspace"])
+                    and receipt.get("developmentOnly") is True and receipt.get("acceptance") is False,
+                    "cold retained receipt original scope")
+            if stage == "seal":
+                require((receipt.get("runID"), receipt.get("runAttempt")) == (record["runID"], "1"),
+                        "cold retained producer receipt run")
+            else:
+                require(receipt.get("partitionID") == record[SHARED_KEY]["partitionID"]
+                        and receipt.get("restoredProductsRoot") == value["runnerTemp"] + "/" + kernel["ROOT_LABEL"],
+                        "cold retained consumer receipt destination")
+            census = value["archiveMemberCensus"]
+            require(type(census) is list and 0 < len(census) <= min(PHASE1_WITNESS_ENTRIES, kernel["MAX_MEMBERS"])
+                    and len(canonical(census)) <= PHASE1_WITNESS_BYTES, "cold retained complete archive census bound")
+            paths = []
+            for item in census:
+                require(type(item) is dict and set(item) == {"path", "type", "size", "mode"}
+                        and item["type"] in ("file", "directory") and type(item["size"]) is int and item["size"] >= 0
+                        and (item["type"] != "directory" or item["size"] == 0)
+                        and type(item["mode"]) is int and 0 <= item["mode"] <= 0o777, "cold retained archive member")
+                path = phase1_relative_path(item["path"])
+                kernel["safe_relative"](path)
+                paths.append(path)
+            require(paths == sorted(set(paths)) and len({p.casefold() for p in paths}) == len(paths),
+                    "cold retained archive order/duplicate")
+            by_path = {item["path"]: item for item in census}
+            expected_paths = {"FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"],
+                              SHARED_PAYLOAD_METADATA}
+            for item in entries:
+                path = kernel["ROOT_LABEL"] + "/" + item["path"]
+                expected_paths.add(path)
+                require(by_path.get(path) == {"path": path, "type": item["type"], "mode": item["mode"],
+                                               "size": item.get("size", 0)}, "cold archive/Products census")
+            require(set(paths) == expected_paths and by_path[SHARED_PAYLOAD_METADATA]["type"] == "file"
+                    and by_path[SHARED_PAYLOAD_METADATA]["size"] == len(metadata_raw)
+                    and all(by_path[p]["type"] == "directory" for p in
+                            ("FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"])),
+                    "cold complete payload root census")
+            if stage == "seal":
+                source = phase1_inventory(value["sourceProductInventory"], products=True)
+                require(value["sourceUnchangedDuringSeal"] is True and type(value["testsExecuted"]) is int
+                        and value["testsExecuted"] == 0 and value["diagnostics"] == "NOT_APPLICABLE_BUILD_ONLY"
+                        and value["sourceBeforeProductInventorySHA256"] == sha256(canonical(source)),
+                        "cold build-only original Products seal")
+                gate.exact(value["normalization"], cold_product_normalization_v2(source, entries, products,
+                           identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL]), "cold retained normalization join")
+            else:
+                require(value["safeExtractionObserved"] is True
+                        and value["extractionKernelSHA256"] == identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL],
+                        "cold observed extraction kernel")
+        else:
+            inventory = phase1_inventory(value["derivedDataInventory"])
+            fingerprint_raw = gate.regular_bytes(artifact / ("v23-shared-fingerprint-" + stage + ".json"),
+                                                 limit=PHASE1_WITNESS_BYTES)
+            fingerprint = gate.decode(fingerprint_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["fingerprintSHA256"] == sha256(fingerprint_raw) and fingerprint.get("phase") == stage
+                    and fingerprint.get("partitionID") == record[SHARED_KEY]["partitionID"]
+                    and fingerprint.get("matchesProducer") is True and fingerprint.get("buildEvidence") == []
+                    and fingerprint.get("error") is None and fingerprint.get("productsTreeSHA256") == products["treeSHA256"]
+                    and fingerprint.get("xctestrunSHA256") == products["xctestrunSHA256"]
+                    and fingerprint.get("entryCount") == len(entries), "cold retained fingerprint")
+            require(not any(item["path"] == "Build/Products" or item["path"].startswith("Build/Products/")
+                            for item in inventory), "cold DD inventory Products overlap")
+            if stage == "before":
+                require(fingerprint.get("derivedDataEntries") == inventory and value["activityLogs"] == [],
+                        "cold complete retained before inventory")
+                require(not any(item["path"] == "Logs/Build" or item["path"].startswith("Logs/Build/")
+                                or item["path"].startswith("Build/Intermediates") for item in inventory),
+                        "cold retained before build tree")
+            else:
+                require(fingerprint.get("matchesBefore") is True, "cold retained Products changed")
+                before = {item["path"]: {k: v for k, v in item.items() if k != "path"}
+                          for item in observations["before"]["derivedDataInventory"]}
+                after = {item["path"]: {k: v for k, v in item.items() if k != "path"} for item in inventory}
+                delta_raw = gate.regular_bytes(artifact / SHARED_DERIVED_DATA_DELTA, limit=PHASE1_WITNESS_BYTES)
+                delta = gate.decode(delta_raw, limit=PHASE1_WITNESS_BYTES)
+                expected_delta = shared_derived_delta(before, after)
+                require(all(delta.get(k) == v for k, v in expected_delta.items())
+                        and delta.get("beforeEntryCount") == len(before) and delta.get("afterEntryCount") == len(after)
+                        and delta.get("compileEvidence") == []
+                        and delta.get("schema") == "v23-shared-deriveddata-delta.v1"
+                        and delta.get("partitionID") == record[SHARED_KEY]["partitionID"]
+                        and delta.get("derivedDataRoot") == value["runnerTemp"] + "/FieldEvidenceDerivedData"
+                        and delta.get("excludedSubtree") == "Build/Products"
+                        and delta.get("developmentOnly") is True and delta.get("acceptance") is False
+                        and fingerprint["derivedDataDelta"] == {"path": SHARED_DERIVED_DATA_DELTA,
+                            "sha256": sha256(delta_raw), **{key: expected_delta[key]
+                                for key in ("addedCount", "changedCount", "removedCount")}},
+                        "cold complete retained DerivedData delta")
+                # Full uncapped inventories are authoritative; legacy delta lists may be capped.
+                require(not any(item["path"].startswith("Build/Intermediates")
+                                and item["path"].endswith(SHARED_COMPILE_OUTPUT_SUFFIXES) for item in inventory),
+                        "cold retained compile output")
+                logs = [item for item in inventory if item["path"].startswith("Logs/Build/")
+                        and item["path"].endswith(".xcactivitylog") and item["type"] == "file"]
+                require(type(value["activityLogs"]) is list and len(value["activityLogs"]) == len(logs),
+                        "cold complete retained activity logs")
+                directory = artifact / COLD_ACTIVITY_DIRECTORY_V2
+                require(directory.is_dir() and not directory.is_symlink()
+                        and sorted(p.name for p in directory.iterdir()) == ["%06d.xcactivitylog" % i for i in range(len(logs))],
+                        "cold activity log directory census")
+                total = 0
+                for index, (entry, retained) in enumerate(zip(logs, value["activityLogs"])):
+                    name = "%06d.xcactivitylog" % index
+                    gate.exact(retained, {"sourcePath": entry["path"], "retainedPath": name,
+                                        "bytes": entry["size"], "sha256": entry["sha256"]}, "cold activity log identity")
+                    total += entry["size"]
+                    require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "cold retained activity byte bound")
+                    path = directory / name
+                    log_raw = gate.regular_bytes(path, limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                    require(len(log_raw) == entry["size"] and sha256(log_raw) == entry["sha256"]
+                            and shared_activity_log_compile_step(path) is None, "cold retained activity scan")
+                require(shared_test_log_compile_lines(artifact / "test-smoke.log") == []
+                        and not shared_local_build_artifacts(artifact), "cold retained no-rebuild log/artifact scan")
+        observations[stage] = value
+    require(all(value["products"] == observations[stages[0]]["products"]
+                and value["productInventory"] == observations[stages[0]]["productInventory"]
+                for value in observations.values()), "cold Products changed between retained observations")
+    return {"schema": "v23-cold-retained-shared-facts.v2", **identity, "role": role,
+            "status": "COMPLETE_RETAINED_COLD_PAYLOAD_OBSERVATIONS", "observations": observations,
+            "liveObservationSHA256": {stage: sha256(canonical(value)) for stage, value in observations.items()},
+            "payloadArchiveRetained": False, "liveChecksIndependentlyReexecuted": False}
+
+
 def shared_seal(root, artifact, record, environment, kernel=None):
     """Producer only: seal the exact no-index build products once; it never runs tests."""
     require(shared_role(record) == "producer", "shared seal is producer-only")
@@ -4913,6 +5303,8 @@ def shared_seal(root, artifact, record, environment, kernel=None):
                                        source_before=phase1_source_before)
     if "coldOriginal" in record:
         cold_shared_observation(root, artifact, record, environment, "seal", kernel, source_before=cold_source_before)
+        cold_shared_payload_witness_v2(root, artifact, record, environment, "seal", kernel,
+                                      source_before=cold_source_before)
     return receipt
 
 
@@ -4970,6 +5362,7 @@ def shared_restore(root, artifact, record, environment, kernel=None):
         phase1_shared_live_observation(root, artifact, record, environment, "restore", kernel)
     if "coldOriginal" in record:
         cold_shared_observation(root, artifact, record, environment, "restore", kernel)
+        cold_shared_payload_witness_v2(root, artifact, record, environment, "restore", kernel)
     return receipt
 
 
@@ -5041,6 +5434,7 @@ def shared_fingerprint(root, artifact, record, environment, phase, kernel=None):
         phase1_shared_live_observation(root, artifact, record, environment, phase, kernel)
     if "coldOriginal" in record:
         cold_shared_observation(root, artifact, record, environment, phase, kernel)
+        cold_shared_payload_witness_v2(root, artifact, record, environment, phase, kernel)
     return value
 
 
@@ -5250,6 +5644,11 @@ def verify_checkpoint(root, artifact, record, selection, environment, *, retaine
                     "cold retained live observation binding")
             cold_facts[stage] = value
         build_order["coldSharedObservations"] = cold_facts
+        payload_facts = cold_retained_shared_facts_v2(root, artifact, record, record["coldOriginal"])
+        # Inventories remain complete in their retained sidecars, without copying
+        # all three bounded inventories into the already bounded checkpoint.
+        build_order["coldSharedPayloadFactsV2"] = {key: value for key, value in payload_facts.items()
+                                                if key != "observations"}
     return {**record, **build_order, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
             "executedUIMethods": ui, "simulator": simulator, "provider": provider, "sdk": sdk,
             "simulatorFileProtectionDiagnostics": diagnostic_evidence,

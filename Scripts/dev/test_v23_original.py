@@ -156,6 +156,54 @@ def tree_bytes(directory):
     return {p.relative_to(walk).as_posix(): p.read_bytes() for p in sorted(walk.rglob("*")) if p.is_file()}
 
 
+class GenericExtractionTests(unittest.TestCase):
+    def test_empty_original_log_zip_publishes_empty_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "logs.zip"
+            archive.write_bytes(zip_bytes({}))
+            target = root / "run-logs"
+            NEW.extract(archive, target)
+            self.assertTrue(target.is_dir())
+            self.assertEqual(list(target.iterdir()), [])
+            self.assertFalse(root.joinpath("run-logs.partial").exists())
+
+    def test_nonempty_original_log_zip_keeps_real_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "logs.zip"
+            archive.write_bytes(zip_bytes({"job/log.txt": b"original log\n"}))
+            target = root / "run-logs"
+            NEW.extract(archive, target)
+            self.assertEqual(target.joinpath("job/log.txt").read_bytes(), b"original log\n")
+            self.assertFalse(root.joinpath("run-logs.partial").exists())
+
+    def test_empty_zip_never_replaces_existing_retained_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "logs.zip"
+            archive.write_bytes(zip_bytes({}))
+            target = root / "run-logs"
+            target.mkdir()
+            sentinel = target / "retained.txt"
+            sentinel.write_bytes(b"keep original")
+            with self.assertRaises(SystemExit):
+                NEW.extract(archive, target)
+            self.assertEqual(sentinel.read_bytes(), b"keep original")
+
+    def test_unsafe_zip_refuses_before_temporary_directory_creation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "logs.zip"
+            archive.write_bytes(zip_bytes({"../escaped.txt": b"unsafe"}))
+            target = root / "run-logs"
+            with self.assertRaises(SystemExit):
+                NEW.extract(archive, target)
+            self.assertFalse(target.exists())
+            self.assertFalse(root.joinpath("run-logs.partial").exists())
+            self.assertFalse(root.parent.joinpath("escaped.txt").exists())
+
+
 class SingleJobIdentityTests(unittest.TestCase):
     @unittest.skipUnless(OLD, "current tool not present")
     def test_summary_bytes_identical_to_current_tool(self):
@@ -5099,7 +5147,8 @@ class ColdOriginalCollectionTests(unittest.TestCase):
             "attempt": attempt_path, "observed": observed, "jobs": jobs, "artifacts": artifacts,
             "files": files, "blobs": blobs, "payload": payload, "innerTAR": inner_tar,
             "payloadID": payload_id, "directory": directory, "calls": calls, "downloads": downloads,
-            "commands": commands, "observations": observations, "runs": [observed]}
+            "commands": commands, "observations": observations, "runs": [observed],
+            "stage1BridgeBoundaryCalls": []}
         def api(endpoint):
             calls.append(endpoint)
             if endpoint == f"repos/{REPO}": return copy.deepcopy(observations["repository"])
@@ -5154,6 +5203,24 @@ class ColdOriginalCollectionTests(unittest.TestCase):
         def process(*args, **kwargs):
             commands.append(args)
             raise AssertionError("cold raw collection must not invoke a child, native tool or dispatch")
+        def stage1_bridge_boundary(actual_gate, actual_plan, operation):
+            # This one-partition raw-collection fixture stops at the NEW bridge
+            # boundary. Full33/3716 payload/worker recomputation has separate
+            # actual-function/reader checks and future authentic originals.
+            # Never invoke its archive/reader operation or synthesize success.
+            self.assertIs(actual_gate, gate)
+            self.assertEqual(actual_plan, plan)
+            self.assertEqual(parts["partitionIDs"], ["S01"])
+            self.assertEqual(selected["unitTestSelectors"], ["SyntheticTests/Test/testOnly"])
+            self.assertTrue(callable(operation))
+            state["stage1BridgeBoundaryCalls"].append({
+                "syntheticTestOnly": True, "boundary": "cold_v2_archived_call",
+                "partitionIDs": ["S01"], "planSHA256": core.sha(core.canonical(plan))})
+            return {"schema": NEW.COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2,
+                "status": "PENDING_UNAVAILABLE_ORIGINAL_INPUTS",
+                "functionalQualification": gate.PENDING, "providerQualification": False,
+                "gateQualification": False, "acceptance": False, "releaseReady": False,
+                "syntheticTestOnly": True, "fixtureScope": "STAGE1_ONE_PARTITION_BOUNDARY_ONLY"}
         stack = contextlib.ExitStack()
         for name, replacement in (("EVIDENCE", base), ("ATTEMPTS", attempts), ("LEDGER", base / "v23-original-ledger.jsonl"),
                 ("cold_gates", lambda: gate), ("cold_timestamp", lambda: "2026-09-26T12:01:02Z"),
@@ -5163,6 +5230,7 @@ class ColdOriginalCollectionTests(unittest.TestCase):
                 ("shared_partitions", lambda *args: parts)):
             stack.enter_context(mock.patch.object(NEW, name, replacement))
         stack.enter_context(mock.patch.object(NEW.subprocess, "run", process))
+        stack.enter_context(mock.patch.object(NEW, "cold_v2_archived_call", stage1_bridge_boundary))
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         self.addCleanup(stack.close)
         lifecycle = NEW.cold_lifecycle_directory(gate, plan); lifecycle.mkdir()
@@ -5198,6 +5266,29 @@ class ColdOriginalCollectionTests(unittest.TestCase):
         entries = sorted(root.iterdir())
         self.assertEqual([path.name for path in entries], ["%06d" % index for index in range(len(entries))])
         return entries
+
+    def test_stage1_new_bridge_boundary_retains_only_marked_pending_data_without_reader_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve())
+            self.collect_incomplete()
+            self.assertEqual(f["stage1BridgeBoundaryCalls"], [{"syntheticTestOnly": True,
+                "boundary": "cold_v2_archived_call", "partitionIDs": ["S01"],
+                "planSHA256": f["core"].sha(f["core"].canonical(f["plan"]))}])
+            self.assertEqual(json.loads((f["directory"] / "cold-payload-recomputed-facts-v2.json").read_bytes()),
+                {"schema": NEW.COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2,
+                 "status": "PENDING_UNAVAILABLE_ORIGINAL_INPUTS",
+                 "functionalQualification": f["gate"].PENDING, "providerQualification": False,
+                 "gateQualification": False, "acceptance": False, "releaseReady": False,
+                 "syntheticTestOnly": True, "fixtureScope": "STAGE1_ONE_PARTITION_BOUNDARY_ONLY"})
+            self.assertFalse((f["directory"] / "cold-payload-recomputations-v2").exists())
+            self.assertFalse((f["directory"] / "phase1-payload-recomputations").exists())
+            self.assertEqual(f["commands"], [])
+            self.assertEqual(f["parts"]["partitionIDs"], ["S01"])
+            self.assertEqual(f["selected"]["unitTestSelectors"], ["SyntheticTests/Test/testOnly"])
+            self.assert_pending(self.state(f["directory"]))
+            transport = self.transports(f)[0]
+            self.assertEqual((transport / "raw.zip").read_bytes(), f["payload"])
+            self.assertEqual(json.loads((transport / "receipt.json").read_bytes())["status"], "COMPLETE")
 
     def test_actual_cold_context_retains_raw_outer_zip_and_bound_workers_without_reader_or_gate_credit(self):
         with tempfile.TemporaryDirectory() as temporary:

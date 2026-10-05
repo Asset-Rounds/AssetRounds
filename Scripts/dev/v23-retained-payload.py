@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import stat
 import struct
 import tarfile
@@ -19,6 +20,28 @@ import zlib
 
 INPUT_SCHEMA = "v23-retained-payload-input.v1"
 FACT_SCHEMA = "v23-retained-payload-facts.v1"
+COLD_INPUT_SCHEMA_V2 = "v23-cold-retained-payload-input.v2"
+COLD_FACT_SCHEMA_V2 = "v23-cold-retained-payload-facts.v2"
+COLD_PENDING_V2 = (
+    "authenticated original API census, attempt/discovery and sole-collector authority",
+    "frozen Git head/tree and archived-source provenance authentication",
+    "complete authentic original-bound emitted diagnostic transport",
+    "actual live safe-extraction, no-rebuild and every-method execution proof",
+    "complete job/download/command/runtime facts and genuine independent review",
+    "versioned cold qualification, candidate gates, owner review and exact-main lifecycle",
+)
+COLD_SCOPE_V2 = {
+    "developmentOnly": True, "authentication": False, "qualification": False,
+    "providerQualification": False, "acceptance": False, "releaseReady": False,
+    "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+    "physicalProtectionReleaseBlocker": True, "emittedTransport": "PENDING",
+    "totalPolicyCallCountProven": False, "exhaustiveKernelProcessCohortProven": False,
+    "perPIDDescriptorRetirementProven": False, "exactCheckpointRepeatProven": False,
+}
+COLD_UNPROVEN_V2 = (
+    "total policy-call counts", "exhaustive kernel process cohorts",
+    "per-PID descriptor retirement", "exact checkpoint repeat",
+)
 ZIP_BYTES = 4 * 1024**3
 ZIP_EXPANDED_BYTES = 4 * 1024**3
 ZIP_MEMBERS = 100000
@@ -31,7 +54,7 @@ TAR_NAME = "FieldEvidencePayload.tar"
 DIGEST_NAME = TAR_NAME + ".sha256"
 METADATA = "v23-shared-payload.json"
 EXECUTABLE_SOURCES = {
-    "Scripts/v23-native-ci.py": "84d93eb64c29a82d3a1e12ab388c027b11d7922809904fef9de391a8332391d5",
+    "Scripts/v23-native-ci.py": "ab26a4d60553facb664a357934881de47467313534204394ffe85aebf6328e89",
     "Scripts/v23-phase1-gates.py": "ee9f34bd65c761ba4093390f9f19ecdb5a726ca9b9f24aa3adde53377534c343",
     "Scripts/s10-4-build-payload.py": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521",
     "Scripts/v23-selection-generator.py": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
@@ -363,17 +386,23 @@ def source_closure(root, gate):
     return {relative: sha(regular_bytes(root / relative)) for relative in gate["SOURCES"]}
 
 
-def envelope_facts(value, root, ci, gate):
-    require(type(value) is dict and set(value) == {"schema", "plan", "runID", "runAttempt", "payloadArtifact"}
-            and value["schema"] == INPUT_SCHEMA, "closed factual envelope")
-    plan = gate["validate_plan"](value["plan"])
-    require(plan["selection"] == ci["SHARED_SELECTION_ID"], "shared payload plan only")
+def envelope_facts(value, root, ci, gate, *, cold=False):
+    keys = {"schema", "plan", "runID", "runAttempt", "payloadArtifact"}
+    if cold:
+        keys.add("originalEventSHA256")
+    require(type(value) is dict and set(value) == keys
+            and value["schema"] == (COLD_INPUT_SCHEMA_V2 if cold else INPUT_SCHEMA), "closed factual envelope")
+    if cold:
+        require(type(value["originalEventSHA256"]) is str
+                and re.fullmatch(r"[0-9A-F]{64}", value["originalEventSHA256"]), "cold original event digest DATA")
+    plan = gate["validate_cold_plan" if cold else "validate_plan"](value["plan"])
+    require(plan["selection"] == ci["COLD_SELECTION_ID" if cold else "SHARED_SELECTION_ID"], "shared payload plan only")
     require(type(value["runID"]) is int and value["runID"] > 0
             and type(value["runAttempt"]) is int and value["runAttempt"] == 1, "declared frozen original IDs")
     sources = source_closure(root, gate)
     require(sources == plan["sources"], "source closure differs from frozen plan DATA")
     resolved = ci["shared_selection"](root)
-    rebuilt = gate["make_plan"](purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
+    rebuilt = gate["make_cold_plan" if cold else "make_plan"](purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
         selection=plan["selection"], resolved_bytes=ci["canonical"](resolved), sources=sources,
         requested_at=plan["requestedAtUTC"])
     require(canonical(rebuilt) == canonical(plan), "source-resolved ordered selection differs")
@@ -653,14 +682,14 @@ def tar_preflight(path, kernel):
     return components.work(members, census_bytes)
 
 
-def metadata_facts(extracted, value, plan, resolved, ci, kernel):
+def metadata_facts(extracted, value, plan, resolved, ci, kernel, *, cold=False):
     raw = regular_bytes(extracted / METADATA)
     metadata = decode(raw)
     workspace = metadata.get("workspace") if type(metadata) is dict else None
     require(type(workspace) is str and workspace.startswith("/") and "\x00" not in workspace
             and all(p not in (".", "..") for p in workspace.split("/")), "original workspace spelling DATA")
     expected = {
-        "schema": ci["SHARED_PAYLOAD_SCHEMA"], "routeID": ci["SHARED_SELECTION_ID"],
+        "schema": ci["SHARED_PAYLOAD_SCHEMA"], "routeID": ci["COLD_SELECTION_ID" if cold else "SHARED_SELECTION_ID"],
         "repository": plan["route"]["repository"], "ref": plan["ref"], "head": plan["head"],
         "gitTree": plan["tree"], "workspace": workspace, "runID": str(value["runID"]), "runAttempt": "1",
         "payloadArtifactName": value["payloadArtifact"]["name"],
@@ -772,7 +801,7 @@ def worker_joins(root, directory, value, plan, resolved, raw, products, archive,
             os.close(handle)
 
 
-def recompute_retained_payload(zip_path, envelope_path, source_root, destination, *, retained_workers=None):
+def _recompute_retained_payload(zip_path, envelope_path, source_root, destination, *, retained_workers=None, cold=False):
     """Materialize in a NEW private destination; retain failures, never clean up.
 
     Caller must exclude concurrent writers to input/source/destination/retained
@@ -788,7 +817,7 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
         root = clean_absolute(source_root)
         ci, gate, kernel = source_modules(root)
         value = decode(regular_bytes(owned.path / "input-envelope.json"))
-        plan, resolved, sources = envelope_facts(value, root, ci, gate)
+        plan, resolved, sources = envelope_facts(value, root, ci, gate, cold=cold)
         require(receipts["payload.zip"]["sha256"].lower() == value["payloadArtifact"]["digest"].removeprefix("sha256:"),
                 "outer ZIP digest differs from declared API DATA")
         # API size remains a distinct reported fact, never equated to ZIP bytes.
@@ -812,7 +841,7 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
         kernel["extract_tar"](tar, extracted)
         require(sorted(p.name for p in extracted.iterdir()) == sorted(["FieldEvidenceDerivedData", METADATA]), "exact extracted root")
         stage = "metadata-products"
-        raw, metadata, products = metadata_facts(extracted, value, plan, resolved, ci, kernel)
+        raw, metadata, products = metadata_facts(extracted, value, plan, resolved, ci, kernel, cold=cold)
         # Exact archive census must equal the actual safely materialized view.
         expected_census = [{"path": e["path"], "type": e["type"], "size": e.get("size", 0), "mode": e["mode"]}
                            for e in kernel["inventory"](extracted)]
@@ -822,7 +851,8 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
         allowed.update(kernel["ROOT_LABEL"] + "/" + entry["path"] for entry in product_entries)
         require({entry["path"] for entry in census} == allowed, "closed payload member closure")
         stage = "retained-worker-joins"
-        joins = worker_joins(root, retained_workers, value, plan, resolved, raw, products,
+        join_reader = cold_worker_joins_v2 if cold else worker_joins
+        joins = join_reader(root, retained_workers, value, plan, resolved, raw, products,
                             dict(archive, extractedRoot=str(extracted)), census, ci, gate, kernel)
         stage = "final-invariance"
         require(source_closure(root, gate) == sources, "source closure changed during recomputation")
@@ -835,7 +865,8 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
         owned.check()
         stage = "durable-publication"
         durability = owned.sync_tree()
-        result = {"schema": FACT_SCHEMA, "status": "RECOMPUTED_RETAINED_PAYLOAD_DATA",
+        result = {"schema": COLD_FACT_SCHEMA_V2 if cold else FACT_SCHEMA,
+                  "status": "RECOMPUTED_COLD_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED" if cold else "RECOMPUTED_RETAINED_PAYLOAD_DATA",
                   "envelopeSHA256": receipts["input-envelope.json"]["sha256"],
                   "outerZIP": {"bytes": receipts["payload.zip"]["bytes"], "sha256": receipts["payload.zip"]["sha256"].lower(),
                                "declaredAPIArtifact": value["payloadArtifact"]},
@@ -847,8 +878,13 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
                   "products": products, "archiveMemberCensus": census, "workerJoins": joins,
                   "originalPayloadClassification": {"developmentOnly": metadata["developmentOnly"], "acceptance": metadata["acceptance"]},
                   "declaredBuildDigests": {key: metadata[key] for key in ("buildCommandReceiptSHA256", "buildLogSHA256")},
-                  "pendingProof": list(PENDING), "ownedCopies": receipts,
+                  "pendingProof": list(COLD_PENDING_V2 if cold else PENDING), "ownedCopies": receipts,
                   "durability": durability}
+        if cold:
+            result["originalDATA"]["originalEventSHA256"] = value["originalEventSHA256"]
+            result["originalEventSHA256"] = value["originalEventSHA256"]
+            result["scope"] = dict(COLD_SCOPE_V2)
+            result["unprovenClaims"] = list(COLD_UNPROVEN_V2)
         owned.write("FACTS.json", canonical(result))
         return result
     except BaseException as error:
@@ -856,9 +892,10 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
             durability = owned.sync_tree()
         except Exception as sync_error:
             durability = {"status": "UNPROVEN", "errorType": type(sync_error).__name__}
-        failure = {"schema": "v23-retained-payload-failure.v1", "status": "REFUSED_PARTIAL_OWNED_DATA_RETAINED",
+        failure = {"schema": "v23-cold-retained-payload-failure.v2" if cold else "v23-retained-payload-failure.v1",
+                   "status": "REFUSED_PARTIAL_OWNED_DATA_RETAINED",
                    "stage": stage, "errorType": type(error).__name__, "reason": str(error)[:1000],
-                   "ownedCopies": receipts, "pendingProof": list(PENDING), "durability": durability}
+                   "ownedCopies": receipts, "pendingProof": list(COLD_PENDING_V2 if cold else PENDING), "durability": durability}
         try:
             owned.write("FAILURE.json", canonical(failure))
         except Exception as receipt_error:
@@ -869,6 +906,523 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
         raise Refused("%s; failure receipt: %s" % (error, owned.path / "FAILURE.json")) from error
     finally:
         owned.close()
+
+
+def recompute_retained_payload(zip_path, envelope_path, source_root, destination, *, retained_workers=None):
+    """Unchanged v1 factual interface and ordinary/Phase1 retained artifact ABI."""
+    return _recompute_retained_payload(zip_path, envelope_path, source_root, destination,
+                                       retained_workers=retained_workers, cold=False)
+
+
+def recompute_cold_retained_payload_v2(zip_path, envelope_path, source_root, destination, *, retained_workers=None):
+    """Explicit v2 cold DATA adapter; never authentication or qualification.
+
+    The six-key input envelope includes the actual retained original event digest.
+    Worker inputs are original cold records and additive V2 payload witnesses.
+    A caller authenticates originals/jobs/downloads/budgets before using facts.
+    No original runner path is opened and no live extraction is replayed.
+    """
+    return _recompute_retained_payload(zip_path, envelope_path, source_root, destination,
+                                       retained_workers=retained_workers, cold=True)
+
+
+def cold_close_handles_v2(handles, primary):
+    """Attempt each acquired handle's close once; preserve the first failure."""
+    errors = []
+    for handle in reversed(handles):
+        try:
+            os.close(handle)
+        except BaseException as error:
+            errors.append(error)
+    if primary is not None:
+        for error in errors:
+            primary.add_note("secondary cold directory close: " + repr(error))
+    elif errors:
+        for error in errors[1:]:
+            errors[0].add_note("secondary cold directory close: " + repr(error))
+        raise errors[0]
+
+
+def cold_worker_states_v2(artifact, producer, ci):
+    """Guard every retained byte input used by the versioned native validator."""
+    names = ["native-admission.json", "cold-event-binding.json", "cold-original-plan.json", "cold-original-event.json",
+             "native-checkpoint.json", METADATA, "ci-selection.selected.json", "runner-provider.txt",
+             "native-sdk.txt", "xcode-version.txt", "simulator-selection.txt"]
+    stages = ("seal",) if producer else ("restore", "before", "after")
+    names += ["cold-shared-observation-" + stage + ".json" for stage in stages]
+    names += ["cold-shared-payload-witness-" + stage + "-v2.json" for stage in stages]
+    names += ([ci["SHARED_PAYLOAD_RECEIPT"]] if producer else
+              [ci["SHARED_RESTORE_RECEIPT"], "v23-shared-fingerprint-before.json", "v23-shared-fingerprint-after.json",
+               ci["SHARED_DERIVED_DATA_DELTA"], "test-smoke.log", "unit-test-results.json"])
+    paths = [(artifact / name, ci["SHARED_MAX_TEST_LOG_BYTES"] if name == "test-smoke.log" else JSON_BYTES) for name in names]
+    if not producer:
+        directory = artifact / "cold-activity-logs-v2"
+        handles, primary = directory_chain(directory), None
+        try:
+            names = bounded_names(handles[-1], TAR_MEMBERS)
+            paths += [(directory / name, ci["PHASE1_ACTIVITY_TOTAL_BYTES"]) for name in names]
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            cold_close_handles_v2(handles, primary)
+    states, total = {}, 0
+    for path, limit in paths:
+        # The existing bounded full read proves regular singleton/no-alias inputs
+        # and held/name nine-field endpoint equality (without st_flags) before retaining each state.
+        raw = regular_bytes(path, limit)
+        if path.parent.name == "cold-activity-logs-v2":
+            total += len(raw)
+            require(total <= ci["PHASE1_ACTIVITY_TOTAL_BYTES"], "cold retained activity byte bound")
+        states[str(path)] = {"stat": snapshot(path.lstat()), "bytes": len(raw), "sha256": sha(raw)}
+    return states
+
+
+def cold_event_data_join_v2(artifact, value, plan, binding, gate):
+    """Check actual event bytes and closed retained identity, never forge context."""
+    event_raw = regular_bytes(artifact / "cold-original-event.json", gate["MAX_EVENT_BYTES"])
+    require(sha(event_raw) == value["originalEventSHA256"], "cold retained original event digest DATA join")
+    event_plan, event = gate["cold_plan_from_event"](event_raw)
+    require(event_plan == plan and event.get("inputs") == gate["cold_dispatch_inputs"](plan)
+            and event.get("ref") in (plan["ref"], plan["ref"].removeprefix("refs/heads/"))
+            and type(event.get("repository")) is dict
+            and event["repository"].get("full_name") == plan["route"]["repository"], "cold retained original event DATA join")
+    expected = {
+        "schema": gate["COLD_EVENT_SCHEMA"], "plan": plan, "planSHA256": sha(canonical(plan)),
+        "originalEventSHA256": sha(event_raw), "repository": plan["route"]["repository"], "ref": plan["ref"],
+        "head": plan["head"], "tree": plan["tree"],
+        "workflowRef": plan["route"]["repository"] + "/" + plan["route"]["workflow"] + "@" + plan["ref"],
+        "workflowSHA": plan["head"], "runID": str(value["runID"]), "runAttempt": "1", "kind": "development",
+        "selection": plan["selection"], "functionalQualification": "PENDING", "status": "INCOMPLETE",
+        "developmentOnly": True, "providerQualification": False, "acceptance": False, "releaseReady": False,
+    }
+    require(canonical(binding) == canonical(expected), "closed cold retained binding DATA join")
+    require(regular_bytes(artifact / "cold-original-plan.json") == canonical(plan), "cold retained intent exact bytes")
+
+
+def cold_execution_data_v2(artifact, record, checkpoint, selected, label, observations, ci):
+    """Retained pinned execution facts, without executing a command or granting it."""
+    provider = ci["key_values"](artifact / "runner-provider.txt")
+    sdk = ci["key_values"](artifact / "native-sdk.txt")
+    simulator = ci["key_values"](artifact / "simulator-selection.txt")
+    require(provider.get("provider") == record.get("runnerProvider") == "github"
+            and provider.get("label") == record.get("runnerLabel") == "macos-26"
+            and provider.get("runner_architecture") == "ARM64" and provider.get("uname_architecture") == "arm64"
+            and provider.get("developer_dir") == "/Applications/Xcode_26.6.app/Contents/Developer"
+            and regular_bytes(artifact / "xcode-version.txt").decode("utf-8").splitlines()
+                == ["Xcode 26.6", "Build version 17F113"], "cold retained pinned provider/compiler DATA")
+    require(sdk == {"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"}, "cold retained pinned SDK DATA")
+    require((simulator.get("runtime"), simulator.get("runtime_build"), simulator.get("name"), simulator.get("initial_state"))
+            == ("iOS 26.2", "23C54", "iPhone 17", "Shutdown")
+            and type(simulator.get("udid")) is str
+            and re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", simulator["udid"]),
+            "cold retained pinned runtime/owned Simulator DATA")
+    require(type(checkpoint) is dict and checkpoint.get("recordType") == "validated-native-checkpoint"
+            and all(checkpoint.get(key) == fact for key, fact in record.items())
+            and checkpoint.get("provider") == provider and checkpoint.get("sdk") == sdk
+            and checkpoint.get("simulator") == simulator
+            and all(checkpoint.get(key) is False for key in ("providerQualification", "acceptance", "releaseReady")),
+            "cold retained checkpoint identity/runtime DATA")
+    producer = label == "producer"
+    forbidden = (("test-smoke.log", "UnitTests.xcresult", "unit-test-results.json") if producer else
+                 ("build-smoke.log", "Build.xcresult", ci["NO_INDEX_RECEIPT"]))
+    require(not any((artifact / name).exists() or (artifact / name).is_symlink() for name in forbidden),
+            "cold retained role/rebuild evidence refusal")
+    methods, command = [], None
+    if not producer:
+        result_raw = regular_bytes(artifact / "unit-test-results.json")
+        methods = ci["executed_methods"](decode(result_raw), selected["unitTestSelectors"],
+                                          "FieldEvidenceAppTests", "Unit test bundle")
+        witness = observations["restore"]
+        expected = [provider["developer_dir"] + "/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj",
+                    "-scheme", "FieldEvidenceApp", "-configuration", "Debug", "-destination",
+                    "platform=iOS Simulator,id=" + simulator["udid"], "-derivedDataPath",
+                    str(Path(witness["runnerTemp"]) / "FieldEvidenceDerivedData"), "-resultBundlePath",
+                    str(Path(witness["artifactDirectory"]) / "UnitTests.xcresult"),
+                    *["-only-testing:" + method for method in selected["unitTestSelectors"]],
+                    "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+        log_raw = regular_bytes(artifact / "test-smoke.log", ci["SHARED_MAX_TEST_LOG_BYTES"])
+        lines = log_raw.decode("utf-8").splitlines()
+        invocations = [i for i, line in enumerate(lines) if line.strip() == "Command line invocation:"]
+        require(len(invocations) == 1 and invocations[0] + 1 < len(lines)
+                and shlex.split(lines[invocations[0] + 1].strip()) == expected
+                and sum(line.strip() == "** TEST EXECUTE SUCCEEDED **" for line in lines) == 1
+                and ci["shared_test_log_compile_lines"](artifact / "test-smoke.log") == [],
+                "cold exact successful no-rebuild unit invocation DATA")
+        require(b"V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE" not in log_raw,
+                "cold diagnostic journal failure")
+        command = {"argv": expected, "logSHA256": sha(log_raw), "structuredResultSHA256": sha(result_raw)}
+    require(checkpoint.get("executedUnitMethods") == methods
+            and checkpoint.get("executedUIMethods") == []
+            and methods == ([] if producer else sorted(selected["unitTestSelectors"])),
+            "cold retained every selected method DATA join")
+    return {"executedUnitMethods": methods, "unitCommand": command, "provider": provider, "sdk": sdk,
+            "simulator": simulator, "checkpointSHA256": sha(canonical(checkpoint)), "offlineNativeExecution": False}
+
+
+def cold_worker_joins_v2(root, directory, value, plan, resolved, raw, products, archive, census, ci, gate, kernel):
+    """Join real cold V2 witnesses to recomputed payload; all inputs remain DATA."""
+    labels = ["producer"] + resolved[ci["SHARED_KEY"]]["partitionIDs"]
+    if directory is None:
+        return {"status": "PENDING_MISSING_RETAINED_WORKERS", "requiredLabels": labels}
+    require("cold_retained_shared_facts_v2" in ci, "unsupported cold retained native V2 ABI")
+    directory = clean_absolute(directory)
+    handles, primary = directory_chain(directory), None
+    try:
+        require(bounded_names(handles[-1], len(labels)) == sorted(labels), "complete cold producer/every-consumer directory census")
+        facts = {}
+        protocol = ci["source_binding"](root)
+        entries = kernel["inventory"](Path(archive["extractedRoot"]) / kernel["ROOT_LABEL"])
+        for label in labels:
+            artifact = directory / label
+            worker_handles, worker_error = directory_chain(artifact), None
+            try:
+                before = cold_worker_states_v2(artifact, label == "producer", ci)
+                record = decode(regular_bytes(artifact / "native-admission.json"))
+                binding = decode(regular_bytes(artifact / "cold-event-binding.json"))
+                cold_event_data_join_v2(artifact, value, plan, binding, gate)
+                require(type(record) is dict and record.get("coldOriginal") == binding and "phase1Gate" not in record
+                        and (record.get("repository"), record.get("ref"), record.get("head"), record.get("gitTree"),
+                             record.get("runID"), record.get("runAttempt"), record.get("selectionID"))
+                        == (plan["route"]["repository"], plan["ref"], plan["head"], plan["tree"],
+                            str(value["runID"]), "1", ci["COLD_SELECTION_ID"]), "cold worker original/source DATA join")
+                require(all(record.get(key) == fact for key, fact in protocol.items()), "cold worker source protocol DATA join")
+                selected = resolved if label == "producer" else ci["shared_selection"](root, label)
+                selected_raw = ci["canonical"](selected)
+                require(regular_bytes(artifact / "ci-selection.selected.json") == selected_raw
+                        and record.get("selectionSHA256") == sha(selected_raw), "cold worker actual ordered selection DATA join")
+                require(record.get(ci["SHARED_KEY"]) == {
+                    "role": "producer" if label == "producer" else "consumer", "partitionID": None if label == "producer" else label,
+                    "payloadArtifactName": value["payloadArtifact"]["name"], "planSHA256": plan["selectionSHA256"],
+                    "partitionsSHA256": resolved[ci["SHARED_KEY"]]["partitionsSHA256"]}, "cold worker role/partition/payload DATA join")
+                require(regular_bytes(artifact / METADATA) == raw, "cold worker exact retained metadata bytes")
+                computed = ci["cold_retained_shared_facts_v2"](root, artifact, record, binding)
+                observations = computed["observations"]
+                for stage in (("seal",) if label == "producer" else ("restore", "before", "after")):
+                    observation = observations[stage]
+                    require(observation["products"] == products and observation["productInventory"] == entries,
+                            "cold worker observation/recomputed normalized product join")
+                    if stage in ("seal", "restore"):
+                        require(observation["archive"] == {key: archive[key] for key in ("name", "bytes", "sha256")}
+                                and observation["archiveMemberCensus"] == census, "cold worker observation/recomputed TAR join")
+                checkpoint = decode(regular_bytes(artifact / "native-checkpoint.json"))
+                execution = cold_execution_data_v2(artifact, record, checkpoint, selected, label, observations, ci)
+                # Full observed inventories remain in the original retained
+                # sidecars. Publish their raw pins and recomputed compact facts,
+                # avoiding duplicate inventories for every partition/stage.
+                compact = {key: fact for key, fact in computed.items() if key != "observations"}
+                witness_sha = {stage: before[str(artifact / ("cold-shared-payload-witness-" + stage + "-v2.json"))]["sha256"]
+                               for stage in observations}
+                facts[label] = {"retainedFacts": compact, "retainedWitnessSHA256": witness_sha, "executionDATA": execution,
+                                "admissionSHA256": sha(canonical(record)), "bindingSHA256": sha(canonical(binding))}
+                require(cold_worker_states_v2(artifact, label == "producer", ci) == before,
+                        "cold retained worker inputs changed during recomputation")
+            except BaseException as error:
+                worker_error = error
+                raise
+            finally:
+                cold_close_handles_v2(worker_handles, worker_error)
+        return {"status": "RECOMPUTED_ALL_RETAINED_COLD_WORKER_JOINS_DATA", "workers": facts}
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        cold_close_handles_v2(handles, primary)
+
+
+def cold_job_names_v2(root, plan, resolved, ci):
+    """Closed cold route uses the actual shared producer and every consumer name."""
+    require(plan["selection"] == ci["COLD_SELECTION_ID"], "cold shared job naming only")
+    source = regular_bytes(root / ".github/workflows/ios-ci.yml").decode("utf-8")
+    def name(job):
+        found = re.findall(r"(?m)^  " + re.escape(job) + r":\n    name: (.+)$", source)
+        require(len(found) == 1, "cold source caller name")
+        return found[0]
+    names = {"selection": name("shared-selection"), "producer": name("v23-shared-producer") + " / verify"}
+    for partition in resolved[ci["SHARED_KEY"]]["partitionIDs"]:
+        names[partition] = name("v23-shared-consumer").replace("${{ matrix.partition_id }}", partition) + " / verify"
+    require(all("${{" not in value for value in names.values()), "cold unresolved caller name")
+    return names
+
+
+def cold_job_execution_facts_v2(root, directory, plan, resolved, run_id):
+    """Recompute execution facts from the sole collector's authenticated job logs.
+
+    The dispatcher alone fetches these fixed repository/job endpoints. This local
+    verifier checks retained facts; a dictionary/hash alone is not API authority.
+    """
+    root, directory = clean_absolute(root), clean_absolute(directory)
+    ci, gate_dict, _ = source_modules(root)
+    gate = SimpleNamespace(**gate_dict)
+    sources = source_closure(root, gate_dict)
+    require(gate.validate_cold_plan(plan) == plan and sources == plan["sources"]
+            and type(run_id) is int and run_id > 0 and ci["shared_selection"](root) == resolved,
+            "cold job exact source/selection/original DATA")
+    names = cold_job_names_v2(root, plan, resolved, ci)
+    phase1_workflow_steps = ci["phase1_workflow_steps"]
+    unique_pairs = ci["unique_pairs"]
+    sha256 = sha
+    PHASE1_WITNESS_BYTES = ci["PHASE1_WITNESS_BYTES"]
+    jobs = gate.decode(gate.regular_bytes(directory / "jobs.json", limit=PHASE1_WITNESS_BYTES),
+                       limit=PHASE1_WITNESS_BYTES)["jobs"]
+    require(type(jobs) is list and len(jobs) <= 500 and all(type(j) is dict for j in jobs)
+            and len({j.get("id") for j in jobs}) == len(jobs)
+            and len({j.get("name") for j in jobs}) == len(jobs), "Phase1 unique job census")
+    by_name = {job["name"]: job for job in jobs}
+    require(set(names.values()) <= set(by_name), "Phase1 complete source-derived active job census")
+    for job in jobs:
+        require(type(job.get("id")) is int and job["id"] > 0
+                and type(job.get("run_id")) is int and job["run_id"] == run_id
+                and type(job.get("run_attempt")) is int and job["run_attempt"] == 1
+                and job.get("head_sha") == plan["head"] and job.get("status") == "completed",
+                "Phase1 original job identity")
+        if job["name"] not in names.values():
+            require(job.get("conclusion") == "skipped" and not job.get("steps"),
+                    "Phase1 unexpected executed job")
+    rui_required = {"Prepare evidence directory", "Check out the exact revision", "Validate task selection and timeout tier",
+        "Verify pinned toolchain, shared scheme, and simulator", "Verify setup budget before build",
+        "Boot selected Simulator", "Await selected Simulator boot", "Build unsigned simulator app", "Run targeted tests",
+        "Run task-authorized UI smoke", "Begin evidence-finalization budget", "Validate required build and test evidence",
+        "Validate exact ordinary integration native checkpoint", "Remove owned isolated Simulator", "Hash collected evidence",
+        "Recheck evidence-finalization budget", "Verify selected total budget before upload", "Upload build evidence"}
+    facts = {}
+    for label, name in names.items():
+        job = by_name[name]
+        require(job.get("conclusion") == "success", "Phase1 required job failed/interrupted")
+        relative = (".github/workflows/ios-ci.yml" if label == "selection" else
+                    ".github/workflows/ios-ci-worker.yml" if label == "rui1" else ".github/workflows/ios-ci-shared-worker.yml")
+        source_steps = phase1_workflow_steps(root, relative, "shared-selection" if label == "selection" else "verify")
+        required = set()
+        for step in source_steps:
+            if label == "selection":
+                active = step["name"] in {"Check out the exact revision", "Validate ordinary V23 native acceptance selection",
+                                          "Validate closed shared selection and original dependencies"}
+            elif label == "rui1":
+                active = step["name"] in rui_required
+            else:
+                condition = re.search(r"(?m)^        if: (.+)$", step["body"])
+                active = (not condition or "inputs.v23_shared_role" not in condition[1]
+                          or ("'producer'" if label == "producer" else "'consumer'") in condition[1])
+            if active:
+                required.add(step["name"])
+        if label == "rui1":
+            require(required == rui_required, "Phase1 RUI1 source step census changed")
+        observed = job.get("steps")
+        require(type(observed) is list and all(type(s) is dict for s in observed)
+                and len({s.get("name") for s in observed}) == len(observed)
+                and all(type(s.get("number")) is int and s["number"] > 0 for s in observed)
+                and [s["number"] for s in observed] == sorted({s["number"] for s in observed}),
+                "Phase1 unique ordered step census")
+        by_step = {s["name"]: s for s in observed}
+        source_names = [s["name"] for s in source_steps]
+        require(set(source_names) <= set(by_step), "Phase1 missing source step outcome")
+        require([s["name"] for s in observed if s["name"] in source_names] == source_names,
+                "Phase1 source step order")
+        framework = {"Set up job", "Complete job"} | {"Post " + s["name"] for s in source_steps if s["action"]}
+        active_framework = {"Set up job", "Complete job"} | {
+            "Post " + s["name"] for s in source_steps if s["action"] and s["name"] in required}
+        require(set(by_step) <= set(source_names) | framework
+                and {"Set up job", "Complete job"} <= set(by_step), "Phase1 unexpected/missing framework step")
+        for step in observed:
+            require(step.get("status") == "completed" and step.get("conclusion") ==
+                    ("success" if step["name"] in required | active_framework else "skipped"),
+                    "Phase1 failed/interrupted/bypassed/unexpected step " + step["name"])
+        log = gate.regular_bytes(directory / "cold-job-logs" / (str(job["id"]) + ".log"), limit=256 * 1024 * 1024)
+        text = log.decode("utf-8-sig")
+        text = re.sub(r"(?m)^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ", "", text)
+        text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+        commands, cursor = [], 0
+        for step in source_steps:
+            if step["name"] not in required:
+                continue
+            if step["script"]:
+                require("${{" not in step["script"], "Phase1 active source command requires unsupported interpolation")
+                pattern = "##[group]Run " + step["script"].splitlines()[0] + "\n" + step["script"] + "\n"
+                require(text.count(pattern) == 1, "Phase1 exact executed source command " + step["name"])
+                position = text.index(pattern)
+                require(position >= cursor, "Phase1 executed command order")
+                end = text.find("##[endgroup]", position + len(pattern))
+                envelope = text[position + len(pattern):end]
+                require(end >= 0 and "shell: /bin/bash --noprofile --norc -e -o pipefail {0}" in envelope
+                        and "##[group]" not in envelope, "Phase1 incomplete command envelope")
+                cursor = end
+                wanted_env = {"CI_ARTIFACT_DIR", "CI_DESTINATION", "CI_SIMULATOR_UDID", "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS",
+                              "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS", "CI_UI_TIMEOUT_SECONDS",
+                              "CI_TOTAL_BUDGET_SECONDS", "NATIVE_SELECTION_ID", "CONFIGURATION", "DEVELOPER_DIR"}
+                pairs = re.findall(r"(?m)^  ([A-Z_]+): (.*)$", text[position + len(pattern):end])
+                env = unique_pairs([(key, value) for key, value in pairs if key in wanted_env])
+                numeric = {}
+                if step["name"] == "Verify selected total budget before upload":
+                    output_end = text.find("##[group]Run ", end + 1)
+                    output = text[end:output_end if output_end >= 0 else len(text)]
+                    numeric = unique_pairs(re.findall(r"(?m)^(elapsed_seconds|total_budget_seconds)=([0-9]+)$", output))
+                    require(set(numeric) == {"elapsed_seconds", "total_budget_seconds"}, "Phase1 complete total budget output")
+                commands.append({"step": step["name"], "bodySHA256": step["bodySHA256"],
+                                 "scriptSHA256": sha256(step["script"].encode()), "environment": env, "numericFacts": numeric})
+            elif step["action"]:
+                pattern = "##[group]Run " + step["action"] + "\n"
+                count = sum(s["name"] in required and s["action"] == step["action"] for s in source_steps)
+                position = text.find(pattern, cursor)
+                end = text.find("##[endgroup]", position + len(pattern)) if position >= 0 else -1
+                require(text.count(pattern) == count and position >= cursor and end >= 0
+                        and "##[group]" not in text[position + len(pattern):end],
+                        "Phase1 exact executed action " + step["name"])
+                cursor = end
+        facts[label] = {"jobID": job["id"], "name": name, "workflowSourceSHA256": sha256((root / relative).read_bytes()),
+                        "jobLogSHA256": sha256(log), "commands": commands, "requiredSteps": sorted(required),
+                        "finalizationBudgetPredicatePassed": label != "selection", "finalizationNumericElapsedAvailable": False}
+    require(source_closure(root, gate_dict) == sources, "cold job source changed during recomputation")
+    return facts
+
+
+def cold_worker_execution_facts_v2(root, artifact, record, selected, label, job):
+    """Retained execution/command facts, never a local native execution replay."""
+    from pathlib import PurePosixPath
+    root, artifact = clean_absolute(root), clean_absolute(artifact)
+    ci, gate_dict, _ = source_modules(root)
+    gate = SimpleNamespace(**gate_dict)
+    sources = source_closure(root, gate_dict)
+    binding = record.get("coldOriginal")
+    require(type(binding) is dict and binding.get("schema") == gate.COLD_EVENT_SCHEMA and "phase1Gate" not in record,
+            "cold worker execution original record")
+    plan = gate.validate_cold_plan(binding["plan"])
+    require(sources == plan["sources"] and record.get("selectionID") == ci["COLD_SELECTION_ID"],
+            "cold worker execution frozen Source")
+    resolved = ci["shared_selection"](root)
+    require(label == "producer" or label in resolved[ci["SHARED_KEY"]]["partitionIDs"], "cold worker execution closed role")
+    require(selected == (resolved if label == "producer" else ci["shared_selection"](root, label)),
+            "cold worker execution exact ordered selectors")
+    role = "producer" if label == "producer" else "consumer"
+    require(record.get(ci["SHARED_KEY"], {}).get("role") == role
+            and record[ci["SHARED_KEY"]].get("partitionID") == (None if label == "producer" else label)
+            and all(record.get(key) == fact for key, fact in ci["source_binding"](root).items()),
+            "cold worker execution role/source DATA")
+    key_values = ci["key_values"]
+    BUDGET_KEYS = ci["BUDGET_KEYS"]
+    SHARED_MAX_TEST_LOG_BYTES = ci["SHARED_MAX_TEST_LOG_BYTES"]
+    NO_INDEX_RECEIPT = ci["NO_INDEX_RECEIPT"]
+    verify_no_index_build = ci["verify_no_index_build"]
+    shared_test_log_compile_lines = ci["shared_test_log_compile_lines"]
+    sha256 = sha
+    def read_json(path):
+        return decode(regular_bytes(path))
+    for name in ("runner-provider.txt", "native-sdk.txt", "xcode-version.txt", "simulator-selection.txt"):
+        gate.regular_bytes(artifact / name, limit=32768)
+    provider = key_values(artifact / "runner-provider.txt")
+    require(provider.get("provider") == record.get("runnerProvider") == "github"
+            and provider.get("label") == record.get("runnerLabel") == "macos-26"
+            and provider.get("runner_architecture") == "ARM64" and provider.get("uname_architecture") == "arm64"
+            and provider.get("developer_dir") == "/Applications/Xcode_26.6.app/Contents/Developer",
+            "Phase1 observed runner/toolchain")
+    require((artifact / "xcode-version.txt").read_text().splitlines() == ["Xcode 26.6", "Build version 17F113"],
+            "Phase1 observed Xcode")
+    sdk = key_values(artifact / "native-sdk.txt")
+    require(sdk == {"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"}, "Phase1 observed SDK")
+    simulator = key_values(artifact / "simulator-selection.txt")
+    require((simulator.get("runtime"), simulator.get("runtime_build"), simulator.get("name"), simulator.get("initial_state"))
+            == ("iOS 26.2", "23C54", "iPhone 17", "Shutdown")
+            and re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", simulator.get("udid", "")),
+            "Phase1 observed owned Simulator")
+    if label == "rui1":
+        environment, original_artifact = load_ui_evidence(root).retained_environment(read_json(artifact / "rui1-command.json")["argv"])
+    else:
+        witness = read_json(artifact / ("cold-shared-payload-witness-seal-v2.json" if label == "producer" else "cold-shared-payload-witness-restore-v2.json"))
+        original_artifact = PurePosixPath(witness["artifactDirectory"])
+        environment = {"PROJECT_PATH": "FieldEvidenceApp.xcodeproj", "SCHEME": "FieldEvidenceApp", "CONFIGURATION": "Debug",
+                       "CODE_SIGNING_ALLOWED": "NO", "CI_SIMULATOR_UDID": simulator["udid"],
+                       "CI_DESTINATION": "platform=iOS Simulator,id=" + simulator["udid"],
+                       "CI_ARTIFACT_DIR": str(original_artifact), "RUNNER_TEMP": witness["runnerTemp"]}
+    require(environment["CI_SIMULATOR_UDID"] == simulator["udid"], "Phase1 original command Simulator identity")
+    timeout_env = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                           "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"),
+                          (str(selected[key]) for key in BUDGET_KEYS)))
+    commands = {item["step"]: item for item in job["commands"]}
+    checked_steps = ["Recheck evidence-finalization budget", "Verify selected total budget before upload",
+                     "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint"]
+    if label != "producer":
+        checked_steps.append("Run targeted tests")
+    if label in ("producer", "rui1"):
+        checked_steps.append("Build unsigned simulator app")
+    if label == "rui1":
+        checked_steps.append("Run task-authorized UI smoke")
+    for name in checked_steps:
+        require(name in commands, "Phase1 source command proof missing " + name)
+        observed = commands[name]["environment"]
+        require(all(observed.get(k) == v for k, v in timeout_env.items())
+                and observed.get("CI_ARTIFACT_DIR") == str(original_artifact)
+                and observed.get("NATIVE_SELECTION_ID") == record["selectionID"]
+                and observed.get("CONFIGURATION") == "Debug"
+                and observed.get("DEVELOPER_DIR") == provider["developer_dir"], "Phase1 actual command budget/configuration inputs")
+    def numbers(name, keys):
+        gate.regular_bytes(artifact / name, limit=4096)
+        value = key_values(artifact / name)
+        require(set(value) == set(keys) and all(re.fullmatch(r"[0-9]+", v) for v in value.values()),
+                "Phase1 complete numeric budget " + name)
+        return {key: int(v) for key, v in value.items()}
+    limit = selected["setupArtifactTimeoutSeconds"]
+    setup = numbers("setup-budget.txt", ("setup_elapsed_seconds", "setup_budget_seconds"))
+    require(setup["setup_elapsed_seconds"] <= setup["setup_budget_seconds"] == limit, "Phase1 setup budget")
+    setup_elapsed = setup["setup_elapsed_seconds"]
+    restore = None
+    if label not in ("producer", "rui1"):
+        restore = numbers("v23-shared-restore-budget.txt", ("shared_restore_setup_elapsed_seconds",))
+        require(setup_elapsed <= restore["shared_restore_setup_elapsed_seconds"] <= limit, "Phase1 restore setup budget")
+        setup_elapsed = restore["shared_restore_setup_elapsed_seconds"]
+    artifact_budget = numbers("artifact-budget.txt", ("setup_elapsed_seconds", "artifact_elapsed_seconds",
+                                                     "setup_artifact_elapsed_seconds", "setup_artifact_budget_seconds"))
+    require(artifact_budget["setup_elapsed_seconds"] == setup_elapsed
+            and artifact_budget["setup_artifact_budget_seconds"] == limit
+            and setup_elapsed + artifact_budget["artifact_elapsed_seconds"] == artifact_budget["setup_artifact_elapsed_seconds"] <= limit,
+            "Phase1 artifact finalization budget")
+    total = {k: int(v) for k, v in commands["Verify selected total budget before upload"]["numericFacts"].items()}
+    require(total.get("total_budget_seconds") == selected["totalBudgetSeconds"]
+            and total.get("elapsed_seconds", -1) >= setup_elapsed
+            and total["elapsed_seconds"] <= total["total_budget_seconds"], "Phase1 total budget")
+    build = None
+    if label in ("producer", "rui1"):
+        build = verify_no_index_build(root, artifact, record, environment, command_artifact=original_artifact)
+    unit_command = None
+    if label != "producer":
+        expected = [provider["developer_dir"] + "/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj",
+                    "-scheme", "FieldEvidenceApp", "-configuration", "Debug", "-destination", environment["CI_DESTINATION"],
+                    "-derivedDataPath", str(PurePosixPath(environment["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                    "-resultBundlePath", str(original_artifact / "UnitTests.xcresult"),
+                    *["-only-testing:" + value for value in selected["unitTestSelectors"]],
+                    "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+        raw_log = gate.regular_bytes(artifact / "test-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES)
+        log = raw_log.decode("utf-8")
+        lines = log.splitlines()
+        invocations = [i for i, line in enumerate(lines) if line.strip() == "Command line invocation:"]
+        require(len(invocations) == 1 and invocations[0] + 1 < len(lines)
+                and shlex.split(lines[invocations[0] + 1].strip()) == expected
+                and sum(line.strip() == "** TEST EXECUTE SUCCEEDED **" for line in lines) == 1
+                and not shared_test_log_compile_lines(artifact / "test-smoke.log"),
+                "Phase1 exact successful no-rebuild unit invocation")
+        unit_command = {"argv": expected, "logSHA256": sha256(raw_log),
+                        "exporterSourceSHA256": sha256((root / "Scripts/validate-required-evidence.sh").read_bytes()),
+                        "structuredResultSHA256": sha256((artifact / "unit-test-results.json").read_bytes()),
+                        "exportReexecutedOffline": False}
+    checkpoint = read_json(artifact / "native-checkpoint.json")
+    require(checkpoint.get("recordType") == "validated-native-checkpoint"
+            and all(checkpoint.get(k) == v for k, v in record.items())
+            and checkpoint.get("provider") == provider and checkpoint.get("simulator") == simulator and checkpoint.get("sdk") == sdk
+            and checkpoint.get("releaseReady") is False and checkpoint.get("acceptance") is False,
+            "Phase1 original live checkpoint binding")
+    require(checkpoint.get("executedUnitMethods") == ([] if label == "producer" else sorted(selected["unitTestSelectors"]))
+            and checkpoint.get("executedUIMethods") == sorted(selected["uiTestSelectors"]),
+            "Phase1 live checkpoint complete method census")
+    forbidden = (("test-smoke.log", "UnitTests.xcresult", "unit-test-results.json") if label == "producer" else
+                 ("build-smoke.log", "Build.xcresult", NO_INDEX_RECEIPT) if label != "rui1" else ())
+    require(not any((artifact / name).exists() or (artifact / name).is_symlink() for name in forbidden),
+            "Phase1 unexpected role execution evidence")
+    require(source_closure(root, gate_dict) == sources, "cold worker execution source changed during recomputation")
+    return {"jobID": job["jobID"], "jobLogSHA256": job["jobLogSHA256"], "build": build, "unitCommand": unit_command,
+            "budgets": {"setup": setup, "restore": restore, "artifact": artifact_budget, "total": total,
+                        "finalizationPredicatePassed": True, "finalizationNumericElapsedAvailable": False},
+            "simulator": simulator, "checkpointSHA256": sha256((artifact / "native-checkpoint.json").read_bytes()),
+            "offlineNativeExecution": False}
+
+
 
 
 if __name__ == "__main__":

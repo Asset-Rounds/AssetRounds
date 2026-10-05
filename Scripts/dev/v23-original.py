@@ -1860,7 +1860,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "825C056D7CF137D0AFB50C93BA5FBCF8C2E99E00FBCBFF22894EF871C60C8D8B"
+PHASE1_RETAINED_READER_SHA256 = "FE1441BF152CA38DB31579084EA5C0949B6CDAC9EF23E651EE8FE8C51A7A13C2"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -2789,6 +2789,7 @@ def extract(archive, target):
             destination = (target / member.filename).resolve()
             if not destination.is_relative_to(target.resolve()):
                 raise SystemExit(f"unsafe archive member {member.filename}")
+        temporary.mkdir()
         bundle.extractall(temporary)
     if os.name != "nt" and os.path.lexists(target):
         # POSIX rename would replace an empty directory; never replace retained evidence.
@@ -4458,6 +4459,598 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
     result["retainedReadCloseRows"] = close_rows
     return result
 
+# Additive cold DATA bridge. Original V1 records and ordinary routes stay exact.
+COLD_RETAINED_READER_V2_PATH = "Scripts/dev/v23-retained-payload.py"
+COLD_RETAINED_READER_V2_SHA256 = "FE1441BF152CA38DB31579084EA5C0949B6CDAC9EF23E651EE8FE8C51A7A13C2"  # Exact candidate Source; genuine companion review/composition required.
+COLD_PAYLOAD_DATA_V2_PATH = "Scripts/dev/v23-cold-payload-data.py"
+COLD_PAYLOAD_DATA_V2_SHA256 = "DD619943082B62A02DF2F1589B4EEB0CA723E659D493FF28D13A65D75C261556"  # Transitive original-tree dependency; not a plan.sources key.
+COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
+COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
+
+
+def cold_v2_decode(gate, raw):
+    # Separate new factual-control domain; the legacy plan parser cap is exact.
+    return gate.decode(raw, limit=32 * 1024 * 1024)
+
+
+def cold_v2_archived_call(gate, plan, operation):
+    """Exact original Source archive with first-object cleanup, not a new runner."""
+    temporary = tempfile.TemporaryDirectory(prefix="cold-v2-exact-source-")
+    first, result = None, None
+    try:
+        with tarfile.open(fileobj=io.BytesIO(git_bytes("archive", "--format=tar", plan["head"]))) as archive:
+            archive.extractall(temporary.name, filter="data")
+        source_root = Path(temporary.name).resolve()
+        for relative, checksum in plan["sources"].items():
+            gate.require(gate.sha(cold_v2_regular_bytes(gate, source_root / relative)) == checksum,
+                         "cold V2 exact original archived Source")
+        result = operation(source_root)
+    except BaseException as error:
+        first = error
+    if "source_root" in locals():
+        try:
+            for relative, checksum in plan["sources"].items():
+                gate.require(gate.sha(cold_v2_regular_bytes(gate, source_root / relative)) == checksum,
+                             "cold V2 original archived Source changed through operation")
+        except BaseException as error:
+            if first is None:
+                first = error
+            elif hasattr(first, "add_note"):
+                first.add_note("cold V2 secondary archived Source fence error: " + type(error).__name__)
+    try:
+        temporary.cleanup()
+    except BaseException as error:
+        if first is None:
+            first = error
+        elif hasattr(first, "add_note"):
+            first.add_note("cold V2 secondary temporary Source cleanup error: " + type(error).__name__)
+    if first is not None:
+        raise first
+    return result
+
+
+def cold_v2_regular_bytes(gate, path, *, limit=32 * 1024 * 1024):
+    """One finite materialized read, with retained owners and first-error cleanup."""
+    path = Path(path)
+    gate.require(path.is_absolute() and str(path) == os.path.normpath(str(path))
+                 and type(limit) is int and 0 < limit <= 32 * 1024 * 1024,
+                 "cold V2 canonical bounded control path")
+    owners, primary, secondary, raw = [], None, [], None
+    fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+              "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")
+    def ten(info):
+        return tuple(getattr(info, key, 0) for key in fields)
+    try:
+        parent = None
+        for index, part in enumerate(path.parts):
+            name = path.anchor if index == 0 else part
+            directory = index < len(path.parts) - 1
+            named = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            gate.require((stat.S_ISDIR(named.st_mode) if directory else stat.S_ISREG(named.st_mode))
+                         and not getattr(named, "st_flags", 0) & 0x40000000
+                         and (directory or named.st_nlink == 1), "cold V2 materialized singleton/ancestor")
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            if directory:
+                flags |= os.O_DIRECTORY
+            descriptor = os.open(name, flags, dir_fd=parent)
+            owner = (descriptor, parent, name, ten(named))
+            owners.append(owner)  # Retain before any fallible post-open observation.
+            gate.require(ten(os.fstat(descriptor)) == owner[3] ==
+                         ten(os.stat(name, dir_fd=parent, follow_symlinks=False)), "cold V2 opened FULL10")
+            parent = descriptor
+        descriptor = owners[-1][0]
+        expected = owners[-1][3]
+        gate.require(0 < expected[6] <= limit, "cold V2 declared control bound")
+        chunks, count = [], 0
+        while True:
+            block = os.read(descriptor, min(1024 * 1024, limit + 1 - count))
+            if not block:
+                break
+            count += len(block)
+            gate.require(count <= limit, "cold V2 control first-excess bound")
+            chunks.append(block)
+        gate.require(count == expected[6] and os.lseek(descriptor, 0, os.SEEK_CUR) == count,
+                     "cold V2 observed EOF/length/cursor")
+        for fd, previous, name, facts in owners:
+            gate.require(ten(os.fstat(fd)) == facts == ten(os.stat(name, dir_fd=previous, follow_symlinks=False)),
+                         "cold V2 retained named/held FULL10")
+        raw = b"".join(chunks)
+    except BaseException as error:
+        primary = error
+    for descriptor, _, _, _ in reversed(owners):
+        try:
+            os.close(descriptor)
+        except BaseException as error:
+            secondary.append(error)
+    if primary is not None:
+        for error in secondary:
+            if hasattr(primary, "add_note"):
+                primary.add_note("cold V2 secondary once-close error: " + type(error).__name__)
+        raise primary
+    if secondary:
+        raise secondary[0]
+    gate.require(ten(os.lstat(path)) == owners[-1][3], "cold V2 positive once-close named endpoint")
+    return raw
+
+
+COLD_PAYLOAD_READER_BOOTSTRAP_V2 = 'import hashlib, json, os, re, stat, sys\nfrom pathlib import Path\nfrom types import SimpleNamespace\n\ndef require(value, message):\n    if not value:\n        raise ValueError(message)\n\ngate = SimpleNamespace(require=require)\n\ndef cold_v2_regular_bytes(gate, path, *, limit=32 * 1024 * 1024):\n    """One finite materialized read, with retained owners and first-error cleanup."""\n    path = Path(path)\n    gate.require(path.is_absolute() and str(path) == os.path.normpath(str(path))\n                 and type(limit) is int and 0 < limit <= 32 * 1024 * 1024,\n                 "cold V2 canonical bounded control path")\n    owners, primary, secondary, raw = [], None, [], None\n    fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",\n              "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")\n    def ten(info):\n        return tuple(getattr(info, key, 0) for key in fields)\n    try:\n        parent = None\n        for index, part in enumerate(path.parts):\n            name = path.anchor if index == 0 else part\n            directory = index < len(path.parts) - 1\n            named = os.stat(name, dir_fd=parent, follow_symlinks=False)\n            gate.require((stat.S_ISDIR(named.st_mode) if directory else stat.S_ISREG(named.st_mode))\n                         and not getattr(named, "st_flags", 0) & 0x40000000\n                         and (directory or named.st_nlink == 1), "cold V2 materialized singleton/ancestor")\n            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK\n            if directory:\n                flags |= os.O_DIRECTORY\n            descriptor = os.open(name, flags, dir_fd=parent)\n            owner = (descriptor, parent, name, ten(named))\n            owners.append(owner)  # Retain before any fallible post-open observation.\n            gate.require(ten(os.fstat(descriptor)) == owner[3] ==\n                         ten(os.stat(name, dir_fd=parent, follow_symlinks=False)), "cold V2 opened FULL10")\n            parent = descriptor\n        descriptor = owners[-1][0]\n        expected = owners[-1][3]\n        gate.require(0 < expected[6] <= limit, "cold V2 declared control bound")\n        chunks, count = [], 0\n        while True:\n            block = os.read(descriptor, min(1024 * 1024, limit + 1 - count))\n            if not block:\n                break\n            count += len(block)\n            gate.require(count <= limit, "cold V2 control first-excess bound")\n            chunks.append(block)\n        gate.require(count == expected[6] and os.lseek(descriptor, 0, os.SEEK_CUR) == count,\n                     "cold V2 observed EOF/length/cursor")\n        for fd, previous, name, facts in owners:\n            gate.require(ten(os.fstat(fd)) == facts == ten(os.stat(name, dir_fd=previous, follow_symlinks=False)),\n                         "cold V2 retained named/held FULL10")\n        raw = b"".join(chunks)\n    except BaseException as error:\n        primary = error\n    for descriptor, _, _, _ in reversed(owners):\n        try:\n            os.close(descriptor)\n        except BaseException as error:\n            secondary.append(error)\n    if primary is not None:\n        for error in secondary:\n            if hasattr(primary, "add_note"):\n                primary.add_note("cold V2 secondary once-close error: " + type(error).__name__)\n        raise primary\n    if secondary:\n        raise secondary[0]\n    gate.require(ten(os.lstat(path)) == owners[-1][3], "cold V2 positive once-close named endpoint")\n    return raw\n\n\nrequest_path, root = Path(sys.argv[1]), Path(sys.argv[2])\nrequest_raw = cold_v2_regular_bytes(gate, request_path, limit=8 * 1024 * 1024)\nrequire(hashlib.sha256(request_raw).hexdigest().upper() == sys.argv[4], "cold V2 exact child request raw")\nrequest = json.loads(request_raw)\nrequire((json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False) + "\\n").encode() == request_raw, "cold V2 canonical child request")\nrequire(type(request) is dict and set(request) == {"schema", "binding", "rawPath", "workersPath", "directory", "plan", "resolved", "labels", "envelopeSHA256"} and request["schema"] == "v23-cold-retained-reader-request.v2", "cold V2 closed child request")\nrelative = "Scripts/dev/v23-retained-payload.py"\nraw = cold_v2_regular_bytes(gate, root / relative)\nrequire(hashlib.sha256(raw).hexdigest().upper() == sys.argv[3] == request["binding"]["sources"][relative], "cold V2 exact child reader Source")\nnamespace = {"__name__": "v23_retained_original_cold_payload_v2", "__file__": str(root / relative)}\nexec(compile(raw, str(root / relative), "exec"), namespace)\nplan, resolved = request["plan"], request["resolved"]\ndirectory, workers = Path(request["directory"]), Path(request["workersPath"])\nrequire(directory.is_absolute() and workers == directory / "artifacts" and request_path.parent == directory / "cold-payload-recomputations-v2/000000", "cold V2 fixed child path roles")\nrequire(plan["sources"] == request["binding"]["sources"] and request["labels"] == ["producer", *resolved["sharedCoverage"]["partitionIDs"]], "cold V2 same child Source and worker census")\nenvelope = request_path.parent / "input-envelope.json"\nrequire(hashlib.sha256(cold_v2_regular_bytes(gate, envelope, limit=8 * 1024 * 1024)).hexdigest().upper() == request["envelopeSHA256"], "cold V2 exact child input envelope")\nresult = namespace["recompute_cold_retained_payload_v2"](Path(request["rawPath"]), envelope, root, request_path.parent / "reader-owned", retained_workers=workers)\njobs = namespace["cold_job_execution_facts_v2"](root, directory, plan, resolved, request["binding"]["runID"])\nci, gates, _ = namespace["source_modules"](root)\nfacts = {}\nfor label in request["labels"]:\n    artifact = workers / label\n    record = namespace["decode"](cold_v2_regular_bytes(gate, artifact / "native-admission.json"))\n    selected = resolved if label == "producer" else ci["shared_selection"](root, label)\n    facts[label] = namespace["cold_worker_execution_facts_v2"](root, artifact, record, selected, label, jobs[label])\nexecution = {"status": "RETAINED_COLD_EXECUTION_FACTS_VERIFIED", "jobs": jobs, "workers": facts}\nexecution_raw = namespace["canonical"](execution)\nrequire(0 < len(execution_raw) <= 8 * 1024 * 1024, "cold V2 unchanged immutable execution control bound")\ngates["write_immutable"](request_path.parent / "execution-facts.json", execution_raw)\nrequire(cold_v2_regular_bytes(gate, root / relative) == raw and cold_v2_regular_bytes(gate, request_path, limit=8 * 1024 * 1024) == request_raw, "cold V2 child request/Source changed")\n'
+
+def cold_payload_reader_run_v2(gate, archived_root, request_path, request_sha256):
+    """The existing private-reader original180; complete normal-return channels.
+
+    subprocess.run retains its direct-child kill/wait cleanup on timeout. Timeout
+    channels are explicitly partial, never a positive stream or execution proof.
+    Pipe closure on a normal return is a stdlib control-flow inference, not an
+    invented per-owner observed-return row. Captured output is bounded after the
+    unchanged exact-Source child returns; no native/group scope is introduced.
+    """
+    command = [sys.executable, "-B", "-c", COLD_PAYLOAD_READER_BOOTSTRAP_V2,
+        str(request_path), str(archived_root), COLD_RETAINED_READER_V2_SHA256, request_sha256]
+    first, completed = None, None
+    stdout, stderr, channels = b"", b"", "NO_CHILD_CHANNELS_OBSERVED"
+    started = time.monotonic()
+    try:
+        completed = subprocess.run(command, cwd=archived_root, stdin=subprocess.DEVNULL,
+                                   capture_output=True, timeout=180)
+        stdout, stderr, channels = completed.stdout, completed.stderr, "COMPLETE_NORMAL_RETURN"
+        gate.require(completed.returncode == 0 and stdout == b"" and stderr == b"",
+                     "cold V2 exact reader child refused/nonempty channels")
+    except BaseException as error:
+        first = error
+        if isinstance(error, subprocess.TimeoutExpired):
+            stdout, stderr, channels = error.stdout or b"", error.stderr or b"", "PARTIAL_TIMEOUT_UNQUALIFIED"
+    terminal = {"schema": "v23-cold-retained-reader-child.v2", "argv": command, "budgetSeconds": 180,
+        "elapsedSeconds": time.monotonic() - started, "exitCode": None if completed is None else completed.returncode,
+        "channels": channels, "normalReturnDirectChildSettled": completed is not None,
+        "processGroupFacts": "UNKNOWN", "firstError": None if first is None else type(first).__name__,
+        "executionAuthority": False, "qualification": False}
+    try:
+        gate.require(type(stdout) is bytes and type(stderr) is bytes and len(stdout) <= 8 * 1024 * 1024
+            and len(stderr) <= 8 * 1024 * 1024, "cold V2 unchanged captured channel control bounds")
+        reader = cold_v2_source_module(gate, archived_root, COLD_RETAINED_READER_V2_PATH, COLD_RETAINED_READER_V2_SHA256)
+        ci, _, _ = reader["source_modules"](archived_root)
+        terminal["stdoutPublication"] = ci["_cold_durable_emit"](request_path.parent / "reader.stdout", stdout)
+        terminal["stderrPublication"] = ci["_cold_durable_emit"](request_path.parent / "reader.stderr", stderr)
+        terminal["stdout"] = {"bytes": len(stdout), "SHA256": gate.sha(stdout)}
+        terminal["stderr"] = {"bytes": len(stderr), "SHA256": gate.sha(stderr)}
+        gate.write_immutable(request_path.parent / "reader-terminal.json", gate.canonical(terminal))
+    except BaseException as error:
+        if first is None:
+            first = error
+        elif hasattr(first, "add_note"):
+            first.add_note("cold V2 secondary child-channel retention error: " + type(error).__name__)
+    if first is not None:
+        raise first
+    return terminal
+
+
+def cold_v2_source_module(gate, source_root, relative, expected):
+    """Only actual fixed reviewed Source bytes; supplied fields grant no authority."""
+    gate.require(relative in (COLD_RETAINED_READER_V2_PATH, COLD_PAYLOAD_DATA_V2_PATH)
+                 and type(expected) is str and re.fullmatch(r"[0-9A-F]{64}", expected),
+                 "cold V2 reviewed executable dependency pending")
+    path = source_root / relative
+    raw = cold_v2_regular_bytes(gate, path)
+    gate.require(gate.sha(raw) == expected, "cold V2 exact executable Source hash")
+    namespace = {"__name__": "cold_v2_retained_source", "__file__": str(path)}
+    exec(compile(raw, str(path), "exec"), namespace)
+    gate.require(cold_v2_regular_bytes(gate, path) == raw, "cold V2 Source changed through load")
+    return namespace
+
+
+def cold_v2_bridge_inputs(gate, directory, plan, source_root, raw_path):
+    controls = ("dispatch.json", "collector.claim.json", "cold-registration.json", "cold-attempt.json",
+                "run.json", "run-attempt-1.json", "workflow.json", "jobs.json", "artifacts.json",
+                (raw_path.parent / "request.json").relative_to(directory).as_posix(),
+                (raw_path.parent / "receipt.json").relative_to(directory).as_posix())
+    return {"raw": phase1_payload_snapshot(gate, raw_path),
+        "controls": {name: phase1_payload_snapshot(gate, directory / name) for name in controls},
+        "workers": phase1_bridge_tree(gate, directory / "artifacts"),
+        "jobLogs": phase1_bridge_tree(gate, directory / "cold-job-logs"),
+        "sources": {name: phase1_payload_snapshot(gate, source_root / name) for name in plan["sources"]},
+        "helper": phase1_payload_snapshot(gate, source_root / COLD_PAYLOAD_DATA_V2_PATH),
+        "discovery": phase1_bridge_discovery_inputs(gate, source_root)}
+
+
+def cold_payload_recompute_v2(gate, directory, plan, attempt, claim, dispatched, resolved,
+                              payload_api, transport, source_root, resume):
+    """Pre-manifest recomputation of retained originals; never a qualification grant."""
+    gate.require(plan["selection"] == COLD_SELECTION_ID and type(resume) is bool,
+                 "cold V2 complete shared original only")
+    gate.exact(cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "collector.claim.json")), claim,
+               "cold V2 same sole collector")
+    registration_raw = cold_v2_regular_bytes(gate, directory / "cold-registration.json")
+    attempt_raw = cold_v2_regular_bytes(gate, directory / "cold-attempt.json")
+    gate.exact(cold_v2_decode(gate, registration_raw)["plan"], plan, "cold V2 registered intent")
+    gate.exact(cold_v2_decode(gate, attempt_raw), attempt, "cold V2 immutable attempt")
+    gate.require(gate.sha(registration_raw) == claim["registrationSHA256"]
+        and gate.sha(attempt_raw) == claim["attemptSHA256"]
+        and gate.sha(cold_v2_regular_bytes(gate, directory / "dispatch.json")) == claim["dispatchSHA256"],
+        "cold V2 original dispatch/registration/attempt hashes")
+    partitions = dispatched["sharedPartitions"]
+    labels = ["producer", *partitions["partitionIDs"]]
+    ordered = [selector for label in partitions["partitionIDs"] for selector in partitions["selectors"][label]]
+    gate.require(len(partitions["partitionIDs"]) == 33 and len(ordered) == 3716
+        and len(set(ordered)) == len(ordered) and ordered == resolved["unitTestSelectors"]
+        and resolved["sharedCoverage"]["partitionIDs"] == partitions["partitionIDs"],
+        "cold V2 exact current full ordered 33/3716 unit census")
+    gate.require(sorted(p.name for p in (directory / "artifacts").iterdir()) == sorted(labels),
+                 "cold V2 complete retained worker census")
+    listing = cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "artifacts.json"))["artifacts"]
+    names = shared_artifact_names(claim["runID"], plan["head"], labels[1:], selection=COLD_SELECTION_ID)
+    gate.require(type(listing) is list and all(type(row) is dict and type(row.get("id")) is int
+        and row["id"] > 0 and type(row.get("name")) is str for row in listing)
+        and len({row["id"] for row in listing}) == len({row["name"] for row in listing}) == len(listing)
+        and {row["name"] for row in listing} == {names["payload"], names["producer"], *names["consumers"].values()},
+        "cold V2 complete unique API artifact census")
+    gate.exact(next(row for row in listing if row["name"] == names["payload"]), payload_api,
+               "cold V2 full authenticated payload API object")
+    gate.require(transport["transportStatus"] == "COMPLETE" and transport["downloaded"] is True
+        and transport["id"] == payload_api["id"] and transport["digest"] == payload_api["digest"],
+        "cold V2 COMPLETE authenticated payload transport")
+    raw_relative, receipt_relative = transport["rawZIP"]["path"], transport["transportReceipt"]["path"]
+    gate.require(type(raw_relative) is str and type(receipt_relative) is str
+        and re.fullmatch(r"cold-payload-transports/%d/[0-9]{6}/raw\.zip" % payload_api["id"], raw_relative)
+        and receipt_relative == raw_relative.removesuffix("raw.zip") + "receipt.json", "cold V2 fixed transport paths")
+    raw_path = directory / raw_relative
+    receipt_raw = cold_v2_regular_bytes(gate, directory / receipt_relative)
+    receipt = cold_v2_decode(gate, receipt_raw)
+    request_raw = cold_v2_regular_bytes(gate, raw_path.parent / "request.json")
+    request = cold_v2_decode(gate, request_raw)
+    binding = {"runID": claim["runID"], "runAttempt": 1, "head": plan["head"], "tree": plan["tree"],
+        "planSHA256": gate.sha(gate.canonical(plan)), "claimSHA256": gate.sha(gate.canonical(claim)),
+        "registrationSHA256": gate.sha(registration_raw), "attemptSHA256": gate.sha(attempt_raw),
+        "dispatchSHA256": claim["dispatchSHA256"], "sources": plan["sources"],
+        "artifactID": payload_api["id"], "apiArtifactSHA256": gate.sha(gate.canonical(payload_api)),
+        "apiDigest": payload_api["digest"], "declaredAPISizeBytes": payload_api["size_in_bytes"]}
+    for value in (receipt, request):
+        keys = ("runID", "runAttempt", "claimSHA256", "artifactID", "apiArtifactSHA256", "apiDigest", "declaredAPISizeBytes")
+        gate.exact({key: value[key] for key in keys}, {key: binding[key] for key in keys},
+                   "cold V2 actual receipt/API/claim join")
+    gate.require(gate.sha(receipt_raw) == transport["transportReceipt"]["SHA256"]
+        and receipt["schema"] == "v23-cold-payload-transport.v1" and receipt["status"] == "COMPLETE"
+        and all(receipt[key] is True for key in ("responseComplete", "durableRaw", "digestVerified")),
+        "cold V2 durable authenticated raw receipt")
+    before = cold_v2_bridge_inputs(gate, directory, plan, source_root, raw_path)
+    gate.exact(before["raw"], {"identity": receipt["rawIdentity"], "bytes": receipt["actualZIPBytes"],
+                             "SHA256": receipt["actualZIPSHA256"]}, "cold V2 actual raw receipt endpoint")
+    gate.exact({"path": raw_relative, "bytes": before["raw"]["bytes"], "SHA256": before["raw"]["SHA256"]},
+               transport["rawZIP"], "cold V2 raw ZIP summary")
+    gate.require("sha256:" + before["raw"]["SHA256"].lower() == payload_api["digest"], "cold V2 actual outer ZIP SHA")
+    gate.exact({name: value["SHA256"] for name, value in before["sources"].items()}, plan["sources"],
+               "cold V2 archived exact Source closure")
+    gate.require(plan["sources"][COLD_RETAINED_READER_V2_PATH] == COLD_RETAINED_READER_V2_SHA256
+        and before["helper"]["SHA256"] == COLD_PAYLOAD_DATA_V2_SHA256,
+        "cold V2 reviewed reader and transitive helper pending")
+    first_event = cold_v2_regular_bytes(gate, directory / "artifacts/producer/cold-original-event.json")
+    gate.verify_attempt_inputs(attempt, first_event)
+    for label in labels:
+        gate.require(cold_v2_regular_bytes(gate, directory / "artifacts" / label / "cold-original-event.json") == first_event,
+                     "cold V2 same exact original event in all workers")
+    envelope = {"schema": "v23-cold-retained-payload-input.v2", "plan": plan, "runID": claim["runID"],
+                "runAttempt": 1, "payloadArtifact": payload_api, "originalEventSHA256": gate.sha(first_event)}
+    root = directory / "cold-payload-recomputations-v2"
+    gate.durable_directory(root)
+    entries = sorted(root.iterdir())
+    gate.require(not entries, "cold V2 prior recomputation retained; Root must inspect, never unchanged replay")
+    target = root / "000000"
+    target.mkdir(mode=0o700)
+    gate.durable_directory(target)
+    envelope_raw = gate.canonical(envelope)
+    gate.write_immutable(target / "input-envelope.json", envelope_raw)
+    headroom = phase1_payload_reader_headroom(gate, directory, before["raw"]["bytes"])
+    child_request = {"schema": "v23-cold-retained-reader-request.v2", "binding": binding,
+        "rawPath": str(raw_path), "workersPath": str(directory / "artifacts"), "directory": str(directory),
+        "plan": plan, "resolved": resolved, "labels": labels, "envelopeSHA256": gate.sha(envelope_raw)}
+    request_raw = gate.canonical(child_request)
+    gate.write_immutable(target / "reader-request.json", request_raw)
+    first, observer_errors, result, execution, child_terminal = None, [], None, None, None
+    try:
+        child_terminal = cold_payload_reader_run_v2(gate, source_root, target / "reader-request.json", gate.sha(request_raw))
+        result = cold_v2_decode(gate, cold_v2_regular_bytes(gate, target / "reader-owned/FACTS.json"))
+        execution = cold_v2_decode(gate, cold_v2_regular_bytes(gate, target / "execution-facts.json"))
+        gate.require(result["schema"] == "v23-cold-retained-payload-facts.v2"
+            and result["status"] == "RECOMPUTED_COLD_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED"
+            and result["originalEventSHA256"] == gate.sha(first_event)
+            and result["durability"]["status"] == "FSYNCED_OWNED_DATA_PROJECTION", "cold V2 complete DATA result")
+        gate.exact(result["sourceSHA256"], plan["sources"], "cold V2 reader actual frozen Source result")
+        gate.exact(result["outerZIP"], {"bytes": before["raw"]["bytes"], "sha256": before["raw"]["SHA256"].lower(),
+            "declaredAPIArtifact": payload_api}, "cold V2 reader outer ZIP API join")
+        gate.require(result["envelopeSHA256"] == gate.sha(envelope_raw)
+            and execution["status"] == "RETAINED_COLD_EXECUTION_FACTS_VERIFIED"
+            and set(execution["jobs"]) == {"selection", *labels}
+            and set(execution["workers"]) == set(labels),
+            "cold V2 exact input envelope and complete execution result")
+    except BaseException as error:
+        first = error
+    try:
+        gate.exact(cold_v2_bridge_inputs(gate, directory, plan, source_root, raw_path), before,
+                   "cold V2 raw/control/worker/log/Source inputs changed")
+        gate.require(cold_v2_regular_bytes(gate, target / "input-envelope.json") == envelope_raw,
+                     "cold V2 immutable envelope changed")
+    except BaseException as error:
+        if first is None:
+            first = error
+        else:
+            observer_errors.append(error)
+    payload_ref, execution_ref = None, None
+    if first is None:
+        try:
+            facts_path = target / "reader-owned/FACTS.json"
+            facts_raw = cold_v2_regular_bytes(gate, facts_path)
+            gate.exact(cold_v2_decode(gate, facts_raw), result, "cold V2 exact reader-owned FACTS result")
+            payload_ref = {"path": facts_path.relative_to(directory).as_posix(), "bytes": len(facts_raw),
+                           "SHA256": gate.sha(facts_raw)}
+            execution_raw = cold_v2_regular_bytes(gate, target / "execution-facts.json")
+            gate.exact(cold_v2_decode(gate, execution_raw), execution, "cold V2 exact child execution bytes")
+            execution_ref = {"path": (target / "execution-facts.json").relative_to(directory).as_posix(),
+                             "bytes": len(execution_raw), "SHA256": gate.sha(execution_raw)}
+        except BaseException as error:
+            first = error
+    value = {"schema": COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2,
+        "status": "RECOMPUTED_COLD_PAYLOAD_AND_EXECUTION_DATA" if first is None else "REFUSED_PARTIAL_DATA_RETAINED",
+        "binding": binding, "envelopeSHA256": gate.sha(envelope_raw), "originalEventSHA256": gate.sha(first_event),
+        "inputs": before, "headroom": headroom, "readerChild": child_terminal, "payload": payload_ref, "execution": execution_ref,
+        "firstError": None if first is None else {"type": type(first).__name__, "message": str(first)[:1000]},
+        "observerErrors": [{"type": type(error).__name__, "message": str(error)[:1000]} for error in observer_errors],
+        "functionalQualification": gate.PENDING, "developmentOnly": True, "providerQualification": False,
+        "gateQualification": False, "acceptance": False, "releaseReady": False}
+    try:
+        gate.write_immutable(target / "receipt.json", gate.canonical(value))
+    except BaseException as error:
+        if first is None:
+            first = error
+        elif hasattr(first, "add_note"):
+            first.add_note("cold V2 secondary receipt publication failure: " + type(error).__name__)
+    if first is not None:
+        for error in observer_errors:
+            if hasattr(first, "add_note"):
+                first.add_note("cold V2 secondary input observer error: " + type(error).__name__)
+        raise first
+    return {"schema": COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2, "status": value["status"],
+        "receipt": {"path": (target / "receipt.json").relative_to(directory).as_posix(),
+                    "SHA256": gate.sha(gate.canonical(value))},
+        "functionalQualification": gate.PENDING, "providerQualification": False,
+        "gateQualification": False, "acceptance": False, "releaseReady": False}
+
+
+def cold_v2_reference(gate, value):
+    gate.require(type(value) is dict and set(value) == {"path", "bytes", "SHA256"}
+        and type(value["path"]) is str and Path(value["path"]).is_absolute()
+        and str(Path(value["path"])) == os.path.normpath(value["path"])
+        and type(value["bytes"]) is int and 0 < value["bytes"] <= 32 * 1024 * 1024
+        and type(value["SHA256"]) is str and re.fullmatch(r"[0-9A-F]{64}", value["SHA256"]),
+        "cold V2 closed finite actual reference")
+    return value
+
+
+def cold_v2_read_reference(gate, value):
+    value = cold_v2_reference(gate, value)
+    raw = cold_v2_regular_bytes(gate, Path(value["path"]))
+    gate.require(len(raw) == value["bytes"] and gate.sha(raw) == value["SHA256"],
+                 "cold V2 actual reference raw length/hash")
+    return raw
+
+
+def cold_v2_retained_fact(gate, directory, value, expected_path):
+    gate.require(type(value) is dict and set(value) == {"path", "bytes", "SHA256"}
+        and value["path"] == expected_path, "cold V2 exact fixed retained fact role")
+    return cold_v2_read_reference(gate, {**value, "path": str(directory / expected_path)})
+
+
+def cold_v2_assessment_inputs(gate, directory, plan, attempt, run_id, expected_manifest):
+    """The immutable completed original, not a caller-supplied proof dictionary."""
+    manifest_raw = cold_v2_read_reference(gate, expected_manifest)
+    gate.require(Path(expected_manifest["path"]) == directory / "manifest.json", "cold V2 original manifest path")
+    manifest = cold_v2_decode(gate, manifest_raw)
+    gate.require(type(manifest) is dict and set(manifest) == {"schema", "runID", "runAttempt", "files", "rawProofSHA256"}
+        and manifest["schema"] == "v23-cold-original-manifest.v1"
+        and type(manifest["runID"]) is int and manifest["runID"] == run_id
+        and type(manifest["runAttempt"]) is int and manifest["runAttempt"] == 1,
+        "cold V2 immutable V1 manifest shape/original")
+    current = cold_file_manifest(directory)
+    gate.require(current.pop("manifest.json") == gate.sha(manifest_raw), "cold V2 current manifest raw")
+    gate.exact(current, manifest["files"], "cold V2 complete sealed original hash census")
+    proof_raw = cold_v2_regular_bytes(gate, directory / "cold-raw-proof.json")
+    proof = cold_v2_decode(gate, proof_raw)
+    gate.require(gate.sha(proof_raw) == manifest["rawProofSHA256"] and proof["schema"] == "v23-cold-raw-proof.v1"
+        and proof["status"] == "INCOMPLETE" and proof["functionalQualification"] == gate.PENDING
+        and proof["problems"] == [COLD_PAYLOAD_RECOMPUTATION_NOTE_V1]
+        and all(proof[key] is False for key in ("providerQualification", "acceptance", "releaseReady")),
+        "cold V2 refuses real original errors; preserves sole closed V1 scope placeholder")
+    gate.exact(proof["pendingPredicates"], ["payload DATA reader", "cold/no-rebuild/lifetime proof", "independent qualification"],
+               "cold V2 original V1 pending schema remains exact")
+    gate.require(proof["originalAttribution"]["status"] == "DISCOVERED_PENDING_PROOF",
+                 "cold V2 authenticated original attribution")
+    receipt_path = directory / "cold-payload-recomputations-v2/000000/receipt.json"
+    receipt_raw = cold_v2_regular_bytes(gate, receipt_path)
+    receipt = cold_v2_decode(gate, receipt_raw)
+    gate.require(receipt["schema"] == COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2
+        and receipt["status"] == "RECOMPUTED_COLD_PAYLOAD_AND_EXECUTION_DATA"
+        and receipt["firstError"] is None and receipt["observerErrors"] == [],
+        "cold V2 successful original-bound recomputation only")
+    binding = receipt["binding"]
+    gate.exact({key: binding[key] for key in ("runID", "runAttempt", "head", "tree", "planSHA256", "sources")},
+        {"runID": run_id, "runAttempt": 1, "head": plan["head"], "tree": plan["tree"],
+         "planSHA256": attempt["planSHA256"], "sources": plan["sources"]}, "cold V2 payload frozen original bindings")
+    raw_facts = cold_v2_retained_fact(gate, directory, receipt["payload"],
+        "cold-payload-recomputations-v2/000000/reader-owned/FACTS.json")
+    payload = cold_v2_decode(gate, raw_facts)
+    execution_raw = cold_v2_retained_fact(gate, directory, receipt["execution"],
+        "cold-payload-recomputations-v2/000000/execution-facts.json")
+    execution = cold_v2_decode(gate, execution_raw)
+    gate.require(execution["status"] == "RETAINED_COLD_EXECUTION_FACTS_VERIFIED", "cold V2 exact complete execution facts")
+    gate.require(payload["schema"] == "v23-cold-retained-payload-facts.v2"
+        and payload["status"] == "RECOMPUTED_COLD_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED"
+        and payload["originalEventSHA256"] == receipt["originalEventSHA256"],
+        "cold V2 exact payload reader classification/event")
+    return manifest_raw, receipt_raw, proof, payload, execution
+
+
+def cold_v2_review_binding(gate, reference, prior_reference, prior, manifest_reference, plan, receipt):
+    """Join Root's genuine received review bytes; this cannot authenticate a speaker."""
+    raw = cold_v2_read_reference(gate, reference)
+    value = cold_v2_decode(gate, raw)
+    keys = {"schema", "subject", "verdict", "reviewer", "actualModel", "actualReasoningEffort",
+            "independentNonauthor", "readOnly", "assessment", "manifest", "head", "tree", "runID",
+            "runAttempt", "planSHA256", "sourceSHA256", "runtimeFactsSHA256", "originalEventSHA256",
+            "recomputationReceiptSHA256", "message", "context", "executionAuthority", "gateQualification",
+            "acceptance", "providerQualification", "releaseReady"}
+    gate.require(type(value) is dict and set(value) == keys
+        and value["schema"] == "root.faithful.received.cold-protocol-qualification-review.v2"
+        and value["subject"] == "COLD_PROTOCOL_QUALIFICATION_V2"
+        and value["verdict"] == "PASS_BOUNDED_ACTUAL_COLD_PROTOCOL_QUALIFICATION_V2"
+        and type(value["reviewer"]) is str and re.fullmatch(r"/root/[a-z0-9_]+", value["reviewer"])
+        and value["actualModel"] == "gpt-6.1-sol" and value["actualReasoningEffort"] == "xhigh"
+        and value["independentNonauthor"] is True and value["readOnly"] is True
+        and type(value["runID"]) is int and value["runID"] > 0
+        and type(value["runAttempt"]) is int and value["runAttempt"] == 1
+        and all(type(value[key]) is str and re.fullmatch(r"[0-9A-F]{64}", value[key]) for key in
+                ("planSHA256", "runtimeFactsSHA256", "originalEventSHA256", "recomputationReceiptSHA256"))
+        and all(value[key] is False for key in ("executionAuthority", "gateQualification", "acceptance",
+                                              "providerQualification", "releaseReady")),
+        "cold V2 exact received independent review scope")
+    gate.exact(value["assessment"], prior_reference, "cold V2 review exact pending assessment bytes")
+    gate.exact(value["manifest"], manifest_reference, "cold V2 review exact immutable manifest")
+    gate.exact({key: value[key] for key in ("head", "tree", "runID", "runAttempt", "planSHA256", "sourceSHA256")},
+        {"head": plan["head"], "tree": plan["tree"], "runID": prior["runID"], "runAttempt": 1,
+         "planSHA256": prior["planSHA256"], "sourceSHA256": plan["sources"]}, "cold V2 review exact original Source")
+    gate.require(value["runtimeFactsSHA256"] == prior["runtimeFactsSHA256"]
+        and value["originalEventSHA256"] == prior["originalEventSHA256"]
+        and value["recomputationReceiptSHA256"] == gate.sha(gate.canonical(receipt)),
+        "cold V2 review payload/event/runtime original bindings")
+    message, context = cold_v2_read_reference(gate, value["message"]), cold_v2_read_reference(gate, value["context"])
+    gate.require(type(message.decode("utf-8")) is str and type(context.decode("utf-8")) is str,
+                 "cold V2 complete retained genuine message/context UTF8")
+    return value, raw
+
+
+def qualify_cold_v2(request_path):
+    """Root-only separate assessment; never append or qualify the sealed V1 original.
+
+    Root must genuinely obtain the independent raw message/context and faithful
+    receipt before RECORD_REVIEWED_PROTOCOL. Checking their local byte joins is
+    not speaker authentication, gate admission or a cached acceptance decision.
+    """
+    gate = cold_gates()
+    request_raw = cold_v2_regular_bytes(gate, request_path)
+    request = cold_v2_decode(gate, request_raw)
+    keys = {"schema", "stage", "runID", "head", "tree", "manifest", "priorAssessment", "independentReview"}
+    gate.require(type(request) is dict and set(request) == keys
+        and request["schema"] == "v23-cold-qualification-assessment-request.v2"
+        and request["stage"] in ("ASSESS_DATA_ONLY", "RECORD_REVIEWED_PROTOCOL")
+        and type(request["runID"]) is int and request["runID"] > 0
+        and all(type(request[key]) is str and re.fullmatch(r"[0-9a-f]{40}", request[key]) for key in ("head", "tree")),
+        "cold V2 closed assessment request")
+    review_stage = request["stage"] == "RECORD_REVIEWED_PROTOCOL"
+    gate.require((request["priorAssessment"] is not None and request["independentReview"] is not None) if review_stage
+                 else (request["priorAssessment"] is None and request["independentReview"] is None),
+                 "cold V2 explicit pending/reviewed stages")
+    _, directory, dispatched, plan, attempt, _, _, _, resolved = cold_original_context(request["runID"])
+    gate.require((request["head"], request["tree"]) == (plan["head"], plan["tree"])
+        and plan["selection"] == COLD_SELECTION_ID, "cold V2 exact current frozen cold original")
+    manifest_ref = cold_v2_reference(gate, request["manifest"])
+    manifest_raw, receipt_raw, proof, payload, execution = cold_v2_assessment_inputs(
+        gate, directory, plan, attempt, request["runID"], manifest_ref)
+    receipt = cold_v2_decode(gate, receipt_raw)
+    base = f"repos/{REPO}/actions/runs/{request['runID']}"
+    current_run = api(base + "/attempts/1")
+    cold_api_original(gate, current_run, request["runID"], plan, attempt)
+    gate.require(current_run["status"] == "completed" and current_run["conclusion"] == "success",
+                 "cold V2 current authenticated completed successful original")
+    current_artifacts = phase1_artifact_census(gate, base + "/artifacts")
+    gate.exact(current_artifacts, cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "artifacts.json")),
+               "cold V2 current authenticated complete artifact census")
+    current_jobs = paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS)
+    gate.exact(current_jobs, cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "jobs.json")),
+               "cold V2 current authenticated complete job census")
+    def read_archived_v2(source_root):
+        data_reader = cold_v2_source_module(gate, source_root, COLD_PAYLOAD_DATA_V2_PATH, COLD_PAYLOAD_DATA_V2_SHA256)
+        contract = data_reader["qualification_contract_v2"]()
+        data = data_reader["read_cold_payload_data_v2"](directory, source_root,
+            {"schema": "v23-cold-payload-data-input.v2", "head": plan["head"], "tree": plan["tree"],
+             "runID": request["runID"], "runAttempt": 1, "manifestSHA256": gate.sha(manifest_raw)})
+        gate.require(data["schema"] == "v23-cold-payload-data-facts.v2" and data["status"] == "DATA_ONLY_UNQUALIFIED"
+            and data["v1Data"]["declaredConclusion"] == "success"
+            and data["v1Data"]["rawProofProblems"] == [COLD_PAYLOAD_RECOMPUTATION_NOTE_V1]
+            and data["emittedTransport"]["status"] == "DATA_BOUND_RECOMPUTED"
+            and all(data[key] is False for key in ("providerQualification", "acceptance", "gateQualification",
+                "exactMainVerification", "releaseReady", "executionAuthority")), "cold V2 exact unqualified DATA contract")
+        gate.exact(data["qualificationContract"], contract, "cold V2 current qualification contract recomputed")
+        labels = dispatched["sharedPartitions"]["partitionIDs"]
+        gate.require(len(labels) == 33 and set(data["emittedTransport"]["consumerFacts"]) == set(labels),
+                     "cold V2 complete emitted consumer census")
+        emitted = cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "cold-emitted-retained-facts.json"))["consumerFacts"]
+        gate.exact(data["emittedTransport"]["consumerFacts"],
+            {label: {key: value for key, value in emitted[label].items() if key != "retainedReadCloseRows"} for label in labels},
+            "cold V2 independently recomputed raw emitted cores")
+        gate.exact(data["v1Data"]["sourceSHA256"], plan["sources"], "cold V2 DATA exact Source closure")
+        return data, contract
+    data, contract = cold_v2_archived_call(gate, plan, read_archived_v2)
+    runtime = {"payloadWorkers": payload["workerJoins"], "execution": execution}
+    target_parent = EVIDENCE / "v23-cold-assessments-v2" / str(request["runID"])
+    facts_path = target_parent / "data/SEALED_DATA_V2.json"
+    data_raw = gate.canonical(data)
+    data_ref = {"path": str(facts_path), "bytes": len(data_raw), "SHA256": gate.sha(data_raw)}
+    pending = {"schema": "v23-cold-qualification-assessment.v2", "status": "ASSESSMENT_DATA_READY_REVIEW_PENDING",
+        "kind": "development", "runID": request["runID"], "runAttempt": 1, "head": plan["head"], "tree": plan["tree"],
+        "planSHA256": attempt["planSHA256"], "manifest": manifest_ref,
+        "recomputationReceiptSHA256": gate.sha(receipt_raw), "originalEventSHA256": receipt["originalEventSHA256"],
+        "runtimeFactsSHA256": gate.sha(gate.canonical(runtime)), "sourceSHA256": plan["sources"],
+        "recomputationReceipt": {"path": str(directory / "cold-payload-recomputations-v2/000000/receipt.json"),
+            "bytes": len(receipt_raw), "SHA256": gate.sha(receipt_raw)},
+        "sealedDataV2": data_ref, "qualificationContract": contract,
+        "preservedV1ScopePlaceholders": {"problems": proof["problems"], "pendingPredicates": proof["pendingPredicates"]},
+        "strongerClaims": data["strongerClaims"], "independentReview": None, "trustBoundary": "ROOT_GENUINE_REVIEW_REQUIRED",
+        "protocolQualification": "PENDING", "functionalQualification": gate.PENDING, "developmentOnly": True,
+        "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+        "physicalProtectionReleaseBlocker": True, "providerQualification": False, "gateQualification": False,
+        "exactMainVerification": False, "acceptance": False, "releaseReady": False, "executionAuthority": False}
+    gate.durable_directory(target_parent.parent)
+    gate.durable_directory(target_parent)
+    if review_stage:
+        gate.require(cold_v2_read_reference(gate, data_ref) == data_raw,
+                     "cold V2 review exact prior sealed DATA bytes")
+        prior_ref = cold_v2_reference(gate, request["priorAssessment"])
+        gate.require(Path(prior_ref["path"]) == target_parent / "pending-assessment.json", "cold V2 exact prior pending namespace")
+        prior_raw = cold_v2_read_reference(gate, prior_ref)
+        prior = cold_v2_decode(gate, prior_raw)
+        gate.exact(prior, pending, "cold V2 reviewed pending DATA inputs remain exact")
+        received, review_raw = cold_v2_review_binding(gate, request["independentReview"], prior_ref, prior,
+                                                     manifest_ref, plan, receipt)
+        pending = {**pending, "status": "REVIEWED_COLD_PROTOCOL_ASSESSMENT_DATA_ONLY",
+            "independentReview": request["independentReview"], "receivedReview": received,
+            "receivedReviewSHA256": gate.sha(review_raw), "priorAssessment": prior_ref,
+            "protocolQualification": "ROOT_REVIEWED_DEVELOPMENT_COLD_PROTOCOL_V2",
+            "trustBoundary": "ROOT_GENUINE_RECEIVED_REVIEW_BOUND_NO_GATE_OR_EXECUTION_AUTHORITY"}
+    # Recheck all immutable original bytes after DATA/review work, before own publication.
+    cold_v2_assessment_inputs(gate, directory, plan, attempt, request["runID"], manifest_ref)
+    gate.require(cold_v2_regular_bytes(gate, request_path) == request_raw, "cold V2 request changed through assessment")
+    gate.exact(api(base + "/attempts/1"), current_run, "cold V2 current original API changed through assessment")
+    gate.exact(phase1_artifact_census(gate, base + "/artifacts"), current_artifacts,
+               "cold V2 current artifact API changed through assessment")
+    gate.exact(paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS), current_jobs,
+               "cold V2 current job API changed through assessment")
+    data_publication = None
+    if not review_stage:
+        def write_assessment_data_v2(source_root):
+            reader = cold_v2_source_module(gate, source_root, COLD_RETAINED_READER_V2_PATH, COLD_RETAINED_READER_V2_SHA256)
+            ci, _, _ = reader["source_modules"](source_root)
+            gate.require(0 < len(data_raw) <= 32 * 1024 * 1024, "cold V2 existing finite factual DATA domain")
+            gate.durable_directory(facts_path.parent)
+            # Exact C12-owned receipt kernel; no second writer or new controller.
+            return ci["_cold_durable_emit"](facts_path, data_raw)
+        data_publication = cold_v2_archived_call(gate, plan, write_assessment_data_v2)
+        gate.require(cold_v2_read_reference(gate, data_ref) == data_raw, "cold V2 assessment DATA positive readback")
+    target = target_parent / ("reviewed-protocol-assessment.json" if review_stage else "pending-assessment.json")
+    raw = gate.canonical(pending)
+    gate.require(0 < len(raw) <= gate.MAX_ATTEMPT_BYTES, "cold V2 unchanged immutable assessment control bound")
+    gate.write_immutable(target, raw)
+    return {"assessment": pending, "assessmentReference": {"path": str(target), "bytes": len(raw), "SHA256": gate.sha(raw)},
+            "dataPublication": data_publication, "executionAuthority": False,
+            "gateQualification": False, "providerQualification": False, "acceptance": False, "releaseReady": False}
+
+
 def collect_cold(run_id, resume):
     """Actual API/retention caller; complete functional proof remains INCOMPLETE.
 
@@ -4481,6 +5074,7 @@ def collect_cold(run_id, resume):
     authority_lock = EVIDENCE / "cold-dispatch-active"
     authority_locked, collection_ended = False, False
     collection_observations = []
+    collection_primary_v2 = None
     notes = ["INCOMPLETE: qualification lifecycle and independent cold review remain disabled"]
     transport_problems = []
     try:
@@ -4758,6 +5352,26 @@ def collect_cold(run_id, resume):
             retain_partial()
         retain("cold-registration.json", registration_raw)
         retain("cold-attempt.json", attempt_raw)
+        # Additive raw recomputation precedes the final V1 proof/manifest. It
+        # never rewrites a sealed original or its pending classification.
+        bridge_available_v2 = (plan["selection"] == COLD_SELECTION_ID
+            and not duplicate_names and not duplicate_ids
+            and len(artifact_names) == len(artifacts) and set(artifact_names) == wanted
+            and set(input_bindings) == set(expected.values())
+            and set(emitted_bindings) == set(partitions)
+            and notes == [COLD_PAYLOAD_RECOMPUTATION_NOTE_V1]
+            and all(proof_artifacts.get(label, {}).get("downloaded") is True for label in expected.values())
+            and proof_artifacts.get("payload", {}).get("transportStatus") == "COMPLETE")
+        payload_recomputation_v2 = {"schema": COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2,
+            "status": "PENDING_UNAVAILABLE_ORIGINAL_INPUTS", "functionalQualification": gate.PENDING,
+            "providerQualification": False, "gateQualification": False, "acceptance": False, "releaseReady": False}
+        if bridge_available_v2:
+            def recompute_archived_v2(archived_root):
+                payload_api = next(value for value in artifacts if value["name"] == payload_name)
+                return cold_payload_recompute_v2(gate, directory, plan, attempt, claim_value,
+                    dispatched, resolved, payload_api, proof_artifacts["payload"], archived_root, resume)
+            payload_recomputation_v2 = cold_v2_archived_call(gate, plan, recompute_archived_v2)
+        retain("cold-payload-recomputed-facts-v2.json", gate.canonical(payload_recomputation_v2))
         final = fetch_json("run-after-collection.json", base)
         cold_api_original(gate, final, run_id, plan, attempt)
         gate.require(final.get("status") == "completed" and final.get("conclusion") == observed.get("conclusion"),
@@ -4790,13 +5404,35 @@ def collect_cold(run_id, resume):
         retain("manifest.json", gate.canonical(manifest))
         print(json.dumps(proof, indent=2, sort_keys=True))
         raise SystemExit("Cold development original retained; raw proof INCOMPLETE; qualification PENDING")
+    except BaseException as error:
+        collection_primary_v2 = error
+        raise
     finally:
+        secondary_v2 = []
         try:
             if collection_observations and not collection_ended:
                 observe_collection("end-exception")
-        finally:
-            if authority_locked: authority_lock.rmdir()
+        except BaseException as error:
+            secondary_v2.append(error)
+        if authority_locked:
+            try:
+                authority_lock.rmdir()
+            except BaseException as error:
+                secondary_v2.append(error)
+        try:
             lock.rmdir()
+        except BaseException as error:
+            secondary_v2.append(error)
+        if collection_primary_v2 is not None:
+            for error in secondary_v2:
+                if hasattr(collection_primary_v2, "add_note"):
+                    collection_primary_v2.add_note("cold V2 secondary collector cleanup error: " + type(error).__name__)
+        elif secondary_v2:
+            first_v2 = secondary_v2[0]
+            for error in secondary_v2[1:]:
+                if hasattr(first_v2, "add_note"):
+                    first_v2.add_note("cold V2 secondary collector cleanup error: " + type(error).__name__)
+            raise first_v2
 
 
 # BEGIN LOCAL DEVELOPMENT EVENT V1
@@ -5444,6 +6080,8 @@ def main():
     cold_register.add_argument("--plan", type=Path, required=True)
     cold_discovery = commands.add_parser("discover-cold")
     cold_discovery.add_argument("--plan", type=Path, required=True)
+    cold_assessment_v2 = commands.add_parser("qualify-cold-v2", help="separate Root-reviewed cold DATA assessment; no gate/admission")
+    cold_assessment_v2.add_argument("--request", type=Path, required=True)
     register_parser = commands.add_parser("preregister-phase1")
     register_parser.add_argument("--plan", type=Path, required=True,
                                  help="canonical pending candidate plan; no dispatch or gate credit")
@@ -5467,7 +6105,7 @@ def main():
     if args.command in ("local-register", "local-record", "local-append"):
         local_cli(args)
         return
-    cold_command = (args.command in ("preregister-cold", "discover-cold") or
+    cold_command = (args.command in ("preregister-cold", "discover-cold", "qualify-cold-v2") or
                     (args.command == "dispatch" and (args.cold_plan is not None or args.selection == COLD_SELECTION_ID)))
     if not cold_command:
         EVIDENCE.mkdir(parents=True, exist_ok=True)
@@ -5478,6 +6116,8 @@ def main():
         preregister_cold(args.plan)
     elif args.command == "discover-cold":
         cold_original_lifecycle(args.plan, kind="development", discover=True)
+    elif args.command == "qualify-cold-v2":
+        print(json.dumps(qualify_cold_v2(args.request), indent=2, sort_keys=True))
     elif args.command == "preregister-phase1":
         preregister_phase1(args.plan)
     elif args.command == "discover-phase1":
