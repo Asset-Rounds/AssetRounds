@@ -764,6 +764,38 @@ def bind_cold_facts(plan, *, head, tree, integration_head, main_head, resolved_b
 
 
 
+def cold_dispatch_input_difference(raw, actual, expected):
+    """Bounded refusal detail only; fingerprints never replace original inputs."""
+    def value_facts(value):
+        facts = {"type": type(value).__name__}
+        try:
+            encoded = canonical(value)
+        except (TypeError, ValueError, OverflowError, RecursionError) as error:
+            facts["canonicalEncodingError"] = type(error).__name__
+        else:
+            facts.update(canonicalBytes=len(encoded), canonicalSHA256=sha(encoded))
+        return facts
+
+    missing = sorted(set(expected) - set(actual))
+    extra = sorted(set(actual) - set(expected))
+    extra_facts = []
+    for key in extra[:16]:
+        encoded = canonical(key)
+        extra_facts.append({"keyPrefix": key[:64], "canonicalBytes": len(encoded),
+                            "canonicalSHA256": sha(encoded)})
+    changed = [{"key": key, "actual": value_facts(actual[key]),
+                "expected": value_facts(expected[key])}
+               for key in sorted(set(actual) & set(expected)) if actual[key] != expected[key]]
+    detail = {"schema": "v23-cold-dispatch-input-difference-diagnostic.v1",
+              "originalEvent": {"bytes": len(raw), "SHA256": sha(raw)},
+              "valueEncoding": "canonical JSON: sorted compact ASCII plus LF",
+              "missingKeys": missing, "extraKeyCount": len(extra), "extraKeyFacts": extra_facts,
+              "extraKeyDetailsComplete": len(extra) <= 16, "changedValues": changed}
+    encoded = canonical(detail)
+    require(len(encoded) <= 16 * 1024, "bounded cold input difference diagnostic")
+    return "cold dispatch input difference: " + encoded.decode("ascii").rstrip("\n")
+
+
 def bind_cold_original_event(raw, environment, *, head, tree, resolved_bytes, sources):
     """Pure worker/collector binding. No source, run or human trust is synthesized.
 
@@ -793,7 +825,18 @@ def bind_cold_original_event(raw, environment, *, head, tree, resolved_bytes, so
             and inputs.get("execution_lane") == ROUTE["executionLane"], "original event kind/selection/lane")
     require(inputs.get("run_ui_smoke") == "false",
             "original event UI intent")
-    require(inputs == cold_dispatch_inputs(plan), "closed cold original dispatch inputs")
+    expected_inputs = cold_dispatch_inputs(plan)
+    try:
+        require(inputs == expected_inputs, "closed cold original dispatch inputs")
+    except Refused as primary:
+        try:
+            primary.add_note(cold_dispatch_input_difference(raw, inputs, expected_inputs))
+        except BaseException as diagnostic_error:
+            try:
+                primary.add_note("cold input diagnostic failed: " + type(diagnostic_error).__name__)
+            except BaseException:
+                pass  # Diagnostic/observer failure never replaces the admission refusal.
+        raise
     rebuilt = make_cold_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
                         resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"])
     exact(plan, rebuilt, "original event committed source/selection")

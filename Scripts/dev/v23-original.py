@@ -226,8 +226,19 @@ def api(path):
     return json.loads(retried(lambda: run("gh", "api", path)))
 
 
+def raw_api_argv(path):
+    """Advertised local CLI capability only; raw response bytes stay untouched."""
+    help_raw = subprocess.run(["gh", "api", "--help"], cwd=ROOT,
+                              capture_output=True, check=True).stdout
+    argv = ["gh", "api", path]
+    if re.search(rb"(?m)^[ \t]+--allow-escape-sequences(?:[ \t=]|$)", help_raw):
+        argv.append("--allow-escape-sequences")
+    return argv
+
+
 def api_bytes(path):
-    return retried(lambda: subprocess.run(["gh", "api", path], cwd=ROOT, capture_output=True,
+    argv = raw_api_argv(path)
+    return retried(lambda: subprocess.run(argv, cwd=ROOT, capture_output=True,
                                           check=True).stdout)
 
 
@@ -1637,7 +1648,7 @@ PHASE1_PAYLOAD_CHUNK_BYTES = 1024 * 1024
 def phase1_payload_chunks(identifier):
     """One fixed authenticated artifact endpoint; no retry, URL, or extraction."""
     endpoint = f"repos/{REPO}/actions/artifacts/{identifier}/zip"
-    process = subprocess.Popen(["gh", "api", endpoint], cwd=ROOT, stdin=subprocess.DEVNULL,
+    process = subprocess.Popen(raw_api_argv(endpoint), cwd=ROOT, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     try:
         while block := process.stdout.read(PHASE1_PAYLOAD_CHUNK_BYTES):
@@ -1860,7 +1871,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "FE1441BF152CA38DB31579084EA5C0949B6CDAC9EF23E651EE8FE8C51A7A13C2"
+PHASE1_RETAINED_READER_SHA256 = "415931FFD81305A2A9F1E97391392B26BC842128B892696BF98489B0986DAA10"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -4461,9 +4472,9 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
 
 # Additive cold DATA bridge. Original V1 records and ordinary routes stay exact.
 COLD_RETAINED_READER_V2_PATH = "Scripts/dev/v23-retained-payload.py"
-COLD_RETAINED_READER_V2_SHA256 = "FE1441BF152CA38DB31579084EA5C0949B6CDAC9EF23E651EE8FE8C51A7A13C2"  # Exact candidate Source; genuine companion review/composition required.
+COLD_RETAINED_READER_V2_SHA256 = "415931FFD81305A2A9F1E97391392B26BC842128B892696BF98489B0986DAA10"  # Exact candidate Source; genuine companion review/composition required.
 COLD_PAYLOAD_DATA_V2_PATH = "Scripts/dev/v23-cold-payload-data.py"
-COLD_PAYLOAD_DATA_V2_SHA256 = "DD619943082B62A02DF2F1589B4EEB0CA723E659D493FF28D13A65D75C261556"  # Transitive original-tree dependency; not a plan.sources key.
+COLD_PAYLOAD_DATA_V2_SHA256 = "9D47A76C6E14255CB8F62103237125BCA7D6DE951BFC6755DA92C2B146451EC9"  # Transitive original-tree dependency; not a plan.sources key.
 COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
 COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
 

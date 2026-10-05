@@ -5599,6 +5599,8 @@ class ColdOriginalCollectionTests(unittest.TestCase):
 class ColdAttemptLifecycleTests(unittest.TestCase):
     """Actual dispatch reservation and discovery, with remote effects replaced."""
     plan_fixture = ColdOriginalControlBoundaryTests.plan_fixture
+    durable_worker_files = ColdOriginalCollectionTests.durable_worker_files
+    assert_pending = ColdOriginalCollectionTests.assert_pending
     fixture = ColdOriginalCollectionTests.fixture
 
     def prepare(self, base):
