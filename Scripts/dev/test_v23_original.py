@@ -4933,6 +4933,86 @@ class ColdOriginalCollectionTests(unittest.TestCase):
     """Actual cold context/collector, with synthetic Git/API/transport boundaries only."""
     plan_fixture = ColdOriginalControlBoundaryTests.plan_fixture
 
+    def durable_worker_files(self, core, plan, selected, event, binding, record):
+        """Synthetic worker transport; real disposable producer I/O, no app proof.
+
+        Authentication and emitter fields are parser-test stand-ins only. The
+        existing producer supplies the raw sink, sealed union and actual owner
+        outcomes; none of these bytes grants reader or gate qualification.
+        """
+        native_path = REPO_ROOT / "Scripts/v23-native-ci.py"
+        native_raw = native_path.read_bytes()
+        self.assertEqual(sha(native_raw), plan["sources"]["Scripts/v23-native-ci.py"])
+        native = load(native_path, "v23_cold_original_synthetic_worker")
+        writer_path = native.SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+        writer_raw = (REPO_ROOT / writer_path).read_bytes()
+        self.assertEqual(sha(writer_raw), native.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256)
+        self.assertNotIn(writer_path, plan["sources"], "closed cold plan must not acquire a counterfeit PFP key")
+        with tempfile.TemporaryDirectory(prefix="synthetic-cold-worker-") as temporary:
+            artifact = Path(temporary).resolve()
+            context = {"schema": native.COLD_DURABLE_CONTEXT_SCHEMA,
+                "executionScope": core.COLD_PURPOSE, "head": plan["head"], "tree": plan["tree"],
+                "runID": record["runID"], "runAttempt": "1", "role": "consumer",
+                "partitionID": record["sharedCoverage"]["partitionID"],
+                "originalEventSHA256": sha(event), "eventBindingSHA256": sha(core.canonical(binding)),
+                "admissionSHA256": sha(core.canonical(record)), "planSHA256": binding["planSHA256"],
+                "selectionSHA256": plan["selectionSHA256"], "writerSourceSHA256": sha(writer_raw),
+                "simulatorUDID": "00000000-0000-0000-0000-000000000001"}
+            self.assertEqual(len(context), 15)
+            owners = {}
+            prepared = native.cold_durable_prepare(artifact, context, owners)
+            context.update(durableSinkPath=prepared["path"],
+                           durableSinkBindingSHA256=prepared["bindingSHA256"])
+            (artifact / "native-admission.json").write_bytes(core.canonical(record))
+            (artifact / native.COLD_EMITTED_FORWARD_RECEIPT).write_bytes(core.canonical({
+                "context": context, "contextSHA256": sha(core.canonical(context))}))
+            controls = []
+            for suffix, kind in (("21", "database"), ("22", "scratch")):
+                # Explicitly synthetic emitters: these fields exercise the
+                # parser protocol, never actual app identity or app lifetime.
+                stream = "00000000-0000-0000-0000-0000000000" + suffix
+                emitter = "10000000-0000-0000-0000-0000000000" + suffix
+                backup, directory = native.OWNED_FILE_DISPOSITIONS[kind]
+                values = {"policyID": native.SIMULATOR_DIAGNOSTIC_POLICY_ID,
+                    "disposition": native.SIMULATOR_DIAGNOSTIC_DISPOSITION, "kind": kind,
+                    "request": "complete", "capabilityBefore": "false", "capabilityAfter": "false",
+                    "urlProtection": native.SIMULATOR_FALLBACK_PROTECTION,
+                    "backupExcluded": str(backup).lower(), "expectsDirectory": str(directory).lower(),
+                    "identityUnchanged": "true"}
+                payload = (native.SIMULATOR_DIAGNOSTIC_PREFIX + " " + " ".join(
+                    key + "=" + values[key] for key in native.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n").encode()
+                frame = core.canonical({"schema": native.SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA,
+                    "streamID": stream, "sequence": 1,
+                    "payloadBase64": native.base64.b64encode(payload).decode("ascii"),
+                    "payloadByteCount": len(payload), "payloadSHA256": sha(payload)})
+                common = {"schema": native.COLD_DURABLE_RECORD_SCHEMA, "streamID": stream,
+                    "emitterID": emitter, "contextSHA256": sha(core.canonical(context)),
+                    "bindingSHA256": prepared["bindingSHA256"]}
+                controls.append(core.canonical({**common, "kind": "STREAM_START", "actualPID": 100,
+                    "actualHome": "/synthetic-fixture-home", "actualBundleID": native.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+                    "actualExecutable": "/synthetic-fixture-home/FieldEvidenceApp"}))
+                commit = {**common, "sequence": 1, "frameBytes": len(frame), "frameSHA256": sha(frame)}
+                controls.extend((core.canonical({**commit, "kind": "FRAME_PREPARE"}), frame,
+                                 core.canonical({**commit, "kind": "FRAME_COMMIT"})))
+            with (Path(prepared["path"]) / "EMITTED.jsonl").open("ab") as emitted:
+                emitted.write(b"".join(controls))
+            with mock.patch.object(native, "cold_worker_context",
+                    return_value=(binding, event, selected, plan["selectionSHA256"])), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                status = native.cold_durable_collect(REPO_ROOT, artifact,
+                    {"CI_SIMULATOR_UDID": context["simulatorUDID"]}, False, 0,
+                    native.time.monotonic(), native.time.monotonic)
+            self.assertEqual(status["status"], "AVAILABLE")
+            proof = json.loads((artifact / native.COLD_DURABLE_PROOF).read_bytes())
+            self.assertEqual(proof["status"], "SEALED_EMITTED_TRANSPORT_ONLY")
+            self.assertEqual((artifact / native.COLD_DURABLE_ROOT / "STATE").read_bytes(), b"SEALED\n")
+            self.assertEqual(len(proof["observed"]["streams"]), 2)
+            self.assertTrue(all(row.get("closeReturned") is True and row.get("closeUncertain") is False
+                                and row.get("error") is None for row in proof["io"] if row.get("closeEntered") is True))
+            self.assert_pending({**proof, "status": "INCOMPLETE"})
+            return {str(path.relative_to(artifact)).replace(os.sep, "/"): path.read_bytes()
+                    for path in artifact.rglob("*") if path.is_file()}
+
     def fixture(self, base):
         core, plan, selected = self.plan_fixture()
         gate = core.ColdContract()
@@ -4995,6 +5075,8 @@ class ColdOriginalCollectionTests(unittest.TestCase):
                 live[stage] = value
             checkpoint["coldSharedObservations"] = live
             files[label]["native-checkpoint.json"] = core.canonical(checkpoint)
+            if role == "consumer":
+                files[label].update(self.durable_worker_files(core, plan, selected, event, binding, record))
             blobs[index + 20] = zip_bytes(files[label])
             artifacts.append({"id": index + 20, "name": names["producer"] if role == "producer" else names["consumers"][label],
                 "expired": False, "digest": "sha256:" + sha(blobs[index + 20]).lower(), "size_in_bytes": len(blobs[index + 20]),
@@ -5062,6 +5144,11 @@ class ColdOriginalCollectionTests(unittest.TestCase):
             for offset in range(0, len(raw), 31): yield raw[offset:offset + 31]
         def git_bytes(*args):
             self.assertEqual(args[0], "show", "cold Stage1 must not archive or run a reader")
+            writer_path = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+            if args[1] == plan["tree"] + ":" + writer_path:
+                # Synthetic frozen-tree archive boundary; actual current writer
+                # bytes are authenticated by the frozen Native Source pin.
+                return (REPO_ROOT / writer_path).read_bytes()
             self.assertTrue(args[1].startswith(HEAD + ":"))
             return (REPO_ROOT / args[1].split(":", 1)[1]).read_bytes()
         def process(*args, **kwargs):
@@ -5139,6 +5226,44 @@ class ColdOriginalCollectionTests(unittest.TestCase):
             before = tree_bytes(f["directory"])
             with self.assertRaisesRegex(ValueError, "immutable"): NEW.collect(RUN, True)
             self.assertEqual(tree_bytes(f["directory"]), before)
+            retained = json.loads((f["directory"] / "cold-emitted-retained-facts.json").read_bytes())
+            self.assertEqual(set(retained["consumerFacts"]), {"S01"})
+            facts = retained["consumerFacts"]["S01"]
+            self.assertTrue(facts["committedEmittedBytesComplete"])
+            self.assertEqual(len(facts["observed"]["streams"]), 2)
+            self.assertEqual(facts["observed"]["rawSHA256"],
+                             sha(f["files"]["S01"]["cold-emitted-durable-original/EMITTED.jsonl"]))
+            self.assertEqual(facts["files"], [{"name": row["streamID"] + ".jsonl", "bytes": row["bytes"],
+                "sha256": row["sha256"]} for row in facts["observed"]["streams"]])
+            for key in ("countsAreTotalInvocations", "processLifetimesProven", "physicalRetirementProven",
+                        "providerQualification", "acceptance", "releaseReady"):
+                self.assertIs(facts[key], False)
+            self.assertEqual(facts["functionalQualification"], "PENDING")
+        for variant in ("missing-proof", "unsealed", "raw-drift", "derived-drift", "source-drift", "context-drift"):
+            with self.subTest(durable=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); files = f["files"]["S01"]
+                if variant == "missing-proof": del files["cold-emitted-durable-proof.json"]
+                if variant == "unsealed": files["cold-emitted-durable-original/STATE"] = b"OPEN\n"
+                if variant == "raw-drift":
+                    raw = files["cold-emitted-durable-original/EMITTED.jsonl"]
+                    files["cold-emitted-durable-original/EMITTED.jsonl"] = b"\n".join(raw.split(b"\n")[:-2]) + b"\n"
+                if variant == "derived-drift":
+                    name = next(name for name in files if name.startswith("simulator-file-protection-transport/"))
+                    files[name] += b"drift\n"
+                if variant in ("source-drift", "context-drift"):
+                    proof = json.loads(files["cold-emitted-durable-proof.json"])
+                    proof["context"]["writerSourceSHA256" if variant == "source-drift" else "admissionSHA256"] = "F" * 64
+                    files["cold-emitted-durable-proof.json"] = canonical(proof)
+                f["blobs"][21] = zip_bytes(files)
+                f["artifacts"][1].update(digest="sha256:" + sha(f["blobs"][21]).lower(), size_in_bytes=len(f["blobs"][21]))
+                self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                self.assertTrue(any("worker S01" in problem for problem in proof["problems"]), proof["problems"])
+                retained = json.loads((f["directory"] / "cold-emitted-retained-facts.json").read_bytes())
+                self.assertNotIn("S01", retained["consumerFacts"])
+                self.assertEqual(f["commands"], [])
+                self.assertFalse((f["directory"] / "phase1-raw-proof.json").exists())
+                self.assertFalse((f["directory"] / "phase1-payload-recomputations").exists())
 
     def test_bad_authenticated_original_attempt_repo_head_and_workflow_refuse_before_payload_get(self):
         for changes in ({"id": RUN + 1}, {"run_attempt": 2}, {"run_attempt": True},

@@ -1,13 +1,14 @@
-## Current C11 obligations — 2026-10-05
+## Current C12 verified-checkpoint obligations — 2026-10-05
 
-- Published integration remains5ba97704719e12b2061b96ad9e008ea7ae18b2a8; exact ten-Source C11 V3 is now imported into Primary and final16-path checkpoint review has genuine C9 Sol6.1/xhigh PASS for an explicitly incomplete DEVELOPMENT checkpoint. Mainb1d04ae5 remains unchanged; allfivegatesOPEN/releaseReadyfalse.
-- Local full cold-macro app compilation PASS0errors313.323s; current nativeCI394PASS0/368s and retainedreader41PASS0/353s. Earlier firstmacro/flock/header/derived failures are retained as history.
-- Narrow DEVELOPMENT predecessorselection42PASS598s reused after independent54file/Python/107fixedhistorical-object/currentprofile equality proof. It did not executeV3 and gives no gate credit.
-- Current V3 coldHOLDs:focused18 sixERROR outcomes/fourmethods at receipt-parent ownbirth; affecteddispatcher104103PASS/onecoldfixtureFAIL due missing synthetic durableproof. Ordinary affected classes pass; no unchanged failing replay.
-- Separate V4 receipt Source independentlyPASS and firstprivate19/19PASS0/2s. It is NOT the Primary V3 checkpoint; its import/newcandidatefullCI/affected verification remain due.
-- New-head ordinary hosted27 must confirm the former pinned26.6 array compiler error is corrected. WholeappfailurecountUNKNOWN; genuine full3716/33 development sweep remains due.
-- Next isolated cold family:receipt birth, missing proof fixture, authentic transitive NativeSource/currentPFP join, safe payload/no-rebuild/execution adapters and versioned qualificationV2. Genuine coldapp/context/completeemittedtransport/latewrite proof and pinned fullcoverage remain due.
-- Complete emittedtransport remainsmandatory; totalcall/kernelcohort/perPIDretirement are separateUNPROVEN claims. No stale v1PENDING/false field is promoted. All fivegates/ownerhumanUI/physicalprivacy/fullV23/release obligations remain.
+- Published integrationc54c64d; current reviewedC12fourSource imported once into Primary, outside2808raw/FULL10+protected2 preserved at import. Final exact8-path Source+records independent C9 Sol6.1/xhigh DATA/candidate review PASS; faithful finalbinding/commit/non-force publication due.
+- CurrentCI394PASS0/419s +selection42PASS0/638s +reader41PASS0/393s +coldclass11PASS0/11s, all0skips. Prior ordinary93 reuse has genuine conditional Sourcereview; current fullpair/readerPASS satisfies condition, retain predecessor scope.
+- Correctedprivate hostile selector1PASS0/1s; first20fixturePermissionError retained, other19bodiesexact; no fullV3rerun claim. Current completedC12checks have0failures/errors; fullappfailurecountUNKNOWN.
+- Hosted c54 original37366161165 FAILED before runner assignment, authentic jobannotation confirms runnerunavailable; no artifacts/all27NotStarted/no appcompile result. Originalbootstrap/emptyZIP/failedcollector records retained.
+- FutureC13 genericemptylog ZIPfix reviewed/focused4PASS0 incompletecheckout afterpreserved firstsetupfailure; same soleclaim collectorresume terminal0. Finalmanifest/summary/audit and actualresumeDATA remain torecord. Fix remains outsideC12candidate.
+- New-head ordinary pinned hosted27 confirmation, full meaningfulstabilization3716/33 and genuine coldroute/app/context/completeemittedtransport/latewrite proof remain due.
+- Separate C13 private additive qualificationV2, safe coldpayload/worker reader, authentic uncapped DD/activitylog/no-rebuild witnesses and original-bound collection assessment require genuine independent reviews/Root composition/fullCI/affected verification.
+- Everyoldoriginal/HOLD/V1PENDING/false/INCOMPLETE remains preserved. Stronger totalcall/kernelcohort/perPIDretirement separatelyUNPROVEN; completeemittedtransport mandatory.
+- Mainb1d04ae5 unchanged/allfivePhase1gatesOPEN(0/5)/releaseReadyfalse; frozen same-head coverage/qualifiedUI/independentcandidate/ownercriticalUIreview/mainexactverification, fullV23/physicalprivacy/storeowner obligations remain.
 
 Earlier checkpoint sections below are retained historical obligations and observations, superseded wherever this current section differs.
 

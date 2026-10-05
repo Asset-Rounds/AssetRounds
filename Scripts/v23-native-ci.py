@@ -3785,6 +3785,15 @@ def _cold_durable_emit(path, raw):
         descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
                 | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
         owners.append(("receiptWriter", descriptor))
+        # Admit only this returned entry birth, before any receipt payload write.
+        parent_birth = os.fstat(parent)
+        require(all(getattr(parent_birth, key) == getattr(before, key) for key in
+                    ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_flags"))
+                and parent_birth.st_nlink == before.st_nlink + 1
+                and _cold_durable_ten(parent_birth) == _cold_durable_ten(os.lstat(path.parent))
+                and str(path.parent.resolve(strict=True)) == str(path.parent)
+                and sorted(os.listdir(parent)) == sorted(inventory + [path.name]),
+                "cold durable receipt exact own returned birth transition")
         require(os.write(descriptor, raw) == len(raw), "cold durable exact immutable receipt write")
         os.fsync(descriptor)
         os.fchmod(descriptor, 0o444)
@@ -3792,8 +3801,10 @@ def _cold_durable_emit(path, raw):
         require(stat.S_ISREG(written.st_mode) and written.st_nlink == 1
                 and written.st_size == len(raw) and _cold_durable_ten(written)
                 == _cold_durable_ten(os.stat(path.name,dir_fd=parent,follow_symlinks=False))
-                and _cold_durable_identity(os.fstat(parent)) == _cold_durable_identity(before)
-                and _cold_durable_ten(os.fstat(parent)) == _cold_durable_ten(os.lstat(path.parent))
+                and _cold_durable_identity(os.fstat(parent)) == _cold_durable_identity(parent_birth)
+                and _cold_durable_ten(os.fstat(parent)) == _cold_durable_ten(parent_birth)
+                == _cold_durable_ten(os.lstat(path.parent))
+                and str(path.parent.resolve(strict=True)) == str(path.parent)
                 and sorted(os.listdir(parent)) == sorted(inventory + [path.name]),
                 "cold durable receipt held/name/owned-birth membership")
         result = {"path":str(path),"bytes":len(raw),"sha256":sha256(raw),
@@ -3807,7 +3818,6 @@ def _cold_durable_emit(path, raw):
     require(_cold_durable_ten(os.lstat(path)) == result["afterWriteBeforeClose"],
             "cold durable receipt post-onceclose endpoint")
     return result
-
 
 def cold_durable_collect(root, artifact, environment, interrupted, native_exit_status, started, monotonic):
     """Seal emitted bytes under the writer's actual lock, inside the old clock."""

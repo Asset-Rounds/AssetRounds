@@ -1860,7 +1860,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "5EF4EACFDE84B80DFA81EAD2B684DAEA99E8B36A09CD74118F7FC64E8660E333"
+PHASE1_RETAINED_READER_SHA256 = "825C056D7CF137D0AFB50C93BA5FBCF8C2E99E00FBCBFF22894EF871C60C8D8B"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -4364,6 +4364,15 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
                 and all(row.get("closeReturned") is True and row.get("closeUncertain") is False and row.get("error") is None
                         for row in proof["io"] if row.get("closeEntered") is True),
                 "cold emitted actual producer owner closes")
+        # cold_original_context has already checked this original head/tree and
+        # the Native source closure. PFP is reached transitively through that
+        # frozen Native source's CURRENT pin, never a historical allowance or
+        # an invented member of the closed plan source list.
+        writer_source_path = namespace["SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]
+        writer_source = git_bytes("show", f"{plan['tree']}:{writer_source_path}")
+        require(0 < len(writer_source) <= namespace["PHASE1_WITNESS_BYTES"]
+                and gate.sha(writer_source) == namespace["SIMULATOR_DIAGNOSTIC_SOURCE_SHA256"],
+                "cold emitted frozen tree/current native writer Source")
         context = proof["context"]
         require(context["originalEventSHA256"] == gate.sha(event_raw)
                 and context["eventBindingSHA256"] == gate.sha(gate.canonical(record["coldOriginal"]))
@@ -4373,7 +4382,7 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
                 and context["role"] == "consumer" and context["partitionID"] == record["sharedCoverage"]["partitionID"]
                 and context["planSHA256"] == record["coldOriginal"]["planSHA256"]
                 and context["selectionSHA256"] == plan["selectionSHA256"]
-                and context["writerSourceSHA256"] == plan["sources"][namespace["SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]],
+                and context["writerSourceSHA256"] == gate.sha(writer_source),
                 "cold emitted same frozen original/source/partition")
         directory, before_dir = read_root(worker / namespace["COLD_DURABLE_ROOT"],owners,"retainedSink")
         require(sorted(os.listdir(directory)) == ["BINDING.json","EMITTED.jsonl","STATE"],
