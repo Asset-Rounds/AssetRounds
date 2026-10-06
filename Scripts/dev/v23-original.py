@@ -4933,8 +4933,7 @@ def cold_original_context(run_id, *, retention_only=False):
     gate.require(resolved_sha == plan["selectionSHA256"] == dispatched.get("resolvedSelectionSHA256"),
                  "root original resolved selection")
     if plan["selection"] == COLD_SELECTION_ID:
-        gate.exact(dispatched.get("sharedPartitions"), shared_partitions(plan["head"], resolved),
-                   "root exact committed partition census")
+        cold_shared_census_v2(gate, plan, dispatched, resolved)
     gate.exact(gate.make_plan(purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
         selection=plan["selection"], resolved_bytes=gate.canonical(resolved), sources=sources,
         requested_at=plan["requestedAtUTC"]), plan, "root recomputed exact plan")
@@ -5153,6 +5152,41 @@ COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
 COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
 
 
+def cold_shared_census_v2(gate, plan, dispatched, resolved):
+    """The exact original head's complete ordered census, never a count grant.
+
+    cold_original_context resolves with that head's committed Native reader,
+    which checks the partition file against every runnable Swift declaration.
+    Re-read the committed partition bytes here: caller-supplied dispatch and
+    resolved lists cannot authorize a smaller or differently ordered census.
+    """
+    gate.require(plan["selection"] == COLD_SELECTION_ID
+        and gate.sha(gate.canonical(resolved)) == plan["selectionSHA256"],
+        "cold V2 exact original resolved selection bytes")
+    partitions = shared_partitions(plan["head"], resolved)
+    gate.exact(dispatched.get("sharedPartitions"), partitions,
+               "cold V2 exact committed ordered partition census")
+    gate.require(type(partitions) is dict
+        and set(partitions) == {"partitionsPath", "partitionsSHA256", "partitionIDs", "selectors"}
+        and partitions["partitionsPath"] == SHARED_PARTITIONS_PATH
+        and partitions["partitionsSHA256"] == plan["sources"][SHARED_PARTITIONS_PATH],
+        "cold V2 census exact frozen partition Source")
+    identifiers, selectors = partitions["partitionIDs"], partitions["selectors"]
+    gate.require(type(identifiers) is list and 1 <= len(identifiers) <= SHARED_MAX_PARTITIONS
+        and all(type(label) is str and SHARED_PARTITION_ID.fullmatch(label) for label in identifiers)
+        and len(set(identifiers)) == len(identifiers)
+        and type(selectors) is dict and set(selectors) == set(identifiers)
+        and all(type(selectors[label]) is list
+                and 1 <= len(selectors[label]) <= SHARED_MAX_PARTITION_METHODS
+                and all(type(selector) is str for selector in selectors[label]) for label in identifiers),
+        "cold V2 complete unique bounded partition census")
+    ordered = [selector for label in identifiers for selector in selectors[label]]
+    gate.require(len(set(ordered)) == len(ordered) and ordered == resolved["unitTestSelectors"]
+        and resolved["sharedCoverage"]["partitionIDs"] == identifiers,
+        "cold V2 exact complete ordered unit census")
+    return partitions
+
+
 def cold_v2_decode(gate, raw):
     # Separate new factual-control domain; the legacy plan parser cap is exact.
     return gate.decode(raw, limit=32 * 1024 * 1024)
@@ -5352,13 +5386,8 @@ def cold_payload_recompute_v2(gate, directory, plan, attempt, claim, dispatched,
         and gate.sha(attempt_raw) == claim["attemptSHA256"]
         and gate.sha(cold_v2_regular_bytes(gate, directory / "dispatch.json")) == claim["dispatchSHA256"],
         "cold V2 original dispatch/registration/attempt hashes")
-    partitions = dispatched["sharedPartitions"]
+    partitions = cold_shared_census_v2(gate, plan, dispatched, resolved)
     labels = ["producer", *partitions["partitionIDs"]]
-    ordered = [selector for label in partitions["partitionIDs"] for selector in partitions["selectors"][label]]
-    gate.require(len(partitions["partitionIDs"]) == 33 and len(ordered) == 3716
-        and len(set(ordered)) == len(ordered) and ordered == resolved["unitTestSelectors"]
-        and resolved["sharedCoverage"]["partitionIDs"] == partitions["partitionIDs"],
-        "cold V2 exact current full ordered 33/3716 unit census")
     gate.require(sorted(p.name for p in (directory / "artifacts").iterdir()) == sorted(labels),
                  "cold V2 complete retained worker census")
     listing = cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "artifacts.json"))["artifacts"]
@@ -5634,6 +5663,7 @@ def qualify_cold_v2(request_path):
     _, directory, dispatched, plan, attempt, _, _, _, resolved = cold_original_context(request["runID"])
     gate.require((request["head"], request["tree"]) == (plan["head"], plan["tree"])
         and plan["selection"] == COLD_SELECTION_ID, "cold V2 exact current frozen cold original")
+    partitions = cold_shared_census_v2(gate, plan, dispatched, resolved)
     manifest_ref = cold_v2_reference(gate, request["manifest"])
     manifest_raw, receipt_raw, proof, payload, execution = cold_v2_assessment_inputs(
         gate, directory, plan, attempt, request["runID"], manifest_ref)
@@ -5662,9 +5692,10 @@ def qualify_cold_v2(request_path):
             and all(data[key] is False for key in ("providerQualification", "acceptance", "gateQualification",
                 "exactMainVerification", "releaseReady", "executionAuthority")), "cold V2 exact unqualified DATA contract")
         gate.exact(data["qualificationContract"], contract, "cold V2 current qualification contract recomputed")
-        labels = dispatched["sharedPartitions"]["partitionIDs"]
-        gate.require(len(labels) == 33 and set(data["emittedTransport"]["consumerFacts"]) == set(labels),
-                     "cold V2 complete emitted consumer census")
+        labels = partitions["partitionIDs"]
+        gate.require(type(data["emittedTransport"]["consumerFacts"]) is dict
+            and set(data["emittedTransport"]["consumerFacts"]) == set(labels),
+            "cold V2 complete source-bound emitted consumer census")
         emitted = cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "cold-emitted-retained-facts.json"))["consumerFacts"]
         gate.exact(data["emittedTransport"]["consumerFacts"],
             {label: {key: value for key, value in emitted[label].items() if key != "retainedReadCloseRows"} for label in labels},

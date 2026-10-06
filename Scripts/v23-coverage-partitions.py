@@ -39,12 +39,15 @@ validated by the same admission code the workflow runs (disjoint, at most 60
 partitions, union equal to every runnable method, each estimate within its tier)
 before it is written.
 
-Tiers (owner decision 16, 2026-09-25): every partition names its consumer tier. A
-partition of exactly ONE method whose estimate exceeds the packing target is a
-known-slow solo and gets D90S (test budget 5,400 s); every other partition is D50C
-(3,000 s). The tier follows from the written estimate and the target alone, so a
-file regenerates to itself. A solo estimate above 5,400 s, or a multi-method
-estimate above 3,000 s, fails closed.
+Tiers (owner decision 16, 2026-09-25): every partition names its consumer tier.
+New, changed, legacy and repacked assignments derive D90S for exactly ONE method
+whose estimate exceeds the packing target; every other assignment derives D50C.
+Default regeneration of a closed v2 source preserves its explicitly committed
+tier for an unchanged assignment. The packing target controls grouping, not a
+mandatory budget upgrade: a committed D50C singleton keeps its tighter 3,000 s
+budget. Every source tier is validated, and the completed current census is
+validated again after preservation. An estimate above its retained tier's budget
+fails closed; no source tier bypasses the single-method D90S or coverage rules.
 No network, dispatch or Git mutation.
 """
 import argparse
@@ -92,6 +95,12 @@ def source_partitions(native, value):
     """Return (source census head, [(id, selectors, estimate)], sweep order)."""
     if not isinstance(value, dict):
         fail("source must be an object")
+    if value.get("schema") == native.SHARED_PARTITIONS_SCHEMA:
+        try:
+            source_members = [selector for row in value["partitions"] for selector in row["selectors"]]
+            native.validate_coverage_partitions(value, source_members)
+        except (KeyError, TypeError, ValueError) as error:
+            fail("invalid committed partition source: %s" % error)
     if value.get("schema") == CENSUS_SCHEMA:
         head = value.get("head")
         partitions = [(item["id"], list(item["selectors"]), number(item["estimatedSeconds"], item["id"]))
@@ -260,7 +269,18 @@ def regenerate(native, root, source, generated_at_head, timings=None, repack_all
                 order.append(owner)
             owner_by_class.setdefault(class_name, owner)
             by_id[owner]["selectors"].extend(members)
-    return finish(native, rows, order, estimate, head, generated_at_head, discovered, target)
+    value = finish(native, rows, order, estimate, head, generated_at_head, discovered, target)
+    if source.get("schema") == native.SHARED_PARTITIONS_SCHEMA:
+        committed = {row["id"]: row for row in source["partitions"]}
+        for row in value["partitions"]:
+            previous = committed.get(row["id"])
+            if previous is not None and row["selectors"] == sorted(previous["selectors"], key=method_key):
+                row["tier"] = previous["tier"]
+        try:
+            native.validate_coverage_partitions(value, discovered)
+        except ValueError as error:
+            fail(str(error))
+    return value
 
 
 def partition_tier(native, selectors, seconds, target):

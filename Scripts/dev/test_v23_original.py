@@ -5064,7 +5064,8 @@ class ColdOriginalCollectionTests(unittest.TestCase):
     def fixture(self, base):
         core, plan, selected = self.plan_fixture()
         gate = core.ColdContract()
-        parts = {"partitionIDs": ["S01"], "selectors": {"S01": selected["unitTestSelectors"]}}
+        parts = {"partitionsPath": core.PARTITIONS, "partitionsSHA256": plan["sources"][core.PARTITIONS],
+                 "partitionIDs": ["S01"], "selectors": {"S01": selected["unitTestSelectors"]}}
         registration_path, _ = core.register_cold(plan, base / "v23-cold-plans")
         observations = synthetic_phase1_observations(core, plan)
         attempt = core.make_cold_attempt(plan, registration_path.read_bytes(), collector_id="a" * 32,
@@ -5355,6 +5356,20 @@ class ColdOriginalCollectionTests(unittest.TestCase):
                 self.assertEqual(f["commands"], [])
                 self.assertFalse((f["directory"] / "phase1-raw-proof.json").exists())
                 self.assertFalse((f["directory"] / "phase1-payload-recomputations").exists())
+
+    def test_actual_context_refuses_dispatch_supplied_reduced_census_before_any_collection_api(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve())
+            path = f["directory"] / "dispatch.json"
+            dispatched = json.loads(path.read_bytes())
+            dispatched["sharedPartitions"]["selectors"]["S01"] = []
+            path.write_bytes(f["core"].canonical(dispatched))
+            with mock.patch.object(NEW, "api") as api:
+                with self.assertRaisesRegex(ValueError, "committed ordered partition census"):
+                    NEW.cold_original_context(RUN)
+                api.assert_not_called()
+            self.assertEqual(f["commands"], [])
+
 
     def test_bad_authenticated_original_attempt_repo_head_and_workflow_refuse_before_payload_get(self):
         for changes in ({"id": RUN + 1}, {"run_attempt": 2}, {"run_attempt": True},
@@ -7126,6 +7141,185 @@ class Phase1PayloadBirthIdentityTests(unittest.TestCase):
                     self.assertEqual(sorted(path.name for path in target.parent.iterdir()), ["000000"])
 
 
+
+
+class ColdCurrentCensusV2Tests(unittest.TestCase):
+    """Actual census/qualifier functions; synthetic Source/API boundaries only.
+
+    Counts describe disposable parser fixtures, never authentic test execution,
+    a historical original's qualification, or current app coverage.
+    """
+
+    def fixture(self, method_count=3726, partition_count=33):
+        identifiers = ["S%02d" % index for index in range(1, partition_count + 1)]
+        methods = ["FieldEvidenceAppTests/CensusFixtureTests/testMethod%05d" % index
+                   for index in range(method_count)]
+        rows, cursor = [], 0
+        for index, label in enumerate(identifiers):
+            size = method_count // partition_count + (index < method_count % partition_count)
+            rows.append({"id": label, "tier": "D50C", "estimatedSeconds": 1,
+                         "selectors": methods[cursor:cursor + size]})
+            cursor += size
+        document = {"schema": "v23-coverage-partitions.v2", "sourceCensusHead": "a" * 40,
+                    "generatedAtHead": "b" * 40, "partitions": rows, "sweepOrder": identifiers}
+        raw = canonical(document)
+        selected = {"tier": NEW.SHARED_PRODUCER_TIER, "unitTestSelectors": methods,
+            "sharedCoverage": {"partitionsPath": NEW.SHARED_PARTITIONS_PATH,
+                "partitionsSHA256": sha(raw), "partitionIDs": identifiers,
+                "partitionID": None, "developmentOnly": True, "acceptance": False}}
+        parts = {"partitionsPath": NEW.SHARED_PARTITIONS_PATH, "partitionsSHA256": sha(raw),
+                 "partitionIDs": identifiers, "selectors": {row["id"]: row["selectors"] for row in rows}}
+        plan = {"selection": NEW.COLD_SELECTION_ID, "head": "c" * 40, "tree": "d" * 40,
+                "selectionSHA256": sha(canonical(selected)), "sources": {NEW.SHARED_PARTITIONS_PATH: sha(raw)}}
+        return {"gate": NEW.cold_gates(), "plan": plan, "selected": selected,
+                "dispatch": {"sharedPartitions": parts}, "committedRaw": raw}
+
+    def committed_bytes(self, f, *args):
+        self.assertEqual(args, ("show", f["plan"]["head"] + ":" + NEW.SHARED_PARTITIONS_PATH))
+        return f["committedRaw"]
+
+    def census(self, f):
+        # Keep the actual shared_partitions function: the independent committed
+        # bytes cannot be replaced by a dispatch-supplied expected dictionary.
+        with mock.patch.object(NEW, "git_bytes", side_effect=lambda *args: self.committed_bytes(f, *args)):
+            return NEW.cold_shared_census_v2(f["gate"], f["plan"], f["dispatch"], f["selected"])
+
+    def rebind_synthetic_claim(self, f):
+        # A self-consistent caller hash is deliberately insufficient authority.
+        f["plan"]["selectionSHA256"] = sha(canonical(f["selected"]))
+
+    def test_original_3716_current_3726_and_future_additive_census_use_their_committed_source(self):
+        for methods, partitions in ((3716, 33), (3726, 33), (3726, 37), (3737, 34)):
+            with self.subTest(methods=methods, partitions=partitions):
+                f = self.fixture(methods, partitions)
+                actual = self.census(f)
+                self.assertEqual(actual, f["dispatch"]["sharedPartitions"])
+                self.assertEqual(len(actual["partitionIDs"]), partitions)
+                self.assertEqual(sum(len(values) for values in actual["selectors"].values()), methods)
+
+    def test_missing_extra_duplicate_and_reordered_consumers_refuse_even_with_rebound_caller_hash(self):
+        for variant in ("missing", "extra", "duplicate", "reordered"):
+            with self.subTest(variant=variant):
+                f = self.fixture()
+                parts, selected = f["dispatch"]["sharedPartitions"], f["selected"]
+                if variant == "missing":
+                    removed = parts["partitionIDs"].pop()
+                    del parts["selectors"][removed]
+                elif variant == "extra":
+                    parts["partitionIDs"].append("S34")
+                    parts["selectors"]["S34"] = ["FieldEvidenceAppTests/CensusFixtureTests/testUncommitted"]
+                elif variant == "duplicate":
+                    parts["partitionIDs"].append(parts["partitionIDs"][0])
+                else:
+                    parts["partitionIDs"][0], parts["partitionIDs"][1] = parts["partitionIDs"][1], parts["partitionIDs"][0]
+                selected["unitTestSelectors"] = [method for label in parts["partitionIDs"]
+                                                 for method in parts["selectors"][label]]
+                self.rebind_synthetic_claim(f)
+                with self.assertRaises((ValueError, SystemExit)):
+                    self.census(f)
+
+    def test_missing_extra_duplicate_and_reordered_methods_refuse_even_with_rebound_caller_hash(self):
+        for variant in ("missing", "extra", "duplicate", "reordered"):
+            with self.subTest(variant=variant):
+                f = self.fixture()
+                parts = f["dispatch"]["sharedPartitions"]
+                methods = parts["selectors"][parts["partitionIDs"][0]]
+                if variant == "missing": methods.pop()
+                elif variant == "extra": methods.append("FieldEvidenceAppTests/CensusFixtureTests/testUncommitted")
+                elif variant == "duplicate": methods.append(methods[0])
+                else: methods[0], methods[1] = methods[1], methods[0]
+                f["selected"]["unitTestSelectors"] = [method for label in parts["partitionIDs"]
+                                                      for method in parts["selectors"][label]]
+                self.rebind_synthetic_claim(f)
+                with self.assertRaises((ValueError, SystemExit)):
+                    self.census(f)
+
+    def test_resolved_digest_dispatch_source_digest_and_frozen_source_digest_drift_refuse(self):
+        for variant in ("resolved", "dispatchSource", "frozenSource"):
+            with self.subTest(variant=variant):
+                f = self.fixture()
+                if variant == "resolved": f["selected"]["unitTestSelectors"] = f["selected"]["unitTestSelectors"][:-1]
+                elif variant == "dispatchSource": f["dispatch"]["sharedPartitions"]["partitionsSHA256"] = "E" * 64
+                else: f["plan"]["sources"][NEW.SHARED_PARTITIONS_PATH] = "E" * 64
+                with self.assertRaises((ValueError, SystemExit)):
+                    self.census(f)
+
+    def qualification_boundary(self, f, consumer_facts):
+        """Stop after the actual archived assessment callback, before publication.
+
+        Authenticated original/runtime readers are mocked boundaries here; this
+        fixture must never be confused with their complete authentic evidence.
+        The actual committed-census and qualification consumer guards run.
+        """
+        directory = Path("/synthetic-cold-census-original")
+        request_path = Path("/synthetic-cold-census-request.json")
+        manifest_raw = canonical({"syntheticTestOnly": True})
+        reference = {"path": str(directory / "manifest.json"), "bytes": len(manifest_raw), "SHA256": sha(manifest_raw)}
+        request = {"schema": "v23-cold-qualification-assessment-request.v2", "stage": "ASSESS_DATA_ONLY",
+            "runID": 123, "head": f["plan"]["head"], "tree": f["plan"]["tree"],
+            "manifest": reference, "priorAssessment": None, "independentReview": None}
+        labels = f["dispatch"]["sharedPartitions"]["partitionIDs"]
+        retained = {label: {"syntheticTestOnly": True, "retainedReadCloseRows": []} for label in labels}
+        contract = {"syntheticTestOnly": True}
+        data = {"schema": "v23-cold-payload-data-facts.v2", "status": "DATA_ONLY_UNQUALIFIED",
+            "v1Data": {"declaredConclusion": "success", "rawProofProblems": [NEW.COLD_PAYLOAD_RECOMPUTATION_NOTE_V1],
+                       "sourceSHA256": f["plan"]["sources"]}, "qualificationContract": contract,
+            "emittedTransport": {"status": "DATA_BOUND_RECOMPUTED", "consumerFacts": consumer_facts},
+            **{key: False for key in ("providerQualification", "acceptance", "gateQualification",
+                                     "exactMainVerification", "releaseReady", "executionAuthority")}}
+        controls = {request_path: canonical(request), directory / "artifacts.json": canonical({}),
+                    directory / "jobs.json": canonical([]),
+                    directory / "cold-emitted-retained-facts.json": canonical({"consumerFacts": retained})}
+        def read(actual_gate, path, **kwargs):
+            self.assertIs(actual_gate, f["gate"])
+            return controls[Path(path)]
+        class AssessmentBoundaryReached(Exception):
+            pass
+        def archived(actual_gate, actual_plan, operation):
+            self.assertIs(actual_gate, f["gate"])
+            self.assertEqual(actual_plan, f["plan"])
+            operation(Path("/synthetic-committed-cold-source"))
+            raise AssessmentBoundaryReached()
+        context = (f["gate"], directory, f["dispatch"], f["plan"], {}, b"", b"", b"", f["selected"])
+        with contextlib.ExitStack() as stack:
+            for name, replacement in (("cold_gates", lambda: f["gate"]),
+                    ("cold_v2_regular_bytes", read), ("cold_original_context", lambda *args: context),
+                    ("cold_v2_assessment_inputs", lambda *args: (manifest_raw, canonical({}), {}, {}, {})),
+                    ("api", lambda *args: {"status": "completed", "conclusion": "success"}),
+                    ("cold_api_original", lambda *args: None), ("phase1_artifact_census", lambda *args: {}),
+                    ("paginated", lambda *args: []), ("cold_v2_archived_call", archived),
+                    ("cold_v2_source_module", lambda *args: {"qualification_contract_v2": lambda: contract,
+                                                            "read_cold_payload_data_v2": lambda *args: data}),
+                    ("git_bytes", lambda *args: self.committed_bytes(f, *args))):
+                stack.enter_context(mock.patch.object(NEW, name, replacement))
+            try:
+                NEW.qualify_cold_v2(request_path)
+            except AssessmentBoundaryReached:
+                return
+        self.fail("qualification fixture must stop at the assessment boundary")
+
+    def test_actual_qualifier_accepts_complete_source_bound_consumer_sets_at_each_census(self):
+        for methods, partitions in ((3716, 33), (3726, 33), (3726, 37), (3737, 34)):
+            with self.subTest(methods=methods, partitions=partitions):
+                f = self.fixture(methods, partitions)
+                self.qualification_boundary(f, {label: {"syntheticTestOnly": True}
+                    for label in f["dispatch"]["sharedPartitions"]["partitionIDs"]})
+
+    def test_actual_qualifier_refuses_missing_extra_and_nonmapping_emitted_consumer_facts(self):
+        for variant in ("missing", "extra", "list"):
+            with self.subTest(variant=variant):
+                f = self.fixture()
+                facts = {label: {"syntheticTestOnly": True} for label in f["dispatch"]["sharedPartitions"]["partitionIDs"]}
+                if variant == "missing": del facts["S33"]
+                elif variant == "extra": facts["S34"] = {"syntheticTestOnly": True}
+                else: facts = list(facts)
+                with self.assertRaises(ValueError):
+                    self.qualification_boundary(f, facts)
+
+    def test_duplicate_emitted_consumer_keys_refuse_at_the_actual_control_decoder(self):
+        f = self.fixture()
+        with self.assertRaises(ValueError):
+            NEW.cold_v2_decode(f["gate"], b'{"consumerFacts":{"S01":{},"S01":{}}}\n')
 
 
 if __name__ == "__main__":

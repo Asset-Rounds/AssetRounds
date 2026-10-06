@@ -8494,11 +8494,14 @@ class SharedCoverageRouteTests(unittest.TestCase):
             'partitionIDs': value['sweepOrder'], 'partitionID': None,
             'developmentOnly': True, 'acceptance': False})
         tiers = {partition['id']: partition['tier'] for partition in value['partitions']}
-        # Owner decision 16: only a one-method partition heavier than the packing target is D90S.
+        # Committed tiers retain their budgets: the packing target does not require
+        # upgrading an explicitly tighter D50C singleton to D90S.
         self.assertIn('D90S', tiers.values())
         for partition in value['partitions']:
-            solo = len(partition['selectors']) == 1 and partition['estimatedSeconds'] > load_partition_script().TARGET_SECONDS
-            self.assertEqual(partition['tier'], 'D90S' if solo else 'D50C', partition['id'])
+            if partition['tier'] == 'D90S':
+                self.assertEqual(len(partition['selectors']), 1, partition['id'])
+            self.assertGreater(partition['estimatedSeconds'], 0, partition['id'])
+            self.assertLessEqual(partition['estimatedSeconds'], CI.TIERS[partition['tier']][2], partition['id'])
         for identifier in value['sweepOrder']:
             consumer = CI.shared_selection(ROOT, identifier)
             self.assertEqual((consumer['tier'], consumer['runUISmoke'], consumer['uiTestSelectors']),
@@ -9938,12 +9941,17 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertEqual(script.partition_tier(CI, ['x'], 1500.1, 1500.0), 'D90S')
         self.assertEqual(script.partition_tier(CI, ['x'], 1500.0, 1500.0), 'D50C')
         self.assertEqual(script.partition_tier(CI, ['x', 'y'], 2900.0, 1500.0), 'D50C')
-        # A legacy v1 source (no tiers) regenerates to the same v2 file.
+        # Legacy sources conserve every non-tier field and derive tiers from the
+        # unchanged packing rule; they do not carry explicit tighter v2 tiers.
         legacy = copy.deepcopy(base)
         legacy['schema'] = 'v23-coverage-partitions.v1'
         for row in legacy['partitions']:
             row.pop('tier')
-        self.assertEqual(script.regenerate(CI, self.root, legacy, base['generatedAtHead']), base)
+        expected_legacy = copy.deepcopy(base)
+        for row in expected_legacy['partitions']:
+            is_solo = len(row['selectors']) == 1 and row['estimatedSeconds'] > script.TARGET_SECONDS
+            row['tier'] = 'D90S' if is_solo else 'D50C'
+        self.assertEqual(script.regenerate(CI, self.root, legacy, base['generatedAtHead']), expected_legacy)
         # Sticky mode: a new method of a known-slow solo's class is placed elsewhere.
         class_name = solo['selectors'][0].split('/')[1]
         added = self.root / 'FieldEvidenceAppTests/SharedCoverageSoloExtensionTests.swift'
@@ -9961,6 +9969,59 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertNotEqual(owner['id'], solo['id'])
         self.assertEqual(owner['tier'], 'D50C')
         self.assertLessEqual(owner['estimatedSeconds'], script.TARGET_SECONDS)
+
+    def test_default_regeneration_preserves_committed_tighter_singleton_and_fails_over_budget(self):
+        script = load_partition_script()
+        base = self.value()
+        donor = next(row for row in base['partitions'] if row['tier'] == 'D50C' and len(row['selectors']) > 1)
+        old_count = len(donor['selectors'])
+        selected = donor['selectors'].pop()
+        donor['estimatedSeconds'] = round(donor['estimatedSeconds'] * len(donor['selectors']) / old_count, 1)
+        used = {row['id'] for row in base['partitions']}
+        identifier = next('S%02d' % index for index in range(1, 100) if 'S%02d' % index not in used)
+        # Synthetic planning estimate above the packing target, inside the unchanged
+        # D50C budget; this fixture is not a measured runtime or execution receipt.
+        tighter = {'id': identifier, 'tier': 'D50C', 'estimatedSeconds': 2100.0, 'selectors': [selected]}
+        base['partitions'].append(tighter)
+        base['sweepOrder'].append(identifier)
+        CI.validate_coverage_partitions(base, self.discovered)
+        original_tiers = {row['id']: row['tier'] for row in base['partitions']}
+        refreshed = script.regenerate(CI, self.root, base, 'c' * 40)
+        self.assertEqual(refreshed, dict(base, generatedAtHead='c' * 40))
+        self.assertEqual({row['id']: row['tier'] for row in refreshed['partitions']}, original_tiers)
+        self.assertEqual(refreshed, script.regenerate(CI, self.root, refreshed, 'c' * 40))
+        self.assertEqual([selector for row in refreshed['partitions'] for selector in row['selectors']],
+                         [selector for row in base['partitions'] for selector in row['selectors']])
+        # Updated planning inputs cannot silently upgrade the committed tighter tier.
+        timings = {'schema': script.TIMINGS_SCHEMA, 'defaultSeconds': 60,
+                   'seconds': {selected: 3000.0}}
+        boundary = script.regenerate(CI, self.root, base, 'c' * 40, timings)
+        boundary_row = next(row for row in boundary['partitions'] if row['id'] == identifier)
+        self.assertEqual((boundary_row['tier'], boundary_row['estimatedSeconds']), ('D50C', 3000.0))
+        timings['seconds'][selected] = 3000.1
+        with self.assertRaisesRegex(SystemExit, 'fit the test budget'):
+            script.regenerate(CI, self.root, base, 'c' * 40, timings)
+        for tier, estimate, pattern in (('UNKNOWN', 2100.0, 'coverage partition tier'),
+                                        ('D50C', 3000.1, 'fit the test budget')):
+            hostile = copy.deepcopy(base)
+            row = next(row for row in hostile['partitions'] if row['id'] == identifier)
+            row.update(tier=tier, estimatedSeconds=estimate)
+            with self.subTest(tier=tier, estimate=estimate), self.assertRaisesRegex(SystemExit, pattern):
+                script.regenerate(CI, self.root, hostile, 'c' * 40)
+        # Repacking and legacy sources retain their existing default classification.
+        legacy = copy.deepcopy(base)
+        legacy['schema'] = 'v23-coverage-partitions.v1'
+        for row in legacy['partitions']:
+            row.pop('tier')
+        legacy_value = script.regenerate(CI, self.root, legacy, 'c' * 40)
+        legacy_row = next(row for row in legacy_value['partitions'] if row['id'] == identifier)
+        self.assertEqual(legacy_row['tier'], 'D90S')
+        repacked = script.regenerate(CI, self.root, base, 'c' * 40, repack_all=True)
+        self.assertEqual(sorted(selector for row in repacked['partitions'] for selector in row['selectors']),
+                         sorted(self.discovered))
+        for row in repacked['partitions']:
+            solo = len(row['selectors']) == 1 and row['estimatedSeconds'] > script.TARGET_SECONDS
+            self.assertEqual(row['tier'], 'D90S' if solo else 'D50C')
 
     def test_every_consumer_tier_is_watched_inside_its_job_timeout(self):
         # Owner decision 16 keeps the watchdogs: the test command runs under the tier's

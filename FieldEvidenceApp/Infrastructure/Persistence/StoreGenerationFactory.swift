@@ -14372,7 +14372,7 @@ final class StoreRestoreGenerationAuthority {
                 diagnosticSourceID: diagnosticSourceID)
         } catch {
             #if DEBUG
-            print("ORIGINAL_POINTER_SIBLING_DELTA_V1 result=scan-refused role=unknown node=unknown fact=unknown")
+            print("ORIGINAL_POINTER_SIBLING_DELTA_V1 result=scan-refused role=unknown node=unknown fact=unknown identityEqual=unobserved timeEqual=unobserved contentEqual=unobserved")
             #endif
             throw error
         }
@@ -14381,13 +14381,41 @@ final class StoreRestoreGenerationAuthority {
             let detail = originalErasePointerSiblingDifference(
                 first: first, observed: observed,
                 targetID: diagnosticTargetID, sourceID: diagnosticSourceID)
-            print("ORIGINAL_POINTER_SIBLING_DELTA_V1 result=image-differed role=\(detail.role) node=\(detail.node) fact=\(detail.fact)")
+            let comparison = originalErasePointerSiblingComparison(
+                first: first, observed: observed)
+            print("ORIGINAL_POINTER_SIBLING_DELTA_V1 result=image-differed role=\(detail.role) node=\(detail.node) fact=\(detail.fact) identityEqual=\(comparison.identityEqual) timeEqual=\(comparison.timeEqual) contentEqual=\(comparison.contentEqual)")
             #endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
 
     #if DEBUG
+    /// Diagnostic lineage only. The retained current predecessor contains
+    /// canonical current-pointer bytes; retired JSON is never decoded as one.
+    /// An incoherent diagnostic association returns unknown, never authority.
+    @MainActor
+    private func originalErasePointerDiagnosticRoles(
+        _ receipt: OriginalErasePointerReceiptV1
+    ) -> (targetID: String?, sourceID: String?) {
+        let current: OriginalErasePointerReceiptV1
+        if receipt.stage == .retired {
+            guard let predecessor = receipt.predecessor,
+                  predecessor.stage == .current,
+                  predecessor.authority === self,
+                  receipt.authority === self,
+                  predecessor.operationID == receipt.operationID,
+                  predecessor.successor === receipt,
+                  receipt.other == predecessor.published else {
+                return (nil, nil)
+            }
+            current = predecessor
+        } else {
+            current = receipt
+        }
+        return (originalErasePointerDiagnosticID(current.published.data),
+            originalErasePointerDiagnosticID(current.source.data))
+    }
+
     private func originalErasePointerSiblingClassify(
         _ path: String, targetID: String?, sourceID: String?
     ) -> (role: String, node: String) {
@@ -14396,6 +14424,7 @@ final class StoreRestoreGenerationAuthority {
         if parts.first == "generations", parts.count > 1 {
             if let targetID, String(parts[1]) == targetID { role = "target" }
             else if let sourceID, String(parts[1]) == sourceID { role = "source" }
+            else if targetID == nil || sourceID == nil { role = "unknown" }
             else { role = "other-generation" }
         } else if parts.first == "generations" {
             role = "generation-parent"
@@ -14413,6 +14442,45 @@ final class StoreRestoreGenerationAuthority {
         } else if leaf == "generation-leases" { node = "leases-root" }
         else { node = "other" }
         return (role, node)
+    }
+
+    /// Compare only the two genuine already-captured images. A membership
+    /// mismatch prevents row association and is explicitly unobserved.
+    /// These summaries never replace full image equality or release debt.
+    private func originalErasePointerSiblingComparison(
+        first: OriginalErasePointerSiblingImageV1,
+        observed: OriginalErasePointerSiblingImageV1
+    ) -> (identityEqual: String, timeEqual: String, contentEqual: String) {
+        guard first.nodes.count == observed.nodes.count else {
+            return ("unobserved", "unobserved", "unobserved")
+        }
+        for index in first.nodes.indices {
+            guard first.nodes[index].path == observed.nodes[index].path else {
+                return ("unobserved", "unobserved", "unobserved")
+            }
+        }
+        var identityEqual = true
+        var timeEqual = true
+        var contentEqual = true
+        var observedContent = false
+        for index in first.nodes.indices {
+            let a = first.nodes[index], b = observed.nodes[index]
+            identityEqual = identityEqual && a.fact.device == b.fact.device
+                && a.fact.inode == b.fact.inode
+            timeEqual = timeEqual
+                && a.fact.modifiedSeconds == b.fact.modifiedSeconds
+                && a.fact.modifiedNanoseconds == b.fact.modifiedNanoseconds
+                && a.fact.changedSeconds == b.fact.changedSeconds
+                && a.fact.changedNanoseconds == b.fact.changedNanoseconds
+            if a.sha256 != nil || b.sha256 != nil {
+                observedContent = true
+                contentEqual = contentEqual && a.sha256 == b.sha256
+                    && a.fact.size == b.fact.size
+            }
+        }
+        return (identityEqual ? "true" : "false",
+            timeEqual ? "true" : "false",
+            observedContent ? (contentEqual ? "true" : "false") : "unobserved")
     }
 
     private func originalErasePointerSiblingDifference(
@@ -14537,6 +14605,7 @@ final class StoreRestoreGenerationAuthority {
     ) throws {
         #if DEBUG
         var fixedStage = "owner-and-first-root"
+        let diagnosticRoles = originalErasePointerDiagnosticRoles(receipt)
         #endif
         do {
             guard receipt.authority === self,
@@ -14552,8 +14621,8 @@ final class StoreRestoreGenerationAuthority {
             #if DEBUG
             try requireOriginalErasePointerSiblings(receipt.siblings,
                 names: receipt.names,
-                diagnosticTargetID: originalErasePointerDiagnosticID(receipt.published.data),
-                diagnosticSourceID: originalErasePointerDiagnosticID(receipt.source.data))
+                diagnosticTargetID: diagnosticRoles.targetID,
+                diagnosticSourceID: diagnosticRoles.sourceID)
             #else
             try requireOriginalErasePointerSiblings(receipt.siblings,
                 names: receipt.names)
@@ -14590,8 +14659,8 @@ final class StoreRestoreGenerationAuthority {
             #if DEBUG
             try requireOriginalErasePointerSiblings(receipt.siblings,
                 names: receipt.names,
-                diagnosticTargetID: originalErasePointerDiagnosticID(receipt.published.data),
-                diagnosticSourceID: originalErasePointerDiagnosticID(receipt.source.data))
+                diagnosticTargetID: diagnosticRoles.targetID,
+                diagnosticSourceID: diagnosticRoles.sourceID)
             #else
             try requireOriginalErasePointerSiblings(receipt.siblings,
                 names: receipt.names)
