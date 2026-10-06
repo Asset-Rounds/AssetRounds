@@ -29,6 +29,9 @@ final class V23ColdErasePhaseTests: XCTestCase {
         private(set) var observed: [NotificationSystemObservationV1]
         private(set) var removedIDs: [String] = []
         private(set) var observationCount = 0
+        // A foreign-owner fixture pauses at the genuine asynchronous OS
+        // readback port, with its actual cold service frame/EX still live.
+        var beforeObservationForTesting: (@MainActor () async -> Void)?
 
         init(observed: [NotificationSystemObservationV1]) {
             self.observed = observed
@@ -39,6 +42,7 @@ final class V23ColdErasePhaseTests: XCTestCase {
         }
 
         func observations() async throws -> [NotificationSystemObservationV1] {
+            await beforeObservationForTesting?()
             observationCount += 1
             return observed
         }
@@ -314,7 +318,8 @@ final class V23ColdErasePhaseTests: XCTestCase {
     private func makeOriginalColdCut(
         at fault: EraseAllFailurePoint = .afterPointerPhaseWrite,
         seedTwoPreexistingRetired: Bool = false,
-        seedNotifications: Bool = false
+        seedNotifications: Bool = false,
+        physicalTransitionControl: (@MainActor (OriginalErasePhysicalTransitionStageV1, URL) throws -> Void)? = nil
     ) async throws -> PointerFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23-schema2-cold-phase-\(UUID().uuidString)", isDirectory: true)
@@ -340,6 +345,12 @@ final class V23ColdErasePhaseTests: XCTestCase {
         var notificationSeed: NotificationSeed?
         weak var sourceContext: ModelContext?
         weak var sourceContainer: ModelContainer?
+        var physicalHookOperation: EraseRouterOperationV1?
+        defer {
+            if let physicalHookOperation {
+                StoreGenerationFactory.clearOriginalErasePhysicalTransitionTestHook(operation: physicalHookOperation)
+            }
+        }
 
         let interrupted = try await { () async throws -> (EraseIntentV1, EraseRouterOperationV1) in
             let (coordinator, diagnostics) = try await original.startOriginalOwner()
@@ -349,6 +360,14 @@ final class V23ColdErasePhaseTests: XCTestCase {
             try seedOriginalSign(coordinator)
             try await original.admit(coordinator: coordinator)
             let operation = try original.originalOperationForInterruption()
+            if let physicalTransitionControl {
+                physicalHookOperation = operation
+                try StoreGenerationFactory.installOriginalErasePhysicalTransitionTestHook(
+                    operation: operation, applicationSupportURL: support,
+                    callback: physicalTransitionControl)
+            }
+            // The final completion occurs after this lexical source owner is
+            // gone; keep the bound hook until that exact operation completes.
             if seedNotifications {
                 notificationSeed = try seedPendingAndDeliveredNotifications(
                     support: support, defaults: defaults)
@@ -416,6 +435,7 @@ final class V23ColdErasePhaseTests: XCTestCase {
         }()
         let intent = interrupted.0
         let operation = interrupted.1
+        defer { StoreGenerationFactory.clearOriginalErasePhysicalTransitionTestHook(operation: operation) }
         let drain = expectation(for: NSPredicate { _, _ in
             sourceContext == nil && sourceContainer == nil
         }, evaluatedWith: NSObject())
@@ -1564,6 +1584,164 @@ final class V23ColdErasePhaseTests: XCTestCase {
         XCTAssertEqual(coldCompletionCount, 0,
             "Cold recovery must not issue a second user-command completion receipt")
     }
+    /// The genuine P entry carries two prior retired generations and its old
+    /// source. Its own completed P->R CAS must admit the notification consumer
+    /// while retaining immutable first-P authority for all three old trees.
+    @MainActor
+    func testSchema2MultiRetiredOriginalPCutOwnSessionCASColdCleansEntireFrozenRoster() async throws {
+        let fixture = try await makeOriginalColdCut(
+            at: .afterPointerPhaseWrite, seedTwoPreexistingRetired: true)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        let intent = fixture.intent
+        XCTAssertEqual(intent.phase, .pointerSwitched)
+        XCTAssertEqual(fixture.preexistingRetiredIDs.count, 2)
+        let frozenIDs = intent.generationIDsToDelete
+        XCTAssertEqual(frozenIDs.count, 3)
+        XCTAssertEqual(Set(frozenIDs).count, 3)
+        XCTAssertEqual(Set(frozenIDs), Set(fixture.preexistingRetiredIDs + [intent.oldGenerationID]))
+        XCTAssertEqual(frozenIDs, frozenIDs.sorted {
+            $0.uuidString.lowercased() < $1.uuidString.lowercased()
+        })
+        let generationsURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceData/generations", isDirectory: true)
+        let expectedInstalled = Set((frozenIDs + [intent.newGenerationID]).map {
+            $0.uuidString.lowercased()
+        })
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(
+            atPath: generationsURL.path)), expectedInstalled)
+        let oldPrefixes = frozenIDs.map {
+            "FieldEvidenceData/generations/" + $0.uuidString.lowercased()
+        }
+        let preColdOldFacts = try protectedFacts(in: fixture.support).filter {
+            entry in oldPrefixes.contains {
+                entry.key == $0 || entry.key.hasPrefix($0 + "/")
+            }
+        }
+        XCTAssertEqual(preColdOldFacts.filter { oldPrefixes.contains($0.key) }.count, 3)
+        let pointerBefore = fixture.pointerBefore
+        try requireTargetPointerBinding(support: fixture.support,
+            intent: intent, pointerBytes: pointerBefore)
+        let displacedTemporary = fixture.support.appendingPathComponent(
+            "FieldEvidenceErase/.erase.json.next")
+        try requireAbsentWithoutFollowing(displacedTemporary)
+
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        var coldCompletionCount = 0
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            didCompleteErase: { _ in coldCompletionCount += 1 })
+        var actualRSessionCount = 0
+        var actualRSessionFailure: Error?
+        let targetURL = generationsURL.appendingPathComponent(
+            intent.newGenerationID.uuidString.lowercased(), isDirectory: true)
+        recovery.schema2ColdBeforeSessionPhaseCASForTesting = { session in
+            actualRSessionCount += 1
+            do {
+                guard session.generationID == intent.newGenerationID,
+                      session.readerLeaseToken != nil,
+                      session.generationRootURL.standardizedFileURL
+                        == targetURL.standardizedFileURL,
+                      session.modelContext.container.mainContext
+                        === session.modelContext,
+                      BackupRestoreService.isEmptyCurrent(session.modelContext),
+                      try session.modelContext.fetchCount(
+                        FetchDescriptor<MutationReceiptRow>()) == 0,
+                      try EraseIntentCodecV1.decode(Data(contentsOf:
+                        fixture.intentURL)) == intent,
+                      try Data(contentsOf: fixture.pointerURL) == pointerBefore else {
+                    throw FixtureFailure.activation
+                }
+                try self.requireAbsentWithoutFollowing(displacedTemporary)
+                try self.requireTargetPointerBinding(support: fixture.support,
+                    intent: intent, pointerBytes: Data(contentsOf:
+                        fixture.pointerURL))
+                XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(
+                    atPath: generationsURL.path)), expectedInstalled)
+                let actualOldFacts = try self.protectedFacts(in: fixture.support).filter {
+                    entry in oldPrefixes.contains {
+                        entry.key == $0 || entry.key.hasPrefix($0 + "/")
+                    }
+                }
+                XCTAssertEqual(actualOldFacts, preColdOldFacts,
+                    "Cold pre-cleanup validation changed a frozen old generation")
+            } catch { actualRSessionFailure = error }
+        }
+        var afterNotificationCount = 0
+        recovery.schema2ColdAfterNotificationDrainBeforeFirstUnlinkForTesting = {
+            afterNotificationCount += 1
+            XCTAssertEqual(try EraseIntentCodecV1.decode(Data(contentsOf: fixture.intentURL)),
+                intent.advancing(to: .sessionActivated))
+            XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), pointerBefore)
+            XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: generationsURL.path)),
+                expectedInstalled)
+            let oldFacts = try self.protectedFacts(in: fixture.support).filter { entry in
+                oldPrefixes.contains { entry.key == $0 || entry.key.hasPrefix($0 + "/") }
+            }
+            XCTAssertEqual(oldFacts, preColdOldFacts,
+                "Own R must not recapture a changed first-P old-generation baseline")
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        try await cold.retryColdEraseForTesting(service: recovery, accessGate: gate)
+        if let actualRSessionFailure { throw actualRSessionFailure }
+        XCTAssertEqual(afterNotificationCount, 1,
+            "The actual own-CAS notification drain must finish before any first-P unlink")
+        XCTAssertEqual(actualRSessionCount, 1,
+            "The genuine prior-retired P entry must retain its target before its own CAS")
+        guard case let .ready(fresh, diagnostics, _) = cold.route else {
+            throw FixtureFailure.coldRoute
+        }
+        XCTAssertEqual(fresh.generationID, intent.newGenerationID)
+        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(fresh.modelContext))
+        XCTAssertEqual(try fresh.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 0)
+        let readyWriter = fresh.workspaceWriter
+        let readyOwner = try fresh.originalAssetLabelFixtureJobOwnerForTesting(
+            expectedWriter: readyWriter)
+        XCTAssertEqual(try readyOwner.registry.activeEpochs(), [readyOwner.epoch])
+        XCTAssertEqual(try readyWriter.currentRevision().generationID,
+            intent.newGenerationID)
+        let registryURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceOperations/generation-leases/registry.json")
+        let registryObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: registryURL)) as? [String: Any])
+        let leases = try XCTUnwrap(registryObject["leases"] as? [[String: Any]])
+        XCTAssertEqual(leases.filter {
+            $0["role"] as? String == GenerationLeaseRoleV1.writer.rawValue
+        }.count, 1)
+        let freshDiagnostics = await diagnostics.snapshot()
+        XCTAssertEqual(freshDiagnostics, .zero)
+        try requireAbsentWithoutFollowing(fixture.intentURL)
+        try requireAbsentWithoutFollowing(displacedTemporary)
+        for id in frozenIDs {
+            try requireAbsentWithoutFollowing(generationsURL.appendingPathComponent(
+                id.uuidString.lowercased(), isDirectory: true))
+        }
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(
+            atPath: generationsURL.path)), Set([intent.newGenerationID.uuidString.lowercased()]))
+        XCTAssertTrue(try StoreGenerationFactory(applicationSupportURL:
+            fixture.support).retiredGenerationIDs().isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), pointerBefore)
+        try requireTargetPointerBinding(support: fixture.support,
+            intent: intent, pointerBytes: Data(contentsOf: fixture.pointerURL))
+        XCTAssertEqual(fixture.completion.count, 0)
+        XCTAssertEqual(coldCompletionCount, 0,
+            "Cold recovery must not issue a second user-command completion receipt")
+    }
     /// Draft only: requires S2's still-mutable genuine post-drain/pre-unlink
     /// callback to freeze and receive independent source review.
     @MainActor
@@ -2406,6 +2584,526 @@ final class V23ColdErasePhaseTests: XCTestCase {
         XCTAssertEqual(boundaries,[.beforePublicationProof])
         XCTAssertEqual(held.reader.originalEraseRetainedShutdownStateForTesting,state)
         withExtendedLifetime(held) { }
+    }
+
+
+
+    @MainActor
+    private struct NotificationAdmissionFixture {
+        let pointer: PointerFixture
+        let cold: StartupRouter
+        let gate: AppAccessGateV1
+        let service: EraseAllService
+    }
+
+    @MainActor
+    private func makeNotificationAdmissionFixture(seedNotifications: Bool = false) async throws
+        -> NotificationAdmissionFixture {
+        let fixture = try await makeOriginalColdCut(at: .afterPointerPhaseWrite,
+            seedTwoPreexistingRetired: true, seedNotifications: seedNotifications)
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let service = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches, temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults, bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            notificationSystem: fixture.notificationSeed?.probe)
+        Self.retainedColdOwners.append((fixture.root, cold, gate, service))
+        return NotificationAdmissionFixture(pointer: fixture, cold: cold, gate: gate, service: service)
+    }
+
+    @MainActor
+    private func executeNotificationAdmissionFixture(_ owner: NotificationAdmissionFixture) async throws {
+        try owner.cold.bindStartupAccessGate(owner.gate)
+        try await owner.cold.retryColdEraseForTesting(service: owner.service, accessGate: owner.gate)
+    }
+
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsPreCASAndInFlightWithoutOriginPromotion() async throws {
+        typealias Manifest = EraseSchema2ColdManifestOwnerV1
+        guard Manifest.retainedSourceProjectionForTesting == nil else { throw FixtureFailure.activation }
+        let owner = try await makeNotificationAdmissionFixture()
+        defer {
+            Manifest.retainedSourceProjectionForTesting = nil
+            owner.pointer.defaults.removePersistentDomain(forName: owner.pointer.defaultsName)
+        }
+        var preCAS = 0
+        var cuts: [Manifest.RetainedSourceProjectionBoundaryForTesting] = []
+        var failure: Error?
+        owner.service.schema2ColdBeforeSessionPhaseCASForTesting = { _ in
+            do {
+                let access = try owner.cold.borrowSchema2ColdNotificationFixtureAccessForTesting()
+                preCAS += 1
+                XCTAssertEqual(access.intent, owner.pointer.intent)
+                XCTAssertThrowsError(try access.manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: access.intent.advancing(to: .sessionActivated), preparation: access.preparation,
+                    store: access.store, operation: access.operation))
+            } catch { failure = error }
+        }
+        Manifest.retainedSourceProjectionForTesting = { cut, manifest, operation, store, first, published, preparation, error in
+            guard first.eraseID == owner.pointer.intent.eraseID else { return }
+            cuts.append(cut)
+            XCTAssertNil(error)
+            switch cut {
+            case .beforeProjection, .inFlight:
+                do {
+                    XCTAssertThrowsError(try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                        intent: published, preparation: preparation, store: store, operation: operation))
+                } catch {
+                    if failure == nil { failure = error }
+                }
+            case .completed:
+                do {
+                    // Guard-only success cannot pre-capture an owner. The real
+                    // flow below still performs its sole notification capture.
+                    try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                        intent: published, preparation: preparation, store: store, operation: operation)
+                    XCTAssertThrowsError(try manifest.requireFirstAbsentRetiredSourceIDs(
+                        intent: published, operation: operation),
+                        "An own R projection is never a fresh-R first-absence origin")
+                    XCTAssertThrowsError(try manifest.captureRetainedRetiredSources(
+                        intent: published, preparation: preparation, operation: operation),
+                        "Completed own CAS cannot recapture retired sources as a late R baseline")
+                } catch {
+                    if failure == nil { failure = error }
+                }
+            case .failed:
+                if failure == nil { failure = error ?? FixtureFailure.activation }
+            }
+        }
+        try await executeNotificationAdmissionFixture(owner)
+        if let failure { throw failure }
+        XCTAssertEqual(preCAS, 1)
+        XCTAssertEqual(cuts, [.beforeProjection, .inFlight, .completed])
+        guard case .ready = owner.cold.route else { throw FixtureFailure.coldRoute }
+        XCTAssertEqual(owner.pointer.intent.phase, .pointerSwitched)
+    }
+
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsGenuineFailedProjectionAndLateRecapture() async throws {
+        typealias Manifest = EraseSchema2ColdManifestOwnerV1
+        guard Manifest.retainedSourceProjectionForTesting == nil else { throw FixtureFailure.activation }
+        let owner = try await makeNotificationAdmissionFixture()
+        defer {
+            Manifest.retainedSourceProjectionForTesting = nil
+            owner.pointer.defaults.removePersistentDomain(forName: owner.pointer.defaultsName)
+        }
+        var cuts: [Manifest.RetainedSourceProjectionBoundaryForTesting] = []
+        var mutationFailure: Error?
+        var actualFailure: Error?
+        var changedFact: EraseColdControlLeafFactV1?
+        var beforeFact: EraseColdControlLeafFactV1?
+        Manifest.retainedSourceProjectionForTesting = { cut, manifest, operation, store, first, published, preparation, error in
+            guard first.eraseID == owner.pointer.intent.eraseID else { return }
+            cuts.append(cut)
+            switch cut {
+            case .inFlight:
+                do {
+                    let url = owner.pointer.support.appendingPathComponent("FieldEvidenceErase/preparation.json")
+                    var before = stat(), after = stat()
+                    guard lstat(url.path, &before) == 0 else { throw FixtureFailure.activation }
+                    let bytes = try Data(contentsOf: url)
+                    try bytes.write(to: url, options: .atomic)
+                    guard lstat(url.path, &after) == 0 else { throw FixtureFailure.activation }
+                    beforeFact = EraseColdControlLeafFactV1(before)
+                    changedFact = EraseColdControlLeafFactV1(after)
+                    XCTAssertEqual(try Data(contentsOf: url), bytes)
+                } catch {
+                    if mutationFailure == nil { mutationFailure = error }
+                }
+            case .failed:
+                actualFailure = error
+                XCTAssertNotNil(error, "The actual retained producer must retain its own proof error")
+                do {
+                    XCTAssertThrowsError(try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                        intent: published, preparation: preparation, store: store, operation: operation))
+                    XCTAssertThrowsError(try manifest.captureRetainedRetiredSources(
+                        intent: published, preparation: preparation, operation: operation))
+                } catch {
+                    if mutationFailure == nil { mutationFailure = error }
+                }
+            case .completed: XCTFail("A thrown projection proof cannot become completed")
+            case .beforeProjection: break
+            }
+        }
+        try await executeNotificationAdmissionFixture(owner)
+        if let mutationFailure { throw mutationFailure }
+        XCTAssertNotNil(actualFailure)
+        XCTAssertEqual(cuts, [.beforeProjection, .inFlight, .failed])
+        XCTAssertNotEqual(try XCTUnwrap(beforeFact).inode, try XCTUnwrap(changedFact).inode)
+        guard case .maintenance(.eraseInconsistent) = owner.cold.route else { throw FixtureFailure.coldRoute }
+        XCTAssertEqual(try Data(contentsOf: owner.pointer.pointerURL), owner.pointer.pointerBefore)
+        for id in owner.pointer.intent.generationIDsToDelete {
+            var fact = stat()
+            XCTAssertEqual(lstat(owner.pointer.support.appendingPathComponent(
+                "FieldEvidenceData/generations/" + id.uuidString.lowercased()).path, &fact), 0)
+        }
+    }
+
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsForeignLiveOperationAndGenuineStore() async throws {
+        typealias Manifest = EraseSchema2ColdManifestOwnerV1
+        guard Manifest.retainedSourceProjectionForTesting == nil else { throw FixtureFailure.activation }
+        let foreign = try await makeNotificationAdmissionFixture(seedNotifications: true)
+        let owner = try await makeNotificationAdmissionFixture()
+        let probe = try XCTUnwrap(foreign.pointer.notificationSeed?.probe)
+        let suspended = expectation(description: "Actual foreign notification OS readback awaits while its owner is live")
+        var resume: CheckedContinuation<Void, Never>?
+        var paused = false
+        var settling = false
+        var foreignAccess: Schema2ColdNotificationFixtureAccessV1?
+        var accessFailure: Error?
+        probe.beforeObservationForTesting = {
+            guard !paused, !settling else { return }
+            paused = true
+            do { foreignAccess = try foreign.cold.borrowSchema2ColdNotificationFixtureAccessForTesting() }
+            catch { accessFailure = error }
+            suspended.fulfill()
+            await withCheckedContinuation { resume = $0 }
+        }
+        let foreignTask = Task { @MainActor in try await self.executeNotificationAdmissionFixture(foreign) }
+        defer {
+            settling = true
+            probe.beforeObservationForTesting = nil
+            if let held = resume { resume = nil; held.resume() }
+            foreignTask.cancel()
+            Manifest.retainedSourceProjectionForTesting = nil
+            foreign.pointer.defaults.removePersistentDomain(forName: foreign.pointer.defaultsName)
+            owner.pointer.defaults.removePersistentDomain(forName: owner.pointer.defaultsName)
+        }
+        do {
+        await fulfillment(of: [suspended], timeout: 30)
+        if let accessFailure { throw accessFailure }
+        let genuineForeign = try XCTUnwrap(foreignAccess)
+        var consumerCalls = 0
+        var failure: Error?
+        Manifest.retainedSourceProjectionForTesting = { cut, manifest, operation, store, first, published, preparation, _ in
+            guard first.eraseID == owner.pointer.intent.eraseID, cut == .completed else { return }
+            do {
+                // Prove foreign liveness NOW. A stale-owner/setup refusal
+                // cannot satisfy either direct consumer negative below.
+                try genuineForeign.operation.requireServiceAccess()
+                try genuineForeign.operation.requireSchema2ColdManifestOwner(genuineForeign.manifest)
+                XCTAssertFalse(operation === genuineForeign.operation)
+                XCTAssertFalse(store === genuineForeign.store)
+                consumerCalls += 1
+                XCTAssertThrowsError(try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: published, preparation: preparation, store: store,
+                    operation: genuineForeign.operation))
+                XCTAssertThrowsError(try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: published, preparation: preparation, store: genuineForeign.store,
+                    operation: operation))
+                try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: published, preparation: preparation, store: store, operation: operation)
+            } catch { failure = error }
+        }
+        try await executeNotificationAdmissionFixture(owner)
+        if let failure { throw failure }
+        XCTAssertEqual(consumerCalls, 1)
+        guard case .ready = owner.cold.route else { throw FixtureFailure.coldRoute }
+        settling = true
+        probe.beforeObservationForTesting = nil
+        if let held = resume { resume = nil; held.resume() }
+        try await foreignTask.value
+        guard case .ready = foreign.cold.route else { throw FixtureFailure.coldRoute }
+        } catch {
+            // Settle the genuine foreign task before preserving the first
+            // fixture error; no OS-port waiter may escape this selector.
+            settling = true
+            probe.beforeObservationForTesting = nil
+            if let held = resume { resume = nil; held.resume() }
+            foreignTask.cancel()
+            _ = try? await foreignTask.value
+            throw error
+        }
+    }
+
+    private enum NotificationPublishedControl: Equatable { case intent, preparation, currentPointer }
+    @MainActor
+    private func requireChangedPublishedNotificationControlRefusal(_ control: NotificationPublishedControl) async throws {
+        typealias Manifest = EraseSchema2ColdManifestOwnerV1
+        guard Manifest.retainedSourceProjectionForTesting == nil else { throw FixtureFailure.activation }
+        let owner = try await makeNotificationAdmissionFixture()
+        defer {
+            Manifest.retainedSourceProjectionForTesting = nil
+            owner.pointer.defaults.removePersistentDomain(forName: owner.pointer.defaultsName)
+        }
+        var reachedConsumer = 0
+        var mutationFailure: Error?
+        var beforeFact: EraseColdControlLeafFactV1?
+        var afterFact: EraseColdControlLeafFactV1?
+        Manifest.retainedSourceProjectionForTesting = { cut, manifest, operation, store, first, published, preparation, _ in
+            guard first.eraseID == owner.pointer.intent.eraseID, cut == .completed else { return }
+            do {
+                try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: published, preparation: preparation, store: store, operation: operation)
+                let url: URL
+                switch control {
+                case .intent: url = owner.pointer.intentURL
+                case .preparation: url = owner.pointer.support.appendingPathComponent("FieldEvidenceErase/preparation.json")
+                case .currentPointer: url = owner.pointer.pointerURL
+                }
+                let bytes = try Data(contentsOf: url)
+                var before = stat(), after = stat()
+                guard lstat(url.path, &before) == 0 else { throw FixtureFailure.activation }
+                try bytes.write(to: url, options: .atomic)
+                guard lstat(url.path, &after) == 0 else { throw FixtureFailure.activation }
+                beforeFact = EraseColdControlLeafFactV1(before); afterFact = EraseColdControlLeafFactV1(after)
+                XCTAssertEqual(try Data(contentsOf: url), bytes)
+                reachedConsumer += 1
+                XCTAssertThrowsError(try manifest.requireSchema2ColdNotificationAdmissionForTesting(
+                    intent: published, preparation: preparation, store: store, operation: operation),
+                    "The direct production admission must refuse its changed published control")
+            } catch { mutationFailure = error }
+        }
+        try await executeNotificationAdmissionFixture(owner)
+        if let mutationFailure { throw mutationFailure }
+        XCTAssertEqual(reachedConsumer, 1)
+        XCTAssertNotEqual(try XCTUnwrap(beforeFact).inode, try XCTUnwrap(afterFact).inode)
+        guard case .maintenance(.eraseInconsistent) = owner.cold.route else { throw FixtureFailure.coldRoute }
+        let intent = try EraseIntentCodecV1.decode(Data(contentsOf: owner.pointer.intentURL))
+        XCTAssertEqual(intent, owner.pointer.intent.advancing(to: .sessionActivated))
+        for id in owner.pointer.intent.generationIDsToDelete {
+            var fact = stat()
+            XCTAssertEqual(lstat(owner.pointer.support.appendingPathComponent(
+                "FieldEvidenceData/generations/" + id.uuidString.lowercased()).path, &fact), 0)
+        }
+    }
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsChangedPublishedIntent() async throws {
+        try await requireChangedPublishedNotificationControlRefusal(.intent)
+    }
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsChangedCapturedPreparation() async throws {
+        try await requireChangedPublishedNotificationControlRefusal(.preparation)
+    }
+    @MainActor
+    func testSchema2OwnPCASNotificationAdmissionRejectsChangedPublishedPointer() async throws {
+        try await requireChangedPublishedNotificationControlRefusal(.currentPointer)
+    }
+
+    @MainActor
+    func testOriginalPhysicalTransitionConservesPopulatedSourceAndEmptyTargetBeforeRetirement() async throws {
+        var handoffs = 0
+        var drained = 0
+        var finalIntent: EraseIntentV1?
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite,
+            physicalTransitionControl: { stage, support in
+                switch stage {
+                case .sourceOwnerHandoff: handoffs += 1
+                case .drainedShutdown:
+                    drained += 1
+                    finalIntent = try EraseIntentCodecV1.decode(Data(contentsOf:
+                        support.appendingPathComponent("FieldEvidenceErase/erase.json")))
+                default: throw FixtureFailure.activation
+                }
+            })
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        XCTAssertEqual(handoffs, 1)
+        XCTAssertEqual(drained, 1)
+        XCTAssertEqual(finalIntent, fixture.intent)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: fixture.support)
+            .makeGenerationLeaseRegistry().activeEpochs(), [])
+        XCTAssertEqual(fixture.completion.count, 0)
+        try requireTargetPointerBinding(support: fixture.support, intent: fixture.intent,
+            pointerBytes: fixture.pointerBefore)
+        let generations = fixture.support.appendingPathComponent("FieldEvidenceData/generations")
+        for id in fixture.intent.generationIDsToDelete + [fixture.intent.newGenerationID] {
+            var actual = stat()
+            XCTAssertEqual(lstat(generations.appendingPathComponent(id.uuidString.lowercased()).path, &actual), 0)
+            XCTAssertEqual(actual.st_mode & S_IFMT, S_IFDIR)
+        }
+    }
+
+    private enum OriginalPhysicalMutation: Equatable { case sameBytesNewInode, nonSQLiteTree, committedPage, validWALSalt }
+
+    /// Re-salt the genuine pre-release WAL with correct checksums. Its real
+    /// committed page payloads are unchanged, so the consumer must refuse the
+    /// surviving WAL frontier rewrite rather than relying on malformed bytes.
+    private func reSaltedOriginalWAL(_ data: Data) throws -> Data {
+        var bytes = Array(data)
+        func word(_ at: Int, little: Bool = false) throws -> UInt32 {
+            guard at >= 0, at + 4 <= bytes.count else { throw FixtureFailure.activation }
+            let indices = little ? Array((at..<(at + 4)).reversed()) : Array(at..<(at + 4))
+            return indices.reduce(UInt32(0)) { ($0 << 8) | UInt32(bytes[$1]) }
+        }
+        func put(_ value: UInt32, at: Int) {
+            for i in 0..<4 { bytes[at + i] = UInt8(truncatingIfNeeded: value >> (24 - 8 * i)) }
+        }
+        let magic = try word(0)
+        guard magic == 0x377f0682 || magic == 0x377f0683,
+              bytes.count >= 32 else { throw FixtureFailure.activation }
+        let pageSize = Int(try word(8)); let frameSize = 24 + pageSize
+        guard pageSize >= 512, pageSize <= 65_536, pageSize.nonzeroBitCount == 1,
+              bytes.count > 32, (bytes.count - 32) % frameSize == 0 else { throw FixtureFailure.activation }
+        let oldSalt1 = try word(16), oldSalt2 = try word(20)
+        let newSalt1 = oldSalt1 &+ 1
+        put(newSalt1, at: 16)
+        var checksum: (UInt32, UInt32) = (0, 0)
+        func update(_ range: Range<Int>) throws {
+            guard range.count % 8 == 0 else { throw FixtureFailure.activation }
+            for offset in stride(from: range.lowerBound, to: range.upperBound, by: 8) {
+                checksum.0 = checksum.0 &+ (try word(offset, little: magic == 0x377f0682)) &+ checksum.1
+                checksum.1 = checksum.1 &+ (try word(offset + 4, little: magic == 0x377f0682)) &+ checksum.0
+            }
+        }
+        try update(0..<24)
+        put(checksum.0, at: 24); put(checksum.1, at: 28)
+        var rewritten = 0
+        for frame in stride(from: 32, to: bytes.count, by: frameSize) {
+            guard try word(frame + 8) == oldSalt1, try word(frame + 12) == oldSalt2 else { break }
+            put(newSalt1, at: frame + 8)
+            try update(frame..<(frame + 8))
+            try update((frame + 24)..<(frame + frameSize))
+            put(checksum.0, at: frame + 16); put(checksum.1, at: frame + 20)
+            rewritten += 1
+        }
+        guard rewritten > 0 else { throw FixtureFailure.activation }
+        return Data(bytes)
+    }
+
+    @MainActor
+    private func requireOriginalPhysicalMutationRefusal(_ mutation: OriginalPhysicalMutation) async throws {
+        typealias Reader = GenerationLeaseAllocationAttemptV1
+        guard Reader.originalEraseRetainedShutdownForTesting == nil else { throw FixtureFailure.activation }
+        var closeEntries = 0
+        Reader.originalEraseRetainedShutdownForTesting = { _, _, _, _, _ in closeEntries += 1 }
+        defer { Reader.originalEraseRetainedShutdownForTesting = nil }
+        var supportURL: URL?
+        var beforeIntent: Data?
+        var beforeCurrent: Data?
+        var beforeRetired: Data?
+        var beforeRegistry: Data?
+        var genuineWAL: Data?
+        var reachedDrain = 0
+        var oldLeaf: EraseColdControlLeafFactV1?
+        var newLeaf: EraseColdControlLeafFactV1?
+        var changedURL: URL?
+        var mutationFailure: Error?
+        var sameBytesBefore: Data?
+        var sameBytesAfter: Data?
+        do {
+            _ = try await makeOriginalColdCut(at: .afterSessionPhaseWrite,
+                physicalTransitionControl: { stage, support in
+                    do {
+                    let intentURL = support.appendingPathComponent("FieldEvidenceErase/erase.json")
+                    let intent = try EraseIntentCodecV1.decode(Data(contentsOf: intentURL))
+                    let generations = support.appendingPathComponent("FieldEvidenceData/generations")
+                    let source = generations.appendingPathComponent(intent.oldGenerationID.uuidString.lowercased())
+                    if stage == .sourceOwnerHandoff {
+                        if mutation == .validWALSalt {
+                            genuineWAL = try Data(contentsOf: source.appendingPathComponent("model.sqlite-wal"))
+                            XCTAssertGreaterThan(try XCTUnwrap(genuineWAL).count, 32,
+                                "The genuine populated source must supply actual WAL frames")
+                        }
+                        return
+                    }
+                    guard stage == .drainedShutdown else { throw FixtureFailure.activation }
+                    reachedDrain += 1; supportURL = support
+                    beforeIntent = try Data(contentsOf: intentURL)
+                    beforeCurrent = try Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/current.json"))
+                    beforeRetired = try Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/retired.json"))
+                    beforeRegistry = try Data(contentsOf: support.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json"))
+                    let target = generations.appendingPathComponent(intent.newGenerationID.uuidString.lowercased())
+                    let url: URL
+                    switch mutation {
+                    case .sameBytesNewInode: url = target.appendingPathComponent("model.sqlite")
+                    case .committedPage: url = source.appendingPathComponent("model.sqlite")
+                    case .validWALSalt: url = source.appendingPathComponent("model.sqlite-wal")
+                    case .nonSQLiteTree: url = generations.appendingPathComponent("c28-unowned-non-sqlite-leaf")
+                    }
+                    changedURL = url
+                    var before = stat()
+                    if mutation != .nonSQLiteTree {
+                        guard lstat(url.path, &before) == 0, before.st_mode & S_IFMT == S_IFREG,
+                              before.st_nlink == 1 else { throw FixtureFailure.activation }
+                        oldLeaf = EraseColdControlLeafFactV1(before)
+                    }
+                    switch mutation {
+                    case .sameBytesNewInode:
+                        let bytes = try Data(contentsOf: url)
+                        sameBytesBefore = bytes
+                        try bytes.write(to: url, options: .atomic)
+                        sameBytesAfter = try Data(contentsOf: url)
+                    case .nonSQLiteTree:
+                        try Data("Unowned non-SQLite tree change".utf8).write(to: url)
+                    case .committedPage:
+                        var bytes = try Data(contentsOf: url)
+                        guard bytes.count >= 512 else { throw FixtureFailure.activation }
+                        bytes[bytes.count - 1] ^= 1
+                        try bytes.write(to: url)
+                    case .validWALSalt:
+                        let rewritten = try self.reSaltedOriginalWAL(try XCTUnwrap(genuineWAL))
+                        try rewritten.write(to: url)
+                        let model = Darwin.open(source.appendingPathComponent("model.sqlite").path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+                        guard model >= 0 else { throw FixtureFailure.activation }
+                        let wal = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+                        if wal < 0 {
+                            let closeResult = Darwin.close(model)
+                            guard closeResult == 0 else { throw FixtureFailure.activation }
+                            throw FixtureFailure.activation
+                        }
+                        var validationFailure: Error?
+                        do { _ = try CompletedAbortSQLitePhysicalImageV1.capture(model: model, wal: wal) }
+                        catch { validationFailure = error }
+                        let walClose = Darwin.close(wal), modelClose = Darwin.close(model)
+                        if let validationFailure { throw validationFailure }
+                        guard walClose == 0, modelClose == 0 else { throw FixtureFailure.activation }
+                    }
+                    var after = stat()
+                    guard lstat(url.path, &after) == 0 else { throw FixtureFailure.activation }
+                    newLeaf = EraseColdControlLeafFactV1(after)
+                    } catch {
+                        mutationFailure = error
+                        throw error
+                    }
+                })
+            XCTFail("The real physical-transition consumer must refuse the hostile image")
+        } catch {
+            XCTAssertEqual(reachedDrain, 1,
+                "A setup/constructor refusal cannot substitute for the actual drained consumer")
+        }
+        if let mutationFailure { throw mutationFailure }
+        XCTAssertEqual(closeEntries, 0,
+            "Physical refusal must precede every authenticated record/handle close")
+        let support = try XCTUnwrap(supportURL)
+        XCTAssertEqual(try Data(contentsOf: support.appendingPathComponent("FieldEvidenceErase/erase.json")), beforeIntent)
+        XCTAssertEqual(try Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/current.json")), beforeCurrent)
+        XCTAssertEqual(try Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/retired.json")), beforeRetired)
+        XCTAssertEqual(try Data(contentsOf: support.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")), beforeRegistry)
+        let after = try XCTUnwrap(newLeaf)
+        if mutation == .sameBytesNewInode {
+            XCTAssertEqual(try XCTUnwrap(sameBytesBefore), try XCTUnwrap(sameBytesAfter))
+            XCTAssertNotEqual(try XCTUnwrap(oldLeaf).inode, after.inode)
+        } else if mutation != .nonSQLiteTree {
+            XCTAssertEqual(try XCTUnwrap(oldLeaf).inode, after.inode)
+        }
+        XCTAssertNotNil(changedURL)
+    }
+
+    @MainActor
+    func testOriginalPhysicalTransitionRejectsSameBytesNewInodeBeforeRetirement() async throws {
+        try await requireOriginalPhysicalMutationRefusal(.sameBytesNewInode)
+    }
+    @MainActor
+    func testOriginalPhysicalTransitionRejectsNonSQLiteTreeMutationBeforeRetirement() async throws {
+        try await requireOriginalPhysicalMutationRefusal(.nonSQLiteTree)
+    }
+    @MainActor
+    func testOriginalPhysicalTransitionRejectsCommittedPageCorruptionBeforeRetirement() async throws {
+        try await requireOriginalPhysicalMutationRefusal(.committedPage)
+    }
+    @MainActor
+    func testOriginalPhysicalTransitionRejectsChecksumValidSurvivingWALRewriteBeforeRetirement() async throws {
+        try await requireOriginalPhysicalMutationRefusal(.validWALSalt)
     }
 
     /// The actual Original owner removes its authenticated record before its

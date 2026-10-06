@@ -3549,6 +3549,23 @@ final class EraseSchema2ColdManifestOwnerV1 {
     private var retainedSourcePhaseProjectionInFlight = false
     private var retainedSourcePublishedIntent: EraseIntentV1?
     private var retainedSourcePublishedStore: EraseIntentStore?
+#if DEBUG
+    /// Genuine projection cuts lend only the actual retained owners and
+    /// immutable first controls. A callback cannot settle a failed proof.
+    enum RetainedSourceProjectionBoundaryForTesting: Equatable {
+        case beforeProjection, inFlight, completed, failed
+    }
+    static var retainedSourceProjectionForTesting: (@MainActor (
+        RetainedSourceProjectionBoundaryForTesting,
+        EraseSchema2ColdManifestOwnerV1,
+        EraseColdPreparationOperationV1,
+        EraseIntentStore,
+        EraseIntentV1,
+        EraseIntentV1,
+        ErasePreparationV2,
+        (any Error)?
+    ) -> Void)?
+#endif
     private var deletionRosterPublicationInFlight = false
     private var sealedDeletionRosterPublication:
         EraseSchema2ColdDeletionRosterPublicationSealV1?
@@ -5120,6 +5137,79 @@ final class EraseSchema2ColdManifestOwnerV1 {
 #endif
     }
 
+    /// The entry phase remains the origin for the retained source trees.
+    /// Only our completed P→R projection may admit this later consumer;
+    /// reading an R intent alone cannot replace the first P observation.
+    private func requireSchema2ColdNotificationPhaseAdmission(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore?,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        if erasePhase == .sessionActivated { return }
+        guard erasePhase == .pointerSwitched,
+              !retainedSourcePhaseProjectionInFlight,
+              retiredSourceCaptureComplete,
+              let firstIntent = capturedRetiredSourceIntent,
+              firstIntent.phase == .pointerSwitched,
+              capturedRetiredSourcePreparation == preparation,
+              preparation.matches(firstIntent),
+              retainedSourcePublishedIntent == intent,
+              let publishedStore = retainedSourcePublishedStore,
+              let store, publishedStore === store,
+              intent == firstIntent.advancing(to: .sessionActivated) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireRetainedSourceControls(
+            firstIntent: firstIntent, preparation: preparation,
+            operation: operation)
+        try requireCapturedRetainedManifestBytes()
+        try requireHeldNamed()
+    }
+
+    /// This is the complete production admission before capture's first
+    /// mutation. DEBUG callers may prove refusal without capturing an owner.
+    private func requireSchema2ColdNotificationCaptureAdmission(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore?,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (support: Opened, operations: Opened) {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try requireHeldNamed()
+        guard schema2ColdNotificationWitness == nil,
+              !schema2ColdNotificationCaptureInFlight,
+              schema2ColdNotificationFiles.isEmpty,
+              capturedOperationsNames != nil,
+              let support, let operations,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdNotificationPhaseAdmission(
+            intent: intent, preparation: preparation,
+            store: store,
+            operation: operation)
+        return (support: support, operations: operations)
+    }
+
+#if DEBUG
+    /// Tests borrow genuine owners from a real cold cut. Successful
+    /// admission returns without touching witness, files or in-flight state,
+    /// so an unexpected negative-test admission cannot pre-capture an owner.
+    func requireSchema2ColdNotificationAdmissionForTesting(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        _ = try requireSchema2ColdNotificationCaptureAdmission(
+            intent: intent, preparation: preparation,
+            store: store, operation: operation)
+    }
+#endif
+
     /// Capture the first notification owner as data under the retained
     /// Support EX and genuine Registry G. The ten reserved names are closed,
     /// but no observed policy or leaf name grants a revocation, OS, or unlink
@@ -5129,19 +5219,10 @@ final class EraseSchema2ColdManifestOwnerV1 {
         preparation: ErasePreparationV2,
         operation: EraseColdPreparationOperationV1
     ) throws -> EraseSchema2ColdNotificationSourceV1 {
-        try operation.requireSchema2ColdManifestOwner(self)
-        try operation.requireSchema2ColdOriginalAuthority()
-        try requireHeldNamed()
-        guard erasePhase == .sessionActivated,
-              schema2ColdNotificationWitness == nil,
-              !schema2ColdNotificationCaptureInFlight,
-              schema2ColdNotificationFiles.isEmpty,
-              capturedOperationsNames != nil,
-              let support, let operations,
-              intent.phase == .sessionActivated,
-              preparation.matches(intent) else {
-            throw StoreMigrationFailure.invalidIdentity
-        }
+        let admitted = try requireSchema2ColdNotificationCaptureAdmission(
+            intent: intent, preparation: preparation,
+            store: retainedSourcePublishedStore, operation: operation)
+        let support = admitted.support, operations = admitted.operations
         schema2ColdNotificationCaptureInFlight = true
         let eraseID = intent.eraseID
         let recordName = EraseSchema2ColdNotificationSourceV1
@@ -8947,9 +9028,18 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
         _ = try operation.requireSchema2ColdPointerPhasePublished(
             expected: replacement, store: store)
+#if DEBUG
+        Self.retainedSourceProjectionForTesting?(.beforeProjection,
+            self, operation, store, firstIntent, replacement, preparation, nil)
+#endif
         // The durable CAS is already proved. Every subsequent failure is a
         // terminal retained-owner uncertainty, never a second observation.
         retainedSourcePhaseProjectionInFlight = true
+#if DEBUG
+        Self.retainedSourceProjectionForTesting?(.inFlight,
+            self, operation, store, firstIntent, replacement, preparation, nil)
+#endif
+        do {
         guard try store.loadPreparation() == preparation else {
             throw StoreMigrationFailure.invalidIdentity
         }
@@ -8967,6 +9057,18 @@ final class EraseSchema2ColdManifestOwnerV1 {
         retainedSourcePublishedStore = store
         retainedSourcePublishedIntent = replacement
         retainedSourcePhaseProjectionInFlight = false
+        } catch {
+#if DEBUG
+            Self.retainedSourceProjectionForTesting?(.failed,
+                self, operation, store, firstIntent, replacement,
+                preparation, error)
+#endif
+            throw error
+        }
+#if DEBUG
+        Self.retainedSourceProjectionForTesting?(.completed,
+            self, operation, store, firstIntent, replacement, preparation, nil)
+#endif
     }
 
     private func requireCapturedRetainedManifestBytes() throws {
@@ -17292,6 +17394,12 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private var originalEraseWriterProjectionUncertain = false
     private var originalEraseWriterRecoveryUncertain = false
     private var originalErasePointerEffectUncertain = false
+    private var originalErasePhysicalTransitionUncertain = false
+    private var originalErasePhysicalTransitionCheckedUnlock: (
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1,
+        activity: GenerationTemporalActivityHandleV1
+    )?
     private var preparationReaderPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
     private var coldPreparationReaderPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
     private var preparationWriterPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
@@ -19544,6 +19652,185 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
     }
 
+    /// Router completion consumes only the Registry's actual post-unlock
+    /// window. This is a pure one-use DATA join, never a G acquisition.
+    @MainActor
+    func requireOriginalErasePhysicalTransitionCheckedUnlock(
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard !originalErasePhysicalTransitionUncertain,
+              generationMutationLockDepth == 0,
+              let completed = originalErasePhysicalTransitionCheckedUnlock,
+              completed.operation === operation,
+              completed.stage == stage,
+              completed.activity === activity else {
+            throw Self.uncertainOwnerFailure()
+        }
+        // Consume this Registry-only window before the Router's DATA finish.
+        // An in-G body, foreign caller or second finish cannot mint it.
+        originalErasePhysicalTransitionCheckedUnlock = nil
+    }
+
+    /// The Router lends only its existing EX and one closed original-owner
+    /// transition. The body changes no Registry member or canonical byte;
+    /// its real constructor/handoff/alias state is proved by that same owner.
+    /// A checked unlock precedes DATA-only completion, and every refusal
+    /// permanently retains uncertainty on both owners.
+    @MainActor
+    func withOriginalErasePhysicalTransitionG<Value>(
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        var processLockHeld = false
+        defer {
+            originalErasePhysicalTransitionCheckedUnlock = nil
+            if processLockHeld { Self.processMutationLock.unlock() }
+        }
+#if DEBUG
+        var physicalStep = "admission"
+        var firstFailureStep: String?
+#endif
+        do {
+            guard !originalErasePhysicalTransitionUncertain,
+                  originalErasePhysicalTransitionCheckedUnlock == nil else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let activity = try operation.beginOriginalErasePhysicalTransitionG(
+                stage: stage, registry: self)
+            try activity.validateSharedNormalizationRegistry(self)
+            Self.processMutationLock.lock()
+            processLockHeld = true
+            guard generationMutationLockDepth == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+#if DEBUG
+            physicalStep = "g-entry"
+#endif
+            let entered = flock(mutationLockDescriptor, LOCK_EX)
+            let entryErrno = errno
+            guard entered == 0 else {
+                throw Self.identityFailure(errorNumber: entryErrno)
+            }
+            generationMutationLockDepth = 1
+            var outcome: Result<Value, any Error>?
+            var firstError: (any Error)?
+            do {
+#if DEBUG
+                physicalStep = "pre-body-proof"
+#endif
+                try activity.validateSharedNormalizationRegistry(self)
+                try verify()
+                try requireNoMigrationReservationLocked()
+                let expected = try operation
+                    .requireOriginalErasePhysicalTransitionUnderHeldG(
+                        stage: stage, registry: self, activity: activity)
+                let before = try observeOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation)
+                guard before.leases == expected else {
+                    throw Self.uncertainOwnerFailure()
+                }
+#if DEBUG
+                physicalStep = "body"
+#endif
+                let bodyOutcome = Result<Value, any Error> { try body() }
+                outcome = bodyOutcome
+                if case .failure(let error) = bodyOutcome {
+                    firstError = error
+#if DEBUG
+                    firstFailureStep = physicalStep
+#endif
+                }
+#if DEBUG
+                physicalStep = "post-body-proof"
+#endif
+                let after = try observeOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation)
+                guard after.leases == expected,
+                      after.registryBytes == before.registryBytes,
+                      after.registryPolicy == before.registryPolicy,
+                      after.directoryPolicy == before.directoryPolicy,
+                      try operation
+                        .requireOriginalErasePhysicalTransitionUnderHeldG(
+                            stage: stage, registry: self, activity: activity)
+                        == expected else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try requireNoMigrationReservationLocked()
+                try verify()
+                try activity.validateSharedNormalizationRegistry(self)
+            } catch {
+                if firstError == nil {
+                    firstError = error
+#if DEBUG
+                    firstFailureStep = physicalStep
+#endif
+                }
+            }
+#if DEBUG
+            physicalStep = "g-unlock"
+#endif
+            let unlocked = flock(mutationLockDescriptor, LOCK_UN)
+            let unlockErrno = errno
+            if unlocked == 0 {
+                generationMutationLockDepth = 0
+            } else if firstError == nil {
+                firstError = Self.identityFailure(errorNumber: unlockErrno)
+            }
+            if let firstError { throw firstError }
+            guard let outcome else { throw Self.uncertainOwnerFailure() }
+            originalErasePhysicalTransitionCheckedUnlock = (
+                operation: operation, stage: stage, activity: activity)
+#if DEBUG
+            physicalStep = "data-completion"
+#endif
+            try operation.finishOriginalErasePhysicalTransitionG(
+                stage: stage, registry: self, activity: activity)
+            guard originalErasePhysicalTransitionCheckedUnlock == nil else {
+                throw Self.uncertainOwnerFailure()
+            }
+            return try outcome.get()
+        } catch {
+            originalErasePhysicalTransitionUncertain = true
+            operation.failOriginalErasePhysicalTransitionG()
+#if DEBUG
+            let line = "V23_ORIGINAL_PHYSICAL_TRANSITION_G_V1 stage=\(stage)"
+                + " step=\(firstFailureStep ?? physicalStep)"
+                + " type=\(String(reflecting: Swift.type(of: error)))\n"
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Preserve the actual first refusal and retained owners. */ }
+#endif
+            throw error
+        }
+    }
+
+#if DEBUG
+    /// Only the two original shutdown transitions borrow the SAME retained
+    /// witness. Its synchronous Scope admits the existing G bridge through
+    /// checked unlock and DATA completion; it creates no activity or G.
+    @MainActor
+    func withOriginalErasePhysicalTransitionShutdownG<Value>(
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        do {
+            let witness = try operation
+                .requireOriginalErasePhysicalTransitionShutdownWitness(
+                    stage: stage, registry: self)
+            return try withOriginalEraseShutdownScope(witness) {
+                try withOriginalErasePhysicalTransitionG(
+                    operation: operation, stage: stage, body)
+            }
+        } catch {
+            originalErasePhysicalTransitionUncertain = true
+            operation.failOriginalErasePhysicalTransitionG()
+            throw error
+        }
+    }
+#endif
     /// Commit-only lock path. Root authority is proved before the closure and
     /// StaleWriterFenceV1 proves the exact active writer lease/current epoch
     /// inside this same cross-process critical section. Once the synchronous
@@ -20370,6 +20657,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
               !originalEraseRetainedReaderEffectUncertain,
               !originalEraseWriterProjectionUncertain,
               !originalErasePointerEffectUncertain,
+              !originalErasePhysicalTransitionUncertain,
               originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty else {
             throw Self.uncertainOwnerFailure()
         }
@@ -23612,6 +23900,53 @@ final class GenerationLeaseAllocationAttemptV1 {
         }
     }
 #if DEBUG
+    /// Borrow only this sealed member's immutable publication for the original
+    /// physical shutdown stage. This grants no reader-close authority.
+    func requireOriginalRetainedPublicationForPhysicalShutdown(
+        operation expectedOperation: EraseRouterOperationV1,
+        handle expectedHandle: GenerationLeaseHandleV1,
+        witness: EraseOriginalShutdownWitnessV1,
+        registry expectedRegistry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        stage: OriginalErasePhysicalTransitionStageV1
+    ) throws -> OriginalEraseRetainedTargetReaderProjectionV1 {
+        try requireNotCompletedStartupOrigin()
+        guard registry === expectedRegistry,
+              originalEraseRetainedAcquisitionStarted,
+              !coldPreparationAcquisitionStarted, !preparationAcquisitionStarted,
+              !freshAdoptionAcquisitionStarted, !schema2ColdTargetAcquisitionStarted,
+              sealedForRetirement, !closed,
+              originalEraseRetainedOperation === expectedOperation,
+              let token, let handle, handle === expectedHandle, handle.token == token,
+              token.role == .reader, token.epoch == epoch, token.ownerID == registry.ownerID,
+              originalEraseRetainedRecordDurable, originalEraseRetainedRegistryRenamed,
+              originalEraseRetainedOriginalDescriptor < 0,
+              originalEraseRetainedTemporaryDescriptor < 0,
+              originalEraseRetainedRecordDescriptor >= 0,
+              !originalEraseRetainedRenameUncertain, !originalEraseRetainedUncertainClose,
+              !originalEraseRetainedEnumerationUncertain,
+              let projection = originalEraseRetainedProjection,
+              let treeIO = originalEraseRetainedTreeIO,
+              witness.preparationReaders.contains(where: { $0 === self }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expectedOperation.requireOriginalErasePhysicalTransitionShutdownReaderBinding(
+            stage: stage, registry: registry, activity: activity,
+            allocation: self, handle: handle, projection: projection, witness: witness)
+        switch stage {
+        case .shutdownAliasRelease:
+            try witness.requireBound(registry: registry)
+        case .drainedShutdown:
+            try witness.requireDrained(registry: registry)
+        case .targetConstructor, .sourceOwnerHandoff:
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try projection.requireOriginalShutdownBound(registry: registry,
+            operation: expectedOperation, allocation: self, handle: handle, witness: witness)
+        try treeIO.requireSettled()
+        return projection
+    }
+
     fileprivate func requireOriginalEraseRetainedShutdownEligibility(
         proof: EraseOriginalShutdownWitnessV1
     ) throws {

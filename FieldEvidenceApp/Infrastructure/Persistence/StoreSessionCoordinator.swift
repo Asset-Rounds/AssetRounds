@@ -1797,6 +1797,11 @@ final class StoreSessionCoordinator: ObservableObject {
                 exclusion: exclusion, allocation: allocation)
             completedSessionEraseProjection = completedProjection // retain actual return before later throw
         } else { completedProjection = nil }
+        // Arm the original source's physical close interval while its exact
+        // session/context/container and old writer aliases are still owned.
+        // The already completed writer publication and old lease close are
+        // consumed; this does not republish or relabel either owner.
+        try operation.prepareOriginalEraseSourceAliasRelease(coordinator: self)
         try operation.recordOriginalEraseWriterTransitionProjected(
             registry: registry, activity: exclusion.activity,
             targetAllocation: allocation)
@@ -2729,6 +2734,10 @@ final class StoreTemporalNormalizationExclusionV1 {
     /// Pure SAME retained EX DATA. The caller separately proves its actual
     /// original-Erase projection; this accessor does not reenter G, perform
     /// an ordinary writer census, acquire a handle or authorize IO.
+    /// Identity-only association for the narrowly closed physical transition.
+    /// The actual root's checked revalidation remains a separate owner proof.
+    var physicalRootForOriginalEraseTransition: StoreTemporalPhysicalRootExclusionV1 { physicalRoot }
+
     func requireRetainedCurrentOriginalEraseActivity(
         coordinator: StoreSessionCoordinator,
         registry expectedRegistry: GenerationLeaseRegistryV1
@@ -5278,6 +5287,12 @@ final class StoreTemporalPhysicalRootExclusionV1 {
         descriptor = opened; device = information.st_dev; inode = information.st_ino
         do { try revalidate(applicationSupportURL: root) }
         catch { close(); throw error }
+    }
+
+    /// Forward the ORIGINAL-Erase physical transition's same root-witness
+    /// check without acquiring an owner, activity, lock or descriptor.
+    func revalidateForOriginalErasePhysicalTransition(applicationSupportURL expected: URL) throws {
+        try revalidate(applicationSupportURL: expected)
     }
 
     fileprivate func revalidate(applicationSupportURL expected: URL) throws {

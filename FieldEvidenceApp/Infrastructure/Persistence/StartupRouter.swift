@@ -5994,6 +5994,36 @@ final class EraseOriginalAuxiliaryRosterPublicationAdmissionV1 {
     }
 }
 
+#if DEBUG
+/// Read-only borrowing of genuine retained cold fields during its service
+/// frame. This is fixture access, never a receipt or admission constructor.
+@MainActor
+struct Schema2ColdNotificationFixtureAccessV1 {
+    let operation: EraseColdPreparationOperationV1
+    let store: EraseIntentStore
+    let manifest: EraseSchema2ColdManifestOwnerV1
+    let intent: EraseIntentV1
+    let preparation: ErasePreparationV2
+    fileprivate init(operation: EraseColdPreparationOperationV1,
+                     store: EraseIntentStore, manifest: EraseSchema2ColdManifestOwnerV1,
+                     intent: EraseIntentV1, preparation: ErasePreparationV2) {
+        self.operation = operation; self.store = store; self.manifest = manifest
+        self.intent = intent; self.preparation = preparation
+    }
+}
+#endif
+
+/// Closed scopes for the SAME original operation's actual constructor and
+/// alias-release intervals. These never confer a new activity or phase owner.
+enum OriginalErasePhysicalTransitionStageV1: Equatable {
+    case targetConstructor
+    case sourceOwnerHandoff
+#if DEBUG
+    case shutdownAliasRelease
+    case drainedShutdown
+#endif
+}
+
 enum OriginalEraseRetainedPointerStageV1: Equatable {
     case current
     case retired
@@ -11012,6 +11042,7 @@ final class EraseRouterOperationV1 {
         case firstRosterCensus
         case writerTransition
         case postPointerReproof
+        case physicalTransition
     }
     private var originalAuxiliaryRegistryObservationScope:
         OriginalAuxiliaryRegistryObservationScope?
@@ -11132,6 +11163,10 @@ final class EraseRouterOperationV1 {
         var projected: Bool
     }
     private var originalWriterTransition: OriginalWriterTransition?
+    private var originalPhysicalTransitionInFlight: OriginalErasePhysicalTransitionStageV1?
+    private var originalPhysicalTransitionCompleted: [OriginalErasePhysicalTransitionStageV1] = []
+    private var originalPhysicalTransitionUncertain = false
+    private var originalPhysicalTransition: StoreRestoreGenerationAuthority.OriginalErasePhysicalTransitionV1?
     /// Retains the same coordinator-bound actor through every original Erase
     /// suspension and post-detach failure. This is not a cold authority.
     private var originalC05Runner: ResumableLocalJobRunnerV1?
@@ -12401,13 +12436,402 @@ final class EraseRouterOperationV1 {
               let retired = originalRetiredPointerReceipt,
               originalPointerPublished, originalRetiredPublished,
               originalPointerMutationInFlight == nil,
-              !originalPointerMutationUncertain else {
+              !originalPointerMutationUncertain,
+              !originalPhysicalTransitionUncertain else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try retired.requireBound(authority: authority, operation: self,
             stage: .retired, predecessor: current)
         return retired
     }
+
+    /// Admission binds only an existing original EX. Registry alone takes G,
+    /// checks the full canonical cohort and checks the actual unlock result.
+    func beginOriginalErasePhysicalTransitionG(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws -> GenerationTemporalActivityHandleV1 {
+        guard originalPhysicalTransitionInFlight == nil,
+              !originalPhysicalTransitionCompleted.contains(stage),
+              !originalPhysicalTransitionUncertain,
+              originalAuxiliaryRegistryObservationScope == nil,
+              !originalAuxiliaryRegistryObservationFailed,
+              preparationRegistry === registry,
+              originalPointerPublished, originalRetiredPublished,
+              originalPointerMutationInFlight == nil,
+              !originalPointerMutationUncertain,
+              originalPointerAuthority?.matchesMutationRegistryForOriginalErase(registry) == true,
+              originalRetiredPointerReceipt != nil,
+              originalAuxiliaryFirstLeaseCensus != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let activity: GenerationTemporalActivityHandleV1
+        switch stage {
+        case .targetConstructor, .sourceOwnerHandoff:
+            guard let exclusion = originalExclusion,
+                  let coordinator = preparationCoordinator,
+                  exclusion.registry === registry else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if stage == .targetConstructor { try exclusion.revalidate() }
+            guard let factory = preparationFactory else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try exclusion.physicalRootForOriginalEraseTransition.revalidateForOriginalErasePhysicalTransition(
+                applicationSupportURL: factory.restoreApplicationSupportURL)
+            activity = try exclusion.requireRetainedCurrentOriginalEraseActivity(
+                coordinator: coordinator, registry: registry)
+        #if DEBUG
+        case .shutdownAliasRelease, .drainedShutdown:
+            guard let retained = originalShutdownActivity,
+                  originalShutdownRegistry === registry,
+                  originalShutdownRoot != nil,
+                  originalShutdownWitness != nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard let root = originalShutdownRoot, let factory = preparationFactory else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try root.revalidateForOriginalErasePhysicalTransition(applicationSupportURL: factory.restoreApplicationSupportURL)
+            activity = retained
+        #endif
+        }
+        originalPhysicalTransitionInFlight = stage
+        originalAuxiliaryRegistryObservationScope = .physicalTransition
+        _ = try requireOriginalErasePhysicalTransitionUnderHeldG(
+            stage: stage, registry: registry, activity: activity)
+        return activity
+    }
+
+    /// Pure owner/cohort DATA. No ordinary Registry getter or revalidation is
+    /// called under G; the canonical observation is owned by Registry itself.
+    func requireOriginalErasePhysicalTransitionUnderHeldG(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard originalPhysicalTransitionInFlight == stage,
+              originalAuxiliaryRegistryObservationScope == .physicalTransition,
+              !originalPhysicalTransitionUncertain,
+              !originalAuxiliaryRegistryObservationFailed,
+              preparationRegistry === registry,
+              originalPointerMutationInFlight == nil,
+              !originalPointerMutationUncertain,
+              let first = originalAuxiliaryFirstLeaseCensus,
+              let source = preparationSourceWriter,
+              !detached, !detaching else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var expected = first
+        if originalTargetReaderHandle != nil {
+        #if DEBUG
+            switch stage {
+            case .shutdownAliasRelease, .drainedShutdown:
+                expected = try originalAuxiliaryFirstPlusReaderTokensForPhysicalShutdown(
+                    stage: stage, registry: registry, activity: activity)
+            case .targetConstructor, .sourceOwnerHandoff:
+                expected = try originalAuxiliaryFirstPlusReaderTokens()
+            }
+        #else
+            expected = try originalAuxiliaryFirstPlusReaderTokens()
+        #endif
+        }
+        if let transition = originalWriterTransition {
+            guard transition.registry === registry,
+                  transition.activity === activity,
+                  transition.prior == expected,
+                  transition.oldWriter === source,
+                  transition.oldCloseStarted,
+                  originalWriterPublicationProjection != nil,
+                  originalOldWriterReleaseProjection != nil,
+                  originalOldWriterProjectedSnapshot != nil,
+                  !originalWriterProjectionUncertain,
+                  !originalOldWriterProjectionUncertain,
+                  !originalWriterRecoveryUncertain,
+                  let target = transition.targetAllocation.allocatedHandle,
+                  transition.targetAllocation.preparationPublishedToken == target.token else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try source.requireClosedForOriginalEraseWriterTransition(registry: registry)
+            expected = (expected.filter { $0.leaseID != source.token.leaseID } + [target.token])
+                .sorted { $0.leaseID.uuidString.lowercased() < $1.leaseID.uuidString.lowercased() }
+        }
+        guard Set(expected.map(\.leaseID)).count == expected.count else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        switch stage {
+        case .targetConstructor:
+            guard let router, let exclusion = originalExclusion,
+                  exclusion.matchesOriginalEraseAuxiliaryPhase(
+                    registry: registry, activity: activity, writer: source.token),
+                  preparationWriterPhase == .absent,
+                  originalWriterTransition == nil,
+                  originalTargetReaderHandle != nil,
+                  originalTargetReaderAllocation != nil,
+                  originalTargetReaderFactory != nil,
+                  originalTargetReaderAuthority != nil,
+                  originalAuxiliaryProjectedIntent?.phase == .pointerSwitched else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try router.requireEraseRetirementOperation(self)
+        case .sourceOwnerHandoff:
+            guard let router, let exclusion = originalExclusion,
+                  let transition = originalWriterTransition,
+                  !transition.projected,
+                  preparationWriterPhase == .installing,
+                  preparationCoordinator != nil,
+                  preparationTargetSession != nil,
+                  preparationTargetWriter != nil,
+                  exclusion.matchesOriginalEraseWriterTransition(
+                    registry: registry, activity: activity, oldWriter: source),
+                  originalPhysicalTransitionCompleted.contains(.targetConstructor) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try router.requireEraseRetirementOperation(self)
+        #if DEBUG
+        case .shutdownAliasRelease:
+            guard originalShutdownState == .poisoned,
+                  originalShutdownActivity === activity,
+                  originalShutdownRegistry === registry,
+                  let witness = originalShutdownWitness,
+                  let exclusion = originalExclusion,
+                  originalShutdownRoot === exclusion.physicalRootForOriginalEraseTransition,
+                  exclusion.registry === registry,
+                  originalWriterTransition.map({ $0.projected }) ?? true else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try witness.requireBound(registry: registry)
+        case .drainedShutdown:
+            guard originalShutdownState == .controlsTransferred,
+                  originalShutdownActivity === activity,
+                  originalShutdownRegistry === registry,
+                  originalShutdownRoot != nil,
+                  originalExclusion == nil,
+                  originalPhysicalTransitionCompleted.contains(.shutdownAliasRelease),
+                  let witness = originalShutdownWitness else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try witness.requireDrained(registry: registry)
+        #endif
+        }
+        return expected
+    }
+
+    /// Called only after Registry has checked the real unlock. This settles
+    /// already retained DATA; it cannot perform an IO reproof or acquire G.
+    func finishOriginalErasePhysicalTransitionG(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard originalPhysicalTransitionInFlight == stage,
+              originalAuxiliaryRegistryObservationScope == .physicalTransition,
+              !originalPhysicalTransitionUncertain,
+              preparationRegistry === registry,
+              let transition = originalPhysicalTransition,
+              let authority = originalPointerAuthority else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.requireOriginalErasePhysicalTransitionCheckedUnlock(
+            operation: self, stage: stage, activity: activity)
+        try authority.settleOriginalErasePhysicalTransition(
+            transition, operation: self, stage: stage)
+        originalPhysicalTransitionCompleted.append(stage)
+        originalPhysicalTransitionInFlight = nil
+        originalAuxiliaryRegistryObservationScope = nil
+    }
+
+    func requireSettledOriginalErasePhysicalTransition() throws {
+        guard !originalPhysicalTransitionUncertain,
+              originalPhysicalTransition != nil,
+              !originalPhysicalTransitionCompleted.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func failOriginalErasePhysicalTransitionG() {
+        originalPhysicalTransitionUncertain = true
+        originalPhysicalTransition?.markUncertain()
+        originalAuxiliaryRegistryObservationScope = nil
+    }
+
+    func withOriginalEraseTargetConstructor<Value>(
+        reader: GenerationLeaseHandleV1,
+        factory: StoreGenerationFactory,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        guard originalTargetReaderHandle === reader,
+              let retainedFactory = originalTargetReaderFactory,
+              retainedFactory.sharesRegistryProvider(with: factory),
+              let registry = preparationRegistry,
+              let authority = originalPointerAuthority,
+              let receipt = originalRetiredPointerReceipt,
+              originalPhysicalTransition == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try registry.withOriginalErasePhysicalTransitionG(
+            operation: self, stage: .targetConstructor) {
+                let transition = try authority.beginOriginalErasePhysicalTransition(
+                    receipt: receipt, operation: self, stage: .targetConstructor)
+                originalPhysicalTransition = transition // retain before the constructor
+                let result = try body()
+                try authority.completeOriginalEraseTargetConstructor(
+                    transition, operation: self)
+                return result
+            }
+    }
+
+    func prepareOriginalEraseSourceAliasRelease(
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard preparationCoordinator === coordinator,
+              let registry = preparationRegistry,
+              let authority = originalPointerAuthority,
+              let transition = originalPhysicalTransition else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.withOriginalErasePhysicalTransitionG(
+            operation: self, stage: .sourceOwnerHandoff) {
+                try authority.armOriginalEraseSourceAliasRelease(
+                    transition, operation: self)
+            }
+    }
+
+#if DEBUG
+    /// Lend only this operation's already sealed shutdown witness to the
+    /// Registry's closed synchronous Scope. No owner or census is recaptured.
+    func requireOriginalErasePhysicalTransitionShutdownWitness(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws -> EraseOriginalShutdownWitnessV1 {
+        guard originalShutdownRegistry === registry,
+              preparationRegistry === registry,
+              originalShutdownActivity != nil,
+              originalShutdownRoot != nil,
+              let witness = originalShutdownWitness else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        switch stage {
+        case .shutdownAliasRelease:
+            guard originalShutdownState == .poisoned else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .drainedShutdown:
+            guard originalShutdownState == .controlsTransferred,
+                  originalPhysicalTransitionCompleted.contains(.shutdownAliasRelease) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .targetConstructor, .sourceOwnerHandoff:
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalShutdownWitness(witness, registry: registry)
+        return witness
+    }
+
+    /// Closed pure binding for this in-flight shutdown stage's sealed reader.
+    /// Constructor and handoff admission continue to use the active getter.
+    func requireOriginalErasePhysicalTransitionShutdownReaderBinding(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        handle: GenerationLeaseHandleV1,
+        projection: OriginalEraseRetainedTargetReaderProjectionV1,
+        witness: EraseOriginalShutdownWitnessV1
+    ) throws {
+        guard originalPhysicalTransitionInFlight == stage,
+              originalAuxiliaryRegistryObservationScope == .physicalTransition,
+              !originalPhysicalTransitionUncertain,
+              !originalAuxiliaryRegistryObservationFailed,
+              preparationRegistry === registry,
+              originalShutdownActivity === activity,
+              originalTargetReaderAllocation === allocation,
+              originalTargetReaderHandle === handle,
+              originalTargetReaderProjection === projection,
+              originalTargetReaderProjectedSnapshot != nil,
+              !originalTargetReaderInFlight,
+              !originalTargetReaderUncertain,
+              !detached, !detaching else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let retained = try requireOriginalErasePhysicalTransitionShutdownWitness(
+            stage: stage, registry: registry)
+        guard retained === witness else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// The immutable publication carries the same complete first-plus-reader
+    /// cohort after sealing. Alias release precedes the actual weak-owner drain.
+    private func originalAuxiliaryFirstPlusReaderTokensForPhysicalShutdown(
+        stage: OriginalErasePhysicalTransitionStageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard let first = originalAuxiliaryFirstLeaseCensus,
+              let handle = originalTargetReaderHandle,
+              let allocation = originalTargetReaderAllocation,
+              let projection = originalTargetReaderProjection,
+              originalTargetReaderProjectedSnapshot != nil,
+              !originalTargetReaderInFlight,
+              !originalTargetReaderUncertain,
+              allocation.allocatedHandle === handle else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let witness = try requireOriginalErasePhysicalTransitionShutdownWitness(
+            stage: stage, registry: registry)
+        let retained = try allocation.requireOriginalRetainedPublicationForPhysicalShutdown(
+            operation: self, handle: handle, witness: witness,
+            registry: registry, activity: activity, stage: stage)
+        guard retained === projection,
+              projection.checkedSettled,
+              projection.priorTokens == first,
+              projection.publishedToken == handle.token,
+              !first.contains(where: {
+                $0.leaseID == handle.token.leaseID
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let expected = (first + [handle.token]).sorted {
+            $0.leaseID.uuidString.lowercased()
+                < $1.leaseID.uuidString.lowercased()
+        }
+        guard projection.afterTokens == expected else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return expected
+    }
+
+    fileprivate func prepareOriginalEraseShutdownAliasRelease() throws {
+        guard originalPointerPublished, originalRetiredPublished else { return }
+        guard let registry = originalShutdownRegistry,
+              let authority = originalPointerAuthority,
+              let receipt = originalRetiredPointerReceipt else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.withOriginalErasePhysicalTransitionShutdownG(
+            operation: self, stage: .shutdownAliasRelease) {
+                if originalPhysicalTransition == nil {
+                    originalPhysicalTransition = try authority.beginOriginalErasePhysicalTransition(
+                        receipt: receipt, operation: self, stage: .shutdownAliasRelease)
+                }
+                guard let transition = originalPhysicalTransition else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try authority.armOriginalEraseShutdownAliasRelease(transition, operation: self)
+            }
+    }
+
+    fileprivate func completeOriginalEraseDrainedShutdownTransition() throws {
+        guard originalPhysicalTransitionCompleted.contains(.shutdownAliasRelease),
+              let registry = originalShutdownRegistry,
+              let authority = originalPointerAuthority,
+              let transition = originalPhysicalTransition else { return }
+        try registry.withOriginalErasePhysicalTransitionShutdownG(
+            operation: self, stage: .drainedShutdown) {
+                try authority.completeOriginalEraseDrainedShutdownTransition(
+                    transition, operation: self)
+            }
+    }
+#endif
 
     func failOriginalEraseRetainedPointerEffect() {
         originalPointerMutationUncertain = true
@@ -13102,6 +13526,32 @@ final class EraseRouterOperationV1 {
             && originalWriterPublicationProjection != nil
             && originalOldWriterReleaseProjection == nil
             && preparationWriterPhase == .constructing
+        let physicalTransition = originalAuxiliaryRegistryObservationScope == .physicalTransition
+            && originalPhysicalTransitionInFlight != nil
+            && !originalPhysicalTransitionUncertain
+            && originalAuxiliaryRosterAdmission != nil
+        // Only the two closed DEBUG shutdown stages may observe after the
+        // active ticket was consumed. Their actual retained EX controls and
+        // witness replace neither ordinary effect authority nor a new G.
+#if DEBUG
+        var physicalShutdownObservation = false
+        if physicalTransition,
+           let stage = originalPhysicalTransitionInFlight,
+           stage == .shutdownAliasRelease || stage == .drainedShutdown {
+            guard let activity = originalShutdownActivity,
+                  originalShutdownRegistry === registry,
+                  originalShutdownRoot != nil,
+                  let witness = originalShutdownWitness else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireOriginalShutdownWitness(witness, registry: registry)
+            _ = try requireOriginalErasePhysicalTransitionUnderHeldG(
+                stage: stage, registry: registry, activity: activity)
+            physicalShutdownObservation = true
+        }
+#else
+        let physicalShutdownObservation = false
+#endif
         let checkedEffect = originalAuxiliaryRegistryObservationScope == nil
             && (originalAuxiliaryPhaseCASInFlight
                 || originalAuxiliarySearchInFlight
@@ -13117,17 +13567,28 @@ final class EraseRouterOperationV1 {
             && originalAuxiliaryRosterAdmission != nil
         guard let router, !detached, !detaching,
               preFirstReaderRecordProbe || firstRosterCensus
-                || writerTransition || postPointerReproof
+                || writerTransition || postPointerReproof || physicalTransition
                 || writerPublicationEffect
                 || oldWriterCloseEffect || checkedEffect,
               !originalAuxiliaryPhaseCASUncertain,
               !originalAuxiliaryRegistryObservationFailed,
-              originalExclusion?.registry === registry,
+              originalExclusion?.registry === registry || physicalShutdownObservation,
               preparationRegistry === registry,
               originalAuxiliaryRegistryObservations.isEmpty else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        if physicalShutdownObservation {
+            guard let stage = originalPhysicalTransitionInFlight else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try router.requireOriginalErasePhysicalShutdownObservation(self, stage: stage)
+        } else {
+            try router.requireEraseRetirementOperation(self)
+        }
+#else
         try router.requireEraseRetirementOperation(self)
+#endif
         originalAuxiliaryRegistryObservations.append(attempt)
     }
 
@@ -16861,8 +17322,10 @@ final class EraseRouterOperationV1 {
                 "ERASE_ORIGINAL_SHUTDOWN_V1 stage=alias-drain-before\n".utf8))
             throw error
         }
-        var diagnosticStage = "preparation-reader-close"
+        var diagnosticStage = "physical-transition-completion"
         do {
+            try completeOriginalEraseDrainedShutdownTransition()
+            diagnosticStage = "preparation-reader-close"
             for reader in witness.preparationReaders {
                 try reader.closeForOriginalEraseShutdown(proof: witness, activity: activity)
             }
@@ -18055,6 +18518,37 @@ extension StartupRouter {
         }
     }
 
+    /// Pure binding for a closed physical shutdown observation after the
+    /// original ticket was consumed. This never reopens active Erase effects.
+    fileprivate func requireOriginalErasePhysicalShutdownObservation(
+        _ value: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1
+    ) throws {
+        guard retainedEraseRetirementOperation === value, value.router === self,
+              value.ticket.owner === originalOperationOwner,
+              abandonedOriginalEraseForColdRestart,
+              originalOperations[value.ticket.operationID] == nil,
+              operationID == nil, operationKind == nil,
+              operationAuthorization == nil, !isRunning,
+              Self.retainedOriginalEraseShutdownOwnersForTesting.contains(where: { $0 === value }) else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        switch stage {
+        case .shutdownAliasRelease:
+            // The caller's held-G proof requires the genuine poisoned
+            // witness and same still-retained EX before any alias drop.
+            break
+        case .drainedShutdown:
+            // Alias transfer already selected this route; the caller also
+            // requires actual weak drain and the exact transferred controls.
+            guard case .maintenance(.eraseInconsistent) = route else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        case .targetConstructor, .sourceOwnerHandoff:
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
     /// The original preparation and detached EX are genuine, with no fault.
     /// Consume every Router continuation while that EX is still held; the
     /// caller may release retained model aliases before the checked finish.
@@ -18965,6 +19459,9 @@ extension StartupRouter {
                 expectedFault: expectedFault,
                 durableRetiredFault: durableRetiredFault)
         }
+        tracePreactivationShutdown("physical-alias-release.enter")
+        try value.prepareOriginalEraseShutdownAliasRelease()
+        tracePreactivationShutdown("physical-alias-release.complete")
         tracePreactivationShutdown("transfer.enter")
         try value.markOriginalShutdownControlsTransferred()
         if let retainedControl {
@@ -20165,6 +20662,20 @@ final class EraseColdPreparationOperationV1 {
             try probe.closeAfterFailureChecked()
         }
     }
+
+#if DEBUG
+    fileprivate func borrowSchema2ColdNotificationFixtureAccessForTesting()
+        throws -> Schema2ColdNotificationFixtureAccessV1 {
+        try requireServiceAccess()
+        guard let store = schema2ColdIntentStore, !schema2ColdIntentStoreClosed,
+              let manifest = schema2ColdManifestOwner, !schema2ColdManifestOwnerClosed,
+              let intent = try store.load(), let preparation = try store.loadPreparation(),
+              preparation.matches(intent) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try requireSchema2ColdManifestOwner(manifest)
+        return Schema2ColdNotificationFixtureAccessV1(operation: self, store: store,
+            manifest: manifest, intent: intent, preparation: preparation)
+    }
+#endif
 
     func requireSchema2ColdManifestOwner(
         _ owner: EraseSchema2ColdManifestOwnerV1
@@ -25824,6 +26335,14 @@ final class EraseColdPreparationOperationV1 {
 }
 
 extension StartupRouter {
+#if DEBUG
+    func borrowSchema2ColdNotificationFixtureAccessForTesting()
+        throws -> Schema2ColdNotificationFixtureAccessV1 {
+        guard let operation = coldErasePreparation else { throw AppAccessContractFailureV1.staleAttempt }
+        try requireRetainedColdPreparation(operation)
+        return try operation.borrowSchema2ColdNotificationFixtureAccessForTesting()
+    }
+#endif
     fileprivate func requireRetainedColdPreparation(_ value: EraseColdPreparationOperationV1) throws {
         guard coldErasePreparation === value, value.router === self else {
             throw AppAccessContractFailureV1.staleAttempt

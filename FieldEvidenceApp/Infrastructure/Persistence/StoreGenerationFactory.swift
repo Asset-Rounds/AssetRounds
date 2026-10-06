@@ -6654,6 +6654,7 @@ private extension StoreGenerationFactory {
         observeSourceTreeStage?("after-reader-lease")
         coldOpenDiagnostic("current-reader-lease-after")
 #endif
+        func constructValidatedSession() throws -> StoreGenerationSession {
         let generationRootURL = installedGenerationURL(id: generationID)
         let modelStoreURL = generationRootURL.appendingPathComponent(Self.modelStoreName)
 #if DEBUG
@@ -6729,6 +6730,7 @@ private extension StoreGenerationFactory {
 #if DEBUG
         case 53:
             coldOpenDiagnostic("v53-container-before")
+            retirementConstruction?.constructorStarted = true
             container = try makeV53Container(at:modelStoreURL,migrate:false)
             coldOpenDiagnostic("v53-container-after")
 #else
@@ -6852,6 +6854,12 @@ private extension StoreGenerationFactory {
         )
         retirementConstruction?.session = session
         return session
+        }
+        if let operation = originalRetainedEraseOperation {
+            return try operation.withOriginalEraseTargetConstructor(
+                reader: readerLease, factory: self, constructValidatedSession)
+        }
+        return try constructValidatedSession()
     }
 
     @MainActor
@@ -14060,6 +14068,9 @@ final class StoreRestoreGenerationAuthority {
         fileprivate let predecessor: OriginalErasePointerReceiptV1?
         fileprivate weak var successor: OriginalErasePointerReceiptV1?
         fileprivate var publicationSettlement: OriginalEraseRetainedPointerPublicationSettlementV1?
+        // Immutable publication/origin remains above. Only a completed SAME
+        // operation's checked physical transition can supply this successor.
+        fileprivate var physicalSuccessor: OriginalErasePointerPhysicalSuccessorV1?
         /// Typed stored cells match this actual Receipt declaration. Heap
         /// headers, Foundation allocation and whole owner Scope remain DUE.
         fileprivate struct PublicationStoredCellProfile {
@@ -14075,6 +14086,7 @@ final class StoreRestoreGenerationAuthority {
             let predecessor: OriginalErasePointerReceiptV1?
             weak var successor: OriginalErasePointerReceiptV1?
             let publicationSettlement: OriginalEraseRetainedPointerPublicationSettlementV1?
+            let physicalSuccessor: OriginalErasePointerPhysicalSuccessorV1?
         }
 
         fileprivate init(
@@ -14176,6 +14188,315 @@ final class StoreRestoreGenerationAuthority {
                 throw error
             }
         }
+    }
+
+    fileprivate struct OriginalErasePhysicalImageV1 {
+        let siblings: OriginalErasePointerSiblingImageV1
+        let sourceID: UUID
+        let targetID: UUID
+        let sourceSQLite: CompletedAbortSQLitePhysicalImageV1
+        let targetSQLite: CompletedAbortSQLitePhysicalImageV1
+    }
+
+    /// A separate successor, bound to the genuine P publication and its
+    /// operation. No pointer, origin or first cohort is recaptured or changed.
+    @MainActor
+    fileprivate final class OriginalErasePointerPhysicalSuccessorV1 {
+        weak var authority: StoreRestoreGenerationAuthority?
+        weak var operation: EraseRouterOperationV1?
+        unowned let receipt: OriginalErasePointerReceiptV1
+        let predecessor: OriginalErasePointerPhysicalSuccessorV1?
+        let image: OriginalErasePhysicalImageV1
+        init(authority: StoreRestoreGenerationAuthority,
+             operation: EraseRouterOperationV1,
+             receipt: OriginalErasePointerReceiptV1,
+             predecessor: OriginalErasePointerPhysicalSuccessorV1?,
+             image: OriginalErasePhysicalImageV1) {
+            self.authority = authority; self.operation = operation
+            self.receipt = receipt; self.predecessor = predecessor; self.image = image
+        }
+        func requireBound(authority expected: StoreRestoreGenerationAuthority,
+                          receipt expectedReceipt: OriginalErasePointerReceiptV1) throws {
+            guard authority === expected, receipt === expectedReceipt,
+                  let operation, receipt.operationID == ObjectIdentifier(operation),
+                  predecessor.map({ $0.receipt === receipt && $0.authority === expected }) ?? true else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try operation.requireSettledOriginalErasePhysicalTransition()
+        }
+    }
+
+    /// Retained before the first real constructor or alias release. A failed
+    /// constructor/observer/close permanently retains this uncertain owner.
+    @MainActor
+    final class OriginalErasePhysicalTransitionV1 {
+        fileprivate weak var authority: StoreRestoreGenerationAuthority?
+        fileprivate weak var operation: EraseRouterOperationV1?
+        fileprivate let receipt: OriginalErasePointerReceiptV1
+        fileprivate let origin: OriginalErasePhysicalImageV1
+        fileprivate var checkedImage: OriginalErasePhysicalImageV1
+        fileprivate var sourceAliasOrigin: OriginalErasePhysicalImageV1?
+        fileprivate var shutdownAliasOrigin: OriginalErasePhysicalImageV1?
+        fileprivate var pendingStage: OriginalErasePhysicalTransitionStageV1?
+        fileprivate var pendingImage: OriginalErasePhysicalImageV1?
+        fileprivate var uncertain = false
+        fileprivate init(authority: StoreRestoreGenerationAuthority,
+                         operation: EraseRouterOperationV1,
+                         receipt: OriginalErasePointerReceiptV1,
+                         image: OriginalErasePhysicalImageV1,
+                         stage: OriginalErasePhysicalTransitionStageV1) {
+            self.authority = authority; self.operation = operation; self.receipt = receipt
+            origin = image; checkedImage = image; pendingStage = stage
+        }
+        func markUncertain() { uncertain = true }
+        fileprivate func requireBound(authority expected: StoreRestoreGenerationAuthority,
+                                      operation expectedOperation: EraseRouterOperationV1) throws {
+            guard !uncertain, authority === expected, operation === expectedOperation,
+                  receipt.authority === expected,
+                  receipt.operationID == ObjectIdentifier(expectedOperation) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+    }
+
+    @MainActor
+    private func captureOriginalErasePhysicalImage(
+        receipt: OriginalErasePointerReceiptV1,
+        operation: EraseRouterOperationV1
+    ) throws -> OriginalErasePhysicalImageV1 {
+        guard receipt.authority === self, receipt.operationID == ObjectIdentifier(operation),
+              receipt.stage == .retired, let predecessor = receipt.predecessor,
+              predecessor.stage == .current,
+              try originalEraseDataRootFact() == receipt.root,
+              try originalErasePointerCheckedIO.names(in: dataDescriptor) == receipt.names,
+              try originalEraseCheckedPointerRead("current.json") == receipt.other,
+              try originalEraseCheckedPointerRead("retired.json") == receipt.published else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let oldPointer = try CurrentPointerCodecV1.decode(predecessor.source.data)
+        guard let sourceID = UUID(uuidString: oldPointer.generationID),
+              Self.canonical(sourceID) == oldPointer.generationID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let targetID = try receipt.currentGenerationID()
+        guard sourceID != targetID else { throw StoreGenerationFailure.dataPointerInvalid }
+        let siblings = try originalErasePointerSiblingImage(dataNames: receipt.names)
+        func captureSQLite(id: UUID) throws -> CompletedAbortSQLitePhysicalImageV1 {
+            let prefix = "generations/" + Self.canonical(id)
+            func requireOpened(_ descriptor: Int32, parent: Int32, name: String,
+                               path: String) throws {
+                guard let node = siblings.nodes.first(where: { $0.path == path }),
+                      siblings.nodes.filter({ $0.path == path }).count == 1 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                var held = stat(), named = stat()
+                guard Darwin.fstat(descriptor, &held) == 0,
+                      Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      OriginalErasePointerFullFactV1(held) == node.fact,
+                      OriginalErasePointerFullFactV1(named) == node.fact else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            return try originalErasePointerCheckedIO.withOpen(
+                parent: installedGenerationsDescriptor, name: Self.canonical(id),
+                flags: O_RDONLY | O_DIRECTORY | O_NONBLOCK) { generation in
+                    try requireOpened(generation, parent: installedGenerationsDescriptor,
+                        name: Self.canonical(id), path: prefix)
+                    let image = try originalErasePointerCheckedIO.withOpen(
+                        parent: generation, name: "model.sqlite", flags: O_RDONLY | O_NONBLOCK) { model in
+                            try requireOpened(model, parent: generation, name: "model.sqlite",
+                                path: prefix + "/model.sqlite")
+                            let result: CompletedAbortSQLitePhysicalImageV1
+                            if siblings.nodes.contains(where: { $0.path == prefix + "/model.sqlite-wal" }) {
+                                result = try originalErasePointerCheckedIO.withOpen(
+                                    parent: generation, name: "model.sqlite-wal", flags: O_RDONLY | O_NONBLOCK) { wal in
+                                        try requireOpened(wal, parent: generation, name: "model.sqlite-wal",
+                                            path: prefix + "/model.sqlite-wal")
+                                        let captured = try CompletedAbortSQLitePhysicalImageV1.capture(model: model, wal: wal)
+                                        try requireOpened(wal, parent: generation, name: "model.sqlite-wal",
+                                            path: prefix + "/model.sqlite-wal")
+                                        return captured
+                                    }
+                            } else { result = try CompletedAbortSQLitePhysicalImageV1.capture(model: model, wal: nil) }
+                            try requireOpened(model, parent: generation, name: "model.sqlite",
+                                path: prefix + "/model.sqlite")
+                            return result
+                        }
+                    try requireOpened(generation, parent: installedGenerationsDescriptor,
+                        name: Self.canonical(id), path: prefix)
+                    return image
+                }
+        }
+        let sourceSQLite = try captureSQLite(id: sourceID)
+        let targetSQLite = try captureSQLite(id: targetID)
+        guard try originalErasePointerSiblingImage(dataNames: receipt.names) == siblings,
+              try originalEraseDataRootFact() == receipt.root,
+              try originalErasePointerCheckedIO.names(in: dataDescriptor) == receipt.names,
+              try originalEraseCheckedPointerRead("current.json") == receipt.other,
+              try originalEraseCheckedPointerRead("retired.json") == receipt.published else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try originalErasePointerCheckedIO.requireSettled()
+        return OriginalErasePhysicalImageV1(siblings: siblings, sourceID: sourceID,
+            targetID: targetID, sourceSQLite: sourceSQLite, targetSQLite: targetSQLite)
+    }
+
+    /// Full tree conservation plus the existing page-complete SQLite/WAL
+    /// frontier proof. Only the exact owned generation roots and SQLite leaves
+    /// may change representation; every other byte, time, identity and member
+    /// stays strict. Same-byte inode replacement is always refused.
+    private func requireOriginalErasePhysicalTransition(
+        from before: OriginalErasePhysicalImageV1,
+        to after: OriginalErasePhysicalImageV1,
+        allowing generationIDs: Set<UUID>
+    ) throws {
+        guard before.sourceID == after.sourceID, before.targetID == after.targetID,
+              before.siblings.dataDirectoryChildren == after.siblings.dataDirectoryChildren,
+              before.siblings.nodes.count == after.siblings.nodes.count,
+              generationIDs.isSubset(of: [before.sourceID, before.targetID]) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let prefixes = generationIDs.map { "generations/" + Self.canonical($0) }
+        for (old, new) in zip(before.siblings.nodes, after.siblings.nodes) {
+            guard old.path == new.path, old.names == new.names else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            if prefixes.contains(old.path) {
+                guard old.fact.sameDirectoryIdentity(as: new.fact), old.fact.links == new.fact.links else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            } else if let prefix = prefixes.first(where: { old.path.hasPrefix($0 + "/") }),
+                      ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"].contains(
+                        String(old.path.dropFirst(prefix.count + 1))) {
+                guard old.fact.device == new.fact.device, old.fact.inode == new.fact.inode,
+                      old.fact.mode == new.fact.mode, old.fact.owner == new.fact.owner,
+                      old.fact.group == new.fact.group, old.fact.links == new.fact.links,
+                      old.fact.links == 1, old.fact.mode & S_IFMT == S_IFREG else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                if old.path == prefix + "/model.sqlite-shm", old.fact.size != new.fact.size {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            } else if old != new { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+        try before.sourceSQLite.requireOwnedCloseTransition(to: after.sourceSQLite)
+        try before.targetSQLite.requireOwnedCloseTransition(to: after.targetSQLite)
+    }
+
+    @MainActor
+    func beginOriginalErasePhysicalTransition(
+        receipt: OriginalErasePointerReceiptV1,
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1
+    ) throws -> OriginalErasePhysicalTransitionV1 {
+        try receipt.requireBound(authority: self, operation: operation,
+            stage: .retired, predecessor: receipt.predecessor)
+        let image = try captureOriginalErasePhysicalImage(receipt: receipt, operation: operation)
+        guard image.siblings == (receipt.physicalSuccessor?.image.siblings ?? receipt.siblings) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return OriginalErasePhysicalTransitionV1(authority: self, operation: operation,
+            receipt: receipt, image: image, stage: stage)
+    }
+
+    @MainActor
+    func completeOriginalEraseTargetConstructor(
+        _ transition: OriginalErasePhysicalTransitionV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.pendingStage == .targetConstructor, transition.pendingImage == nil else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let after = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        try requireOriginalErasePhysicalTransition(from: transition.origin, to: after,
+            allowing: [transition.origin.targetID])
+        transition.pendingImage = after
+    }
+
+    @MainActor
+    func armOriginalEraseSourceAliasRelease(
+        _ transition: OriginalErasePhysicalTransitionV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.pendingStage == nil, transition.sourceAliasOrigin == nil,
+              transition.shutdownAliasOrigin == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        // The existing real writer constructor/recovery used this SAME target
+        // context. Conserve it, while the source remains the exact pre-release
+        // tree; the Coordinator has not yet replaced its original aliases.
+        let before = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        try requireOriginalErasePhysicalTransition(from: transition.checkedImage, to: before,
+            allowing: [transition.origin.targetID])
+        try requireOriginalErasePhysicalTransition(from: transition.origin, to: before,
+            allowing: [transition.origin.targetID])
+        transition.sourceAliasOrigin = before
+        transition.pendingStage = .sourceOwnerHandoff
+        transition.pendingImage = before
+#if DEBUG
+        try StoreGenerationFactory.fireOriginalErasePhysicalTransitionTestHook(
+            operation: operation, applicationSupportURL: applicationSupportURL,
+            stage: .sourceOwnerHandoff)
+#endif
+    }
+
+#if DEBUG
+    @MainActor
+    func armOriginalEraseShutdownAliasRelease(
+        _ transition: OriginalErasePhysicalTransitionV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.shutdownAliasOrigin == nil,
+              transition.pendingStage == nil || transition.pendingStage == .shutdownAliasRelease,
+              transition.pendingImage == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        let before = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        let allowed: Set<UUID> = transition.sourceAliasOrigin == nil
+            ? [transition.origin.targetID] : [transition.origin.sourceID, transition.origin.targetID]
+        try requireOriginalErasePhysicalTransition(from: transition.checkedImage, to: before, allowing: allowed)
+        try requireOriginalErasePhysicalTransition(from: transition.origin, to: before, allowing: allowed)
+        transition.shutdownAliasOrigin = before
+        transition.pendingStage = .shutdownAliasRelease
+        transition.pendingImage = before
+    }
+
+    @MainActor
+    func completeOriginalEraseDrainedShutdownTransition(
+        _ transition: OriginalErasePhysicalTransitionV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.pendingStage == nil, let before = transition.shutdownAliasOrigin else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try StoreGenerationFactory.fireOriginalErasePhysicalTransitionTestHook(
+            operation: operation, applicationSupportURL: applicationSupportURL,
+            stage: .drainedShutdown)
+        let after = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        let allowed: Set<UUID> = [transition.origin.sourceID, transition.origin.targetID]
+        try requireOriginalErasePhysicalTransition(from: before, to: after, allowing: allowed)
+        try requireOriginalErasePhysicalTransition(from: transition.origin, to: after, allowing: allowed)
+        transition.pendingStage = .drainedShutdown
+        transition.pendingImage = after
+    }
+#endif
+
+    @MainActor
+    func settleOriginalErasePhysicalTransition(
+        _ transition: OriginalErasePhysicalTransitionV1,
+        operation: EraseRouterOperationV1,
+        stage: OriginalErasePhysicalTransitionStageV1
+    ) throws {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.pendingStage == stage, let after = transition.pendingImage else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let successor = OriginalErasePointerPhysicalSuccessorV1(authority: self, operation: operation,
+            receipt: transition.receipt, predecessor: transition.receipt.physicalSuccessor, image: after)
+        transition.receipt.physicalSuccessor = successor
+        transition.checkedImage = after
+        transition.pendingImage = nil
+        transition.pendingStage = nil
     }
 
     private func originalEraseDataRootFact() throws -> OriginalErasePointerFullFactV1 {
@@ -14608,6 +14929,11 @@ final class StoreRestoreGenerationAuthority {
         let diagnosticRoles = originalErasePointerDiagnosticRoles(receipt)
         #endif
         do {
+            let expectedSiblings: OriginalErasePointerSiblingImageV1
+            if let successor = receipt.physicalSuccessor {
+                try successor.requireBound(authority: self, receipt: receipt)
+                expectedSiblings = successor.image.siblings
+            } else { expectedSiblings = receipt.siblings }
             guard receipt.authority === self,
                   !originalErasePointerEffectUncertain,
                   try originalErasePointerCheckedIO.names(in: dataDescriptor)
@@ -14619,12 +14945,12 @@ final class StoreRestoreGenerationAuthority {
             fixedStage = "first-sibling-image"
             #endif
             #if DEBUG
-            try requireOriginalErasePointerSiblings(receipt.siblings,
+            try requireOriginalErasePointerSiblings(expectedSiblings,
                 names: receipt.names,
                 diagnosticTargetID: diagnosticRoles.targetID,
                 diagnosticSourceID: diagnosticRoles.sourceID)
             #else
-            try requireOriginalErasePointerSiblings(receipt.siblings,
+            try requireOriginalErasePointerSiblings(expectedSiblings,
                 names: receipt.names)
             #endif
             let name = receipt.stage == .current
@@ -14657,12 +14983,12 @@ final class StoreRestoreGenerationAuthority {
             fixedStage = "final-sibling-image"
             #endif
             #if DEBUG
-            try requireOriginalErasePointerSiblings(receipt.siblings,
+            try requireOriginalErasePointerSiblings(expectedSiblings,
                 names: receipt.names,
                 diagnosticTargetID: diagnosticRoles.targetID,
                 diagnosticSourceID: diagnosticRoles.sourceID)
             #else
-            try requireOriginalErasePointerSiblings(receipt.siblings,
+            try requireOriginalErasePointerSiblings(expectedSiblings,
                 names: receipt.names)
             #endif
         } catch {
@@ -23178,6 +23504,42 @@ struct StoreGenerationFactory {
               hook.stage == stage else { return }
         originalErasePointerTestHook = nil
         try hook.callback(session)
+    }
+#endif
+
+#if DEBUG
+    @MainActor private final class OriginalErasePhysicalTransitionTestHookV1 {
+        weak var operation: EraseRouterOperationV1?
+        let support: URL
+        let callback: @MainActor (OriginalErasePhysicalTransitionStageV1, URL) throws -> Void
+        init(operation: EraseRouterOperationV1, support: URL,
+             callback: @escaping @MainActor (OriginalErasePhysicalTransitionStageV1, URL) throws -> Void) {
+            self.operation = operation; self.support = support.standardizedFileURL
+            self.callback = callback
+        }
+    }
+    @MainActor private static var originalErasePhysicalTransitionTestHook: OriginalErasePhysicalTransitionTestHookV1?
+    @MainActor static func installOriginalErasePhysicalTransitionTestHook(
+        operation: EraseRouterOperationV1, applicationSupportURL: URL,
+        callback: @escaping @MainActor (OriginalErasePhysicalTransitionStageV1, URL) throws -> Void
+    ) throws {
+        guard originalErasePhysicalTransitionTestHook == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        originalErasePhysicalTransitionTestHook = OriginalErasePhysicalTransitionTestHookV1(
+            operation: operation, support: applicationSupportURL, callback: callback)
+    }
+    @MainActor static func clearOriginalErasePhysicalTransitionTestHook(operation: EraseRouterOperationV1) {
+        guard originalErasePhysicalTransitionTestHook?.operation === operation else { return }
+        originalErasePhysicalTransitionTestHook = nil
+    }
+    @MainActor fileprivate static func fireOriginalErasePhysicalTransitionTestHook(
+        operation: EraseRouterOperationV1, applicationSupportURL: URL,
+        stage: OriginalErasePhysicalTransitionStageV1
+    ) throws {
+        guard let hook = originalErasePhysicalTransitionTestHook,
+              hook.operation === operation,
+              hook.support == applicationSupportURL.standardizedFileURL else { return }
+        if stage == .drainedShutdown { originalErasePhysicalTransitionTestHook = nil }
+        try hook.callback(stage, hook.support)
     }
 #endif
 

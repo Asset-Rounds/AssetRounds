@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+#if DEBUG
+import Darwin
+#endif
 
 /// Canonical display data only. The owner independently derives the expected
 /// kind and text from its authenticated schedule source before any OS effect.
@@ -1257,6 +1260,21 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
     }
 
 #if DEBUG
+    @MainActor private final class Schema2ColdFirstRefusalDiagnosticV1 {
+        private var stage = "cleanup.notification.cold-wrapper.enter"
+
+        func record(_ stage: String) { self.stage = stage }
+
+        func emit(_ error: any Error) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            let line = "V23_C28_COLD_NOTIFICATION_FIRST_REFUSAL_DIAG_V1 route=schema2-cold"
+                + " stage=\(stage) type=\(String(reflecting: type(of: error)))\n"
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Diagnostic transport never replaces the first refusal. */ }
+        }
+    }
+
     private struct OriginalEraseFixedDiagnosticContextV1: Sendable {
         let operationID: UUID
         let controlIdentity: ObjectIdentifier
@@ -1332,6 +1350,35 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         system: any NotificationSystemPortV1,
         operationID: UUID
     ) async throws -> EraseSchema2ColdNotificationDrainReceiptV1 {
+        #if DEBUG
+        let diagnostic = Schema2ColdFirstRefusalDiagnosticV1()
+        return try await $originalEraseFixedDiagnosticContext.withValue(
+            OriginalEraseFixedDiagnosticContextV1(operationID: operationID,
+                controlIdentity: ObjectIdentifier(control), report: { stage in
+                    diagnostic.record(stage)
+                })) {
+            do {
+                let revocation = try await eraseOriginalOwner(
+                    control: control, system: system, operationID: operationID,
+                    beforeBegin: nil, afterBegin: nil,
+                    observedOwnedRefusal: nil, afterSuccess: nil,
+                    coldControl: control)
+                traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-final-revocation.enter", operationID: operationID, control: control)
+                try control.requireNotificationEraseRevocation(revocation)
+                traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-final-drain-record.enter", operationID: operationID, control: control)
+                guard let record = try control.loadSchema2ColdDrainRecord(
+                        revocation: revocation) else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                return EraseSchema2ColdNotificationDrainReceiptV1(
+                    control: control, revocation: revocation,
+                    drainRecord: record)
+            } catch {
+                diagnostic.emit(error)
+                throw error
+            }
+        }
+        #else
         let revocation = try await eraseOriginalOwner(
             control: control, system: system, operationID: operationID,
             beforeBegin: nil, afterBegin: nil,
@@ -1345,6 +1392,7 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         return EraseSchema2ColdNotificationDrainReceiptV1(
             control: control, revocation: revocation,
             drainRecord: record)
+        #endif
     }
 
 #if DEBUG
@@ -1417,8 +1465,14 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             // publish between the owned-ID predecessor check and marker.
             firstCut = try
                 AppLockNotificationTransactionFenceV1.perform {
+                    #if DEBUG
+                    traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-owned-ids-reserve.enter", operationID: operationID, control: control)
+                    #endif
                     let value = try coldControl.reserveSchema2ColdOwnedIDs(
                         operationID: operationID)
+                    #if DEBUG
+                    traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-marker-publish.enter", operationID: operationID, control: control)
+                    #endif
                     let marker = try control.beginNotificationErase(
                         operationID: operationID)
                     return (value, marker)
@@ -1447,8 +1501,16 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         traceOriginalEraseFixedDiagnostic("cleanup.notification.after-begin.complete", operationID: operationID, control: control)
 #endif
         if let provenance {
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-owned-ids-first-reproof.enter", operationID: operationID, control: control)
+            #endif
             try coldControl?.requireSchema2ColdOwnedIDs(provenance)
         }
+        #if DEBUG
+        if coldControl != nil {
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-prior-drain-record.enter", operationID: operationID, control: control)
+        }
+        #endif
         let priorDrain = try coldControl?.loadSchema2ColdDrainRecord(
             revocation: revocation)
 #if DEBUG
@@ -1487,6 +1549,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         let predecessorOwned = Set((mapping?.ownedRequestIDs ?? []) +
             (journal?.projections.map(\.requestID) ?? []))
         if let provenance {
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-predecessor-owned-ids.enter", operationID: operationID, control: control)
+            #endif
             guard predecessorOwned.isSubset(of:
                     Set(provenance.ownedRequestIDs)) else {
                 throw AppAccessContractFailureV1
@@ -1495,6 +1560,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             try coldControl?.requireSchema2ColdOwnedIDs(provenance)
         }
         if let priorDrain {
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-prior-drain-reproof.enter", operationID: operationID, control: control)
+            #endif
             try priorDrain.validate(revocation: revocation)
             guard predecessorOwned.isSubset(of:
                     Set(priorDrain.ownedRequestIDs)),
@@ -1551,17 +1619,29 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         traceOriginalEraseFixedDiagnostic("cleanup.notification.owned-settlement.complete", operationID: operationID, control: control)
 #endif
         if let coldControl {
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-drain-record-construction.enter", operationID: operationID, control: control)
+            #endif
             let record = try NotificationEraseDrainRecordV1(
                 revocation: revocation, ownedRequestIDs: owned)
             if let priorDrain, priorDrain != record {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-os-absence-retain.enter", operationID: operationID, control: control)
+            #endif
             try coldControl.retainSchema2ColdOSAbsence(
                 EraseSchema2ColdNotificationOSAbsenceReceiptV1(
                     control: coldControl, revocation: revocation,
                     drainRecord: record))
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-drain-record-publish.enter", operationID: operationID, control: control)
+            #endif
             try coldControl.publishSchema2ColdDrainRecord(
                 record, revocation: revocation)
+            #if DEBUG
+            traceOriginalEraseFixedDiagnostic("cleanup.notification.cold-drain-record-reproof.enter", operationID: operationID, control: control)
+            #endif
             try coldControl.requireSchema2ColdDrainRecord(
                 record, revocation: revocation)
         }
