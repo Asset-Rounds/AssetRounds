@@ -73,6 +73,29 @@ enum OriginalEraseScratchFirstErrorDiagnosticV1 {
             + " elapsedMs=" + String(elapsed) + " stageElapsedMs=" + String(stageElapsed)
         FileHandle.standardError.write(Data((line + "\n").utf8))
     }
+
+    /// Fixed labels and member counts only; diagnostic IO cannot replace a
+    /// checked cut failure or alter errno used by the surrounding proof.
+    static func emitSourceCutMembers(stage: String, count: Int) {
+        let saved = errno
+        defer { errno = saved }
+        let line = "V23_ORIGINAL_SCRATCH_SOURCE_CUT_V1 stage=" + stage
+            + " rootMembers=" + String(count) + "\n"
+        try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+    }
+
+    static func emitSourceCutError(stage: String, error: Error,
+        started: UInt64, stageStarted: UInt64) {
+        let saved = errno
+        defer { errno = saved }
+        let time = now()
+        let elapsed = time >= started ? (time - started) / 1_000_000 : 0
+        let stageElapsed = time >= stageStarted ? (time - stageStarted) / 1_000_000 : 0
+        let line = "V23_ORIGINAL_SCRATCH_SOURCE_CUT_V1 stage=" + stage
+            + " category=" + category(error) + " elapsedMs=" + String(elapsed)
+            + " stageElapsedMs=" + String(stageElapsed) + "\n"
+        try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+    }
 }
 #endif
 
@@ -10340,6 +10363,99 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     // or the process ends. Existing cold lease recovery remains the sole owner.
     @MainActor private static var retainedSourceReaders: [SourceReadDirectory] = []
     @MainActor private static var retainedExclusiveSourceStores: [ScratchDataLeaseStoreV1] = []
+    @MainActor private static var retainedOriginalScratchSecondaryErrors: [Error] = []
+
+    /// Immutable filesystem DATA from the original first capture or an exact
+    /// checked settlement. It grants no permit, activity or copy authority.
+    struct OriginalEraseScratchImageV1: Equatable {
+        struct Node: Equatable {
+            let path: String
+            let fullFact: String
+            let flags: UInt32
+            let members: [String]?
+            let contentSHA256: String?
+        }
+        let rootFact: String
+        let rootIdentity: String
+        let rootLinks: UInt64
+        let rootFlags: UInt32
+        let digest: String
+        let stableRemainderDigest: String
+        let rootNames: [String]
+        let descendants: [Node]
+
+        func requireSameRemainder(as prior: Self, ownedLeasePresent: Bool = false) throws {
+            guard rootIdentity == prior.rootIdentity,
+                  rootFlags == prior.rootFlags,
+                  prior.rootLinks < UInt64.max,
+                  rootLinks == prior.rootLinks + (ownedLeasePresent ? 1 : 0),
+                  rootNames == prior.rootNames,
+                  stableRemainderDigest == prior.stableRemainderDigest,
+                  descendants == prior.descendants else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        }
+    }
+
+    /// Uses the incumbent bounded, no-follow, checked-close walker. Full node
+    /// facts additionally retain uid/gid, which its digest does not encode.
+    static func observeOriginalEraseScratchImage(
+        io: EraseAbortCheckedSnapshotIOV1, operations: Int32,
+        excludingOwnedLease: String? = nil,
+        priorRootLinks: UInt64? = nil
+    ) throws -> OriginalEraseScratchImageV1 {
+        guard (excludingOwnedLease == nil) == (priorRootLinks == nil) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        if let name = excludingOwnedLease {
+            guard !name.isEmpty, !name.contains("/"), name != ".", name != ".." else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+        }
+        var root: stat?
+        var names: [String]?
+        var nodes: [OriginalEraseScratchImageV1.Node] = []
+        let digest = try io.postRetiredTree(parent: operations, name: Self.rootName,
+            excluding: Set(excludingOwnedLease.map { [$0] } ?? []),
+            ignoringDirectoryMetadata: excludingOwnedLease == nil ? [] : [""],
+            normalizingSingleTargetManifestRootLinksFrom: priorRootLinks,
+            observeTypedNode: { node, members in
+                if node.path.isEmpty { root = node.fact; names = members }
+                else {
+                    nodes.append(.init(path: node.path,
+                        fullFact: Self.originalEraseSourceFullFact(node.fact),
+                        flags: node.fact.st_flags, members: members, contentSHA256: node.sha256))
+                }
+            })
+        let stableDigest: String
+        if excludingOwnedLease == nil {
+            stableDigest = try io.postRetiredTree(parent: operations, name: Self.rootName,
+                ignoringDirectoryMetadata: [""])
+        } else { stableDigest = digest }
+        guard let root, let names,
+              Set(nodes.map(\.path)).count == nodes.count else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try io.withOpen(parent: operations, name: Self.rootName,
+            flags: O_RDONLY | O_DIRECTORY) { descriptor in
+            var held = stat(), named = stat()
+            let exactNames = (names + (excludingOwnedLease.map { [$0] } ?? [])).sorted()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  Darwin.fstatat(operations, Self.rootName, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.originalEraseSourceFullFact(held) == Self.originalEraseSourceFullFact(root),
+                  Self.originalEraseSourceFullFact(named) == Self.originalEraseSourceFullFact(root),
+                  held.st_flags == root.st_flags, named.st_flags == root.st_flags,
+                  try io.names(in: descriptor) == exactNames else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        }
+        try io.requireSettled()
+        return .init(rootFact: Self.originalEraseSourceFullFact(root),
+            rootIdentity: "\(root.st_dev)|\(root.st_ino)|\(root.st_mode)|\(root.st_uid)|\(root.st_gid)",
+            rootLinks: UInt64(root.st_nlink), rootFlags: root.st_flags, digest: digest,
+            stableRemainderDigest: stableDigest, rootNames: names, descendants: nodes.sorted { $0.path < $1.path })
+    }
 
     @MainActor
     struct OriginalEraseExclusiveSourceReadReceiptV1 {
@@ -10352,6 +10468,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let beforeScratchDigest: String
         let afterScratchRootFact: String
         let afterScratchDigest: String
+        let beforeScratchImage: OriginalEraseScratchImageV1
+        let afterScratchImage: OriginalEraseScratchImageV1
         private let checkedSettled: Bool
 
         fileprivate init(request: ScratchDataLeaseRequestV1,
@@ -10367,11 +10485,19 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             beforeScratchDigest = before.scratchDigest
             afterScratchRootFact = after.scratchRootFact
             afterScratchDigest = after.scratchDigest
+            beforeScratchImage = before.image
+            afterScratchImage = after.image
             checkedSettled = true
         }
 
         func requireCheckedSettlement() throws {
-            guard checkedSettled, !leaseName.isEmpty,
+            try afterScratchImage.requireSameRemainder(as: beforeScratchImage)
+            guard beforeScratchImage.rootFact == beforeScratchRootFact,
+                  beforeScratchImage.digest == beforeScratchDigest,
+                  afterScratchImage.rootFact == afterScratchRootFact,
+                  afterScratchImage.digest == afterScratchDigest,
+                  !beforeScratchImage.rootNames.contains(leaseName),
+                  checkedSettled, !leaseName.isEmpty,
                   StoreMigrationCanonicalJSONV1
                     .isLowercaseSHA256(beforeScratchDigest),
                   StoreMigrationCanonicalJSONV1
@@ -10387,6 +10513,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let operationsNames: [String]
         let scratchRootFact: String
         let scratchDigest: String
+        let image: OriginalEraseScratchImageV1
     }
 
     private static func originalEraseSourceFullFact(_ value: stat) -> String {
@@ -10394,8 +10521,114 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     @MainActor
-    private func checkedOriginalEraseSourceCut()
-        throws -> OriginalEraseExclusiveSourceCutV1 {
+    private func checkedOriginalEraseSourceCut(
+        expected: OriginalEraseScratchImageV1, allowingSettledRootAdvance: Bool = false
+    ) throws -> OriginalEraseExclusiveSourceCutV1 {
+#if DEBUG
+        let diagnosticStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        var diagnosticStage = "producer"
+        var diagnosticStageStarted = diagnosticStarted
+        func observedScratchNames(_ names: [String], stage: String) -> [String] {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitSourceCutMembers(
+                stage: stage, count: names.count)
+            return names
+        }
+        do {
+        try requireOrdinaryScratchProducer()
+        diagnosticStage = "exclusive-io"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        diagnosticStage = "initial-io-settled"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        try io.requireSettled()
+        diagnosticStage = "authority"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        try authority.verify(rootName: Self.rootName)
+        diagnosticStage = "parent-descriptors"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        let operationsFD = (try authority.operationsDescriptor)
+        let rootFD = (try authority.rootDescriptor)
+        let operationsURL = rootURL.deletingLastPathComponent()
+        diagnosticStage = "initial-held-named-facts"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        var operations = stat(), namedOperations = stat(),
+            scratch = stat(), namedScratch = stat()
+        guard Darwin.fstat(operationsFD, &operations) == 0,
+              Darwin.lstat(operationsURL.path, &namedOperations) == 0,
+              Darwin.fstat(rootFD, &scratch) == 0,
+              Darwin.fstatat(operationsFD, Self.rootName,
+                  &namedScratch, AT_SYMLINK_NOFOLLOW) == 0,
+              operations.st_mode & S_IFMT == S_IFDIR,
+              scratch.st_mode & S_IFMT == S_IFDIR,
+              Self.originalEraseSourceFullFact(operations)
+                == Self.originalEraseSourceFullFact(namedOperations),
+              Self.originalEraseSourceFullFact(scratch)
+                == Self.originalEraseSourceFullFact(namedScratch),
+              scratch.st_flags == namedScratch.st_flags else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        diagnosticStage = "initial-operations-names"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        let operationsNames = try io.names(in: operationsFD)
+        diagnosticStage = "initial-scratch-names"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        guard operationsNames.contains(Self.rootName),
+              try observedScratchNames(io.names(in: rootFD),
+                  stage: "initial-scratch-names") == expected.rootNames else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        diagnosticStage = "tree-digest"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        let image = try Self.observeOriginalEraseScratchImage(io: io, operations: operationsFD)
+        let repeated = try Self.observeOriginalEraseScratchImage(io: io, operations: operationsFD)
+        guard image == repeated else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        if allowingSettledRootAdvance { try image.requireSameRemainder(as: expected) }
+        else { guard image == expected else { throw ScratchDataLeaseStoreFailureV1.invalidRoot } }
+        let digest = image.digest
+        diagnosticStage = "final-held-named-facts-and-names"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        var operationsAfter = stat(), namedOperationsAfter = stat(),
+            scratchAfter = stat(), namedScratchAfter = stat()
+        guard Darwin.fstat(operationsFD, &operationsAfter) == 0,
+              Darwin.lstat(operationsURL.path,
+                  &namedOperationsAfter) == 0,
+              Darwin.fstat(rootFD, &scratchAfter) == 0,
+              Darwin.fstatat(operationsFD, Self.rootName,
+                  &namedScratchAfter, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.originalEraseSourceFullFact(operationsAfter)
+                == Self.originalEraseSourceFullFact(operations),
+              Self.originalEraseSourceFullFact(namedOperationsAfter)
+                == Self.originalEraseSourceFullFact(operations),
+              Self.originalEraseSourceFullFact(scratchAfter)
+                == Self.originalEraseSourceFullFact(scratch),
+              Self.originalEraseSourceFullFact(namedScratchAfter)
+                == Self.originalEraseSourceFullFact(scratch),
+              scratch.st_flags == image.rootFlags,
+              scratchAfter.st_flags == scratch.st_flags,
+              namedScratchAfter.st_flags == scratch.st_flags,
+              try io.names(in: operationsFD) == operationsNames,
+              try observedScratchNames(io.names(in: rootFD),
+                  stage: "final-scratch-names") == expected.rootNames else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        diagnosticStage = "final-io-settled"
+        diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        try io.requireSettled()
+        return OriginalEraseExclusiveSourceCutV1(
+            scratch: scratch,
+            operationsFact: Self.originalEraseSourceFullFact(operations),
+            operationsNames: operationsNames,
+            scratchRootFact: Self.originalEraseSourceFullFact(scratch),
+            scratchDigest: digest, image: image)
+        } catch {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitSourceCutError(
+                stage: diagnosticStage, error: error,
+                started: diagnosticStarted, stageStarted: diagnosticStageStarted)
+            throw error
+        }
+#else
         try requireOrdinaryScratchProducer()
         guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
@@ -10417,16 +10650,21 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               Self.originalEraseSourceFullFact(operations)
                 == Self.originalEraseSourceFullFact(namedOperations),
               Self.originalEraseSourceFullFact(scratch)
-                == Self.originalEraseSourceFullFact(namedScratch) else {
+                == Self.originalEraseSourceFullFact(namedScratch),
+              scratch.st_flags == namedScratch.st_flags else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         let operationsNames = try io.names(in: operationsFD)
         guard operationsNames.contains(Self.rootName),
-              try io.names(in: rootFD).isEmpty else {
+              try io.names(in: rootFD) == expected.rootNames else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        let digest = try io.postRetiredTree(
-            parent: operationsFD, name: Self.rootName)
+        let image = try Self.observeOriginalEraseScratchImage(io: io, operations: operationsFD)
+        let repeated = try Self.observeOriginalEraseScratchImage(io: io, operations: operationsFD)
+        guard image == repeated else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        if allowingSettledRootAdvance { try image.requireSameRemainder(as: expected) }
+        else { guard image == expected else { throw ScratchDataLeaseStoreFailureV1.invalidRoot } }
+        let digest = image.digest
         var operationsAfter = stat(), namedOperationsAfter = stat(),
             scratchAfter = stat(), namedScratchAfter = stat()
         guard Darwin.fstat(operationsFD, &operationsAfter) == 0,
@@ -10443,8 +10681,11 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 == Self.originalEraseSourceFullFact(scratch),
               Self.originalEraseSourceFullFact(namedScratchAfter)
                 == Self.originalEraseSourceFullFact(scratch),
+              scratch.st_flags == image.rootFlags,
+              scratchAfter.st_flags == scratch.st_flags,
+              namedScratchAfter.st_flags == scratch.st_flags,
               try io.names(in: operationsFD) == operationsNames,
-              try io.names(in: rootFD).isEmpty else {
+              try io.names(in: rootFD) == expected.rootNames else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         try io.requireSettled()
@@ -10453,7 +10694,45 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             operationsFact: Self.originalEraseSourceFullFact(operations),
             operationsNames: operationsNames,
             scratchRootFact: Self.originalEraseSourceFullFact(scratch),
-            scratchDigest: digest)
+            scratchDigest: digest, image: image)
+#endif
+    }
+
+    @MainActor
+    private func requireOriginalEraseScratchRemainder(
+        _ first: OriginalEraseExclusiveSourceCutV1, ownedLease: String
+    ) throws -> OriginalEraseScratchImageV1 {
+        guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO,
+              !first.image.rootNames.contains(ownedLease) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try authority.verify(rootName: Self.rootName)
+        let operations = try authority.operationsDescriptor
+        var held = stat(), named = stat()
+        guard Darwin.fstat(operations, &held) == 0,
+              Darwin.lstat(rootURL.deletingLastPathComponent().path, &named) == 0,
+              Self.originalEraseSourceFullFact(held) == first.operationsFact,
+              Self.originalEraseSourceFullFact(named) == first.operationsFact,
+              try io.names(in: operations) == first.operationsNames else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let one = try Self.observeOriginalEraseScratchImage(io: io,
+            operations: operations, excludingOwnedLease: ownedLease,
+            priorRootLinks: first.image.rootLinks)
+        let two = try Self.observeOriginalEraseScratchImage(io: io,
+            operations: operations, excludingOwnedLease: ownedLease,
+            priorRootLinks: first.image.rootLinks)
+        try one.requireSameRemainder(as: first.image, ownedLeasePresent: true)
+        guard one == two,
+              Darwin.fstat(operations, &held) == 0,
+              Darwin.lstat(rootURL.deletingLastPathComponent().path, &named) == 0,
+              Self.originalEraseSourceFullFact(held) == first.operationsFact,
+              Self.originalEraseSourceFullFact(named) == first.operationsFact,
+              try io.names(in: operations) == first.operationsNames else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try io.requireSettled()
+        return one
     }
 
     /// Data-only admission for the original operation before any Scratch
@@ -11534,6 +11813,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         permit: OriginalEraseExclusiveScratchPermitV1,
         requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
         readerIsDrained: @escaping @MainActor () -> Bool,
+        originalScratchImage: OriginalEraseScratchImageV1? = nil,
         onCheckedSettlement: (@MainActor (
             OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
         diagnosticPhase: (@MainActor (String) -> Void)? = nil,
@@ -11544,6 +11824,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             request: request, permit: .original(permit),
             requireProtectedIngressUnchanged: requireProtectedIngressUnchanged,
             readerIsDrained: readerIsDrained,
+            originalScratchImage: originalScratchImage,
             onCheckedSettlement: onCheckedSettlement,
             diagnosticPhase: diagnosticPhase, read)
     }
@@ -11571,6 +11852,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         permit: ExclusiveEraseSourceReadPermit,
         requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
         readerIsDrained: @escaping @MainActor () -> Bool,
+        originalScratchImage: OriginalEraseScratchImageV1? = nil,
         onCheckedSettlement: (@MainActor (
             OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
         diagnosticPhase: (@MainActor (String) -> Void)? = nil,
@@ -11587,6 +11869,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 #if DEBUG
         diagnosticPhase?("recovery.original.old.scratch.permit-complete")
 #endif
+        guard (onCheckedSettlement == nil) == (originalScratchImage == nil) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidLease
+        }
         if onCheckedSettlement != nil {
             guard case .original = permit else {
                 throw ScratchDataLeaseStoreFailureV1.invalidLease
@@ -11628,6 +11913,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         var directory: SourceReadDirectory?
         var cleanupProved = false
+        var originalReadFailure: Error?
         do {
 #if DEBUG
         diagnosticPhase?("recovery.original.old.scratch.lock-enter")
@@ -11641,8 +11927,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.first-cut-enter")
 #endif
-                let firstCut = try onCheckedSettlement.map { _ in
-                    try store.checkedOriginalEraseSourceCut()
+                let firstCut = try originalScratchImage.map {
+                    try store.checkedOriginalEraseSourceCut(expected: $0)
                 }
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.first-cut-complete")
@@ -11651,7 +11937,24 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 diagnosticPhase?("recovery.original.old.scratch.lease-enter")
 #endif
                 let lease = try store.acquireScratchLeaseSynchronously(
-                    request, recoverExisting: false)
+                    request, recoverExisting: false,
+                    originalNoRepairImage: firstCut?.image)
+                var liveRootImage: OriginalEraseScratchImageV1?
+                @MainActor
+                func requireRemainder() throws {
+                    try permit.requireHeld()
+                    if let firstCut {
+                        let current = try store.requireOriginalEraseScratchRemainder(firstCut,
+                            ownedLease: lease.relativeDirectory)
+                        if let liveRootImage {
+                            guard current.rootFact == liveRootImage.rootFact,
+                                  current.rootFlags == liveRootImage.rootFlags else {
+                                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                            }
+                        } else { liveRootImage = current }
+                    }
+                }
+                try requireRemainder()
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.lease-complete")
 #endif
@@ -11670,6 +11973,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 diagnosticPhase?("recovery.original.old.scratch.metadata-enter")
 #endif
                 try directory.establishExclusiveOwnedMetadata()
+                try requireRemainder()
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.metadata-complete")
 #endif
@@ -11677,6 +11981,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 diagnosticPhase?("recovery.original.old.scratch.callback-enter")
 #endif
                 let result = Result { try read(directory) }
+                if onCheckedSettlement != nil, case .failure(let firstError) = result {
+                    originalReadFailure = firstError
+                }
+                try requireRemainder()
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.callback-returned")
 #endif
@@ -11698,6 +12006,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.reader-close-complete")
 #endif
+                try requireRemainder()
                 let terminal: ScratchDataLeaseTerminalV1
                 switch result {
                 case .success: terminal = .completed
@@ -11719,8 +12028,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.scratch.final-cut-enter")
 #endif
-                let finalCut = try firstCut.map { _ in
-                    try store.checkedOriginalEraseSourceCut()
+                let finalCut = try firstCut.map {
+                    try store.checkedOriginalEraseSourceCut(expected: $0.image,
+                        allowingSettledRootAdvance: true)
                 }
                 if let firstCut, let finalCut {
                     guard firstCut.operationsFact == finalCut.operationsFact,
@@ -11730,6 +12040,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                           firstCut.scratch.st_mode == finalCut.scratch.st_mode,
                           firstCut.scratch.st_uid == finalCut.scratch.st_uid,
                           firstCut.scratch.st_gid == finalCut.scratch.st_gid,
+                          firstCut.scratch.st_flags == finalCut.scratch.st_flags,
                           firstCut.scratch.st_nlink == finalCut.scratch.st_nlink else {
                         throw ScratchDataLeaseStoreFailureV1.invalidRoot
                     }
@@ -11785,6 +12096,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 Self.retainedExclusiveSourceStores.append(store)
                 permit.poisonOnUncertainCleanup()
             }
+            if let originalReadFailure {
+                if !cleanupProved { Self.retainedOriginalScratchSecondaryErrors.append(error) }
+                throw originalReadFailure
+            }
             throw error
         }
     }
@@ -11837,7 +12152,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 
     private func acquireScratchLeaseSynchronously(
         _ request: ScratchDataLeaseRequestV1,
-        recoverExisting: Bool = true
+        recoverExisting: Bool = true,
+        originalNoRepairImage: OriginalEraseScratchImageV1? = nil
     ) throws -> ScratchDataLeaseV1 {
         try requireOrdinaryScratchProducer()
         try request.validate()
@@ -11845,12 +12161,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         guard request.createdAt <= current, current < request.expiresAt else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
+        if originalNoRepairImage != nil {
+            guard !recoverExisting, exclusiveNoRepairRead,
+                  originalEraseSourceReceiptIO != nil,
+                  request.purpose == .source, request.owner == .source else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+        }
         if recoverExisting {
             _ = try recoverScratchLeaseState()
         } else {
             try verifyRoot()
             guard active.isEmpty,
-                  try directoryNames((try authority.rootDescriptor)).isEmpty else {
+                  try directoryNames((try authority.rootDescriptor))
+                    == (originalNoRepairImage?.rootNames ?? []) else {
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
         }
@@ -11881,6 +12205,24 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         var createdDirectory = false
         do {
             try verifyRoot()
+            if !recoverExisting {
+                guard active.isEmpty,
+                      try directoryNames((try authority.rootDescriptor))
+                        == (originalNoRepairImage?.rootNames ?? []),
+                      !(originalNoRepairImage?.rootNames.contains(name) ?? false) else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                if let image = originalNoRepairImage,
+                   let io = originalEraseSourceReceiptIO {
+                    let operations = try authority.operationsDescriptor
+                    let one = try Self.observeOriginalEraseScratchImage(io: io, operations: operations)
+                    let two = try Self.observeOriginalEraseScratchImage(io: io, operations: operations)
+                    guard one == image, two == image else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    try io.requireSettled()
+                }
+            }
             guard Darwin.mkdirat((try authority.rootDescriptor), name, 0o700) == 0 else {
                 if errno == EEXIST {
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision

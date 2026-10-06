@@ -3244,6 +3244,7 @@ private final class OriginalRecoveryTransitionFixtureStateV1 {
     var hostileWriterCloseReturned = false
     var hostileWriterIOOrCloseUncertain = false
     var hostileWriterFailure: Error?
+    var recoveryFixedPhaseForTesting: ((String) -> Void)?
     var atRecoveryTargets: ((StartupRouter) throws ->
         [OriginalRecoveryProjectionCallbackObservationForTestingV1])?
 }
@@ -3316,6 +3317,9 @@ extension V23ProductionAppAccessTests {
                         state.completions.append(receipt); completion?(receipt)
                     }, didAbortEraseAdmission: aborted)
                 if state.serviceCount > 1 {
+                    service.schema2ColdFixedStageForTesting = { [weak state] phase in
+                        state?.recoveryFixedPhaseForTesting?(phase)
+                    }
                     service.erasePhaseDiagnosticForTesting = { phase in
                         guard phase == "recovery.targets" else { return }
                         state.recoveryTargetsEntries += 1
@@ -3742,6 +3746,52 @@ extension V23ProductionAppAccessTests {
     func testOriginalRecoveryProjectionSameOwnerPhysicalFailureStillPoisons() async throws {
         let fixture = try await startOriginalRecoveryTransitionFixture(withAbandonedPayload: true)
         try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        // Observe this one real retry without retaining any additional owner.
+        // Router copies the service; its copied fixed-stage callback below
+        // observes actual execution, not the factory's preconfigured object.
+        var presentationHistory = [String]()
+        var serviceFixedHistory = [String]()
+        var presentationDropped = 0
+        var serviceDropped = 0
+        func boundedDiagnosticLabel(_ value: String) -> String {
+            guard value.utf8.count <= 160, value.utf8.allSatisfy({ byte in
+                (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+                    || (byte >= 48 && byte <= 57)
+                    || byte == 32 || byte == 45 || byte == 46
+                    || byte == 61 || byte == 95
+            }) else { return "UNEXPECTED_FIXED_LABEL" }
+            return value
+        }
+        fixture.presentation.eraseRecoveryDiagnosticForTesting = { message in
+            if presentationHistory.count == 32 {
+                presentationHistory.removeFirst()
+                if presentationDropped < Int.max { presentationDropped += 1 }
+            }
+            presentationHistory.append(boundedDiagnosticLabel(message))
+        }
+        fixture.state.recoveryFixedPhaseForTesting = { phase in
+            if serviceFixedHistory.count == 32 {
+                serviceFixedHistory.removeFirst()
+                if serviceDropped < Int.max { serviceDropped += 1 }
+            }
+            serviceFixedHistory.append(boundedDiagnosticLabel(phase))
+        }
+        defer {
+            fixture.presentation.eraseRecoveryDiagnosticForTesting = nil
+            fixture.state.recoveryFixedPhaseForTesting = nil
+            let line = "V23_ORIGINAL_PHYSICAL_PROJECTION_ENTRY_DIAG_V1"
+                + " presentation=[" + presentationHistory.joined(separator: "|") + "]"
+                + " presentationDropped=\(presentationDropped)"
+                + " serviceFixedPhase=" + (serviceFixedHistory.last ?? "NO_RECOVERY_FIXED_PHASE")
+                + " serviceFixedHistory=[" + serviceFixedHistory.joined(separator: "|") + "]"
+                + " serviceDropped=\(serviceDropped)"
+                + " serviceCreations=\(fixture.state.serviceCount)"
+                + " recoveryTargetsEntries=\(fixture.state.recoveryTargetsEntries)"
+                + " probeReports=\(fixture.state.probeReports.count)"
+                + " hostileCloseAttempts=\(fixture.state.hostileWriterCloseAttemptCount)\n"
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Diagnostic emission never replaces the actual test error. */ }
+        }
         fixture.state.atRecoveryTargets = { router in
             let healthy = try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)
             guard let url = fixture.abandonedPayloadURL, let bytes = fixture.abandonedPayloadBytes,
@@ -4120,6 +4170,132 @@ extension V23ProductionAppAccessTests {
         XCTAssertNotEqual(state.publicationBeforeCleanup, foreign)
         try await assertOriginalAuxiliaryRetirementConsumerRefuses(fixture,
             state: state, fault: .foreignBytes, foreignBytes: foreign)
+    }
+}
+#endif
+
+#if DEBUG
+// Exercise the existing production Router/Service fixture against a retained
+// first Scratch image, including a real hostile publication substitution.
+@MainActor
+private enum C26ScratchRegressionRetentionV1 {
+    static var readers: [EraseAbortCheckedSnapshotIOV1] = []
+    static var uncertainDescriptors: [Int32] = []
+    static var secondaryErrors: [Error] = []
+}
+
+extension V23ProductionAppAccessTests {
+    @MainActor
+    private func c26ReadExistingScratchDataImage(_ support: URL) throws
+        -> ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1 {
+        let io = EraseAbortCheckedSnapshotIOV1()
+        C26ScratchRegressionRetentionV1.readers.append(io)
+        let operationsURL = support.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+        let descriptor = Darwin.open(operationsURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        var firstError: Error?
+        var image: ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1?
+        do {
+            image = try ScratchDataLeaseStoreV1.observeOriginalEraseScratchImage(
+                io: io, operations: descriptor)
+            let repeated = try ScratchDataLeaseStoreV1.observeOriginalEraseScratchImage(
+                io: io, operations: descriptor)
+            guard image == repeated else { throw EraseAllServiceError.invalidAuthority }
+            try io.requireSettled()
+        } catch { firstError = error }
+        // One actual acquired close attempt; no retry on ambiguous close.
+        if Darwin.close(descriptor) != 0 {
+            C26ScratchRegressionRetentionV1.uncertainDescriptors.append(descriptor)
+            let closeError = EraseAllServiceError.invalidAuthority
+            if firstError == nil { firstError = closeError }
+            else { C26ScratchRegressionRetentionV1.secondaryErrors.append(closeError) }
+        }
+        if let firstError { throw firstError }
+        return try XCTUnwrap(image)
+    }
+
+    @MainActor
+    func testOriginalRecoveryPrivateCopyConservesGenuineFirstCapturedNonemptyScratchRemainder() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture(withAbandonedPayload: true)
+        let before = try c26ReadExistingScratchDataImage(fixture.support)
+        XCTAssertFalse(before.rootNames.isEmpty)
+        XCTAssertFalse(before.descendants.isEmpty)
+        let url = try XCTUnwrap(fixture.abandonedPayloadURL)
+        let bytes = try XCTUnwrap(fixture.abandonedPayloadBytes)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        // This genuine operation performs private source-copy validation before
+        // its pointer interruption. The pre-existing export producer ended
+        // before first capture inside the incumbent fixture constructor.
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        let afterOriginal = try c26ReadExistingScratchDataImage(fixture.support)
+        try afterOriginal.requireSameRemainder(as: before)
+        XCTAssertEqual(afterOriginal.rootNames, before.rootNames)
+        XCTAssertEqual(afterOriginal.descendants, before.descendants)
+        XCTAssertEqual(afterOriginal.stableRemainderDigest, before.stableRemainderDigest)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        fixture.state.atRecoveryTargets = { router in
+            let afterRecovery = try self.c26ReadExistingScratchDataImage(fixture.support)
+            try afterRecovery.requireSameRemainder(as: before)
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+            // Actual wrapper returns only after real projection/held-owner
+            // checks. Do not replace this with a favorable callback result.
+            return [try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)]
+        }
+        try await finishOriginalRecoveryTransition(fixture)
+        XCTAssertNil(fixture.state.probeFailure)
+        XCTAssertEqual(fixture.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(fixture.state.probeReports.count, 1)
+        if let report = fixture.state.probeReports.first { assertOriginalRecoveryHealthyWrapper(report) }
+        XCTAssertEqual(fixture.state.completions.count, 1)
+        // Normal original auxiliary retirement occurs after the conserved
+        // private-copy remainder, under its own existing authority.
+    }
+
+    @MainActor
+    func testOriginalRecoveryScratchSameBytesPublicationSubstitutionPoisonsActualProjection() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture(withAbandonedPayload: true)
+        let first = try c26ReadExistingScratchDataImage(fixture.support)
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        var replacementReturned = false
+        fixture.state.atRecoveryTargets = { router in
+            let healthy = try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)
+            let url = try XCTUnwrap(fixture.abandonedPayloadURL)
+            let bytes = try XCTUnwrap(fixture.abandonedPayloadBytes)
+            let beforeMutation = try self.c26ReadExistingScratchDataImage(fixture.support)
+            try beforeMutation.requireSameRemainder(as: first)
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+            // Real same-bytes publication substitution changes inode/facts.
+            // Keep the hostile bytes/namespace after refusal; no restoration,
+            // fallback owner, purge, rearm or repeated startup is permitted.
+            try bytes.write(to: url, options: .atomic)
+            replacementReturned = true
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+            let changed = try self.c26ReadExistingScratchDataImage(fixture.support)
+            XCTAssertNotEqual(changed.descendants, first.descendants)
+            XCTAssertThrowsError(try changed.requireSameRemainder(as: first))
+            let poisoned = try router.probeOriginalRecoveryProjectionForTesting(.exactBoundPhysicalWrapper)
+            return [healthy, poisoned]
+        }
+        await fixture.presentation.retryStartup()
+        XCTAssertNil(fixture.state.probeFailure)
+        XCTAssertTrue(replacementReturned)
+        XCTAssertEqual(fixture.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(fixture.state.probeReports.map(\.probe),
+            [.exactBoundHealthyWrapper, .exactBoundPhysicalWrapper])
+        guard fixture.state.probeReports.count == 2 else {
+            return XCTFail("The real same-bytes hostile mutation and projection must be reached")
+        }
+        assertOriginalRecoveryHealthyWrapper(fixture.state.probeReports[0])
+        let poisoned = fixture.state.probeReports[1]
+        XCTAssertTrue(poisoned.callbackInvoked)
+        XCTAssertEqual(poisoned.outcome, .otherFailure)
+        XCTAssertGreaterThan(poisoned.after.observerEntries, poisoned.before.observerEntries)
+        XCTAssertEqual(poisoned.after.bodyEntries, poisoned.before.bodyEntries)
+        XCTAssertTrue(poisoned.after.failed)
+        XCTAssertEqual(poisoned.after.ownerUncertain, true)
+        XCTAssertTrue(poisoned.callbackOwnerUncertainAfter)
+        try assertOriginalRecoveryOwnersRetained(
+            fixture.router.originalRecoveryTransitionObservationForTesting(), fixture: fixture)
     }
 }
 #endif

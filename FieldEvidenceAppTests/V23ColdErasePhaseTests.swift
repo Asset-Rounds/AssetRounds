@@ -62,6 +62,33 @@ final class V23ColdErasePhaseTests: XCTestCase {
 
     private enum FixtureFailure: Error { case missingOriginalFault, activation, coldRoute }
 
+#if DEBUG
+    /// Enable only existing fixed-label diagnostics on the actual fresh
+    /// cold owners. No error description, path, capability or predicate changes.
+    @MainActor
+    private func installColdREntryDiagnosticsForTesting(
+        router: StartupRouter,service: EraseAllService
+    ) {
+        FileHandle.standardError.write(Data(
+            "V23_C23_COLD_ENTRY_DIAG_V1 kind=installed\n".utf8))
+        router.startupFailureDiagnosticForTesting = { observation in
+            FileHandle.standardError.write(Data((
+                "V23_C23_COLD_ENTRY_DIAG_V1 kind=startup "
+                + observation + "\n").utf8))
+        }
+        service.schema2ColdFixedStageForTesting = { stage in
+            FileHandle.standardError.write(Data((
+                "V23_C23_COLD_ENTRY_DIAG_V1 kind=stage stage="
+                + stage + "\n").utf8))
+        }
+        service.schema2ColdRForwardFailureForTesting = { family in
+            FileHandle.standardError.write(Data((
+                "V23_C23_COLD_ENTRY_DIAG_V1 kind=r-forward-failure family="
+                + family + "\n").utf8))
+        }
+    }
+#endif
+
     private func requireAbsentWithoutFollowing(_ url: URL) throws {
         var status = stat()
         let result = url.path.withCString { lstat($0, &status) }
@@ -420,6 +447,208 @@ final class V23ColdErasePhaseTests: XCTestCase {
             notificationSeed: notificationSeed)
     }
 
+    /// The real ordinary P publisher emits aux and no recovery record pair.
+    /// Enter its real cold target callback before the hostile canonical swap;
+    /// this fixture never manufactures a recovered pair or admission witness.
+    @MainActor
+    func testSchema2OwnPointerFirstAuxiliaryRejectsLateSameBytesNewInode() async throws {
+        let fixture = try await makeOriginalColdCut()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        XCTAssertEqual(fixture.intent.phase, .pointerSwitched)
+        let erase = fixture.support.appendingPathComponent("FieldEvidenceErase",
+            isDirectory: true)
+        let preparationURL = erase.appendingPathComponent("preparation.json")
+        let preparationBytes = try Data(contentsOf: preparationURL)
+        let preparation = try ErasePreparationCodecV2.decode(preparationBytes)
+        XCTAssertTrue(preparation.matches(fixture.intent))
+        let role = "auxiliary-retirement.json"
+        let auxiliaryURL = erase.appendingPathComponent(role)
+        let auxiliaryBytes = try Data(contentsOf: auxiliaryURL)
+        XCTAssertFalse(auxiliaryBytes.isEmpty)
+        let auxiliary = try EraseSchema2ColdAuxiliaryPhysicalRosterV1.decodeCanonical(
+            auxiliaryBytes, intent: fixture.intent, preparation: preparation)
+        XCTAssertEqual(auxiliary.record.firstIntentPhase,
+            EraseIntentPhaseV1.emptyGenerationPrepared.rawValue)
+        let recoveredNames = ["original-retired-transition.json",
+            "original-retired-stage-identity.json"]
+        for name in recoveredNames {
+            try requireAbsentWithoutFollowing(erase.appendingPathComponent(name))
+        }
+        let retiredURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceData/retired.json")
+        let retiredBytes = try Data(contentsOf: retiredURL)
+
+        // Prepare only a disposable hostile leaf outside the control namespace
+        // before the real cold first cut. Its canonical replacement is later.
+        let substituteURL = fixture.root.appendingPathComponent(
+            "ordinary-p-auxiliary-new-inode.fixture")
+        var originalLeaf = stat()
+        guard lstat(auxiliaryURL.path, &originalLeaf) == 0,
+              originalLeaf.st_mode & S_IFMT == S_IFREG,
+              originalLeaf.st_nlink == 1,
+              originalLeaf.st_size == off_t(auxiliaryBytes.count) else {
+            throw FixtureFailure.activation
+        }
+        let substituteFD = Darwin.open(substituteURL.path,
+            O_WRONLY | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600))
+        guard substituteFD >= 0 else { throw FixtureFailure.activation }
+        var preparationFailure: Error?
+        var preparedFact = stat()
+        do {
+            var cursor = 0
+            while cursor < auxiliaryBytes.count {
+                let wrote = auxiliaryBytes.withUnsafeBytes { raw in
+                    Darwin.write(substituteFD,
+                        raw.baseAddress?.advanced(by: cursor),
+                        auxiliaryBytes.count - cursor)
+                }
+                guard wrote > 0 else { throw FixtureFailure.activation }
+                cursor += wrote
+            }
+            guard Darwin.fchmod(substituteFD, originalLeaf.st_mode & 0o777) == 0,
+                  Darwin.fsync(substituteFD) == 0,
+                  Darwin.fstat(substituteFD, &preparedFact) == 0,
+                  preparedFact.st_mode & S_IFMT == S_IFREG,
+                  preparedFact.st_nlink == 1,
+                  preparedFact.st_mode == originalLeaf.st_mode,
+                  preparedFact.st_uid == originalLeaf.st_uid,
+                  preparedFact.st_gid == originalLeaf.st_gid,
+                  preparedFact.st_size == off_t(auxiliaryBytes.count) else {
+                throw FixtureFailure.activation
+            }
+        } catch { preparationFailure = error }
+        let substituteClose = Darwin.close(substituteFD) // one actual attempt
+        if let preparationFailure { throw preparationFailure }
+        guard substituteClose == 0 else { throw FixtureFailure.activation }
+        XCTAssertEqual(try Data(contentsOf: substituteURL), auxiliaryBytes)
+
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: try WorkspacePackageLifecycleCompatibilityV1
+                .shippingRegistry())
+        var completionCount = 0
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            didCompleteErase: { _ in completionCount += 1 })
+        var actualTargetCallbacks = 0
+        var mutationFailure: Error?
+        var capturedActualFact: stat?
+        var replacedActualFact: stat?
+        recovery.schema2ColdBeforeSessionPhaseCASForTesting = { session in
+            actualTargetCallbacks += 1
+            do {
+                XCTAssertEqual(session.generationID, fixture.intent.newGenerationID)
+                XCTAssertNotNil(session.readerLeaseToken)
+                XCTAssertTrue(BackupRestoreService.isEmptyCurrent(session.modelContext))
+                XCTAssertEqual(try EraseIntentCodecV1.decode(
+                    Data(contentsOf: fixture.intentURL)), fixture.intent)
+                try self.requireTargetPointerBinding(support: fixture.support,
+                    intent: fixture.intent, pointerBytes: fixture.pointerBefore)
+                XCTAssertEqual(try Data(contentsOf: auxiliaryURL), auxiliaryBytes)
+                for name in recoveredNames {
+                    try self.requireAbsentWithoutFollowing(erase.appendingPathComponent(name))
+                }
+                var named = stat(), substitute = stat()
+                guard lstat(auxiliaryURL.path, &named) == 0,
+                      named.st_mode & S_IFMT == S_IFREG,
+                      named.st_nlink == 1,
+                      named.st_size == off_t(auxiliaryBytes.count),
+                      lstat(substituteURL.path, &substitute) == 0,
+                      EraseColdControlLeafFactV1(substitute) ==
+                        EraseColdControlLeafFactV1(preparedFact),
+                      named.st_dev == substitute.st_dev,
+                      named.st_ino != substitute.st_ino else {
+                    throw FixtureFailure.activation
+                }
+                capturedActualFact = named
+                let parent = Darwin.open(erase.path,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard parent >= 0 else { throw FixtureFailure.activation }
+                var firstFailure: Error?
+                do {
+                    var heldParent = stat(), namedParent = stat(), after = stat()
+                    guard Darwin.fstat(parent, &heldParent) == 0,
+                          lstat(erase.path, &namedParent) == 0,
+                          EraseColdControlLeafFactV1(heldParent) ==
+                            EraseColdControlLeafFactV1(namedParent),
+                          Darwin.renameat(AT_FDCWD, substituteURL.path,
+                            parent, role) == 0,
+                          Darwin.fsync(parent) == 0,
+                          Darwin.fstatat(parent, role, &after,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          after.st_mode & S_IFMT == S_IFREG,
+                          after.st_nlink == 1,
+                          after.st_size == named.st_size,
+                          after.st_dev == substitute.st_dev,
+                          after.st_ino == substitute.st_ino,
+                          after.st_ino != named.st_ino else {
+                        throw FixtureFailure.activation
+                    }
+                    replacedActualFact = after
+                } catch { firstFailure = error }
+                let parentClose = Darwin.close(parent) // one actual attempt
+                if let firstFailure { throw firstFailure }
+                guard parentClose == 0 else { throw FixtureFailure.activation }
+                XCTAssertEqual(try Data(contentsOf: auxiliaryURL), auxiliaryBytes)
+                try self.requireAbsentWithoutFollowing(substituteURL)
+            } catch { mutationFailure = error }
+        }
+        defer { recovery.schema2ColdBeforeSessionPhaseCASForTesting = nil }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        try await cold.retryColdEraseForTesting(service: recovery, accessGate: gate)
+        if let mutationFailure { throw mutationFailure }
+        XCTAssertEqual(actualTargetCallbacks, 1,
+            "Actual first P proof and target-reader entry must precede substitution")
+        let before = try XCTUnwrap(capturedActualFact)
+        let after = try XCTUnwrap(replacedActualFact)
+        XCTAssertEqual(before.st_dev, after.st_dev)
+        XCTAssertNotEqual(before.st_ino, after.st_ino)
+        XCTAssertEqual(before.st_mode, after.st_mode)
+        XCTAssertEqual(before.st_uid, after.st_uid)
+        XCTAssertEqual(before.st_gid, after.st_gid)
+        XCTAssertEqual(before.st_size, after.st_size)
+        XCTAssertEqual(try Data(contentsOf: auxiliaryURL), auxiliaryBytes)
+        guard case .maintenance(.eraseInconsistent) = cold.route else {
+            throw FixtureFailure.coldRoute
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), fixture.pointerBefore)
+        XCTAssertEqual(try Data(contentsOf: retiredURL), retiredBytes)
+        XCTAssertEqual(try Data(contentsOf: preparationURL), preparationBytes)
+        let current = try EraseIntentCodecV1.decode(Data(contentsOf: fixture.intentURL))
+        XCTAssertTrue(current == fixture.intent ||
+            current == fixture.intent.advancing(to: .sessionActivated),
+            "Only the same authentic own P-to-R result may precede refusal")
+        for name in recoveredNames {
+            try requireAbsentWithoutFollowing(erase.appendingPathComponent(name))
+        }
+        let generations = fixture.support.appendingPathComponent(
+            "FieldEvidenceData/generations", isDirectory: true)
+        for id in fixture.intent.generationIDsToDelete + [fixture.intent.newGenerationID] {
+            var actual = stat()
+            guard lstat(generations.appendingPathComponent(
+                    id.uuidString.lowercased()).path, &actual) == 0,
+                  actual.st_mode & S_IFMT == S_IFDIR else {
+                throw FixtureFailure.activation
+            }
+        }
+        try requireAbsentWithoutFollowing(erase.appendingPathComponent(
+            EraseSchema2ColdDeletionRosterV1.canonicalName))
+        XCTAssertEqual(fixture.completion.count, 0)
+        XCTAssertEqual(completionCount, 0)
+    }
     /// The injected original fault is after its real pointer-phase CAS. Cold
     /// recovery must open and retain the empty target session before writing
     /// sessionActivated, and only later publish the fresh Router coordinator.
@@ -483,6 +712,9 @@ final class V23ColdErasePhaseTests: XCTestCase {
             } catch { liveTargetFailure = error }
         }
         Self.retainedColdOwners.append((root, cold, gate, recovery))
+#if DEBUG
+        installColdREntryDiagnosticsForTesting(router: cold,service: recovery)
+#endif
         try cold.bindStartupAccessGate(gate)
         try await cold.retryColdEraseForTesting(service: recovery, accessGate: gate)
         if let liveTargetFailure { throw liveTargetFailure }
@@ -690,6 +922,501 @@ final class V23ColdErasePhaseTests: XCTestCase {
         try requireTargetPointerBinding(support: fixture.support, intent: intent,
             pointerBytes: Data(contentsOf: fixture.pointerURL))
         XCTAssertEqual(fixture.completion.count, 0)
+    }
+
+    @MainActor
+    private struct ActualOrdinaryReadyFixture {
+        let original: PointerFixture
+        let router: StartupRouter
+        let coordinator: StoreSessionCoordinator
+        let session: StoreGenerationSession
+        let lifetime: ColdEraseSchema2CompletedSessionLifetimeOwnerV1
+    }
+
+    @MainActor
+    private func makeActualOrdinaryReadyFixture() async throws -> ActualOrdinaryReadyFixture {
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        let intent = fixture.intent
+        XCTAssertEqual(intent.phase, .sessionActivated)
+        XCTAssertEqual(try EraseIntentCodecV1.decode(
+            Data(contentsOf: fixture.intentURL)), intent)
+        let displacedTemporary = fixture.support.appendingPathComponent(
+            "FieldEvidenceErase/.erase.json.next")
+        try requireAbsentWithoutFollowing(displacedTemporary)
+        let pointerBefore = fixture.pointerBefore
+        try requireTargetPointerBinding(support: fixture.support, intent: intent,
+            pointerBytes: pointerBefore)
+
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName)
+        var actualRSessionCount = 0
+        var actualRecoveredSession: StoreGenerationSession?
+        var actualRSessionFailure: Error?
+        let targetURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceData/generations", isDirectory: true)
+            .appendingPathComponent(
+                intent.newGenerationID.uuidString.lowercased(), isDirectory: true)
+        // S2's typed first-R observation runs after the real Factory opening,
+        // checked reader acquisition and Router physical/token reproof. It
+        // does not manufacture a session or bypass the R forward owner.
+        recovery.schema2ColdActivatedEntrySessionForTesting = { session in
+            actualRecoveredSession = session // actual returned Session before any fixture postproof
+            actualRSessionCount += 1
+            do {
+                guard session.generationID == intent.newGenerationID,
+                      session.readerLeaseToken != nil,
+                      session.generationRootURL.standardizedFileURL
+                        == targetURL.standardizedFileURL,
+                      session.modelContext.container.mainContext
+                        === session.modelContext,
+                      BackupRestoreService.isEmptyCurrent(session.modelContext),
+                      try session.modelContext.fetchCount(
+                        FetchDescriptor<MutationReceiptRow>()) == 0,
+                      try EraseIntentCodecV1.decode(Data(contentsOf:
+                        fixture.intentURL)) == intent,
+                      try Data(contentsOf: fixture.pointerURL)
+                        == pointerBefore else {
+                    throw FixtureFailure.activation
+                }
+                try self.requireAbsentWithoutFollowing(displacedTemporary)
+                try self.requireTargetPointerBinding(support: fixture.support,
+                    intent: intent, pointerBytes: Data(contentsOf:
+                        fixture.pointerURL))
+            } catch { actualRSessionFailure = error }
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+#if DEBUG
+        installColdREntryDiagnosticsForTesting(router: cold,service: recovery)
+#endif
+        try cold.bindStartupAccessGate(gate)
+        try await cold.retryColdEraseForTesting(service: recovery,
+            accessGate: gate)
+        if let actualRSessionFailure { throw actualRSessionFailure }
+        XCTAssertEqual(actualRSessionCount, 1,
+            "R entry must retain the genuine target session before cleanup")
+        guard case let .ready(fresh, diagnostics, _) = cold.route else {
+            throw FixtureFailure.coldRoute
+        }
+        XCTAssertEqual(fresh.generationID, intent.newGenerationID)
+        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(fresh.modelContext))
+        XCTAssertEqual(try fresh.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 0)
+        let readyWriter = fresh.workspaceWriter
+        let readyOwner = try fresh.originalAssetLabelFixtureJobOwnerForTesting(
+            expectedWriter: readyWriter)
+        XCTAssertEqual(try readyOwner.registry.activeEpochs(), [readyOwner.epoch])
+        XCTAssertEqual(try readyWriter.currentRevision().generationID,
+            intent.newGenerationID)
+        let registryURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceOperations/generation-leases/registry.json")
+        let registryData = try Data(contentsOf: registryURL)
+        let registryObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: registryData) as? [String: Any])
+        let leases = try XCTUnwrap(registryObject["leases"] as? [[String: Any]])
+        XCTAssertEqual(leases.filter {
+            $0["role"] as? String == GenerationLeaseRoleV1.writer.rawValue
+        }.count, 1)
+        let freshDiagnostics = await diagnostics.snapshot()
+        XCTAssertEqual(freshDiagnostics, .zero)
+        try requireAbsentWithoutFollowing(fixture.intentURL)
+        try requireAbsentWithoutFollowing(displacedTemporary)
+        let sourceURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceData/generations", isDirectory: true)
+            .appendingPathComponent(intent.oldGenerationID.uuidString.lowercased(),
+                isDirectory: true)
+        try requireAbsentWithoutFollowing(sourceURL)
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), pointerBefore)
+        try requireTargetPointerBinding(support: fixture.support, intent: intent,
+            pointerBytes: Data(contentsOf: fixture.pointerURL))
+        XCTAssertEqual(fixture.completion.count, 0)
+
+        let session = try XCTUnwrap(actualRecoveredSession)
+        let lifetime = try XCTUnwrap(
+            fresh.completedSessionLifetimeOwnerForCurrentSession())
+        XCTAssertTrue(session.modelContext === fresh.modelContext)
+        XCTAssertTrue(fresh.modelContext.autosaveEnabled)
+        return ActualOrdinaryReadyFixture(original: fixture, router: cold,
+            coordinator: fresh, session: session, lifetime: lifetime)
+    }
+
+
+    @MainActor
+    private func requireOrdinaryBackingWithinOriginalEnvelope(
+        _ actual: ColdEraseSchema2CompletedOrdinaryBackingSnapshotV1
+    ) throws {
+        XCTAssertEqual(actual.maximumRetainedRequests, 64)
+        XCTAssertEqual(actual.maximumSourceAttempts, 16)
+        guard actual.maximumRetainedRequests == 64,
+              actual.occupiedSlots >= 0,
+              actual.occupiedSlots <= actual.maximumRetainedRequests,
+              actual.retainedOrdinaryFamilies >= 0,
+              actual.retainedOrdinaryFamilies <= actual.maximumRetainedRequests,
+              actual.perRequestBackingBytes > 0 else {
+            throw FixtureFailure.activation
+        }
+        let whole = actual.perRequestBackingBytes.multipliedReportingOverflow(
+            by: UInt64(actual.occupiedSlots))
+        let envelope = actual.perRequestBackingBytes.multipliedReportingOverflow(
+            by: UInt64(actual.maximumRetainedRequests))
+        let retained = whole.partialValue.addingReportingOverflow(
+            actual.retainedHistoricalBackingBytes)
+        let total = retained.partialValue.addingReportingOverflow(
+            actual.reservedCurrentAndPendingCheckpointBackingBytes)
+        guard !whole.overflow, !envelope.overflow,
+              !retained.overflow, !total.overflow else {
+            throw FixtureFailure.activation
+        }
+        XCTAssertLessThanOrEqual(total.partialValue, envelope.partialValue,
+            "Every unretired whole request, retained history and current/checkpoint reservation remains inside the SAME64 envelope")
+        XCTAssertLessThanOrEqual(actual.successfulOrdinaryReturns,
+            actual.actualRequestBirths)
+    }
+
+    @MainActor
+    private func requireOneFreshOrdinaryReproof(
+        session: StoreGenerationSession,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeOwnerV1
+    ) throws {
+        let before = lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(before)
+        XCTAssertFalse(before.quarantined)
+        guard before.activeRequestIdentity == nil,
+              !before.currentScopePresent,
+              !before.currentResourceFramePresent else {
+            throw FixtureFailure.activation
+        }
+        try session.reproofAfterSave() // real explicit relay outside every writer/lease body
+        let after = lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(after)
+        XCTAssertEqual(after.actualRequestBirths, before.actualRequestBirths + 1)
+        XCTAssertEqual(after.successfulOrdinaryReturns,
+            before.successfulOrdinaryReturns + 1)
+        XCTAssertNotNil(after.lastBornRequestIdentity)
+        XCTAssertEqual(after.lastBornRequestIdentity, after.lastReturnedRequestIdentity)
+        XCTAssertNil(after.activeRequestIdentity)
+        XCTAssertFalse(after.currentScopePresent)
+        XCTAssertFalse(after.currentResourceFramePresent)
+        XCTAssertEqual(after.occupiedSlots, before.occupiedSlots)
+        XCTAssertGreaterThanOrEqual(after.returnedHistoricalCohorts,
+            before.returnedHistoricalCohorts)
+        XCTAssertFalse(after.quarantined)
+        // Swift allocator address reuse is legal. The constructor count and
+        // SAME birth-to-checked-return association attest this operation;
+        // there is deliberately no Set of supposedly unique addresses.
+    }
+    /// Real behavior only; actual constructor/returned-transition snapshots
+    /// distinguish top-level requests from nested automatic save borrowers.
+    /// UNCOMPILED/UNRUN: Root must bind/review/compile the three-owner Source.
+    @MainActor
+    func testSchema2OneActualColdReadySessionSurvives129DistinctSaveReproofCycles() async throws {
+        guard ColdEraseSchema2CompletedSessionCurrentScopeV1
+            .ordinaryDeclaredOwnersBeforeReturnForTesting == nil,
+              ColdEraseSchema2CompletedSessionAfterSaveConsumerV1
+            .ordinaryNativeBorrowerEnteredForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        let ready = try await makeActualOrdinaryReadyFixture()
+        let fixture = ready.original
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        let intent = fixture.intent
+        let fresh = ready.coordinator
+        let cold = ready.router
+        let session = ready.session
+        let lifetime = ready.lifetime
+        XCTAssertTrue(session.modelContext === fresh.modelContext)
+        let context = fresh.modelContext
+        let writer = fresh.workspaceWriter
+        XCTAssertTrue(context.autosaveEnabled,
+            "This regression requires the actual Ready autosave state; do not force-enable it")
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: fresh.workspaceIdentity, generationID: fresh.generationID)
+        let saves = CompletionBox()
+        let observer = NotificationCenter.default.addObserver(
+            forName: ModelContext.didSave, object: context, queue: nil
+        ) { _ in
+            MainActor.assumeIsolated { saves.count += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        for cycle in 1...129 {
+            // Canonical writer performs a real atomic content+journal save.
+            // This helper returns before the explicit reproof below; neither
+            // the whole loop nor this call is wrapped in withProvenLease.
+            try seedOriginalSign(fresh)
+            XCTAssertEqual(saves.count, cycle,
+                "Each cycle must have one genuine save notification on the SAME context")
+            XCTAssertFalse(context.hasChanges)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<Site>()), cycle)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), cycle)
+            XCTAssertEqual(try context.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()), cycle)
+
+            // Existing real Session API: if the automatic callback latched an
+            // error this throws it. Otherwise activeCurrentRequest is absent
+            // after the writer return and this is a NEW top-level .afterSave
+            // entry, not a nested borrower or a no-op count increment.
+            try requireOneFreshOrdinaryReproof(session: session, lifetime: lifetime)
+            XCTAssertTrue(context.autosaveEnabled,
+                "Silent automatic-save reproof failure must not disable autosave")
+            XCTAssertTrue(fresh.completedSessionLifetimeOwnerForCurrentSession()
+                === lifetime)
+            XCTAssertTrue(session.modelContext === context)
+            XCTAssertTrue(fresh.workspaceWriter === writer)
+            guard case let .ready(current, _, _) = cold.route else {
+                throw FixtureFailure.coldRoute
+            }
+            XCTAssertTrue(current === fresh)
+            XCTAssertEqual(try writer.currentRevision().generationID,
+                intent.newGenerationID)
+        }
+        XCTAssertEqual(saves.count, 129)
+        try journal.validateAll()
+        let sites = try context.fetch(FetchDescriptor<Site>())
+        let assets = try context.fetch(FetchDescriptor<Asset>())
+        XCTAssertEqual(Set(sites.map(\.id)).count, 129)
+        XCTAssertEqual(Set(assets.map(\.id)).count, 129)
+        XCTAssertTrue(sites.allSatisfy { $0.label == "Cold Erase source" })
+        XCTAssertTrue(assets.allSatisfy { $0.label == "Cold Erase asset" })
+
+        // Subsequent ordinary access AND a further save remain usable after
+        // both64 and128 boundaries. A new Router/Session cannot mask failure.
+        XCTAssertEqual(try writer.currentRevision().generationID,
+            intent.newGenerationID)
+        try seedOriginalSign(fresh)
+        try requireOneFreshOrdinaryReproof(session: session, lifetime: lifetime)
+        XCTAssertEqual(saves.count, 130)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 130)
+        XCTAssertEqual(try context.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 130)
+        XCTAssertTrue(context.autosaveEnabled)
+        XCTAssertTrue(fresh.completedSessionLifetimeOwnerForCurrentSession()
+            === lifetime)
+        XCTAssertFalse(context.hasChanges)
+        try journal.validateAll()
+    }
+
+
+    @MainActor
+    func testSchema2ActualLiveSaveNestedReproofRetainsSameChargedRequestUntilOuterReturn() async throws {
+        let ready = try await makeActualOrdinaryReadyFixture()
+        defer { ready.original.defaults.removePersistentDomain(
+            forName: ready.original.defaultsName) }
+        let fresh = ready.coordinator
+        let session = ready.session
+        let lifetime = ready.lifetime
+        let context = fresh.modelContext
+        let beforeSave = lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(beforeSave)
+        XCTAssertFalse(beforeSave.quarantined)
+        var nestedResults: [Result<Void, Error>] = []
+        var liveSuccessfulReturns: UInt64?
+        let observer = NotificationCenter.default.addObserver(
+            forName: ModelContext.didSave, object: context, queue: nil
+        ) { _ in
+            MainActor.assumeIsolated {
+                let actual = Result<Void, Error> {
+                    let entered = lifetime.ordinaryBackingSnapshotForTesting()
+                    guard entered.activeRequestIdentity != nil,
+                          entered.currentScopePresent,
+                          entered.currentResourceFramePresent else {
+                        throw FixtureFailure.activation
+                    }
+                    try self.requireOrdinaryBackingWithinOriginalEnvelope(entered)
+                    XCTAssertEqual(entered.activeRequestIdentity,
+                        entered.lastBornRequestIdentity)
+                    XCTAssertGreaterThan(entered.occupiedSlots,
+                        beforeSave.occupiedSlots)
+                    liveSuccessfulReturns = entered.successfulOrdinaryReturns
+                    // Real authenticated explicit relay while the actual
+                    // canonical commit is still holding this Request/G frame.
+                    try session.reproofAfterSave()
+                    let nestedReturned = lifetime.ordinaryBackingSnapshotForTesting()
+                    XCTAssertEqual(nestedReturned.activeRequestIdentity,
+                        entered.activeRequestIdentity)
+                    XCTAssertTrue(nestedReturned.currentScopePresent)
+                    XCTAssertTrue(nestedReturned.currentResourceFramePresent)
+                    XCTAssertEqual(nestedReturned.actualRequestBirths,
+                        entered.actualRequestBirths)
+                    XCTAssertEqual(nestedReturned.successfulOrdinaryReturns,
+                        entered.successfulOrdinaryReturns)
+                    XCTAssertEqual(nestedReturned.occupiedSlots, entered.occupiedSlots)
+                    XCTAssertEqual(nestedReturned.retainedHistoricalBackingBytes,
+                        entered.retainedHistoricalBackingBytes)
+                    try self.requireOrdinaryBackingWithinOriginalEnvelope(nestedReturned)
+                }
+                nestedResults.append(actual) // actual nested return, never a fake receipt
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        try seedOriginalSign(fresh)
+        XCTAssertEqual(nestedResults.count, 1)
+        try XCTUnwrap(nestedResults.first).get()
+        let returned = lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(returned)
+        XCTAssertNil(returned.activeRequestIdentity)
+        XCTAssertFalse(returned.currentScopePresent)
+        XCTAssertFalse(returned.currentResourceFramePresent)
+        XCTAssertEqual(returned.occupiedSlots, beforeSave.occupiedSlots)
+        XCTAssertGreaterThan(returned.successfulOrdinaryReturns,
+            try XCTUnwrap(liveSuccessfulReturns))
+        XCTAssertFalse(returned.quarantined)
+        XCTAssertTrue(context.autosaveEnabled)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try context.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 1)
+        try session.reproofAfterSave()
+    }
+
+    @MainActor
+    func testSchema2ActualNativeHistoryLoanRefusesPrematureBorrowerReturnGuard() async throws {
+        let ready = try await makeActualOrdinaryReadyFixture()
+        defer { ready.original.defaults.removePersistentDomain(
+            forName: ready.original.defaultsName) }
+        try seedOriginalSign(ready.coordinator)
+        try ready.session.reproofAfterSave()
+        guard ColdEraseSchema2CompletedSessionAfterSaveConsumerV1
+            .ordinaryNativeBorrowerEnteredForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        var loanGuardRefusals = 0
+        var actualConsumers: [ColdEraseSchema2CompletedSessionAfterSaveConsumerV1] = []
+        ColdEraseSchema2CompletedSessionAfterSaveConsumerV1
+            .ordinaryNativeBorrowerEnteredForTesting = { consumer, _ in
+                let beforeGuard = ready.lifetime.ordinaryBackingSnapshotForTesting()
+                let alias = consumer.ordinaryNativeAliasStateForTesting()
+                XCTAssertTrue(alias.registered)
+                actualConsumers.append(consumer) // genuine exported borrower owner remains paid
+                do {
+                    try consumer.requireOrdinaryNativeBorrowersReturnedForTesting()
+                    XCTFail("An actual active history loan must refuse premature returned-borrower proof")
+                } catch {
+                    XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+                    loanGuardRefusals += 1
+                }
+                let afterGuard = ready.lifetime.ordinaryBackingSnapshotForTesting()
+                XCTAssertEqual(afterGuard.actualRequestBirths, beforeGuard.actualRequestBirths)
+                XCTAssertEqual(afterGuard.successfulOrdinaryReturns,
+                    beforeGuard.successfulOrdinaryReturns)
+                XCTAssertEqual(afterGuard.occupiedSlots, beforeGuard.occupiedSlots)
+                XCTAssertEqual(afterGuard.retainedHistoricalBackingBytes,
+                    beforeGuard.retainedHistoricalBackingBytes)
+                // Do not synthesize loan return or retirement. The genuine
+                // callback/body/postproof must now return under its real issuer.
+            }
+        defer {
+            ColdEraseSchema2CompletedSessionAfterSaveConsumerV1
+                .ordinaryNativeBorrowerEnteredForTesting = nil
+        }
+        try ready.session.reproofAfterSave()
+        ColdEraseSchema2CompletedSessionAfterSaveConsumerV1
+            .ordinaryNativeBorrowerEnteredForTesting = nil
+        XCTAssertGreaterThan(loanGuardRefusals, 0)
+        XCTAssertEqual(loanGuardRefusals, actualConsumers.count)
+        for consumer in actualConsumers {
+            try consumer.requireOrdinaryNativeBorrowersReturnedForTesting()
+        }
+        let returned = ready.lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(returned)
+        XCTAssertNil(returned.activeRequestIdentity)
+        XCTAssertFalse(returned.quarantined)
+        XCTAssertTrue(ready.coordinator.modelContext.autosaveEnabled)
+        // Captured consumer objects and the nonnil hook are deliberate
+        // unregistered export debt, not proof of historical-family discharge.
+    }
+
+    private final class OrdinaryRetirementFixtureFailure: Error {}
+
+    @MainActor
+    func testSchema2ActualReturnedScopeFailedCollectiveCutKeepsDebitAndFirstError() async throws {
+        let ready = try await makeActualOrdinaryReadyFixture()
+        defer { ready.original.defaults.removePersistentDomain(
+            forName: ready.original.defaultsName) }
+        guard ColdEraseSchema2CompletedSessionCurrentScopeV1
+            .ordinaryDeclaredOwnersBeforeReturnForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        let before = ready.lifetime.ordinaryBackingSnapshotForTesting()
+        try requireOrdinaryBackingWithinOriginalEnvelope(before)
+        let injected = OrdinaryRetirementFixtureFailure()
+        var actualReturnedScopeObservations = 0
+        var actualBeforeCut: ColdEraseSchema2CompletedOrdinaryBackingSnapshotV1?
+        ColdEraseSchema2CompletedSessionCurrentScopeV1
+            .ordinaryDeclaredOwnersBeforeReturnForTesting = { scope in
+                let actual = scope.ordinaryDeclaredOwnerStateForTesting()
+                XCTAssertTrue(actual.returned)
+                XCTAssertTrue(actual.consumed)
+                XCTAssertFalse(actual.uncertain)
+                XCTAssertFalse(actual.pendingSourceBacking)
+                XCTAssertEqual(actual.chargedSourceBacking, actual.reservedSourceBacking)
+                XCTAssertFalse(actual.owningReturnPresent)
+                let pending = ready.lifetime.ordinaryBackingSnapshotForTesting()
+                XCTAssertNotNil(pending.activeRequestIdentity)
+                XCTAssertEqual(pending.activeRequestIdentity,
+                    pending.lastBornRequestIdentity)
+                XCTAssertFalse(pending.currentScopePresent)
+                XCTAssertFalse(pending.currentResourceFramePresent)
+                XCTAssertEqual(pending.successfulOrdinaryReturns,
+                    before.successfulOrdinaryReturns)
+                actualBeforeCut = pending
+                actualReturnedScopeObservations += 1
+                // Actual wrapper/positive resource return already exists.
+                // Inject only the subsequent collective-cut postproof failure;
+                // never fabricate syscall outcome, success, loan or receipt.
+                throw injected
+            }
+        defer {
+            ColdEraseSchema2CompletedSessionCurrentScopeV1
+                .ordinaryDeclaredOwnersBeforeReturnForTesting = nil
+        }
+        do {
+            try ready.session.reproofAfterSave()
+            XCTFail("The actual failed collective cut must remain the first result")
+        } catch {
+            XCTAssertTrue((error as? OrdinaryRetirementFixtureFailure) === injected)
+        }
+        ColdEraseSchema2CompletedSessionCurrentScopeV1
+            .ordinaryDeclaredOwnersBeforeReturnForTesting = nil
+        XCTAssertEqual(actualReturnedScopeObservations, 1)
+        let pendingCut = try XCTUnwrap(actualBeforeCut)
+        let failed = ready.lifetime.ordinaryBackingSnapshotForTesting()
+        XCTAssertTrue(failed.quarantined)
+        XCTAssertEqual(failed.actualRequestBirths, before.actualRequestBirths + 1)
+        XCTAssertEqual(failed.successfulOrdinaryReturns, before.successfulOrdinaryReturns)
+        XCTAssertEqual(failed.occupiedSlots, before.occupiedSlots + 1)
+        XCTAssertEqual(failed.retainedHistoricalBackingBytes,
+            pendingCut.retainedHistoricalBackingBytes)
+        XCTAssertEqual(failed.occupiedSlots, pendingCut.occupiedSlots)
+        XCTAssertEqual(failed.activeRequestIdentity, failed.lastBornRequestIdentity)
+        XCTAssertFalse(ready.coordinator.modelContext.autosaveEnabled)
+        do {
+            try ready.session.reproofAfterSave()
+            XCTFail("The SAME Session must retain its original after-save failure")
+        } catch {
+            XCTAssertTrue((error as? OrdinaryRetirementFixtureFailure) === injected)
+        }
+        XCTAssertThrowsError(try ready.coordinator.workspaceWriter.currentRevision())
+        let refused = ready.lifetime.ordinaryBackingSnapshotForTesting()
+        XCTAssertEqual(refused.actualRequestBirths, failed.actualRequestBirths)
+        XCTAssertEqual(refused.successfulOrdinaryReturns, failed.successfulOrdinaryReturns)
+        XCTAssertEqual(refused.occupiedSlots, failed.occupiedSlots)
+        XCTAssertEqual(refused.retainedHistoricalBackingBytes,
+            failed.retainedHistoricalBackingBytes)
+        XCTAssertTrue(refused.quarantined)
     }
 
     /// Two real pointer publications retire two installed generations before
@@ -1339,6 +2066,9 @@ final class V23ColdErasePhaseTests: XCTestCase {
             raw = bytes
         }
         Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+#if DEBUG
+        installColdREntryDiagnosticsForTesting(router: cold,service: recovery)
+#endif
         try cold.bindStartupAccessGate(gate)
         var refused: Error?
         do {
@@ -1520,6 +2250,9 @@ final class V23ColdErasePhaseTests: XCTestCase {
             afterForeignFull11 = try self.fullPostSealFacts(in: fixture.support)
         }
         Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+#if DEBUG
+        installColdREntryDiagnosticsForTesting(router: cold,service: recovery)
+#endif
         try cold.bindStartupAccessGate(gate)
         var refused: Error?
         do {
@@ -1574,4 +2307,396 @@ final class V23ColdErasePhaseTests: XCTestCase {
     func testSchema2PostGenerationSameBytesForeignPointerRefusesWithoutEffects() async throws {
         try await requirePostSealForeignLeafRefusal(.currentPointer)
     }
+
+#if DEBUG
+    /// The original fixture really publishes and seals the retained reader.
+    /// Only then replace its named publication with equal bytes at a new inode.
+    @MainActor
+    func testOriginalRetainedShutdownRejectsSameBytesPublicationSubstitutionBeforeClose() async throws {
+        typealias Reader = GenerationLeaseAllocationAttemptV1
+        guard Reader.originalEraseRetainedShutdownForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        var boundaries: [Reader.OriginalEraseRetainedShutdownBoundaryForTesting] = []
+        var retained: (reader: Reader,witness: EraseOriginalShutdownWitnessV1,
+            activity: GenerationTemporalActivityHandleV1,recordURL: URL)?
+        var originalFact: EraseColdControlLeafFactV1?
+        var foreignFact: EraseColdControlLeafFactV1?
+        var publicationBytes: Data?
+        var registryBefore: Data?
+        var canonicalAfterSubstitution: [String: PhysicalFact]?
+        var fullAfterSubstitution: [String: EraseColdControlLeafFactV1]?
+        Reader.originalEraseRetainedShutdownForTesting = {
+            boundary,reader,witness,activity,recordURL in
+            boundaries.append(boundary)
+            guard boundary == .beforePublicationProof,retained == nil else {
+                throw FixtureFailure.activation
+            }
+            // These are the actual retained owners supplied by the shutdown
+            // path. Their deliberate strong test retention remains paid.
+            retained = (reader,witness,activity,recordURL)
+            let state = reader.originalEraseRetainedShutdownStateForTesting
+            XCTAssertFalse(state.closed)
+            XCTAssertFalse(state.uncertainClose)
+            XCTAssertTrue(state.recordDescriptorPresent)
+            XCTAssertTrue(state.recordDurable)
+            XCTAssertTrue(state.registryRenamed)
+            try witness.requirePreparationReader(reader,registry: witness.registry)
+            let support = recordURL.deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+            let registryURL = recordURL.deletingLastPathComponent()
+                .appendingPathComponent("registry.json")
+            registryBefore = try Data(contentsOf: registryURL)
+            var named = stat()
+            guard recordURL.path.withCString({ lstat($0,&named) }) == 0 else {
+                throw FixtureFailure.activation
+            }
+            let first = EraseColdControlLeafFactV1(named)
+            let bytes = try Data(contentsOf: recordURL)
+            originalFact = first
+            publicationBytes = bytes
+            foreignFact = try self.replacePostSealLeafWithSameBytes(
+                recordURL,expectedFact: first,bytes: bytes)
+            canonicalAfterSubstitution = try self.protectedFacts(in: support)
+            fullAfterSubstitution = try self.fullPostSealFacts(in: support)
+        }
+        defer { Reader.originalEraseRetainedShutdownForTesting = nil }
+        var refused: Error?
+        do {
+            _ = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+            XCTFail("A substituted retained publication cannot complete original shutdown")
+        } catch { refused = error }
+        XCTAssertEqual(refused as? GenerationLeaseRegistryFailureV1,.invalidIdentity)
+        XCTAssertEqual(boundaries,[.beforePublicationProof])
+        let held = try XCTUnwrap(retained)
+        let first = try XCTUnwrap(originalFact)
+        let foreign = try XCTUnwrap(foreignFact)
+        XCTAssertNotEqual(first.inode,foreign.inode)
+        XCTAssertEqual(first.device,foreign.device)
+        XCTAssertEqual(first.mode,foreign.mode)
+        XCTAssertEqual(first.user,foreign.user)
+        XCTAssertEqual(first.group,foreign.group)
+        XCTAssertEqual(first.links,foreign.links)
+        XCTAssertEqual(first.size,foreign.size)
+        XCTAssertEqual(try Data(contentsOf: held.recordURL),try XCTUnwrap(publicationBytes))
+        var current = stat()
+        XCTAssertEqual(held.recordURL.path.withCString({ lstat($0,&current) }),0)
+        XCTAssertEqual(EraseColdControlLeafFactV1(current),foreign)
+        let state = held.reader.originalEraseRetainedShutdownStateForTesting
+        XCTAssertFalse(state.closed)
+        XCTAssertFalse(state.uncertainClose,
+            "Binding refusal precedes the handle and record close attempts")
+        XCTAssertTrue(state.recordDescriptorPresent,
+            "The held original publication descriptor remains paid")
+        let support = held.recordURL.deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        XCTAssertEqual(try Data(contentsOf: held.recordURL.deletingLastPathComponent()
+            .appendingPathComponent("registry.json")),try XCTUnwrap(registryBefore))
+        XCTAssertEqual(try protectedFacts(in: support),try XCTUnwrap(canonicalAfterSubstitution))
+        XCTAssertEqual(try fullPostSealFacts(in: support),try XCTUnwrap(fullAfterSubstitution))
+        // The real original operation is terminally uncertain. A subsequent
+        // guard call cannot acquire a new witness or attempt a numeric close.
+        XCTAssertThrowsError(try held.witness.requireDrained(registry: held.witness.registry)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1,.uncertainOwner)
+        }
+        XCTAssertThrowsError(try held.reader.closeForOriginalEraseShutdown(
+            proof: held.witness,activity: held.activity)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1,.uncertainOwner)
+        }
+        XCTAssertEqual(boundaries,[.beforePublicationProof])
+        XCTAssertEqual(held.reader.originalEraseRetainedShutdownStateForTesting,state)
+        withExtendedLifetime(held) { }
+    }
+
+    /// The actual Original owner removes its authenticated record before its
+    /// real sole close. This verifies that complete shutdown leaves no record
+    /// for the later cold owner's first lease-name census to misinterpret.
+    @MainActor
+    func testOriginalRetainedShutdownRemovesOnlyAuthenticatedPublicationBeforeCheckedClose() async throws {
+        typealias Reader = GenerationLeaseAllocationAttemptV1
+        guard Reader.originalEraseRetainedShutdownForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        var boundaries: [Reader.OriginalEraseRetainedShutdownBoundaryForTesting] = []
+        var retained: Reader?
+        var recordURL: URL?
+        var namedRecord: EraseColdControlLeafFactV1?
+        var namedLease: EraseColdControlLeafFactV1?
+        var registryAfterHandleClose: Data?
+        var leaseNamespaceBefore: OriginalRetainedNamespaceForTesting?
+        var canonicalBefore: [String: PhysicalFact]?
+        var fullBefore: [String: EraseColdControlLeafFactV1]?
+        var retirement: Reader.OriginalEraseRetainedRetirementProjectionForTesting?
+        Reader.originalEraseRetainedShutdownForTesting = { boundary,reader,witness,activity,url in
+            boundaries.append(boundary)
+            let state = reader.originalEraseRetainedShutdownStateForTesting
+            XCTAssertFalse(state.closed)
+            XCTAssertFalse(state.uncertainClose)
+            let support = url.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            switch boundary {
+            case .beforePublicationProof:
+                XCTAssertNil(retained)
+                retained = reader; recordURL = url
+                try witness.requirePreparationReader(reader,registry: witness.registry)
+                XCTAssertTrue(state.recordDescriptorPresent)
+                canonicalBefore = try self.protectedFacts(in: support)
+                fullBefore = try self.fullPostSealFacts(in: support)
+            case .beforeRecordClose:
+                XCTAssertTrue(retained === reader)
+                XCTAssertEqual(recordURL,url)
+                XCTAssertTrue(state.recordDescriptorPresent)
+                try XCTUnwrap(reader.allocatedHandle).requireCheckedClosedForOriginalEraseShutdown(registry: witness.registry)
+                var leaf = stat(), parent = stat()
+                guard url.path.withCString({ lstat($0,&leaf) }) == 0,
+                      url.deletingLastPathComponent().path.withCString({ lstat($0,&parent) }) == 0 else {
+                    throw FixtureFailure.activation
+                }
+                namedRecord = EraseColdControlLeafFactV1(leaf)
+                namedLease = EraseColdControlLeafFactV1(parent)
+                registryAfterHandleClose = try Data(contentsOf: url.deletingLastPathComponent().appendingPathComponent("registry.json"))
+                leaseNamespaceBefore = try self.originalRetainedNamespaceForTesting(record: url)
+            case .afterRecordClose:
+                XCTAssertFalse(state.recordDescriptorPresent)
+                let proof = try XCTUnwrap(reader.originalEraseRetainedRetirementProjectionForTesting)
+                XCTAssertTrue(proof.recordCloseReturned)
+                XCTAssertEqual(proof.recordBefore,try XCTUnwrap(namedRecord))
+                XCTAssertEqual(proof.leaseBefore,try XCTUnwrap(namedLease))
+                XCTAssertEqual(proof.recordAfterUnlink.links,0)
+                XCTAssertEqual(proof.recordAfterUnlink.device,proof.recordBefore.device)
+                XCTAssertEqual(proof.recordAfterUnlink.inode,proof.recordBefore.inode)
+                XCTAssertEqual(proof.recordAfterUnlink.mode,proof.recordBefore.mode)
+                XCTAssertEqual(proof.recordAfterUnlink.user,proof.recordBefore.user)
+                XCTAssertEqual(proof.recordAfterUnlink.group,proof.recordBefore.group)
+                XCTAssertEqual(proof.recordAfterUnlink.size,proof.recordBefore.size)
+                XCTAssertEqual(proof.recordAfterUnlink.modifiedSeconds,proof.recordBefore.modifiedSeconds)
+                XCTAssertEqual(proof.recordAfterUnlink.modifiedNanoseconds,proof.recordBefore.modifiedNanoseconds)
+                try self.requireAbsentWithoutFollowing(url)
+                var parent = stat()
+                guard url.deletingLastPathComponent().path.withCString({ lstat($0,&parent) }) == 0 else {
+                    throw FixtureFailure.activation
+                }
+                XCTAssertEqual(EraseColdControlLeafFactV1(parent),proof.leaseAfterUnlink)
+                XCTAssertEqual(try Data(contentsOf: url.deletingLastPathComponent().appendingPathComponent("registry.json")),try XCTUnwrap(registryAfterHandleClose))
+                XCTAssertEqual(try self.protectedFacts(in: support),try XCTUnwrap(canonicalBefore))
+                XCTAssertEqual(try self.fullPostSealFacts(in: support),try XCTUnwrap(fullBefore))
+                try self.requireOnlyOriginalRetainedPublicationRemovedForTesting(
+                    before: try XCTUnwrap(leaseNamespaceBefore),record: url,projection: proof)
+                retirement = proof
+            }
+        }
+        defer { Reader.originalEraseRetainedShutdownForTesting = nil }
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        XCTAssertEqual(boundaries,[.beforePublicationProof,.beforeRecordClose,.afterRecordClose])
+        let actual = try XCTUnwrap(retained)
+        let proof = try XCTUnwrap(retirement)
+        XCTAssertEqual(actual.originalEraseRetainedRetirementProjectionForTesting,proof)
+        XCTAssertTrue(actual.originalEraseRetainedShutdownStateForTesting.closed)
+        XCTAssertFalse(actual.originalEraseRetainedShutdownStateForTesting.uncertainClose)
+        XCTAssertFalse(actual.originalEraseRetainedShutdownStateForTesting.recordDescriptorPresent)
+        try requireAbsentWithoutFollowing(try XCTUnwrap(recordURL))
+        withExtendedLifetime(actual) { }
+    }
+
+    private final class OriginalRetainedShutdownInjectedPostCloseProofFault: Error { }
+
+    private struct OriginalRetainedNamespaceLeafForTesting: Equatable {
+        let fact: EraseColdControlLeafFactV1
+        let bytes: Data?
+    }
+    private struct OriginalRetainedNamespaceForTesting {
+        let lease: EraseColdControlLeafFactV1
+        let operations: EraseColdControlLeafFactV1
+        let support: EraseColdControlLeafFactV1
+        let nodes: [String: OriginalRetainedNamespaceLeafForTesting]
+    }
+    private func originalRetainedNamespaceForTesting(record: URL) throws
+        -> OriginalRetainedNamespaceForTesting {
+        let lease = record.deletingLastPathComponent()
+        func full(_ url: URL) throws -> EraseColdControlLeafFactV1 {
+            var value = stat()
+            guard url.path.withCString({ lstat($0,&value) }) == 0 else {
+                throw FixtureFailure.activation
+            }
+            return EraseColdControlLeafFactV1(value)
+        }
+        let root = try full(lease)
+        let operations = try full(lease.deletingLastPathComponent())
+        let support = try full(lease.deletingLastPathComponent().deletingLastPathComponent())
+        var nodes: [String: OriginalRetainedNamespaceLeafForTesting] = [:]
+        func visit(_ directory: URL, prefix: String) throws {
+            let first = try full(directory)
+            guard first.mode & S_IFMT == S_IFDIR else { throw FixtureFailure.activation }
+            let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+            guard names.count == Set(names).count else { throw FixtureFailure.activation }
+            for name in names {
+                guard name != ".",name != "..",!name.contains("/"),nodes.count < 256 else {
+                    throw FixtureFailure.activation
+                }
+                let url = directory.appendingPathComponent(name)
+                let fact = try full(url)
+                let key = prefix + name
+                guard nodes[key] == nil else { throw FixtureFailure.activation }
+                let kind = fact.mode & S_IFMT
+                guard kind == S_IFDIR || (kind == S_IFREG && fact.links == 1) else {
+                    throw FixtureFailure.activation
+                }
+                let bytes = kind == S_IFREG ? try Data(contentsOf: url) : nil
+                nodes[key] = .init(fact: fact,bytes: bytes)
+                if kind == S_IFDIR { try visit(url,prefix: key + "/") }
+                guard try full(url) == fact else { throw FixtureFailure.activation }
+            }
+            guard try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted() == names,
+                  try full(directory) == first else { throw FixtureFailure.activation }
+        }
+        try visit(lease,prefix: "")
+        guard try full(lease) == root,
+              try full(lease.deletingLastPathComponent()) == operations,
+              try full(lease.deletingLastPathComponent().deletingLastPathComponent()) == support else {
+            throw FixtureFailure.activation
+        }
+        return .init(lease: root,operations: operations,support: support,nodes: nodes)
+    }
+    private func requireOnlyOriginalRetainedPublicationRemovedForTesting(
+        before: OriginalRetainedNamespaceForTesting, record: URL,
+        projection: GenerationLeaseAllocationAttemptV1.OriginalEraseRetainedRetirementProjectionForTesting
+    ) throws {
+        let after = try originalRetainedNamespaceForTesting(record: record)
+        let name = record.lastPathComponent
+        let leaf = try XCTUnwrap(before.nodes[name])
+        XCTAssertEqual(leaf.fact,projection.recordBefore)
+        XCTAssertEqual(before.lease,projection.leaseBefore)
+        XCTAssertEqual(after.lease,projection.leaseAfterUnlink)
+        XCTAssertEqual(after.operations,before.operations)
+        XCTAssertEqual(after.support,before.support)
+        XCTAssertNil(after.nodes[name])
+        XCTAssertEqual(after.nodes,before.nodes.filter({ $0.key != name }),
+            "Every unrelated Registry/owner leaf retains exact bytes and full facts")
+    }
+
+    /// This injects a proof fault AFTER a genuine checked record close. It
+    /// neither substitutes a close result nor claims an observed close failure.
+    @MainActor
+    func testOriginalRetainedShutdownPostCloseProofFaultKeepsFirstErrorAndRefusesReclose() async throws {
+        typealias Reader = GenerationLeaseAllocationAttemptV1
+        guard Reader.originalEraseRetainedShutdownForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        let injected = OriginalRetainedShutdownInjectedPostCloseProofFault()
+        var boundaries: [Reader.OriginalEraseRetainedShutdownBoundaryForTesting] = []
+        var retained: (reader: Reader,witness: EraseOriginalShutdownWitnessV1,
+            activity: GenerationTemporalActivityHandleV1,recordURL: URL)?
+        var canonicalBefore: [String: PhysicalFact]?
+        var fullBefore: [String: EraseColdControlLeafFactV1]?
+        var registryAfterHandleClose: Data?
+        var leaseNamespaceBefore: OriginalRetainedNamespaceForTesting?
+        var retirementProjection: Reader.OriginalEraseRetainedRetirementProjectionForTesting?
+        var publicationBytes: Data?
+        Reader.originalEraseRetainedShutdownForTesting = {
+            boundary,reader,witness,activity,recordURL in
+            boundaries.append(boundary)
+            let state = reader.originalEraseRetainedShutdownStateForTesting
+            XCTAssertFalse(state.closed)
+            XCTAssertFalse(state.uncertainClose)
+            XCTAssertTrue(state.recordDurable)
+            XCTAssertTrue(state.registryRenamed)
+            let support = recordURL.deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+            switch boundary {
+            case .beforePublicationProof:
+                guard retained == nil else { throw FixtureFailure.activation }
+                retained = (reader,witness,activity,recordURL)
+                XCTAssertTrue(state.recordDescriptorPresent)
+                try witness.requirePreparationReader(reader,registry: witness.registry)
+                canonicalBefore = try self.protectedFacts(in: support)
+                fullBefore = try self.fullPostSealFacts(in: support)
+            case .beforeRecordClose:
+                let held = try XCTUnwrap(retained)
+                XCTAssertTrue(held.reader === reader)
+                XCTAssertTrue(held.witness === witness)
+                XCTAssertTrue(held.activity === activity)
+                XCTAssertEqual(held.recordURL,recordURL)
+                XCTAssertTrue(state.recordDescriptorPresent)
+                let handle = try XCTUnwrap(reader.allocatedHandle)
+                try handle.requireCheckedClosedForOriginalEraseShutdown(registry: witness.registry)
+                registryAfterHandleClose = try Data(contentsOf:
+                    recordURL.deletingLastPathComponent().appendingPathComponent("registry.json"))
+                publicationBytes = try Data(contentsOf: recordURL)
+                leaseNamespaceBefore = try self.originalRetainedNamespaceForTesting(record: recordURL)
+            case .afterRecordClose:
+                XCTAssertFalse(state.recordDescriptorPresent,
+                    "The actual checked close returned before clearing its stored descriptor")
+                let handle = try XCTUnwrap(reader.allocatedHandle)
+                try handle.requireCheckedClosedForOriginalEraseShutdown(registry: witness.registry)
+                let proof = try XCTUnwrap(reader.originalEraseRetainedRetirementProjectionForTesting)
+                XCTAssertTrue(proof.recordCloseReturned)
+                XCTAssertEqual(proof.recordBefore.links,1)
+                XCTAssertEqual(proof.recordAfterUnlink.links,0)
+                XCTAssertEqual(proof.recordBefore.device,proof.recordAfterUnlink.device)
+                XCTAssertEqual(proof.recordBefore.inode,proof.recordAfterUnlink.inode)
+                XCTAssertEqual(proof.recordBefore.mode,proof.recordAfterUnlink.mode)
+                XCTAssertEqual(proof.recordBefore.user,proof.recordAfterUnlink.user)
+                XCTAssertEqual(proof.recordBefore.group,proof.recordAfterUnlink.group)
+                XCTAssertEqual(proof.recordBefore.size,proof.recordAfterUnlink.size)
+                XCTAssertEqual(proof.recordBefore.modifiedSeconds,proof.recordAfterUnlink.modifiedSeconds)
+                XCTAssertEqual(proof.recordBefore.modifiedNanoseconds,proof.recordAfterUnlink.modifiedNanoseconds)
+                try self.requireAbsentWithoutFollowing(recordURL)
+                var parent = stat()
+                guard recordURL.deletingLastPathComponent().path.withCString({ lstat($0,&parent) }) == 0 else {
+                    throw FixtureFailure.activation
+                }
+                XCTAssertEqual(EraseColdControlLeafFactV1(parent),proof.leaseAfterUnlink)
+                try self.requireOnlyOriginalRetainedPublicationRemovedForTesting(
+                    before: try XCTUnwrap(leaseNamespaceBefore),record: recordURL,projection: proof)
+                retirementProjection = proof
+                throw injected
+            }
+        }
+        defer { Reader.originalEraseRetainedShutdownForTesting = nil }
+        var refused: Error?
+        do {
+            _ = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+            XCTFail("An injected post-close proof fault cannot publish closed success")
+        } catch { refused = error }
+        XCTAssertTrue((refused as? OriginalRetainedShutdownInjectedPostCloseProofFault) === injected,
+            "The exact injected earliest error object must survive outward shutdown settlement")
+        XCTAssertEqual(boundaries,[.beforePublicationProof,.beforeRecordClose,.afterRecordClose])
+        let held = try XCTUnwrap(retained)
+        let state = held.reader.originalEraseRetainedShutdownStateForTesting
+        XCTAssertFalse(state.closed)
+        XCTAssertTrue(state.uncertainClose)
+        XCTAssertFalse(state.recordDescriptorPresent,
+            "An actual successful close is retained; no second numeric close is authorized")
+        XCTAssertTrue(state.recordDurable)
+        XCTAssertTrue(state.registryRenamed)
+        let handle = try XCTUnwrap(held.reader.allocatedHandle)
+        try handle.requireCheckedClosedForOriginalEraseShutdown(registry: held.witness.registry)
+        let support = held.recordURL.deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        XCTAssertEqual(try protectedFacts(in: support),try XCTUnwrap(canonicalBefore))
+        XCTAssertEqual(try fullPostSealFacts(in: support),try XCTUnwrap(fullBefore))
+        XCTAssertEqual(try Data(contentsOf: held.recordURL.deletingLastPathComponent()
+            .appendingPathComponent("registry.json")),try XCTUnwrap(registryAfterHandleClose))
+        let proof = try XCTUnwrap(retirementProjection)
+        XCTAssertEqual(held.reader.originalEraseRetainedRetirementProjectionForTesting,proof)
+        try requireOnlyOriginalRetainedPublicationRemovedForTesting(
+            before: try XCTUnwrap(leaseNamespaceBefore),record: held.recordURL,projection: proof)
+        XCTAssertEqual(try XCTUnwrap(publicationBytes).count,Int(proof.recordBefore.size))
+        try requireAbsentWithoutFollowing(held.recordURL)
+        var parent = stat()
+        XCTAssertEqual(held.recordURL.deletingLastPathComponent().path.withCString({ lstat($0,&parent) }),0)
+        XCTAssertEqual(EraseColdControlLeafFactV1(parent),proof.leaseAfterUnlink)
+        XCTAssertThrowsError(try held.witness.requireDrained(registry: held.witness.registry)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1,.uncertainOwner)
+        }
+        XCTAssertThrowsError(try held.reader.closeForOriginalEraseShutdown(
+            proof: held.witness,activity: held.activity)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1,.uncertainOwner)
+        }
+        XCTAssertEqual(boundaries,[.beforePublicationProof,.beforeRecordClose,.afterRecordClose],
+            "The refusal cannot enter another checked record close")
+        XCTAssertEqual(held.reader.originalEraseRetainedShutdownStateForTesting,state)
+        withExtendedLifetime(held) { }
+    }
+#endif
 }

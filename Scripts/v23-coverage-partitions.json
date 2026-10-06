@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "ceb83f9593a6546ba97a15715f7fdde98894467e",
+  "generatedAtHead": "da4959fda1da44d91bba077684e26ee4feeae815",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1180,7 +1180,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 1954.7,
+      "estimatedSeconds": 2074.7,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1341,10 +1341,12 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreClearProbeRefusesMissingOrLinkedChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryAggregateDetachInterruptionRetainsSameTransferredExclusionUntilRetry",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryExternalSourceSessionAliasBlocksDrainUntilNaturalCallerRelease",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryPrivateCopyConservesGenuineFirstCapturedNonemptyScratchRemainder",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionRejectsDetachedCallbacksBeforeReadOrPoison",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionRejectsForeignOperationAndOwnerBeforePoison",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionSameOwnerPhysicalFailureStillPoisons",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionSameOwnerWrongFirstImageStillPoisons",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryScratchSameBytesPublicationSubstitutionPoisonsActualProjection",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryScratchUncertainSettlementRetainsModelOwnerAssociations",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRetryRefusesNestedOperationsSubstitutionBeforePriorRead",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationConsumesAuthenticAbortAndASecondEraseUsesNewAuthority",
@@ -3952,12 +3954,20 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1740.0,
+      "estimatedSeconds": 2220.0,
       "selectors": [
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalRetainedShutdownPostCloseProofFaultKeepsFirstErrorAndRefusesReclose",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalRetainedShutdownRejectsSameBytesPublicationSubstitutionBeforeClose",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalRetainedShutdownRemovesOnlyAuthenticatedPublicationBeforeCheckedClose",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ActualLiveSaveNestedReproofRetainsSameChargedRequestUntilOuterReturn",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ActualNativeHistoryLoanRefusesPrematureBorrowerReturnGuard",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ActualReturnedScopeFailedCollectiveCutKeepsDebitAndFirstError",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualZeroTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2MultiRetiredOriginalRCutColdCleansEntireFrozenRoster",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OneActualColdReadySessionSurvives129DistinctSaveReproofCycles",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OriginalSessionPhaseCutColdRResumesActualTargetAndReady",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OwnPointerFirstAuxiliaryRejectsLateSameBytesNewInode",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OwnedIDsActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OwnedIDsActualZeroTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PointerSwitchedColdOpensActualEmptyTargetBeforeSessionPhaseCAS",

@@ -16596,6 +16596,93 @@ final class EraseRouterOperationV1 {
         }
     }
 
+    /// Shutdown consumes the retained publication, never its active getter.
+    /// The caller already holds this witness's shutdown Scope and actual G.
+    /// No allocation, pointer authority, cohort or publication is created.
+    func requireOriginalEraseTargetReaderRetirementUnderHeldG(
+        allocation: GenerationLeaseAllocationAttemptV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        witness: EraseOriginalShutdownWitnessV1
+    ) throws -> (intent: EraseIntentV1,
+                 expectedPointerData: Data,
+                 priorTokens: [GenerationLeaseTokenV1]) {
+        try requireOriginalShutdownWitness(witness, registry: registry)
+        try witness.requireDrained(registry: registry)
+        guard originalShutdownState == .controlsTransferred,
+              originalShutdownActivity === activity,
+              originalShutdownRegistry === registry,
+              preparationRegistry === registry,
+              originalTargetReaderAllocation === allocation,
+              allocation.matches(registry: registry),
+              let handle = originalTargetReaderHandle,
+              allocation.allocatedHandle === handle,
+              let projection = originalTargetReaderProjection,
+              originalTargetReaderProjectedSnapshot != nil,
+              !originalTargetReaderInFlight,
+              !originalTargetReaderUncertain,
+              originalPointerPublished, originalRetiredPublished,
+              originalPointerMutationInFlight == nil,
+              !originalPointerMutationUncertain,
+              let intent = originalAuxiliaryProjectedIntent,
+              intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched ||
+                intent.phase == .sessionActivated,
+              originalShutdownSourceGenerationID == intent.oldGenerationID,
+              originalShutdownTargetGenerationID == intent.newGenerationID,
+              let target = intent.targetPointer,
+              let expectedPointerData = originalTargetReaderExpectedPointerData,
+              let first = originalAuxiliaryFirstLeaseCensus,
+              let authority = originalTargetReaderAuthority,
+              authority.matchesMutationRegistryForOriginalErase(registry),
+              let pointerAuthority = originalPointerAuthority,
+              pointerAuthority.matchesMutationRegistryForOriginalErase(registry),
+              let store = originalAuxiliaryStore,
+              try store.load() == intent,
+              let preparation = try store.loadPreparation(),
+              preparation.matches(intent),
+              projection.checkedSettled,
+              projection.priorTokens == first,
+              projection.publishedToken == handle.token,
+              handle.token.role == .reader,
+              handle.token.epoch.generationID == target.generationID,
+              handle.token.epoch.generationManifestSHA256 ==
+                target.generationManifestSHA256,
+              !first.contains(where: { $0.leaseID == handle.token.leaseID }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let retained = try allocation
+            .requireOriginalRetainedPublicationForShutdown(
+                witness: witness, registry: registry)
+        guard retained === projection,
+              projection.afterTokens == (first + [handle.token]).sorted(by: {
+                $0.leaseID.uuidString.lowercased() <
+                    $1.leaseID.uuidString.lowercased()
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // The issuing receipt rechecks its named/held pointer postimage.
+        // A normal current-generation getter could repair a temporary or
+        // request policy; it is not a shutdown observation API.
+        let receipt = try requireOriginalEraseRetiredPointerReceipt(
+            authority: pointerAuthority)
+        let settlement = try receipt
+            .requireCompletedOriginalErasePointerPublication(
+                authority: pointerAuthority, operation: self)
+        try settlement.withPermanentOriginalErasePointerData(
+            authority: pointerAuthority, operation: self,
+            receipt: receipt) { actual in
+            guard actual.stage == .retired,
+                  actual.currentBytes == expectedPointerData else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        guard try receipt.currentGenerationID() == target.generationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try witness.requireDrained(registry: registry)
+        return (intent, expectedPointerData, first)
+    }
     func requireOriginalShutdownWitness(
         _ witness: EraseOriginalShutdownWitnessV1,
         registry: GenerationLeaseRegistryV1
@@ -20295,6 +20382,57 @@ final class EraseColdPreparationOperationV1 {
         schema2ColdAuxiliaryFirstSnapshot = snapshot
     }
 
+    /// Only the actual first P control entry may capture completed Original
+    /// retired DATA. This remains before private target/reader acquisition.
+    func requireSchema2ColdPointerOriginalRetiredCaptureOwner(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore
+    ) throws {
+        try requireServiceAccess()
+        try requireSchema2ColdIntentStore(store)
+        guard intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched,
+              preparation.matches(intent),
+              let first = schema2ColdOriginalContinuation,
+              first.intent == intent,
+              first.preparation == preparation,
+              first.observed.intent == intent,
+              first.observed.preparation == preparation,
+              first.observed.opaqueAuxiliaryRosterPresent,
+              !first.observed.opaqueAuxiliaryRosterNextPresent,
+              first.observed.opaqueRetiredCommitmentPresent
+                == first.observed.opaqueRetiredStageIdentityPresent,
+              !first.observed.opaqueRetiredCommitmentNextPresent,
+              !first.observed.opaqueRetiredStageIdentityNextPresent,
+              !first.observed.opaqueRosterPresent,
+              !first.observed.opaqueRosterNextPresent,
+              !schema2ColdPointerPhasePublished,
+              schema2ColdTargetReaderAllocation == nil,
+              schema2ColdTargetReaderHandle == nil,
+              schema2ColdActivatedTargetAttempt == nil,
+              schema2ColdTargetValidationAttempt == nil,
+              let manifest = schema2ColdManifestOwner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireSchema2ColdAuxiliaryCaptureAdmission(
+            store: store, manifest: manifest)
+        let (observer, snapshot) =
+            try requireSchema2ColdAuxiliaryFirstObservation(
+                store: store, manifest: manifest)
+        guard try observer.firstObservation() == snapshot else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try manifest.requireCapturedOperationsOwners(
+            first.operationsNames, operation: self)
+    }
+
+    /// Routing information only. The later consumer still requires the
+    /// retained P witness and this operation's actual checked P→R result.
+    var hasSchema2ColdPointerOriginalRetiredFirstEntry: Bool {
+        schema2ColdOriginalContinuation?.intent.phase == .pointerSwitched
+    }
+
     func requireSchema2ColdAuxiliaryFirstObservation(
         store: EraseIntentStore,
         manifest: EraseSchema2ColdManifestOwnerV1
@@ -22342,6 +22480,37 @@ final class EraseColdPreparationOperationV1 {
     /// publication. Resume on this exact operation with its original frozen
     /// preparation, real target session and reader; no P-only constructor is
     /// re-entered and no post-CAS control becomes a new baseline.
+    /// Return the authentic first P intent only after the SAME operation
+    /// owns the live target, reader census and actual P→R publication.
+    /// No born-R observation can manufacture this predecessor.
+    func requireSchema2ColdActivatedOriginalRetiredControlsOwner(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore
+    ) throws -> EraseIntentV1 {
+        let (published, heldStore, _, _, _, _, _, _) =
+            try requireSchema2ColdActivatedForwardContinuation()
+        guard heldStore === store, published == intent,
+              intent.phase == .sessionActivated,
+              let first = schema2ColdOriginalContinuation,
+              let preactivation = schema2ColdPreactivationContinuation,
+              first.intent.phase == .pointerSwitched,
+              first.observed.intent == first.intent,
+              first.observed.preparation == preparation,
+              first.preparation == preparation,
+              preactivation.intent == first.intent,
+              preactivation.preparation == preparation,
+              preactivation.observed == first.observed,
+              intent == first.intent.advancing(to: .sessionActivated),
+              schema2ColdOriginalValidationComplete,
+              schema2ColdAuxiliaryFirstObserver != nil,
+              schema2ColdAuxiliaryFirstSnapshot != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireSchema2ColdRosterObservationOwner(store: store)
+        return first.intent
+    }
+
     func requireSchema2ColdActivatedForwardContinuation() throws
         -> (publishedIntent: EraseIntentV1,
             store: EraseIntentStore,
@@ -25813,6 +25982,11 @@ extension StartupRouter {
                 inventory: cold.inventory)
             _ = try await configured.prepareColdRetirement(diagnosticsStore: diagnosticsStore, operation: cold)
             try cold.requireStartupContinuation()
+            if cold.hasSchema2ColdPostGenerationAttempt {
+                // Presence only selects the strict actual terminal-owner
+                // consumer; it is never completion or publication authority.
+                return try makeSchema2CompletedStartupOwner(operation: operation, cold: cold)
+            }
         }
         if cold.hasRollback {
             guard try await cold.advanceRollback() else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
@@ -27452,7 +27626,7 @@ extension StartupRouter {
             completedCurrentFiniteBirth.perRequestBackingBytes = program.perRequest
             completedCurrentFiniteBirth.totalDeclaredBackingBytes = program.total
             completedCurrentFiniteBirth.constructorEntered = true
-            let parent = ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1(router: self,
+            let parent = try ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1(router: self,
                 receiver: receiver, construction: owner, demand: demand, program: program)
             completedCurrentFiniteBirth.parent = parent // before every returned proof
             let lifetime = ColdEraseSchema2CompletedSessionLifetimeOwnerV1(router: self,
@@ -27801,6 +27975,19 @@ final class ColdEraseSchema2CompletedSessionLifetimeOwnerV1 {
     nonisolated static var declaredRetentionBackingBytes: UInt64 {
         UInt64(MemoryLayout<Storage>.stride)
     }
+    func registerOrdinaryCohortV2(_ actualOwner: AnyObject,kind: ColdEraseSchema2CompletedOrdinaryCohortCensusV2.Kind,
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,request: ColdEraseSchema2CompletedSourceCurrentRequestV1) throws
+        -> ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2 {
+        guard storage.activeCurrentRequest === request,storage.primaryFailure == nil,
+              storage.retainedUncertainOwner == nil,request.ordinaryCurrentOriginV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return try request.requireOrdinaryCohortFamilyV2(scope: scope,owner: self).register(actualOwner,kind: kind)
+    }
+#if DEBUG
+    func ordinaryBackingSnapshotForTesting() -> ColdEraseSchema2CompletedOrdinaryBackingSnapshotV1 {
+        storage.currentBacking.ordinaryBackingSnapshot(activeRequest: storage.activeCurrentRequest,
+            currentScopePresent: storage.currentScope != nil,currentResourceFramePresent: storage.currentResourceFrame != nil)
+    }
+#endif
     fileprivate init(router: StartupRouter,
         receiver: ColdEraseSchema2CompletedStartupPublicationReceiverV1,
         constructionOwner: ColdEraseSchema2CompletedStartupOwnerV1,
@@ -28023,6 +28210,7 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         var actualWrapperReturn: Result<Void,Error>?
         var ordinaryHistoricalData: ColdEraseSchema2CompletedOrdinaryCurrentHistoricalDataV1?
         var ordinaryHistoricalTransferReturn: Result<Void,Error>?
+        var ordinaryDeclaredReturn: ColdEraseSchema2CompletedOrdinaryDeclaredReturnV1?
         var entered = false
         var returned = false
         var primaryFailure: Error?
@@ -28411,6 +28599,46 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         try scope.requireConsumedPositivePermanentSettlement(owner: owner,request: self)
         // Historical DATA only. No live resource/authorization/frame is entered.
     }
+    func requireOrdinaryNeverBornSpecializedInputs(scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        try requireActualOrdinaryWrapperSuccessForHistoricalDATA(scope: scope, owner: owner)
+        guard storage.pendingTeardown == nil,storage.selectedProjection == nil,
+              storage.manifestLookup == nil,storage.manifestTransition == nil,
+              storage.lookupStore == nil,storage.transitionStore == nil,
+              !storage.selectedDataControlOriginLoanActive,storage.selectedDataControlOriginReceipts == nil,
+              !storage.originalEraseNativeParentHistoryLoanActive,
+              storage.originalEraseNativeParentHistoryRequest == nil,
+              storage.originalEraseNativeParentHistoryReceipt == nil,storage.originalEraseNativeParentHistoryLoan == nil,
+              storage.targetGenerationCreationIdentity == nil,!storage.targetGenerationCreationBirthEntered,
+              storage.targetGenerationCreationIO == nil,storage.targetGenerationCreationHistoricalIO == nil,
+              storage.targetGenerationCreationReceipt == nil,storage.targetGenerationCreationModelPin == nil,
+              storage.targetGenerationCreationModelResult == nil,storage.targetGenerationCreationConsumptionReturn == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    var ordinaryCurrentOriginV2: Bool {
+        switch storage.origin {
+        case .fence?,.fenceCommit?,.afterSave?: return true
+        case .pendingTeardown?,.manifestLookup?,.manifestPublication?,.targetGenerationCreation?,.selectedErase?,nil: return false
+        }
+    }
+    func requireOrdinaryCohortFamilyV2(scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws -> ColdEraseSchema2CompletedOrdinaryCohortFamilyV2 {
+        guard ordinaryCurrentOriginV2,storage.primaryFailure == nil,
+              (storage.retainedScope === scope || storage.consumedScope === scope),
+              storage.retainedContext?.owner === owner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return try storage.currentDebit.requireOrdinaryCohortFamilyV2(request: self,scope: scope,owner: owner)
+    }
+    fileprivate func ordinaryDeclaredReturnAfterActualFinish(owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1)
+        throws -> ColdEraseSchema2CompletedOrdinaryDeclaredReturnV1? {
+        guard let actual = storage.ordinaryDeclaredReturn else { return nil }
+        guard storage.returned,storage.retainedContext == nil,storage.origin == nil,
+              storage.retainedScope == nil,storage.consumedScope == nil,storage.primaryFailure == nil,
+              case .success? = storage.actualWrapperReturn,
+              case .success? = storage.ordinaryHistoricalTransferReturn else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try actual.requireReturnedRequest(self,owner: owner)
+        return actual
+    }
     fileprivate func finishReturnedRequest() throws {
         let context = try requireEnteredContextData()
         guard storage.retainedScope == nil, let scope = storage.consumedScope else {
@@ -28437,6 +28665,13 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
             }
         }
         try storage.currentDebit.finishReturnedFrames(request: self, owner: context.owner)
+        if let historical = storage.ordinaryHistoricalData {
+            let actual = try scope.returnOrdinaryDeclaredOwnersAfterWrapper(
+                request: self, owner: context.owner, historical: historical)
+            storage.ordinaryDeclaredReturn = actual // actual owning transition before its postproof
+            try actual.requireReturned(scope: scope, request: self, owner: context.owner)
+            storage.consumedScope = nil
+        }
         storage.returned = true
         // Actual immutable receipts keep their returned raw/resource proof.
         // Release successful dynamic Root/Coordinator/Session/Factory and
@@ -28446,6 +28681,14 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         storage.lookupStore = nil; storage.transitionStore = nil
     }
     fileprivate func requirePositiveConsumedRequestData(owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        if let actual = storage.ordinaryDeclaredReturn {
+            guard storage.returned, storage.consumedScope == nil,
+                  storage.retainedScope == nil, storage.primaryFailure == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try actual.requireReturnedRequest(self, owner: owner)
+            return
+        }
         guard let scope = storage.consumedScope, storage.retainedScope == nil,
               storage.primaryFailure == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try scope.requireConsumedPositivePermanentSettlement(owner: owner, request: self)
@@ -28582,6 +28825,7 @@ extension ColdEraseSchema2CompletedSessionLifetimeOwnerV1 {
             let value = try actualWrapper.get()
             try request.finishReturnedRequest()
             storage.activeCurrentRequest = nil
+            try storage.currentBacking.retireSuccessfulOrdinaryRequestAfterReturn(request, owner: self)
             return value
         } catch {
             do {
@@ -29782,9 +30026,31 @@ extension StartupRouter {
 // MAIN_CURRENT_FINITE_ROOT_V1_END
 
 // MAIN_CURRENT_FINITE_ADMISSION_V1_BEGIN
-// A finite declared-backing program, not a RAM/VM/FD or effect grant. Every
-// occupied slot keeps its entire demand after consumption. Exhaustion and
-// genuine archive retirement/replenishment remain functional prerequisites.
+#if DEBUG
+struct ColdEraseSchema2CompletedOrdinaryBackingSnapshotV1 {
+    let maximumRetainedRequests: Int
+    let occupiedSlots: Int
+    let actualRequestBirths: UInt64
+    let successfulOrdinaryReturns: UInt64
+    let lastBornRequestIdentity: ObjectIdentifier?
+    let lastReturnedRequestIdentity: ObjectIdentifier?
+    let activeRequestIdentity: ObjectIdentifier?
+    let currentScopePresent: Bool
+    let currentResourceFramePresent: Bool
+    let retainedHistoricalBackingBytes: UInt64
+    let perRequestBackingBytes: UInt64
+    let sourceBackingBytesPerAttempt: UInt64
+    let maximumSourceAttempts: Int
+    let unusedSpecializedBackingBytes: UInt64
+    let reservedCurrentAndPendingCheckpointBackingBytes: UInt64
+    let retainedOrdinaryFamilies: Int
+    let returnedHistoricalCohorts: UInt64
+    let quarantined: Bool
+}
+#endif
+// A finite declared-backing program, not a RAM/VM/FD or effect grant. A real
+// successful ordinary owning transition can recycle a Slot, while every born
+// archive/cohort remains conservatively paid in the SAME original envelope.
 @MainActor
 fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
     nonisolated fileprivate static let maximumRetainedRequests = 64
@@ -29798,6 +30064,8 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         var admission: ColdEraseSchema2CompletedSessionCurrentAdmissionV1?
         var scope: ColdEraseSchema2CompletedSessionCurrentScopeV1?
         var firstError: Error?
+        var retirementReturn: Result<Void,Error>?
+        var ordinaryCohortFamily: ColdEraseSchema2CompletedOrdinaryCohortFamilyV2?
     }
     private struct Storage {
         weak var router: StartupRouter?
@@ -29808,10 +30076,18 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         let demand: ColdEraseSchema2CompletedSessionCurrentAllocationDemandV1
         let perRequestBackingBytes: UInt64
         let declaredBackingUpperBound: UInt64
+        let cohortCensus: ColdEraseSchema2CompletedOrdinaryCohortCensusV2
+        let reservedCurrentAndPendingCheckpointBackingV2: UInt64
         var retainedReceiver: ColdEraseSchema2CompletedStartupPublicationReceiverV1?
         var retainedConstruction: ColdEraseSchema2CompletedStartupOwnerV1?
         var readyJoinReturned = false
         var failure: Error?
+        var retainedHistoricalBackingBytes: UInt64 = 0
+        var successfulOrdinaryReturns: UInt64 = 0
+        var actualRequestBirths: UInt64 = 0
+        var lastBornRequestIdentity: ObjectIdentifier?
+        var lastReturnedRequestIdentity: ObjectIdentifier?
+        var returnedHistoricalCohorts: UInt64 = 0
     }
     private var storage: Storage
     nonisolated fileprivate static func adding(_ a: UInt64, _ b: UInt64) throws -> UInt64 {
@@ -29830,6 +30106,7 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         var each = demand.totalBackingBytes
         each = try adding(each, ColdEraseSchema2CompletedSessionCurrentDebitV1.declaredBackingBytes)
         each = try adding(each, ColdEraseSchema2CompletedSessionCurrentAdmissionV1.declaredBackingBytes)
+        each = try adding(each, ColdEraseSchema2CompletedOrdinaryCohortCensusV2.declaredFamilyBackingBytes)
         each = try adding(each, ColdEraseSchema2CompletedSourceCurrentRequestV1.declaredRetentionBackingBytes)
         // Two real selected-loan value copies and the three nested caller Context values.
         // Request Storage above separately includes its retained optional value and fence.
@@ -29857,6 +30134,7 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         let count = UInt64(Self.maximumRetainedRequests)
         var total = try multiplying(each, count)
         total = try adding(total, UInt64(MemoryLayout<Storage>.stride))
+        total = try adding(total, UInt64(MemoryLayout<ColdEraseSchema2CompletedOrdinaryCohortCensusV2>.stride))
         total = try adding(total, try multiplying(UInt64(MemoryLayout<Slot>.stride), count))
         total = try adding(total, UInt64(MemoryLayout<Slot>.stride)) // actual initialize(repeating:) value
         total = try adding(total, ColdEraseSchema2CompletedSessionLifetimeOwnerV1.declaredRetentionBackingBytes)
@@ -29873,7 +30151,11 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         receiver: ColdEraseSchema2CompletedStartupPublicationReceiverV1,
         construction: ColdEraseSchema2CompletedStartupOwnerV1,
         demand: ColdEraseSchema2CompletedSessionCurrentAllocationDemandV1,
-        program: (perRequest: UInt64, total: UInt64)) {
+        program: (perRequest: UInt64, total: UInt64)) throws {
+        let checkpointReservation = try Self.multiplying(demand.sourceBackingBytesPerAttempt,2)
+        guard checkpointReservation < (try Self.multiplying(program.perRequest,UInt64(Self.maximumRetainedRequests))) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         // Root has retained the exact declared program before this constructor.
         // This allocation initializes the real typed slot bank only. It does
         // not allocate or claim to reserve the later Swift/Foundation payload.
@@ -29883,6 +30165,8 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         storage = Storage(router: router, registry: receiver.completedSessionLifetimeRegistry,
             factory: receiver.factory, slots: slots, demand: demand,
             perRequestBackingBytes: program.perRequest, declaredBackingUpperBound: program.total,
+            cohortCensus: ColdEraseSchema2CompletedOrdinaryCohortCensusV2(),
+            reservedCurrentAndPendingCheckpointBackingV2: checkpointReservation,
             retainedReceiver: receiver, retainedConstruction: construction)
     }
     deinit {
@@ -29940,7 +30224,20 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         let index: Int
         do {
             try requireContext(context)
-            guard let unused = (0..<Self.maximumRetainedRequests).first(where: { storage.slots[$0].phase == .empty }) else {
+            try returnActuallyUnownedHistoricalCohortsV2()
+            let occupied = (0..<Self.maximumRetainedRequests).reduce(0) {
+                $0 + (storage.slots[$1].phase == .empty ? 0 : 1)
+            }
+            let nextWhole = try Self.multiplying(UInt64(occupied + 1), storage.perRequestBackingBytes)
+            let nextDemand = try Self.adding(try Self.adding(storage.retainedHistoricalBackingBytes, nextWhole),
+                storage.reservedCurrentAndPendingCheckpointBackingV2)
+            guard try nextDemand <= Self.multiplying(storage.perRequestBackingBytes,
+                UInt64(Self.maximumRetainedRequests)) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard let unused = (0..<Self.maximumRetainedRequests).first(where: {
+                storage.slots[$0].phase == .empty && storage.slots[$0].ordinaryCohortFamily == nil
+            }) else {
                 // No new object/frame/Scope/effect and no archive debit is reset.
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
@@ -29954,6 +30251,11 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
             let request = ColdEraseSchema2CompletedSourceCurrentRequestV1(context: context,
                 origin: origin, currentDebit: debit)
             storage.slots[index].request = request // before any return proof
+            if request.ordinaryCurrentOriginV2 {
+                storage.slots[index].ordinaryCohortFamily = storage.cohortCensus.constructFamily(request: request,index: index)
+            }
+            storage.actualRequestBirths = try Self.adding(storage.actualRequestBirths,1)
+            storage.lastBornRequestIdentity = ObjectIdentifier(request)
             try debit.retainConstructedRequestBeforeProof(request, context: context)
             storage.slots[index].phase = .requestRetained
             return request
@@ -30004,6 +30306,7 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         try requireDebit(debit, index: index, request: request)
         guard old == nil, storage.slots[index].phase == .reserved,
               storage.slots[index].admission === admission else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try storage.slots[index].ordinaryCohortFamily?.retainActualOwners(scope: scope,admission: admission,debit: debit,request: request)
         storage.slots[index].phase = .scopeRetained
     }
     fileprivate func requireScope(_ scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
@@ -30025,7 +30328,86 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         // NO charge decrement, slot clearing, history truncation or payload
         // deallocation claim. Actual consumed bank/Source proof stays retained.
     }
-    fileprivate func retainSlotFailure(index: Int, error: Error) {
+    fileprivate func requireOrdinaryCohortFamilyV2(_ debit: ColdEraseSchema2CompletedSessionCurrentDebitV1,
+        index: Int,request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws
+        -> ColdEraseSchema2CompletedOrdinaryCohortFamilyV2 {
+        try requireDebit(debit,index: index,request: request)
+        guard storage.owner === owner,storage.slots[index].scope === scope,
+              storage.slots[index].phase == .scopeRetained || storage.slots[index].phase == .archiveOccupied,
+              let family = storage.slots[index].ordinaryCohortFamily else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try family.requireRequest(request)
+        return family
+    }
+    private func returnActuallyUnownedHistoricalCohortsV2() throws {
+        for index in 0..<Self.maximumRetainedRequests where storage.slots[index].phase == .empty {
+            guard let family = storage.slots[index].ordinaryCohortFamily else { continue }
+            guard let actual = try family.actualReturnedCohortBackingCredit() else { continue }
+            guard actual <= storage.retainedHistoricalBackingBytes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let count = try Self.adding(storage.returnedHistoricalCohorts,1)
+            storage.retainedHistoricalBackingBytes -= actual
+            storage.returnedHistoricalCohorts = count
+            storage.slots[index].ordinaryCohortFamily = nil
+            // The real typed owner census has returned. Unknown exported
+            // value debt cannot reach this subtraction; no physical claim.
+        }
+    }
+    fileprivate func retireSuccessfulOrdinaryRequestAfterReturn(
+        _ request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        guard let actual = try request.ordinaryDeclaredReturnAfterActualFinish(owner: owner) else { return }
+        let debit = request.retainedCurrentDebit
+        let index = try debit.requireOrdinaryRetirementIndex(request: request, owner: owner)
+        let result = Result<Void,Error> {
+            try requireDebit(debit, index: index, request: request)
+            guard storage.owner === owner, storage.slots[index].phase == .archiveOccupied,
+                  storage.slots[index].retirementReturn == nil,
+                  let scope = storage.slots[index].scope,
+                  let admission = storage.slots[index].admission else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try admission.requireArchivedConsumptionData(request: request, owner: owner)
+            try actual.requireReturned(scope: scope, request: request, owner: owner)
+            let unused = try actual.requireNeverBornReservedBacking(request: request, owner: owner,
+                demand: storage.slots[index].demand)
+            guard unused < storage.perRequestBackingBytes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let retained = storage.perRequestBackingBytes - unused
+            let history = try Self.adding(storage.retainedHistoricalBackingBytes, retained)
+            let count = try Self.adding(storage.successfulOrdinaryReturns, 1)
+            let occupied = (0..<Self.maximumRetainedRequests).reduce(0) {
+                $0 + (storage.slots[$1].phase == .empty || $1 == index ? 0 : 1)
+            }
+            let whole = try Self.multiplying(UInt64(occupied), storage.perRequestBackingBytes)
+            guard try Self.adding(try Self.adding(history, whole),storage.reservedCurrentAndPendingCheckpointBackingV2) <= Self.multiplying(storage.perRequestBackingBytes,
+                UInt64(Self.maximumRetainedRequests)) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            // Credit only reservations whose actual ordinary producer proved
+            // no birth. All possible born graphs/COW copies remain paid.
+            storage.retainedHistoricalBackingBytes = history
+            storage.successfulOrdinaryReturns = count
+            try debit.recordActualOrdinaryRetirement(actual, request: request, owner: owner)
+            storage.lastReturnedRequestIdentity = ObjectIdentifier(request)
+        }
+        storage.slots[index].retirementReturn = result // real return before any Slot clearing
+        do {
+            try result.get()
+            guard let family = storage.slots[index].ordinaryCohortFamily else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let unused = try actual.requireNeverBornReservedBacking(request: request,owner: owner,demand: storage.slots[index].demand)
+            try family.recordActualRetirement(result,retainedBackingBytes: storage.perRequestBackingBytes - unused)
+            storage.slots[index].scope = nil
+            storage.slots[index].admission = nil
+            storage.slots[index].request = nil
+            storage.slots[index].debit = nil
+            storage.slots[index].retirementReturn = nil
+            storage.slots[index].phase = .empty
+        } catch { retainSlotFailure(index: index, error: error, debit: debit); throw error }
+    }
+    fileprivate func retainSlotFailure(index: Int, error: Error,
+        debit: ColdEraseSchema2CompletedSessionCurrentDebitV1? = nil) {
+        if let debit, (index < 0 || index >= Self.maximumRetainedRequests || storage.slots[index].debit !== debit) {
+            // An old returned Debit has no authority over a later occupant.
+            retainFailure(error)
+            return
+        }
         if index >= 0 && index < Self.maximumRetainedRequests,
            storage.slots[index].firstError == nil { storage.slots[index].firstError = error }
         retainFailure(error)
@@ -30034,6 +30416,24 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         if storage.failure == nil { storage.failure = error }
         storage.owner?.retainUncertainLifetime(error)
     }
+#if DEBUG
+    fileprivate func ordinaryBackingSnapshot(activeRequest: ColdEraseSchema2CompletedSourceCurrentRequestV1?,
+        currentScopePresent: Bool,currentResourceFramePresent: Bool) -> ColdEraseSchema2CompletedOrdinaryBackingSnapshotV1 {
+        .init(maximumRetainedRequests: Self.maximumRetainedRequests,
+            occupiedSlots: (0..<Self.maximumRetainedRequests).reduce(0){$0 + (storage.slots[$1].phase == .empty ? 0 : 1)},
+            actualRequestBirths: storage.actualRequestBirths,successfulOrdinaryReturns: storage.successfulOrdinaryReturns,
+            lastBornRequestIdentity: storage.lastBornRequestIdentity,lastReturnedRequestIdentity: storage.lastReturnedRequestIdentity,
+            activeRequestIdentity: activeRequest.map(ObjectIdentifier.init),currentScopePresent: currentScopePresent,
+            currentResourceFramePresent: currentResourceFramePresent,
+            retainedHistoricalBackingBytes: storage.retainedHistoricalBackingBytes,perRequestBackingBytes: storage.perRequestBackingBytes,
+            sourceBackingBytesPerAttempt: storage.demand.sourceBackingBytesPerAttempt,maximumSourceAttempts: storage.demand.maximumSourceAttempts,
+            unusedSpecializedBackingBytes: storage.demand.targetGenerationCreationProfile.requiredBackingBytes
+                + storage.demand.finalCloseProfile.totalBackingBytes,
+            reservedCurrentAndPendingCheckpointBackingBytes: storage.reservedCurrentAndPendingCheckpointBackingV2,
+            retainedOrdinaryFamilies: (0..<Self.maximumRetainedRequests).reduce(0){$0 + (storage.slots[$1].ordinaryCohortFamily == nil ? 0 : 1)},
+            returnedHistoricalCohorts: storage.returnedHistoricalCohorts,quarantined: storage.failure != nil)
+    }
+#endif
 }
 
 @MainActor
@@ -30048,6 +30448,7 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentDebitV1 {
         var routerFrame: StartupRouter.CompletedSessionCurrentFrame?
         var resourceFrame: ColdEraseSchema2CompletedSessionLifetimeOwnerV1.CurrentResourceFrame?
         var firstError: Error?
+        var ordinaryDeclaredReturn: ColdEraseSchema2CompletedOrdinaryDeclaredReturnV1?
     }
     private var storage: Storage
     nonisolated fileprivate static var declaredBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -30064,11 +30465,18 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentDebitV1 {
         try storage.parent!.requireContext(context)
     }
     fileprivate func requireRequest(_ request: ColdEraseSchema2CompletedSourceCurrentRequestV1) throws {
-        guard storage.firstError == nil, storage.request === request,
+        guard storage.firstError == nil, storage.ordinaryDeclaredReturn == nil, storage.request === request,
               request.retainedCurrentDebit === self, let parent = storage.parent else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try parent.requireDebit(self, index: storage.index, request: request)
+    }
+    fileprivate func requireOrdinaryCohortFamilyV2(request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws
+        -> ColdEraseSchema2CompletedOrdinaryCohortFamilyV2 {
+        try requireRequest(request)
+        guard storage.owner === owner,let parent = storage.parent else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return try parent.requireOrdinaryCohortFamilyV2(self,index: storage.index,request: request,scope: scope,owner: owner)
     }
     fileprivate func retainRouterFrameBeforeProof(_ frame: StartupRouter.CompletedSessionCurrentFrame,
         request: ColdEraseSchema2CompletedSourceCurrentRequestV1) throws {
@@ -30150,8 +30558,23 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentDebitV1 {
     }
     fileprivate func retainFailure(_ error: Error) {
         if storage.firstError == nil { storage.firstError = error }
-        storage.parent?.retainSlotFailure(index: storage.index, error: error)
+        storage.parent?.retainSlotFailure(index: storage.index, error: error, debit: self)
         storage.request?.poison(error)
+    }
+    fileprivate func requireOrdinaryRetirementIndex(request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws -> Int {
+        try requireRequest(request)
+        guard storage.owner === owner, storage.routerFrame == nil, storage.resourceFrame == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return storage.index
+    }
+    fileprivate func recordActualOrdinaryRetirement(_ actual: ColdEraseSchema2CompletedOrdinaryDeclaredReturnV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        _ = try requireOrdinaryRetirementIndex(request: request, owner: owner)
+        try actual.requireReturnedRequest(request, owner: owner)
+        storage.ordinaryDeclaredReturn = actual
     }
 }
 
@@ -31490,4 +31913,3 @@ extension ColdEraseSchema2CompletedSourceCurrentRequestV1 {
     }
 }
 // MAIN_ORIGINAL_ERASE_NATIVE_PARENT_HISTORY_V1_END
-

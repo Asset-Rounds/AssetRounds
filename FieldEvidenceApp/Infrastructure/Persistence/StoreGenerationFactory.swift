@@ -24729,7 +24729,10 @@ struct StoreGenerationFactory {
         diagnosticPhase?("recovery.original.old.factory.scratch-enter")
 #endif
         let value = try owner.withExclusiveSourceScratch { permit in
-            try ScratchDataLeaseStoreV1.withExclusiveOriginalEraseSourceRead(
+            let scratchImage = try onCheckedScratchSettlement.map { _ in
+                try owner.requireOriginalScratchImageInsideOriginalRecoveryG()
+            }
+            let settled = try ScratchDataLeaseStoreV1.withExclusiveOriginalEraseSourceRead(
                 applicationSupportURL: applicationSupportURL,
                 request: request, permit: permit,
                 requireProtectedIngressUnchanged: {
@@ -24738,7 +24741,8 @@ struct StoreGenerationFactory {
                 readerIsDrained: {
                     (!constructionAttempted || constructionSettled)
                         && retainedContainer == nil && retainedContext == nil
-                }, onCheckedSettlement: onCheckedScratchSettlement,
+                }, originalScratchImage: scratchImage,
+                onCheckedSettlement: onCheckedScratchSettlement,
                 diagnosticPhase: diagnosticPhase) { copy in
 #if DEBUG
                 diagnosticPhase?("recovery.original.old.factory.read-enter")
@@ -24823,6 +24827,10 @@ struct StoreGenerationFactory {
 #endif
                 return semantic
             }
+            if scratchImage != nil {
+                _ = try owner.requireOriginalScratchImageInsideOriginalRecoveryG()
+            }
+            return settled
         }
 #if DEBUG
         diagnosticPhase?("recovery.original.old.factory.scratch-complete")
@@ -41808,6 +41816,13 @@ extension StoreGenerationFactory {
 // Fresh Source IO is authorized only by the SAME current resource/G loan.
 @MainActor
 final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
+    private struct OrdinaryPredecessorReturnV2 {
+        let basisIdentity: ObjectIdentifier
+        let pinIdentity: ObjectIdentifier
+        let previousIdentity: ObjectIdentifier
+        let fact: stat
+        let names: [String]
+    }
     private struct Storage {
         weak var source: ColdEraseSchema2CompletedJournalSourceV1?
         weak var current: ColdEraseSchema2CompletedSessionCurrentScopeV1?
@@ -41819,13 +41834,17 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
         let nativeOriginNames: [String]
         let namespaceBasis: ColdEraseSchema2CompletedCanonicalSourceNamespaceBasisV1?
         let initialStartupProjection: ColdEraseSchema2CompletedSourceDataPolicyProjectionV1?
-        let previousProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1?
+        var previousProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1?
         let descriptor: Int32
         let parentDescriptor: Int32
         let selectedName: String
         let url: URL
         let initial: stat
         weak var adoptedProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1?
+        var ordinaryCohortDecisionV2: Bool?
+        var ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
+        var ordinaryPredecessorV2: OrdinaryPredecessorReturnV2?
+        var ordinaryPredecessorReturnV2: Result<Void,Error>?
     }
     private var storage: Storage
     nonisolated static var declaredFieldBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -41835,6 +41854,14 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
     var names: [String] { storage.names }
     var initialStartupProjection: ColdEraseSchema2CompletedSourceDataPolicyProjectionV1? { storage.initialStartupProjection }
     var previousProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1? { storage.previousProjection }
+    func registerOrdinaryCohortV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.ordinaryCohortDecisionV2 == nil,
+              storage.ordinaryCohortV2 == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let eligible = current.ordinaryCohortRegistrationEligibleV2
+        storage.ordinaryCohortDecisionV2 = eligible // actual origin decision, never a default exemption
+        guard eligible else { return } // specialized/nonordinary owner keeps its incumbent full debit
+        storage.ordinaryCohortV2 = try current.registerOrdinaryCohortV2(self,kind: .sourceBasis)
+    }
     fileprivate init(source: ColdEraseSchema2CompletedJournalSourceV1,
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
         pin: ColdEraseSchema2CompletedSessionResourceBankV1.Resource,names: [String],
@@ -41847,6 +41874,7 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
     func requireBound(source: ColdEraseSchema2CompletedJournalSourceV1,
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
         guard storage.source === source,storage.current === current,
+              storage.ordinaryPredecessorV2 == nil,storage.ordinaryPredecessorReturnV2 == nil,
               let pin = storage.pin,storage.retainedPin === pin,storage.adoptedProjection == nil else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
@@ -41897,6 +41925,44 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
         }
         try requirePermanentNativePinAssociation(pin: pin)
         try projection.requirePositivePermanentPinProjection(pin: pin)
+    }
+    func returnOrdinaryPredecessorV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        previous: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1) throws {
+        try current.requireOrdinaryCollectiveCutV2()
+        guard storage.current === current,storage.previousProjection === previous,
+              storage.ordinaryCohortDecisionV2 == true,let registration = storage.ordinaryCohortV2,
+              storage.ordinaryPredecessorV2 == nil,storage.ordinaryPredecessorReturnV2 == nil,
+              storage.retainedPin == nil,let pin = storage.pin,storage.adoptedProjection != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registration.requireNoOutstandingBorrower(owner: self)
+        try requirePermanentNativePinAssociation(pin: pin)
+        let prior = try previous.requireOrdinaryPredecessorFactsV2()
+        try requireCanonicalNamespacePriorLinkV1(previous: previous,fact: prior.fact,names: prior.names)
+        let actual = OrdinaryPredecessorReturnV2(basisIdentity: ObjectIdentifier(self),pinIdentity: ObjectIdentifier(pin),
+            previousIdentity: ObjectIdentifier(previous),fact: prior.fact,names: prior.names)
+        storage.ordinaryPredecessorV2 = actual // actual authenticated prior DATA before clearing its strong edge
+        let returned = Result<Void,Error> {
+            try current.requireOrdinaryCollectiveCutV2()
+            try registration.requireNoOutstandingBorrower(owner: self)
+            guard storage.previousProjection === previous else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            storage.previousProjection = nil // sole real owning edge return; no recursive predecessor is retained
+            guard storage.previousProjection == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        storage.ordinaryPredecessorReturnV2 = returned // SAME real transition Result before outward get
+        try returned.get()
+    }
+    func requireOrdinaryReturnedPredecessorV2(identity: ObjectIdentifier,fact: stat,names: [String]) throws {
+        guard storage.previousProjection == nil,let actual = storage.ordinaryPredecessorV2,
+              case .success? = storage.ordinaryPredecessorReturnV2,
+              actual.basisIdentity == ObjectIdentifier(self),let pin = storage.pin,
+              actual.pinIdentity == ObjectIdentifier(pin),actual.previousIdentity == identity,
+              ColdEraseSchema2CompletedSessionResourceBankV1.same(actual.fact,fact),actual.names == names else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requirePermanentNativePinAssociation(pin: pin)
+        // This is the original predecessor's positive DATA and actual nil edge,
+        // never an assertion that nil was the original input or a new IO grant.
     }
 }
 
@@ -42003,8 +42069,7 @@ extension StoreGenerationFactory {
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1,session: StoreGenerationSession) throws -> GenerationEpochV1 {
         try current.requireCapturedCurrentSourceReceipt(source,session: session,factory: self)
         try source.requirePositiveReturnedSourceSettlement(current: current)
-        let epoch = try Self.decodeCompletedSessionCurrentEpochData(pointerBytes: source.pointerBytes,
-            manifestBytes: source.manifestBytes,session: session)
+        let epoch = try source.decodeCompletedCurrentEpochWithoutExportV2(current: current,session: session)
         guard source.generationID == epoch.generationID,source.generationEpoch == epoch,
               session.generationEpoch == epoch,current.generationEpoch == epoch else { throw GenerationLeaseRegistryFailureV1.staleGeneration }
         return epoch
@@ -42062,7 +42127,7 @@ struct ColdEraseSchema2CompletedSessionNativeCurrentProfileV1: Equatable {
         let rootURL = try lifetime.requireNativeRetainedRootURLForProfile(registry:registry,factory:factory)
         var nodes = 0, dirs = 0, names = 0
         var nameBytes: UInt64 = 0, paths: UInt64 = 0, calls: UInt64 = 0, policy: UInt64 = 0
-        try lifetime.withRetainedNativeCurrentBasis { path, fact, _, actualNames in
+        try lifetime.withRetainedNativeCurrentBasis(use: .countOnly) { path, fact, _, actualNames in
             nodes += 1
             let url = path.isEmpty ? rootURL : rootURL.appendingPathComponent(path)
             paths = try plus(paths,UInt64(url.path.utf8.count + path.utf8.count))
@@ -42230,6 +42295,8 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentBankV1 {
         var uncertain = false
         var firstFailure: Error?
         var closeFailure: Error?
+        var ordinaryCohortDecisionV2: Bool?
+        var ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
     }
     private var storage: Storage
     static var declaredFieldBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -42261,6 +42328,30 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentBankV1 {
                 count:profile.outcomes + finalClose.maximumParentPolicyRawOutcomeSlots),
             scratch: [UInt8](repeating:0,count:65_536))
         storage.rows.reserveCapacity(profile.nodes);storage.cursors.reserveCapacity(profile.cursors)
+    }
+    func registerOrdinaryCohortV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.retainedCurrent === current,
+              storage.ordinaryCohortDecisionV2 == nil,storage.ordinaryCohortV2 == nil,
+              let mutation = storage.mutation,storage.finalClose == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try mutation.requireOrdinaryRetainedNativeBankV2(self,current: current)
+        let eligible = current.ordinaryCohortRegistrationEligibleV2
+        storage.ordinaryCohortDecisionV2 = eligible
+        guard eligible else { return }
+        storage.ordinaryCohortV2 = try current.registerOrdinaryCohortV2(self,kind: .nativeBank)
+    }
+    fileprivate func requireDeclaredNativeReceiverV2() throws -> ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2? {
+        try requireFrame()
+        guard storage.rows.count == storage.profile.nodes,storage.pending == nil,
+              let current = storage.current,let mutation = storage.mutation,
+              let eligible = storage.ordinaryCohortDecisionV2 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try mutation.requireOrdinaryRetainedNativeBankV2(self,current: current)
+        guard eligible else { return nil } // genuine specialized receiver remains fully paid
+        guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return registration
     }
     func requireFrame() throws {
         guard !storage.returned,!storage.uncertain,let current = storage.current,
@@ -42326,7 +42417,7 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentBankV1 {
             try record(.named,index,Int64(n),ne,fact:named)
             guard h == 0,n == 0,Self.same(held,named),Self.same(held,expected) else { throw StoreGenerationFailure.dataPointerInvalid }
         }
-        try lifetime.withRetainedNativeCurrentBasis { path,fact,hash,names in
+        try lifetime.withRetainedNativeCurrentBasis(use: .nativeBank(self)) { path,fact,hash,names in
             guard storage.rows.count < storage.profile.nodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
             let parentPath = path.split(separator:"/").dropLast().joined(separator:"/")
             let parentIndex = path.isEmpty ? nil : storage.rows.firstIndex(where:{$0.path == parentPath})
@@ -43039,6 +43130,8 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
         var published = false
         var uncertain = false
         var failure: Error?
+        var ordinaryCohortDecisionV2: Bool?
+        var ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
     }
     private var storage: Storage
     static var declaredFieldBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -43051,6 +43144,23 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
             registry:registry,retainedFactory:factory,lifetime:lifetime,
             provenance:try factory.completedSchema2ConstructorFactoryProvenance(),generations:pins.generations,
             root:pins.root,mutatingFence:fence,retainedFence:fence,profile:profile,thread:pthread_self())
+    }
+    func registerOrdinaryCohortV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.retainedCurrent === current,
+              storage.ordinaryCohortDecisionV2 == nil,storage.ordinaryCohortV2 == nil,
+              !storage.entered,storage.bank == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let eligible = current.ordinaryCohortRegistrationEligibleV2
+        storage.ordinaryCohortDecisionV2 = eligible
+        guard eligible else { return }
+        storage.ordinaryCohortV2 = try current.registerOrdinaryCohortV2(self,kind: .nativeMutation)
+    }
+    fileprivate func requireOrdinaryRetainedNativeBankV2(_ bank: ColdEraseSchema2CompletedSessionNativeCurrentBankV1,
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.bank === bank,storage.entered,
+              let eligible = storage.ordinaryCohortDecisionV2,
+              (!eligible || storage.ordinaryCohortV2 != nil) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
     }
     func requireFrame() throws {
         guard !storage.returned,!storage.uncertain,let current = storage.current,
@@ -43069,6 +43179,7 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
         let actual = ColdEraseSchema2CompletedSessionNativeCurrentBankV1(current:current,mutation:self,profile:storage.profile)
         storage.bank = actual;storage.entered = true // same bank before any own IO or postcondition
         do {
+            try actual.registerOrdinaryCohortV2(current: current) // actual retained constructor return before prepare/IO
             try actual.prepare(lifetime:lifetime,session:session,registry:registry,factory:factory)
             let before = try actual.graph(allowOwnSave:false)
             storage.before = before // actual full returned beforegraph BEFORE postproof
@@ -43186,11 +43297,28 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
     }
 }
 
+// The cases are selected only at the finite owned call sites below. A generic
+// callback cannot select countOnly or supply an assumed nonescape declaration.
+@MainActor
+fileprivate enum ColdEraseSchema2CompletedNativeHeadUseV2 {
+    case countOnly
+    case nativeBank(ColdEraseSchema2CompletedSessionNativeCurrentBankV1)
+    case unregisteredValueExport
+}
+fileprivate typealias ColdEraseSchema2CompletedNativeGraphVisitorV2 = (String,stat,String?,[String]?) throws -> Void
+fileprivate typealias ColdEraseSchema2CompletedNativeGraphTraversalV2 = (ColdEraseSchema2CompletedNativeGraphVisitorV2) throws -> Void
+fileprivate typealias ColdEraseSchema2CompletedNativeScalarProfileBodyV2 = (ColdEraseSchema2CompletedNativeGraphTraversalV2) throws -> ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1
+
 @MainActor
 final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
+    private struct OrdinaryNativePredecessorReturnV2 {
+        let consumerIdentity: ObjectIdentifier
+        let priorHeadIdentity: ObjectIdentifier
+        let nativeDataIdentity: ObjectIdentifier
+    }
     private struct Storage {
         weak var current: ColdEraseSchema2CompletedSessionCurrentScopeV1?
-        let mutation: ColdEraseSchema2CompletedSessionNativeCurrentMutationV1
+        var mutation: ColdEraseSchema2CompletedSessionNativeCurrentMutationV1?
         let receipt: ColdEraseSchema2CompletedSessionDidSaveReceiptV1
         weak var session: StoreGenerationSession?
         weak var lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1?
@@ -43201,6 +43329,12 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         var priorHead: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1?
         var retainedAtLifetime = false
         var ordinaryHistoricalData: ColdEraseSchema2CompletedSessionNativeHistoricalDATA?
+        var ordinaryCohortDecisionV2: Bool?
+        var ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
+        var ordinaryPredecessorV2: OrdinaryNativePredecessorReturnV2?
+        var ordinaryPredecessorReturnV2: Result<Void,Error>?
+        var ordinaryLastCallbackReturnV2: Result<Void,Error>?
+        var ordinaryLastLoanReturnV2: Result<Void,Error>?
     }
     private var storage: Storage
     static var declaredFieldBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -43210,6 +43344,16 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         session: StoreGenerationSession,lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1) {
         storage = Storage(current:current,mutation:mutation,receipt:receipt,session:session,lifetime:lifetime,thread:pthread_self())
     }
+    func registerOrdinaryCohortV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.ordinaryCohortDecisionV2 == nil,
+              storage.ordinaryCohortV2 == nil,storage.captureResult == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let eligible = current.ordinaryCohortRegistrationEligibleV2
+        storage.ordinaryCohortDecisionV2 = eligible
+        guard eligible else { return }
+        storage.ordinaryCohortV2 = try current.registerOrdinaryCohortV2(self,kind: .nativeConsumer)
+    }
     fileprivate func retainObservedGraphBeforeProof(_ actual: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Capture]) {
         storage.observed = actual
     }
@@ -43217,11 +43361,12 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         storage.afterPolicy = actual
     }
     func capture() throws {
+        guard let mutation = storage.mutation,storage.ordinaryHistoricalData == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         let result = Result {
-            _ = try storage.mutation.captureAfterSave(storage.receipt,consumer:self)
+            _ = try mutation.captureAfterSave(storage.receipt,consumer:self)
         }
         storage.captureResult = result // actual returned operation BEFORE caller postconditions
-        do { try result.get() } catch { storage.mutation.poison(error);throw error }
+        do { try result.get() } catch { mutation.poison(error);throw error }
     }
     fileprivate func requireCapturedFinalGraph(_ final: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Capture],
         mutation: ColdEraseSchema2CompletedSessionNativeCurrentMutationV1) throws {
@@ -43239,7 +43384,12 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         guard storage.current === current,case .success? = storage.captureResult,
               storage.observed != nil,storage.afterPolicy != nil,
               pthread_equal(storage.thread,pthread_self()) != 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        try storage.mutation.requirePositiveReturnedSettlement(current:current)
+        if let historical = storage.ordinaryHistoricalData {
+            try historical.requireConsumerDATA(consumer: self)
+        } else {
+            guard let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try mutation.requirePositiveReturnedSettlement(current:current)
+        }
         // Earlier callbacks retain their exact observed own results. Only the
         // LAST genuine callback may publish the actual final graph as a head.
     }
@@ -43247,7 +43397,8 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
         previous: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1?) throws -> stat {
         try requirePositiveReturnedSettlement(current:current)
-        let final = try storage.mutation.requireFinalGraph(self)
+        guard let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let final = try mutation.requireFinalGraph(self)
         guard storage.lifetime === lifetime,!storage.retainedAtLifetime,
               let session = storage.session,
               let root = final.first(where:{$0.row.path.isEmpty}),root.row.url == session.generationRootURL else {
@@ -43256,17 +43407,179 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         storage.priorHead = previous;storage.retainedAtLifetime = true
         return root.fact
     }
-    fileprivate func withNativeHead(_ body: (String,stat,String?,[String]?) throws -> Void) throws {
+    private func requireNativeHeadReturnedDATAForBorrowV2() throws {
         guard storage.retainedAtLifetime,case .success? = storage.captureResult else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         if let historical = storage.ordinaryHistoricalData {
-            try storage.mutation.requireOrdinaryHistoricalReturnedFailureState()
             try historical.requireConsumerDATA(consumer: self)
             guard historical.retainedAtLifetime else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-            for item in historical.final { try body(item.path,item.fact,item.hash,item.names) }
         } else {
-            for item in try storage.mutation.requireFinalGraph(self) { try body(item.row.path,item.fact,item.hash,item.names) }
+            guard let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            _ = try mutation.requireFinalGraph(self)
         }
     }
+    fileprivate func withNativeHead(use: ColdEraseSchema2CompletedNativeHeadUseV2,
+        _ body: (String,stat,String?,[String]?) throws -> Void) throws {
+        guard let eligible = storage.ordinaryCohortDecisionV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let loan: ColdEraseSchema2CompletedOrdinaryBorrowerReturnV2?
+        if eligible {
+            guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            loan = try registration.enterLoan(owner: self) // actual registered borrower before every guard/callback
+        } else { loan = nil } // real specialized origin keeps all incumbent ownership/debits
+        let actual = Result<Void,Error> {
+#if DEBUG
+            if let loan,let hook = Self.ordinaryNativeBorrowerEnteredForTesting {
+                guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                registration.recordUnregisteredValueExport(owner: self,purpose: "DEBUG-native-borrower-object-hook")
+                try hook(self,loan) // hook may retain the actual object; never claim that alias disappeared
+            }
+#endif
+            try requireNativeHeadReturnedDATAForBorrowV2()
+            let historical = storage.ordinaryHistoricalData
+            if let historical {
+                for item in historical.final { try body(item.path,item.fact,item.hash,item.names) }
+            } else {
+                guard let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                for item in try mutation.requireFinalGraph(self) { try body(item.row.path,item.fact,item.hash,item.names) }
+            }
+            guard storage.ordinaryHistoricalData === historical else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try requireNativeHeadReturnedDATAForBorrowV2() // genuine after-callback owner/postproof, never guessed success
+            if case .nativeBank(let bank) = use { _ = try bank.requireDeclaredNativeReceiverV2() }
+        }
+        let returned = Result<Void,Error> {
+            if let loan {
+                guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                // Unknown returned values remain paid even if the body throws.
+                if case .unregisteredValueExport = use {
+                    registration.recordUnregisteredValueExport(owner: self,purpose: "native-head-generic-or-final-close-values")
+                }
+                try actual.get()
+                if case .nativeBank(let bank) = use {
+                    if let receiver = try bank.requireDeclaredNativeReceiverV2() {
+                        try loan.retainActualDeclaredReceiver(receiver,owner: self,receiverOwner: bank,proof: actual)
+                    } else {
+                        registration.recordUnregisteredValueExport(owner: self,purpose: "native-head-specialized-bank-values")
+                    }
+                }
+            } else { try actual.get() }
+        }
+        storage.ordinaryLastCallbackReturnV2 = returned // actual body/postproof/receiver association, before terminal capture
+        let retained = Result<Void,Error> {
+            if let loan { try loan.retainActualReturn(returned,owner: self) }
+        }
+        storage.ordinaryLastLoanReturnV2 = retained // real terminal-capture/receiver Result before outward get
+        if case .failure(let first) = actual { throw first } // never replace a genuine body/postproof first error
+        try returned.get();try retained.get()
+    }
+    fileprivate func withNativeFinalCloseProfileV2(_ body: ColdEraseSchema2CompletedNativeScalarProfileBodyV2) throws
+        -> ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1 {
+        guard let eligible = storage.ordinaryCohortDecisionV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let loan: ColdEraseSchema2CompletedOrdinaryBorrowerReturnV2?
+        if eligible {
+            guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            loan = try registration.enterLoan(owner: self)
+        } else { loan = nil }
+        let actual = Result<ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1,Error> {
+#if DEBUG
+            if let loan,let hook = Self.ordinaryNativeBorrowerEnteredForTesting {
+                guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                registration.recordUnregisteredValueExport(owner: self,purpose: "DEBUG-native-borrower-object-hook")
+                try hook(self,loan)
+            }
+#endif
+            try requireNativeHeadReturnedDATAForBorrowV2()
+            let historical = storage.ordinaryHistoricalData
+            var entered = false,returned = false
+            let value = try body { visit in
+                guard !entered else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                entered = true
+                if let historical {
+                    for item in historical.final { try visit(item.path,item.fact,item.hash,item.names) }
+                } else {
+                    guard let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                    for item in try mutation.requireFinalGraph(self) { try visit(item.row.path,item.fact,item.hash,item.names) }
+                }
+                guard storage.ordinaryHistoricalData === historical else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                try requireNativeHeadReturnedDATAForBorrowV2()
+                returned = true
+            }
+            guard entered,returned,storage.ordinaryHistoricalData === historical else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try requireNativeHeadReturnedDATAForBorrowV2()
+            return value // exact typed scalar profile; rootNames never leaves this finite whole-function borrow
+        }
+        let terminal = actual.map { _ in () }
+        storage.ordinaryLastCallbackReturnV2 = terminal
+        let retained = Result<Void,Error> { if let loan { try loan.retainActualReturn(terminal,owner: self) } }
+        storage.ordinaryLastLoanReturnV2 = retained
+        if case .failure(let first) = actual { throw first }
+        try retained.get()
+        return try actual.get()
+    }
+    fileprivate func ordinaryNativePriorHeadIdentityV2() throws -> ObjectIdentifier? {
+        if let actual = storage.ordinaryPredecessorV2 {
+            guard storage.priorHead == nil,case .success? = storage.ordinaryPredecessorReturnV2,
+                  actual.consumerIdentity == ObjectIdentifier(self),
+                  let data = storage.ordinaryHistoricalData,actual.nativeDataIdentity == ObjectIdentifier(data),
+                  actual.priorHeadIdentity == data.priorHeadIdentity else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return actual.priorHeadIdentity
+        }
+        guard storage.ordinaryPredecessorReturnV2 == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return storage.priorHead.map(ObjectIdentifier.init)
+    }
+    private func requireOrdinaryNativeOwnerBeforePredecessorCutV2() throws {
+        guard storage.ordinaryCohortDecisionV2 == true,let registration = storage.ordinaryCohortV2,
+              let data = storage.ordinaryHistoricalData,case .success? = storage.captureResult,
+              pthread_equal(storage.thread,pthread_self()) != 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try registration.requireNoOutstandingBorrower(owner: self)
+        try data.requireConsumerDATA(consumer: self)
+        guard data.receiptIdentity == ObjectIdentifier(storage.receipt),data.retainedAtLifetime == storage.retainedAtLifetime,
+              data.priorHeadIdentity == (try ordinaryNativePriorHeadIdentityV2()) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+    }
+    func returnOrdinaryNativePredecessorV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        try current.requireOrdinaryCollectiveCutV2()
+        guard storage.current === current,storage.ordinaryPredecessorV2 == nil,
+              storage.ordinaryPredecessorReturnV2 == nil,let data = storage.ordinaryHistoricalData else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOrdinaryNativeOwnerBeforePredecessorCutV2()
+        guard let previous = storage.priorHead else {
+            guard data.priorHeadIdentity == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return // original nil has no strong predecessor to return
+        }
+        guard previous !== self,data.priorHeadIdentity == ObjectIdentifier(previous) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try previous.requireOrdinaryNativeOwnerBeforePredecessorCutV2()
+        let actual = OrdinaryNativePredecessorReturnV2(consumerIdentity: ObjectIdentifier(self),
+            priorHeadIdentity: ObjectIdentifier(previous),nativeDataIdentity: ObjectIdentifier(data))
+        storage.ordinaryPredecessorV2 = actual // exact original identity DATA, not another recursively owning transcript
+        let returned = Result<Void,Error> {
+            try current.requireOrdinaryCollectiveCutV2()
+            guard let registration = storage.ordinaryCohortV2 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try registration.requireNoOutstandingBorrower(owner: self)
+            guard storage.priorHead === previous else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            storage.priorHead = nil
+            guard storage.priorHead == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        storage.ordinaryPredecessorReturnV2 = returned
+        try returned.get()
+    }
+#if DEBUG
+    static var ordinaryNativeBorrowerEnteredForTesting: ((ColdEraseSchema2CompletedSessionAfterSaveConsumerV1,
+        ColdEraseSchema2CompletedOrdinaryBorrowerReturnV2) throws -> Void)?
+    func requireOrdinaryNativeBorrowersReturnedForTesting() throws {
+        guard storage.ordinaryCohortDecisionV2 == true,let registration = storage.ordinaryCohortV2 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registration.requireNoOutstandingBorrower(owner: self) // same real refusal used before predecessor cuts; no cut/IO authority
+    }
+    func ordinaryNativeAliasStateForTesting() -> (registered: Bool,strongPredecessor: Bool,
+        originalPriorIdentity: ObjectIdentifier?,predecessorReturned: Bool) {
+        let returned: Bool
+        if case .success? = storage.ordinaryPredecessorReturnV2 { returned = true } else { returned = false }
+        return (storage.ordinaryCohortV2 != nil,storage.priorHead != nil,
+            storage.ordinaryPredecessorV2?.priorHeadIdentity ?? storage.priorHead.map(ObjectIdentifier.init),returned)
+    }
+#endif
 }
 
 extension ColdEraseSchema2CompletedSessionConstructorReceiptV1 {
@@ -43287,9 +43600,28 @@ extension ColdEraseSchema2CompletedSessionConstructorReceiptV1 {
 }
 
 extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
-    fileprivate func withRetainedNativeCurrentBasis(_ body: (String,stat,String?,[String]?) throws -> Void) throws {
-        if let head = storage.nativeCurrentHead { try head.withNativeHead(body) }
+    fileprivate func withRetainedNativeCurrentBasis(use: ColdEraseSchema2CompletedNativeHeadUseV2,
+        _ body: (String,stat,String?,[String]?) throws -> Void) throws {
+        if let head = storage.nativeCurrentHead { try head.withNativeHead(use: use,body) }
         else { try storage.constructor.withRetainedNativeBasis(lifetime:self,body) }
+    }
+    fileprivate func withRetainedNativeFinalCloseProfileBasisV2(_ body: ColdEraseSchema2CompletedNativeScalarProfileBodyV2) throws
+        -> ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1 {
+        if let head = storage.nativeCurrentHead { return try head.withNativeFinalCloseProfileV2(body) }
+        // The original constructor basis remains the authenticated bootstrap.
+        // It has no retired ordinary head, and every incumbent guard still runs.
+        var entered = false,returned = false
+        let actual = Result<ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1,Error> {
+            let value = try body { visit in
+                guard !entered else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                entered = true
+                try storage.constructor.withRetainedNativeBasis(lifetime: self,visit)
+                returned = true
+            }
+            guard entered,returned else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return value
+        }
+        return try actual.get()
     }
     fileprivate func requireNativeRetainedRootURLForProfile(registry: GenerationLeaseRegistryV1,
         factory: StoreGenerationFactory) throws -> URL {
@@ -43339,7 +43671,7 @@ extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
         factory: StoreGenerationFactory,_ body: (String,stat,String?,[String]?) throws -> Void) throws {
         try requireTransferredLifetimeData(session:session,registry:registry,factory:factory)
         guard storage.pendingNativeHead == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        try withRetainedNativeCurrentBasis(body)
+        try withRetainedNativeCurrentBasis(use: .unregisteredValueExport,body)
     }
     func withRetainedNativeFinalCloseGraph(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
         request: ColdEraseSchema2CompletedSourceCurrentRequestV1,registry: GenerationLeaseRegistryV1,
@@ -43354,7 +43686,7 @@ extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
         // Request's authentic causal projection, with no retained old Session.
         // This is original native TREE DATA only; Data/generations changed by
         // actual pointer/namespace publication need their separate receipts.
-        try withRetainedNativeCurrentBasis(body)
+        try withRetainedNativeCurrentBasis(use: .unregisteredValueExport,body)
     }
 }
 
@@ -44416,76 +44748,78 @@ struct ColdEraseSchema2CompletedSessionFinalCloseAllocationProfileV1: Equatable 
         nativeProfile: ColdEraseSchema2CompletedSessionNativeCurrentProfileV1) throws -> Self {
         let parent = try lifetime.requireNativeFinalCloseGenerationCreationBasis(registry: registry,factory: factory)
         let data = try lifetime.requireNativeFinalCloseDataMemberBasis(registry: registry,factory: factory)
-        var rootNames: [String]?
-        try lifetime.withRetainedNativeCurrentBasis { path,_,_,names in
-            if path.isEmpty {
-                guard rootNames == nil,let names else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-                rootNames = names
+        return try lifetime.withRetainedNativeFinalCloseProfileBasisV2 { traverse in
+            var rootNames: [String]?
+            try traverse { path,_,_,names in
+                if path.isEmpty {
+                    guard rootNames == nil,let names else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                    rootNames = names
+                }
             }
+            guard let rootNames else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            // The closed creation producer adds precisely its sole canonical UUID
+            // member. This is owner-storage capacity, never a filesystem link law
+            // or an expected postimage: only its actual receipt can select POST.
+            let generationsCapacity = parent.names.count.addingReportingOverflow(1)
+            let nativeDescriptors = nativeProfile.maximumOwnFileDescriptors.addingReportingOverflow(3)
+            guard !generationsCapacity.overflow,!nativeDescriptors.overflow else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let counts = [data.count,generationsCapacity.partialValue,rootNames.count]
+            let plus = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.plus
+            let times = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.times
+            var utf8: UInt64 = 36 // sole canonical UUID retained by actual creation
+            for cohort in [data,parent.names,rootNames] {
+                for name in cohort { utf8 = try plus(utf8,UInt64(name.utf8.count)) }
+            }
+            let source = try ColdEraseSchema2CompletedJournalSourceV1.requiredCurrentFinalCloseAllocationProfile(
+                absoluteRootUTF8Count: UInt64(factory.restoreApplicationSupportURL.path.utf8.count))
+            guard source.requiredBackingBytes > 0,source.maximumCurrentBoundaryCalls > 0,
+                  source.maximumOwnFileDescriptors == 1,source.maximumOwnDirectoryCursors == 1 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let owner = try ColdEraseSchema2CompletedSessionNativeFinalCloseReceiptV1.requiredOwnBackingBytes(
+                memberCounts: counts,memberUTF8Bytes: utf8,nativeNodes: nativeProfile.nodes)
+            let dataURL = parent.resource.url.deletingLastPathComponent()
+            var parentPolicy = try times(2,ColdEraseSchema2CompletedSessionNativeCurrentPolicyScopeV1.declaredFieldBackingBytes)
+            for url in [dataURL,parent.resource.url] {
+                parentPolicy = try plus(parentPolicy,try ColdEraseSchema2CompletedSessionNativeCurrentPolicyRequestV1.requiredBackingBytes(
+                    absoluteURLUTF8Count: UInt64(url.path.utf8.count)))
+            }
+            // Two closed parent requests each reserve the existing explicit 1024
+            // raw policy envelope. Data is also the actual generations parent;
+            // both retained role counters can therefore spend at most two such
+            // envelopes plus eight initial/final held+named returns. Exhaustion
+            // refuses the next raw effect; these are additional actual Bank cells.
+            let parentRawSlots = 2 * (2 * 1024 + 8)
+            let parentRawBacking = try times(UInt64(parentRawSlots),ColdEraseSchema2CompletedSessionNativeCurrentBankV1.rawOutcomeBackingBytes)
+            let composite = ColdEraseSchema2CompletedSessionAndJournalCloseReceiptV1.declaredFieldBackingBytes
+            var total = try plus(nativeProfile.totalBackingBytes,owner)
+            total = try plus(total,parentPolicy);total = try plus(total,parentRawBacking)
+            total = try plus(total,composite);total = try plus(total,source.requiredBackingBytes)
+            // All actual raw primitives use one of 512 preallocated return cells;
+            // each of six member scans has exactly names+4 entry-owner capacity.
+            // Every possible entered primitive/frame pair and one fault pass are
+            // included in the corresponding Bank callback envelope prospectively.
+            var entries: UInt64 = 0
+            for count in counts { entries = try plus(entries,try times(2,try plus(UInt64(count),4))) }
+            var nativeCalls = try times(UInt64(ColdEraseSchema2CompletedSessionNativeFinalCloseReceiptV1.maximumOutcomes),5)
+            nativeCalls = try plus(nativeCalls,try times(entries,2));nativeCalls = try plus(nativeCalls,128)
+            // The shared Native bank's own fixed raw quota also bounds its enter,
+            // record/postframe and retained policy/cursor frame callbacks. Each
+            // final-close callback is charged independently of mutation credit.
+            nativeCalls = try plus(nativeCalls,try times(UInt64(nativeProfile.outcomes),8))
+            nativeCalls = try plus(nativeCalls,try times(UInt64(parentRawSlots),8))
+            nativeCalls = try plus(nativeCalls,nativeProfile.maximumKernelBoundaryCalls)
+            return Self(nativeProfile: nativeProfile,sourceBackingBytes: source.requiredBackingBytes,
+                sourceMaximumBoundaryCalls: source.maximumCurrentBoundaryCalls,
+                sourceMaximumOwnFileDescriptors: source.maximumOwnFileDescriptors,
+                sourceMaximumOwnDirectoryCursors: source.maximumOwnDirectoryCursors,
+                parentPolicyBackingBytes: parentPolicy,maximumParentPolicyRawOutcomeSlots: parentRawSlots,
+                nativeOwnerBackingBytes: owner,compositeBackingBytes: composite,totalBackingBytes: total,
+                maximumNativeCloseBoundaryCalls: nativeCalls,
+                maximumOwnNativeFileDescriptors: max(nativeDescriptors.partialValue,4),
+                maximumOwnNativeDirectoryCursors: 1,dataMemberCount: data.count,
+                generationMemberCount: generationsCapacity.partialValue,rootMemberCount: rootNames.count,memberUTF8Bytes: utf8)
         }
-        guard let rootNames else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        // The closed creation producer adds precisely its sole canonical UUID
-        // member. This is owner-storage capacity, never a filesystem link law
-        // or an expected postimage: only its actual receipt can select POST.
-        let generationsCapacity = parent.names.count.addingReportingOverflow(1)
-        let nativeDescriptors = nativeProfile.maximumOwnFileDescriptors.addingReportingOverflow(3)
-        guard !generationsCapacity.overflow,!nativeDescriptors.overflow else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        let counts = [data.count,generationsCapacity.partialValue,rootNames.count]
-        let plus = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.plus
-        let times = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.times
-        var utf8: UInt64 = 36 // sole canonical UUID retained by actual creation
-        for cohort in [data,parent.names,rootNames] {
-            for name in cohort { utf8 = try plus(utf8,UInt64(name.utf8.count)) }
-        }
-        let source = try ColdEraseSchema2CompletedJournalSourceV1.requiredCurrentFinalCloseAllocationProfile(
-            absoluteRootUTF8Count: UInt64(factory.restoreApplicationSupportURL.path.utf8.count))
-        guard source.requiredBackingBytes > 0,source.maximumCurrentBoundaryCalls > 0,
-              source.maximumOwnFileDescriptors == 1,source.maximumOwnDirectoryCursors == 1 else {
-            throw GenerationLeaseRegistryFailureV1.uncertainOwner
-        }
-        let owner = try ColdEraseSchema2CompletedSessionNativeFinalCloseReceiptV1.requiredOwnBackingBytes(
-            memberCounts: counts,memberUTF8Bytes: utf8,nativeNodes: nativeProfile.nodes)
-        let dataURL = parent.resource.url.deletingLastPathComponent()
-        var parentPolicy = try times(2,ColdEraseSchema2CompletedSessionNativeCurrentPolicyScopeV1.declaredFieldBackingBytes)
-        for url in [dataURL,parent.resource.url] {
-            parentPolicy = try plus(parentPolicy,try ColdEraseSchema2CompletedSessionNativeCurrentPolicyRequestV1.requiredBackingBytes(
-                absoluteURLUTF8Count: UInt64(url.path.utf8.count)))
-        }
-        // Two closed parent requests each reserve the existing explicit 1024
-        // raw policy envelope. Data is also the actual generations parent;
-        // both retained role counters can therefore spend at most two such
-        // envelopes plus eight initial/final held+named returns. Exhaustion
-        // refuses the next raw effect; these are additional actual Bank cells.
-        let parentRawSlots = 2 * (2 * 1024 + 8)
-        let parentRawBacking = try times(UInt64(parentRawSlots),ColdEraseSchema2CompletedSessionNativeCurrentBankV1.rawOutcomeBackingBytes)
-        let composite = ColdEraseSchema2CompletedSessionAndJournalCloseReceiptV1.declaredFieldBackingBytes
-        var total = try plus(nativeProfile.totalBackingBytes,owner)
-        total = try plus(total,parentPolicy);total = try plus(total,parentRawBacking)
-        total = try plus(total,composite);total = try plus(total,source.requiredBackingBytes)
-        // All actual raw primitives use one of 512 preallocated return cells;
-        // each of six member scans has exactly names+4 entry-owner capacity.
-        // Every possible entered primitive/frame pair and one fault pass are
-        // included in the corresponding Bank callback envelope prospectively.
-        var entries: UInt64 = 0
-        for count in counts { entries = try plus(entries,try times(2,try plus(UInt64(count),4))) }
-        var nativeCalls = try times(UInt64(ColdEraseSchema2CompletedSessionNativeFinalCloseReceiptV1.maximumOutcomes),5)
-        nativeCalls = try plus(nativeCalls,try times(entries,2));nativeCalls = try plus(nativeCalls,128)
-        // The shared Native bank's own fixed raw quota also bounds its enter,
-        // record/postframe and retained policy/cursor frame callbacks. Each
-        // final-close callback is charged independently of mutation credit.
-        nativeCalls = try plus(nativeCalls,try times(UInt64(nativeProfile.outcomes),8))
-        nativeCalls = try plus(nativeCalls,try times(UInt64(parentRawSlots),8))
-        nativeCalls = try plus(nativeCalls,nativeProfile.maximumKernelBoundaryCalls)
-        return Self(nativeProfile: nativeProfile,sourceBackingBytes: source.requiredBackingBytes,
-            sourceMaximumBoundaryCalls: source.maximumCurrentBoundaryCalls,
-            sourceMaximumOwnFileDescriptors: source.maximumOwnFileDescriptors,
-            sourceMaximumOwnDirectoryCursors: source.maximumOwnDirectoryCursors,
-            parentPolicyBackingBytes: parentPolicy,maximumParentPolicyRawOutcomeSlots: parentRawSlots,
-            nativeOwnerBackingBytes: owner,compositeBackingBytes: composite,totalBackingBytes: total,
-            maximumNativeCloseBoundaryCalls: nativeCalls,
-            maximumOwnNativeFileDescriptors: max(nativeDescriptors.partialValue,4),
-            maximumOwnNativeDirectoryCursors: 1,dataMemberCount: data.count,
-            generationMemberCount: generationsCapacity.partialValue,rootMemberCount: rootNames.count,memberUTF8Bytes: utf8)
     }
     func requireSameSourceProfile(_ actual: ColdEraseSchema2CompletedSessionCurrentSourceAllocationProfileV1) throws {
         guard actual.requiredBackingBytes == sourceBackingBytes,
@@ -45276,6 +45610,19 @@ extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
 // retained and charged pending complete global physical-discharge proof.
 @MainActor
 final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
+    struct MutationDATA {
+        let entered: Bool
+        let returned: Bool
+        let published: Bool
+        let uncertain: Bool
+        let failure: Error?
+        let bodyResult: Result<Void,Error>?
+        let lastConsumerIdentity: ObjectIdentifier?
+        func requireReturned() throws {
+            guard entered,returned,published,!uncertain,failure == nil,
+                  case .success? = bodyResult else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+    }
     struct CaptureDATA {
         let path: String
         let fact: stat
@@ -45331,6 +45678,7 @@ final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
     }
     let consumerIdentity: ObjectIdentifier
     let mutationIdentity: ObjectIdentifier
+    let mutationReturn: MutationDATA
     let priorHeadIdentity: ObjectIdentifier?
     let receiptIdentity: ObjectIdentifier
     let retainedAtLifetime: Bool
@@ -45341,9 +45689,12 @@ final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
     let cursors: [CursorDATA]
     let outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome]
     let returnedNativeProof: Result<Void,Error>
+    private var ordinaryCohortDecisionV2: Bool?
+    private var ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
     private struct FieldProfile {
         let consumerIdentity: ObjectIdentifier
         let mutationIdentity: ObjectIdentifier
+        let mutationReturn: MutationDATA
         let priorHeadIdentity: ObjectIdentifier?
         let receiptIdentity: ObjectIdentifier
         let retainedAtLifetime: Bool
@@ -45354,6 +45705,8 @@ final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
         let cursors: [CursorDATA]
         let outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome]
         let returnedNativeProof: Result<Void,Error>
+        let ordinaryCohortDecisionV2: Bool?
+        let ordinaryCohortV2: ColdEraseSchema2CompletedOrdinaryCohortRegistrationV2?
     }
     static func requiredDeclaredBacking(nodes: Int,names: Int,nameBytes: UInt64,pathBytes: UInt64,
         outcomes: Int,cursors: Int,maximumConsumers: Int) throws -> UInt64 {
@@ -45383,16 +45736,27 @@ final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
         receipt: ColdEraseSchema2CompletedSessionDidSaveReceiptV1,prior: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1?,
         retainedAtLifetime: Bool,observed: [CaptureDATA],afterPolicy: [CaptureDATA],final: [CaptureDATA],
         rows: [RowDATA],cursors: [CursorDATA],outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome],
-        proof: Result<Void,Error>) {
+        mutationReturn: MutationDATA,proof: Result<Void,Error>) {
         consumerIdentity = ObjectIdentifier(consumer);mutationIdentity = ObjectIdentifier(mutation)
         receiptIdentity = ObjectIdentifier(receipt);priorHeadIdentity = prior.map(ObjectIdentifier.init)
         self.retainedAtLifetime = retainedAtLifetime;self.observed = observed;self.afterPolicy = afterPolicy;self.final = final
         self.rows = rows;self.cursors = cursors;self.outcomes = outcomes;returnedNativeProof = proof
+        self.mutationReturn = mutationReturn
+    }
+    fileprivate func registerOrdinaryCohortV2(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        consumer: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1) throws {
+        guard ordinaryCohortDecisionV2 == nil,ordinaryCohortV2 == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try consumer.requireRetainedNativeHistoricalCohortV2(self,current: current)
+        let eligible = current.ordinaryCohortRegistrationEligibleV2
+        ordinaryCohortDecisionV2 = eligible
+        guard eligible else { return }
+        ordinaryCohortV2 = try current.registerOrdinaryCohortV2(self,kind: .nativeHistoricalDATA)
     }
     func requireConsumerDATA(consumer: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1) throws {
+        try mutationReturn.requireReturned()
         guard consumerIdentity == ObjectIdentifier(consumer),case .success = returnedNativeProof,
               !observed.isEmpty,!afterPolicy.isEmpty,!rows.isEmpty,
-              (!retainedAtLifetime || !final.isEmpty),
+              (!retainedAtLifetime || (!final.isEmpty && mutationReturn.lastConsumerIdentity == consumerIdentity)),
               rows.allSatisfy({$0.borrowed || ($0.descriptor >= 0 && $0.openReturned == $0.descriptor && $0.closeReturned == 0)}),
               cursors.allSatisfy({$0.eof && $0.eofErrno == 0 && $0.closeReturned == 0}) else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -45438,6 +45802,28 @@ extension ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
               case .success? = storage.bodyResult else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         // Monotone returned/failure DATA only. Never calls the old Bank/G/FDs.
     }
+    fileprivate func ordinaryHistoricalMutationReturn() throws
+        -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA.MutationDATA {
+        try requireOrdinaryHistoricalReturnedFailureState()
+        return .init(entered: storage.entered,returned: storage.returned,published: storage.published,
+            uncertain: storage.uncertain,failure: storage.failure,bodyResult: storage.bodyResult,
+            lastConsumerIdentity: storage.lastConsumer.map(ObjectIdentifier.init))
+    }
+    func requireOrdinaryDeclaredMutationReturned(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        try requirePositiveReturnedSettlement(current: current)
+        try requireClosedOrdinaryHistoricalTranscript()
+    }
+    func requireClosedOrdinaryHistoricalTranscript() throws {
+        try requireOrdinaryHistoricalReturnedFailureState()
+        guard storage.retainedCurrent == nil,storage.retainedSession == nil,
+              storage.retainedFactory == nil,storage.retainedFence == nil,
+              storage.before != nil,(storage.lastConsumer == nil || storage.final != nil),
+              let bank = storage.bank else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try bank.requirePositiveReturnedSettlement()
+        // The SAME actually closed/released Bank survives as historical raw
+        // transcript, including the no-didSave case. No consumer/head is minted
+        // and no old current-frame/FD operation is re-entered by its DATA reader.
+    }
     fileprivate func ordinaryHistoricalBankDATA(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws
         -> (rows: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.RowDATA],
             cursors: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CursorDATA],
@@ -45448,31 +45834,66 @@ extension ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
     }
 }
 extension ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
+    fileprivate func requireRetainedNativeHistoricalCohortV2(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA,
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        guard storage.current === current,storage.ordinaryHistoricalData === data,
+              data.consumerIdentity == ObjectIdentifier(self),let eligible = storage.ordinaryCohortDecisionV2,
+              (!eligible || storage.ordinaryCohortV2 != nil) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try data.requireConsumerDATA(consumer: self)
+    }
     func makeOrdinaryNativeHistoricalDATA(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws
         -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
-        guard storage.ordinaryHistoricalData == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard storage.ordinaryHistoricalData == nil,let mutation = storage.mutation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         let proof = Result<Void,Error> { try requirePositiveReturnedSettlement(current: current) };try proof.get()
         guard let observed = storage.observed,let after = storage.afterPolicy else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        let bank = try storage.mutation.ordinaryHistoricalBankDATA(current: current)
-        let final = storage.retainedAtLifetime ? try storage.mutation.requireFinalGraph(self) : []
+        let bank = try mutation.ordinaryHistoricalBankDATA(current: current)
+        let final = storage.retainedAtLifetime ? try mutation.requireFinalGraph(self) : []
+        let mutationReturn = try mutation.ordinaryHistoricalMutationReturn()
         func capture(_ items: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Capture]) -> [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CaptureDATA] {
             items.map { .init(path: $0.row.path,fact: $0.fact,hash: $0.hash,names: $0.names) }
         }
-        return .init(consumer: self,mutation: storage.mutation,receipt: storage.receipt,prior: storage.priorHead,
+        return .init(consumer: self,mutation: mutation,receipt: storage.receipt,prior: storage.priorHead,
             retainedAtLifetime: storage.retainedAtLifetime,observed: capture(observed),afterPolicy: capture(after),final: capture(final),
-            rows: bank.rows,cursors: bank.cursors,outcomes: bank.outcomes,proof: proof)
+            rows: bank.rows,cursors: bank.cursors,outcomes: bank.outcomes,mutationReturn: mutationReturn,proof: proof)
     }
     func installOrdinaryNativeHistoricalDATA(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA,
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
         try requirePositiveReturnedSettlement(current: current)
         try data.requireConsumerDATA(consumer: self)
-        guard storage.ordinaryHistoricalData == nil,data.mutationIdentity == ObjectIdentifier(storage.mutation),
+        guard let mutation = storage.mutation,storage.ordinaryHistoricalData == nil,data.mutationIdentity == ObjectIdentifier(mutation),
               data.receiptIdentity == ObjectIdentifier(storage.receipt),
-              data.priorHeadIdentity == storage.priorHead.map(ObjectIdentifier.init),
+              data.priorHeadIdentity == (try ordinaryNativePriorHeadIdentityV2()),
               data.retainedAtLifetime == storage.retainedAtLifetime else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         storage.ordinaryHistoricalData = data // actual paid return; all predecessor-head consumers now read DATA
-        // Incumbent owning graph remains in its SAME charged archive. There is
-        // deliberately no weak-alias/array-clear/debt-credit transition here.
+        try data.registerOrdinaryCohortV2(current: current,consumer: self) // real retained constructor before later owner/cut proofs
+        // Collective ownership return follows only after every DATA exists.
+    }
+    func requireOrdinaryHistoricalOwnerBeforeReturn(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA,
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        try requirePositiveReturnedSettlement(current: current)
+        guard storage.ordinaryHistoricalData === data,let mutation = storage.mutation,
+              data.mutationIdentity == ObjectIdentifier(mutation),data.receiptIdentity == ObjectIdentifier(storage.receipt),
+              data.priorHeadIdentity == (try ordinaryNativePriorHeadIdentityV2()),
+              data.retainedAtLifetime == storage.retainedAtLifetime,storage.observed != nil,storage.afterPolicy != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try mutation.requireOrdinaryHistoricalReturnedFailureState()
+        try data.requireConsumerDATA(consumer: self)
+    }
+    func returnOrdinaryHistoricalOwner(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA,
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        try requireOrdinaryHistoricalOwnerBeforeReturn(data,current: current)
+        storage.mutation = nil;storage.observed = nil;storage.afterPolicy = nil
+        try requireReturnedOrdinaryHistoricalOwner(data)
+    }
+    func requireReturnedOrdinaryHistoricalOwner(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA) throws {
+        guard storage.ordinaryHistoricalData === data,storage.mutation == nil,
+              storage.observed == nil,storage.afterPolicy == nil,
+              case .success? = storage.captureResult,
+              data.receiptIdentity == ObjectIdentifier(storage.receipt),
+              data.priorHeadIdentity == (try ordinaryNativePriorHeadIdentityV2()),
+              data.retainedAtLifetime == storage.retainedAtLifetime else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try data.requireConsumerDATA(consumer: self)
     }
 }
 
@@ -45919,7 +46340,7 @@ final class ColdEraseSchema2CompletedSessionNativeSelectedPointerOriginV1 {
         guard let parent, Self.same(parent.fact, generations), Self.sameNames(parent.names, names),
               originalRows == storage.maximumNativeNodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         var nativeRows = 0
-        try storage.lifetime.withRetainedNativeCurrentBasis { path, fact, hash, members in
+        try storage.lifetime.withRetainedNativeCurrentBasis(use: .countOnly) { path, fact, hash, members in
             guard nativeRows < storage.maximumNativeNodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
             let actualPath = path.isEmpty ? storage.originalTreePrefix : storage.originalTreePrefix + "/" + path
             var matched: OriginalEraseRetainedPointerPublicationDataV1.Sibling?

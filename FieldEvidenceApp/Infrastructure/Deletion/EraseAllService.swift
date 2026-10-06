@@ -4485,6 +4485,912 @@ final class EraseAllService {
     ) async throws -> Bool {
         try await operation.beginServiceFrame()
         defer { operation.endServiceFrame() }
+#if DEBUG
+        var c25PreRegistryStage = "inactive"
+        do {
+        // This only resumes actual in-memory admissions, before freezing the
+        // first control observation or acquiring this cold operation's EX.
+        try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(
+            applicationSupportURL: applicationSupportURL)
+        try operation.requireServiceAccess()
+        traceErasePhase("recovery.support")
+        var supportStatus = stat()
+        let supportResult = applicationSupportURL.path.withCString {
+            lstat($0, &supportStatus)
+        }
+        if supportResult != 0 {
+            guard errno == ENOENT else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return false
+        }
+        guard (supportStatus.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Retain the exact support/control owner before the first open. This
+        // classification never creates the Erase root, repairs a temporary,
+        // or delegates authority to a pathname-only lstat result.
+        let controls = EraseColdExistingControlObservationV1()
+        try operation.retainColdControlObservation(controls)
+        let observed: EraseColdExistingControlObservationV1.Snapshot
+        do {
+            observed = try controls.openExisting(
+                applicationSupportURL: applicationSupportURL,
+                operation: operation)
+        } catch {
+            let observationFailure = error
+            try operation.closeColdControlObservationChecked()
+            throw observationFailure
+        }
+        if !observed.eraseRootExists {
+            try operation.closeColdControlObservationChecked()
+            return false
+        }
+        if observed.preparation?.c05JobDrainV3 != nil {
+            // The positive V3 scanner/Runner/owner exit remains unavailable.
+            try operation.closeColdControlObservationChecked()
+            throw EraseAllServiceError.recoveryRequired
+        }
+        if observed.intent != nil || observed.preparation != nil {
+            // Transfer the exact already observed root descriptors to the
+            // operation-retained no-repair store. A later schema-2 route must
+            // use this owner, never the ordinary creating constructor.
+            let store = try EraseIntentStore(coldObservation: controls,
+                snapshot: observed, operation: operation)
+            try operation.retainSchema2ColdIntentStore(store)
+            traceErasePhase("recovery.schema2.store-retained")
+            guard try store.load() == observed.intent,
+                  try store.loadPreparation() == observed.preparation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let sourceIdentity = try store.schema2ColdSupportIdentity(
+                operation: operation)
+            let physicalExclusion = try EraseSchema2ColdPhysicalExclusionV1(
+                applicationSupportURL: applicationSupportURL,
+                operation: operation)
+            try operation.retainSchema2ColdPhysicalExclusion(
+                physicalExclusion)
+            try physicalExclusion.acquire(
+                expectedDevice: sourceIdentity.device,
+                expectedInode: sourceIdentity.inode)
+            try operation.bindSchema2ColdPhysicalExclusion(
+                physicalExclusion, device: sourceIdentity.device,
+                inode: sourceIdentity.inode)
+            try physicalExclusion.requireHeld(
+                expectedDevice: sourceIdentity.device,
+                expectedInode: sourceIdentity.inode)
+            let expectedCurrentPointer: RestorePointerIdentityV1
+            if let intent = observed.intent {
+                guard intent.schemaVersion == 2,
+                      let selected = intent.phase == .emptyGenerationPrepared
+                        ? intent.oldPointer : intent.targetPointer else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                expectedCurrentPointer = selected
+            } else if let preparation = observed.preparation {
+                expectedCurrentPointer = preparation.oldPointer
+            } else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let manifestOwner = EraseSchema2ColdManifestOwnerV1()
+            try operation.retainSchema2ColdManifestOwner(manifestOwner)
+            try manifestOwner.openExisting(
+                applicationSupportURL: applicationSupportURL,
+                expectedSupportDevice: sourceIdentity.device,
+                expectedSupportInode: sourceIdentity.inode,
+                phase: observed.intent?.phase,
+                operation: operation)
+            traceErasePhase("recovery.schema2.manifest-open")
+            let frozenCurrent: EraseSchema2ColdTargetSnapshotV1
+            if let intent = observed.intent,
+               intent.phase == .emptyGenerationPrepared ||
+                intent.phase == .pointerSwitched ||
+                intent.phase == .sessionActivated ||
+                intent.phase == .cleanupComplete {
+                _ = try manifestOwner.readCurrentManifestForSchema2Cold(
+                    intent: intent, operation: operation)
+                _ = try manifestOwner.readGenerationInventory(
+                    operation: operation)
+                frozenCurrent = try manifestOwner.observeSchema2ColdTarget(
+                    intent: intent, operation: operation)
+            } else {
+                let current = try generationFactory.observeSchema2ColdCurrent(
+                    expectedPointer: expectedCurrentPointer,
+                    manifestOwner: manifestOwner,
+                    operation: operation)
+                frozenCurrent = EraseSchema2ColdTargetSnapshotV1(
+                    currentPointer: current.pointer,
+                    pointer: current.pointer,
+                    manifest: current.manifest,
+                    retiredGenerationIDs: current.retiredGenerationIDs,
+                    installedGenerationIDs: current.installedGenerationIDs)
+            }
+            guard let currentID = UUID(uuidString:
+                    frozenCurrent.currentPointer.generationID),
+                  currentID.uuidString.lowercased()
+                    == frozenCurrent.currentPointer.generationID,
+                  frozenCurrent.installedGenerationIDs.contains(
+                    currentID) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            traceErasePhase("recovery.schema2.target-snapshot")
+            if let intent = observed.intent,
+               intent.phase == .sessionActivated
+                || intent.phase == .cleanupComplete {
+                let targetOnly: Set<UUID> = [intent.newGenerationID]
+                let frozenIDs = Set(intent.generationIDsToDelete)
+                    .union(targetOnly)
+                guard frozenCurrent.installedGenerationIDs
+                        .isSubset(of: frozenIDs),
+                      (frozenCurrent.retiredGenerationIDs
+                        == intent.generationIDsToDelete
+                        || (frozenCurrent.retiredGenerationIDs.isEmpty
+                            && frozenCurrent.installedGenerationIDs
+                                == targetOnly)) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                if intent.phase == .cleanupComplete {
+                    guard frozenCurrent.retiredGenerationIDs.isEmpty,
+                          frozenCurrent.installedGenerationIDs
+                            == targetOnly else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            }
+            var targetSource: EraseSchema2ColdTargetSourceV1?
+            if let intent = observed.intent,
+               (intent.phase == .pointerSwitched
+                || intent.phase == .sessionActivated
+                || intent.phase == .cleanupComplete
+                || (intent.phase == .emptyGenerationPrepared
+                    && frozenCurrent.currentPointer
+                        == frozenCurrent.pointer)) {
+                guard frozenCurrent.pointer.generationID
+                    == intent.newGenerationID.uuidString.lowercased() else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                if intent.phase == .emptyGenerationPrepared {
+                    guard let preparation = observed.preparation else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                        intent: intent, preparation: preparation)
+                }
+                // Capture the held target before the old-source private read
+                // can suspend. A post-await survivor can never replace it.
+                let capturedTarget = try manifestOwner.captureTargetSource(
+                    id: intent.newGenerationID, operation: operation)
+                targetSource = capturedTarget
+                if intent.phase == .emptyGenerationPrepared {
+                    try capturedTarget.capturePreparedTargetFirstTree()
+                }
+            }
+            let survivingOperations = try manifestOwner.captureOperationsOwners(
+                operation: operation)
+            try manifestOwner.requireCapturedOperationsOwners(
+                survivingOperations, operation: operation)
+            traceErasePhase("recovery.schema2.operations-captured")
+            guard try store.load() == observed.intent,
+                  try store.loadPreparation() == observed.preparation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if let intent = observed.intent,
+               intent.phase == .sessionActivated || intent.phase == .cleanupComplete {
+                try manifestOwner.captureLateNotificationControl(
+                    eraseID: intent.eraseID, operation: operation)
+                try manifestOwner.captureLateFinalizationControl(
+                    deletedGenerationIDs: Set(intent.generationIDsToDelete),
+                    operation: operation)
+                try manifestOwner.captureLateDeletionControl(
+                    deletedGenerationIDs: Set(intent.generationIDsToDelete),
+                    operation: operation)
+                try manifestOwner.captureLateMigrationControl(
+                    generationIDsToDelete:
+                        Set(intent.generationIDsToDelete),
+                    targetGenerationID: intent.newGenerationID,
+                    operation: operation)
+            }
+            traceErasePhase("recovery.schema2.late-controls-captured")
+            c25PreRegistryStage = "physical-ex"
+            try physicalExclusion.requireHeld(
+                expectedDevice: sourceIdentity.device,
+                expectedInode: sourceIdentity.inode)
+            var retainedRegistry: GenerationLeaseRegistryV1?
+            var retainedActivity: GenerationTemporalActivityHandleV1?
+            var originalColdTokens: [GenerationLeaseTokenV1]?
+            var firstActivatedPhaseCut:
+                EraseIntentStore.Schema2ColdPhaseCASCutV1?
+            if survivingOperations.contains("generation-leases") {
+                c25PreRegistryStage = "registry-construction"
+                let construction = TemporalColdRegistryConstructionV1()
+                try operation.retainSchema2ColdRegistryConstruction(
+                    construction)
+                c25PreRegistryStage = "registry-open"
+                let registry = try GenerationLeaseRegistryV1
+                    .openExistingForEraseSchema2Cold(
+                        applicationSupportURL: applicationSupportURL,
+                        operation: operation,
+                        construction: construction)
+                retainedRegistry = registry
+                let acquisition = registry
+                    .makeColdRetirementActivityAcquisition()
+                c25PreRegistryStage = "activity-acquisition-retention"
+                try operation.retainSchema2ColdActivityAcquisition(
+                    acquisition, registry: registry)
+                c25PreRegistryStage = "activity-acquire"
+                let activity = try acquisition.acquireForEraseSchema2Cold(
+                    operation: operation)
+                c25PreRegistryStage = "activity-retention"
+                try operation.retainSchema2ColdActivity(activity,
+                    registry: registry)
+                retainedActivity = activity
+                let coldTokens: [GenerationLeaseTokenV1]
+                if let intent = observed.intent,
+                   let preparation = observed.preparation,
+                   intent.schemaVersion == 2,
+                   intent.phase == .pointerSwitched ||
+                     intent.phase == .sessionActivated {
+                    c25PreRegistryStage = "recorded-reader-settlement"
+                    coldTokens = try registry
+                        .settleEraseSchema2ColdRecordedTargetReader(
+                            intent: intent, preparation: preparation,
+                            manifest: manifestOwner,
+                            operation: operation, activity: activity)
+                    c25PreRegistryStage = "recorded-reader-reproof"
+                    guard try registry.observeEraseSchema2ColdRegistry(
+                            operation: operation, activity: activity)
+                            == coldTokens else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                } else {
+                    c25PreRegistryStage = "token-observation"
+                    coldTokens = try registry
+                        .observeEraseSchema2ColdRegistry(
+                            operation: operation, activity: activity)
+                }
+                originalColdTokens = coldTokens
+                c25PreRegistryStage = "frozen-token-membership"
+                if let intent = observed.intent {
+                    let frozenIDs = Set(intent.generationIDsToDelete)
+                        .union([intent.newGenerationID])
+                    guard coldTokens.allSatisfy({ token in
+                        frozenIDs.contains(token.epoch.generationID)
+                            && (token.epoch.generationID != intent.newGenerationID
+                                || token.epoch.generationManifestSHA256
+                                    == frozenCurrent.pointer.generationManifestSHA256)
+                    }) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                }
+                if let intent = observed.intent,
+                   let preparation = observed.preparation,
+                   intent.schemaVersion == 2,
+                   intent.phase == .emptyGenerationPrepared ||
+                     intent.phase == .pointerSwitched ||
+                     intent.phase == .sessionActivated,
+                   intent.phase != .emptyGenerationPrepared ||
+                     frozenCurrent.currentPointer == frozenCurrent.pointer,
+                   preparation.matches(intent) {
+                    // This G/EX census precedes every retained old or
+                    // previously retired source FD. A later R cut may have
+                    // removed the old root while other frozen IDs survive.
+                    c25PreRegistryStage = "original-census"
+                    try operation.bindSchema2ColdOriginalTokenCensus(
+                        coldTokens, registry: registry,
+                        activity: activity)
+                }
+                c25PreRegistryStage = "predecessor-probes"
+                _ = try registry.probeEraseSchema2ColdPredecessors(
+                    operation: operation, activity: activity,
+                    expectedTokens: coldTokens)
+                c25PreRegistryStage = "inactive"
+                traceErasePhase("recovery.schema2.registry-census")
+                if let intent = observed.intent,
+                   intent.phase == .sessionActivated,
+                   observed.preparation != nil {
+                    let pending = intent.advancing(to: .pointerSwitched)
+                    try registry.withEraseSchema2ColdUnchangedTokens(
+                        operation: operation, activity: activity,
+                        expectedTokens: coldTokens) {
+                        firstActivatedPhaseCut = try store
+                            .requireSchema2ColdPhaseCASCut(
+                                expected: pending,
+                                replacement: intent,
+                                operation: operation)
+                    }
+                    guard let firstActivatedPhaseCut,
+                          case .published = firstActivatedPhaseCut else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    traceErasePhase("recovery.schema2.phase-cut")
+                }
+                if observed.opaqueIntentNextPresent {
+                    guard let intent = observed.intent,
+                          intent.phase == .pointerSwitched ||
+                            intent.phase == .sessionActivated else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    let pending = intent.advancing(to: .pointerSwitched)
+                    let published = pending.advancing(
+                        to: .sessionActivated)
+                    try registry.withEraseSchema2ColdUnchangedTokens(
+                        operation: operation, activity: activity,
+                        expectedTokens: coldTokens) {
+                        // This only classifies the opaque retained cut. No
+                        // private-copy or installed effect starts if the
+                        // reserved name is not exact P/R provenance.
+                        _ = try store.requireSchema2ColdPhaseCASCut(
+                            expected: pending,
+                            replacement: published,
+                            operation: operation)
+                    }
+                }
+            } else {
+                c25PreRegistryStage = "absent-registry-cut"
+                // Historical late cuts may have already removed Registry.
+                // The held Support EX above remains the only physical
+                // exclusion; no replacement Registry or lease is minted.
+                guard observed.intent?.phase == .sessionActivated ||
+                        observed.intent?.phase == .cleanupComplete else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                guard !observed.opaqueIntentNextPresent else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+            c25PreRegistryStage = "inactive"
+            if observed.opaqueRosterPresent ||
+                observed.opaqueRosterNextPresent {
+                // A durable R roster can survive loss of model.sqlite in a
+                // prior checked unlink. Decode it as data before any old or
+                // retired semantic opening; the real target session and a
+                // complete global survivor-prefix proof follow below.
+                guard observed.opaqueRosterPresent,
+                      !observed.opaqueRosterNextPresent,
+                      !observed.opaqueIntentNextPresent,
+                      let intent = observed.intent,
+                      let preparation = observed.preparation,
+                      intent.schemaVersion == 2,
+                      intent.phase == .sessionActivated,
+                      let targetSource,
+                      let registry = retainedRegistry,
+                      let activity = retainedActivity,
+                      let tokens = originalColdTokens,
+                      let phaseCut = firstActivatedPhaseCut else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try await resumeSchema2ColdPublishedRosterReplay(
+                    observed: observed, intent: intent,
+                    preparation: preparation,
+                    snapshot: frozenCurrent, targetSource: targetSource,
+                    operationsNames: survivingOperations,
+                    registryTokens: tokens, phaseCut: phaseCut,
+                    store: store, manifest: manifestOwner,
+                    registry: registry, activity: activity,
+                    operation: operation)
+                throw EraseAllServiceError.recoveryRequired
+            }
+            let originalPresent = observed.intent.map {
+                frozenCurrent.installedGenerationIDs.contains($0.oldGenerationID)
+            } ?? false
+            traceErasePhase("recovery.schema2.source-admission")
+            if let intent = observed.intent,
+               intent.phase == .emptyGenerationPrepared,
+               frozenCurrent.currentPointer == frozenCurrent.pointer,
+               !originalPresent {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if let intent = observed.intent,
+               intent.phase == .pointerSwitched,
+               !originalPresent {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            var preparedFirstAuxiliaryObserver:
+                EraseSchema2ColdAuxiliaryFirstObserverV1?
+            if originalPresent,
+               let phase = observed.intent?.phase,
+               phase == .pointerSwitched || phase == .sessionActivated ||
+                 (phase == .emptyGenerationPrepared &&
+                    frozenCurrent.currentPointer == frozenCurrent.pointer) {
+                guard let intent = observed.intent,
+                      let preparation = observed.preparation,
+                      let oldPointer = intent.oldPointer,
+                      let registry = retainedRegistry,
+                      let activity = retainedActivity,
+                      let tokens = originalColdTokens else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                let oldSource = try manifestOwner.captureRetainedOriginalSource(
+                    id: intent.oldGenerationID,
+                    expectedOldPointer: oldPointer,
+                    intent: intent, preparation: preparation,
+                    operation: operation)
+                try operation.retainSchema2ColdOriginalContinuation(
+                    EraseSchema2ColdOriginalContinuationV1(
+                        observed: observed, intent: intent,
+                        preparation: preparation,
+                        generation: frozenCurrent,
+                        operationsNames: survivingOperations,
+                        registryTokens: tokens,
+                        phaseCut: firstActivatedPhaseCut))
+                if intent.phase == .emptyGenerationPrepared {
+                    // Retain the checked IO owner before the first borrowed
+                    // descriptor scan and before either private source await.
+                    let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
+                    try operation.retainSchema2ColdAuxiliaryFirstObserver(
+                        observer, store: store, manifest: manifestOwner)
+                    let first = try manifestOwner
+                        .withHeldSchema2ColdAuxiliaryCapture(
+                            cachesDirectoryURL: cachesDirectoryURL,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) { support, caches, temporary in
+                            try observer.captureFirst(support: support,
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
+                        }
+                    try operation.bindSchema2ColdAuxiliaryFirstObservation(
+                        first, observer: observer, store: store,
+                        manifest: manifestOwner)
+                    preparedFirstAuxiliaryObserver = observer
+                }
+                if intent.phase == .pointerSwitched {
+                    // The first P parent/control cut precedes target private
+                    // validation and reader birth. It is not a born-R baseline.
+                    let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
+                    try operation.retainSchema2ColdAuxiliaryFirstObserver(
+                        observer, store: store, manifest: manifestOwner)
+                    let first = try manifestOwner
+                        .withHeldSchema2ColdAuxiliaryCapture(
+                            cachesDirectoryURL: cachesDirectoryURL,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) { support, caches, temporary in
+                            try observer.captureFirst(support: support,
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
+                        }
+                    try operation.bindSchema2ColdAuxiliaryFirstObservation(
+                        first, observer: observer, store: store,
+                        manifest: manifestOwner)
+                    try manifestOwner.observeSchema2ColdPointerOriginalRetiredFirstCut(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                    try manifestOwner.observeSchema2ColdPointerOriginalRetiredSemantic(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                }
+                if intent.phase == .sessionActivated {
+                    // A genuine first R captures its own parents and raw aux
+                    // before target work; it never inherits a first P cut.
+                    let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
+                    try operation.retainSchema2ColdAuxiliaryFirstObserver(
+                        observer, store: store, manifest: manifestOwner)
+                    let first = try manifestOwner
+                        .withHeldSchema2ColdAuxiliaryCapture(
+                            cachesDirectoryURL: cachesDirectoryURL,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) { support, caches, temporary in
+                            try observer.captureFirst(support: support,
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
+                        }
+                    try operation.bindSchema2ColdAuxiliaryFirstObservation(
+                        first, observer: observer, store: store,
+                        manifest: manifestOwner)
+                    try manifestOwner.observeSchema2ColdFirstActivatedOriginalAuxiliaryCut(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                }
+                guard try registry.observeEraseSchema2ColdRegistry(
+                        operation: operation, activity: activity) == tokens else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                guard try await validateOrResumeSchema2ColdRetainedSource(
+                    intent: intent, intentStore: store,
+                    source: oldSource, operation: operation) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                if intent.phase == .emptyGenerationPrepared {
+                    guard let observer = preparedFirstAuxiliaryObserver else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try manifestOwner.requireSchema2ColdPreparedAuxiliaryUnchanged(
+                        observer: observer, operation: operation)
+                    try manifestOwner.requireSchema2ColdTargetSnapshot(
+                        frozenCurrent, intent: intent, operation: operation)
+                    guard let targetSource else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.requireSchema2ColdTargetSource(targetSource)
+                    try targetSource.requirePreparedTargetFirstTreeUnchanged()
+                }
+                try physicalExclusion.requireHeld(
+                    expectedDevice: sourceIdentity.device,
+                    expectedInode: sourceIdentity.inode)
+                try manifestOwner.requireCapturedOperationsOwners(
+                    survivingOperations, operation: operation)
+                guard try registry.observeEraseSchema2ColdRegistry(
+                        operation: operation, activity: activity) == tokens else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try operation.requireSchema2ColdOriginalContinuation()
+                try operation.completeSchema2ColdOriginalValidation()
+                traceErasePhase("recovery.schema2.old-valid")
+                if intent.phase == .emptyGenerationPrepared {
+                    guard let targetSource,
+                          let observer = preparedFirstAuxiliaryObserver,
+                          let originalTokens = originalColdTokens else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                        intent: intent, preparation: preparation)
+                    guard try store.load() == intent,
+                          try store.loadPreparation() == preparation,
+                          try registry.observeEraseSchema2ColdRegistry(
+                            operation: operation, activity: activity)
+                            == originalTokens else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    guard try await generationFactory
+                        .validateOrResumeSchema2ColdPreparedTargetCurrent(
+                            source: targetSource,
+                            snapshot: frozenCurrent,
+                            intent: intent,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    try physicalExclusion.requireHeld(
+                        expectedDevice: sourceIdentity.device,
+                        expectedInode: sourceIdentity.inode)
+                    try manifestOwner.requireCapturedOperationsOwners(
+                        survivingOperations, operation: operation)
+                    try manifestOwner.requireSchema2ColdTargetSnapshot(
+                        frozenCurrent, intent: intent, operation: operation)
+                    try operation.requireSchema2ColdTargetSource(targetSource)
+                    try targetSource.requirePreparedTargetFirstTreeUnchanged()
+                    try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                        intent: intent, preparation: preparation)
+                    guard try store.load() == intent,
+                          try store.loadPreparation() == preparation,
+                          try registry.observeEraseSchema2ColdRegistry(
+                            operation: operation, activity: activity)
+                            == originalTokens,
+                          let completed = operation
+                            .schema2ColdPreparedTargetValidationAttempt else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    try operation.bindSchema2ColdPreparedTargetPrivateValidated(
+                        source: targetSource, snapshot: frozenCurrent,
+                        attempt: completed)
+                    try manifestOwner.requireSchema2ColdPreparedAuxiliaryUnchanged(
+                        observer: observer, operation: operation)
+                    let firstAuxiliary = try observer.firstObservation()
+                    let auxiliary = try manifestOwner
+                        .decodeSchema2ColdObservedPreparedOriginalAuxiliaryRoster(
+                            intent: intent, preparation: preparation,
+                            store: store, observer: observer,
+                            snapshot: firstAuxiliary, operation: operation)
+                    try operation.retainSchema2ColdPreparedOriginalAuxiliaryObservation(
+                        auxiliary, store: store, manifest: manifestOwner)
+                    traceErasePhase(
+                        "recovery.schema2.prepared-target-private-valid")
+                }
+            }
+            if let intent = observed.intent,
+               intent.phase == .pointerSwitched ||
+                intent.phase == .sessionActivated {
+                if let preparation = observed.preparation,
+                   retainedRegistry != nil {
+                    guard let tokens = originalColdTokens else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.retainSchema2ColdRetiredContinuation(
+                        EraseSchema2ColdRetiredContinuationV1(
+                            observed: observed, intent: intent,
+                            preparation: preparation,
+                            generation: frozenCurrent,
+                            operationsNames: survivingOperations,
+                            registryTokens: tokens,
+                            phaseCut: firstActivatedPhaseCut))
+                    try await validateOrResumeSchema2ColdRetiredSources(
+                        operation: operation)
+                } else {
+                    // With Registry already retired, no surviving frozen
+                    // generation may be opened or silently omitted.
+                    guard frozenCurrent.installedGenerationIDs
+                        .isDisjoint(with: Set(intent.generationIDsToDelete)) else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            }
+            if let targetSource, let intent = observed.intent,
+               intent.phase != .emptyGenerationPrepared {
+                if intent.phase == .pointerSwitched {
+                    guard let preparation = observed.preparation,
+                          let registry = retainedRegistry,
+                          let activity = retainedActivity,
+                          let tokens = originalColdTokens else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.retainSchema2ColdPreactivationContinuation(
+                        EraseSchema2ColdPreactivationContinuationV1(
+                            observed: observed, intent: intent,
+                            preparation: preparation,
+                            generation: frozenCurrent,
+                            operationsNames: survivingOperations,
+                            registryTokens: tokens))
+                    guard try registry.observeEraseSchema2ColdRegistry(
+                        operation: operation, activity: activity)
+                            == tokens else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    guard try await generationFactory
+                        .validateOrResumeSchema2ColdPreactivationTarget(
+                            source: targetSource,
+                            snapshot: frozenCurrent,
+                            intent: intent,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    guard let completed = operation
+                        .schema2ColdTargetValidationAttempt else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.bindSchema2ColdPreactivationValidated(
+                        snapshot: frozenCurrent, attempt: completed)
+                } else if intent.phase == .sessionActivated,
+                          originalPresent {
+                    guard let preparation = observed.preparation,
+                          let registry = retainedRegistry,
+                          let activity = retainedActivity,
+                          let tokens = originalColdTokens,
+                          let phaseCut = firstActivatedPhaseCut else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.retainSchema2ColdActivatedEntryContinuation(
+                        EraseSchema2ColdActivatedEntryContinuationV1(
+                            observed: observed, intent: intent,
+                            preparation: preparation,
+                            generation: frozenCurrent,
+                            operationsNames: survivingOperations,
+                            registryTokens: tokens,
+                            phaseCut: phaseCut, replayRoster: nil))
+                    guard try registry.observeEraseSchema2ColdRegistry(
+                            operation: operation, activity: activity)
+                            == tokens,
+                          try await generationFactory
+                            .validateOrResumeSchema2ColdTarget(
+                                source: targetSource,
+                                snapshot: frozenCurrent,
+                                intent: intent,
+                                temporaryDirectoryURL: temporaryDirectoryURL,
+                                operation: operation) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    guard let completed = operation
+                        .schema2ColdTargetValidationAttempt else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try operation.bindSchema2ColdActivatedEntryValidated(
+                        snapshot: frozenCurrent, attempt: completed)
+                    traceErasePhase("recovery.schema2.target-private-valid")
+                } else {
+                    try operation.retainSchema2ColdTargetContinuation(
+                        EraseSchema2ColdTargetContinuationV1(
+                            observed: observed, intent: intent,
+                            generation: frozenCurrent,
+                            operationsNames: survivingOperations,
+                            registryTokens: originalColdTokens))
+                    guard try await generationFactory
+                        .validateOrResumeSchema2ColdTarget(
+                            source: targetSource,
+                            snapshot: frozenCurrent,
+                            intent: intent,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                }
+            }
+            // Private target validation suspends. Its result is a property of
+            // the captured target, not an authorization to advance Erase from
+            // a newly observed source or a changed operational namespace.
+            try physicalExclusion.requireHeld(
+                expectedDevice: sourceIdentity.device,
+                expectedInode: sourceIdentity.inode)
+            try manifestOwner.requireCapturedOperationsOwners(
+                survivingOperations, operation: operation)
+            if let registry = retainedRegistry,
+               let activity = retainedActivity,
+               let originalColdTokens {
+                guard try registry.observeEraseSchema2ColdRegistry(
+                    operation: operation, activity: activity)
+                    == originalColdTokens else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try operation.requireSchema2ColdPredecessorGuards(
+                    registry: registry)
+            } else if retainedRegistry != nil || retainedActivity != nil
+                || originalColdTokens != nil {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if observed.intent?.phase == .pointerSwitched {
+                traceErasePhase("recovery.schema2.p-forward.enter")
+                do {
+                    _ = try advanceSchema2ColdPointerSwitchedPhase(
+                        operation: operation)
+                    // Consume the same operation's checked R/session/reader
+                    // under this Service frame; only the actual terminal
+                    // owner can authorize Router's later fresh publication.
+                    try await continueSchema2ColdActivatedForwardAfterSession(
+                        operation: operation)
+                } catch {
+#if DEBUG
+                    reportSchema2ColdPForwardFailure(error)
+#endif
+                    throw error
+                }
+                return true
+            }
+            if observed.intent?.phase == .sessionActivated,
+               originalPresent {
+                traceErasePhase("recovery.schema2.r-forward.enter")
+                do {
+                    _ = try advanceSchema2ColdActivatedEntry(
+                        operation: operation)
+                    // Continue under the same retained Service frame. A
+                    // fresh process must not repeat R entry indefinitely.
+                    try await continueSchema2ColdActivatedEntryAfterSession(
+                        operation: operation)
+                } catch {
+#if DEBUG
+                    reportSchema2ColdRForwardFailure(error)
+#endif
+                    throw error
+                }
+            }
+            // Later phases still require their distinct typed forward owner.
+            // Retain the transferred owner on refusal; do not close/reopen it.
+            throw EraseAllServiceError.recoveryRequired
+        }
+        try controls.requireCaptured(observed, operation: operation)
+        // An authenticated empty no-intent root is not a completed Erase.
+        // Keep its exact reader on the cold operation for startup publication
+        // reproof; name-based removal cannot identify the captured inode.
+        try operation.retainEmptyNoWorkObservation(observed)
+        return false
+        traceErasePhase("recovery.auxiliary")
+        let auxiliary = try makeAuxiliaryAuthority()
+        let intentStore = try EraseIntentStore(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager,
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.intent")
+        let intent = try intentStore.load()
+        let preparation = try intentStore.loadPreparation()
+        guard let intent else {
+            if let preparation {
+                guard preparation.c05JobDrainV3 == nil else {
+                    throw EraseAllServiceError.recoveryRequired
+                }
+                let authority = try generationFactory
+                    .makeRestoreGenerationAuthority(
+                        expectedApplicationSupportIdentity:
+                            auxiliary.applicationSupportRootIdentity
+                    )
+                try auxiliary.verifyTargets()
+                try auxiliary.requireNoRestoreIntent()
+                let identity = try WorkspaceReplicaIdentityV1(
+                    workspaceID: WorkspaceID(rawValue: preparation.targetWorkspaceID),
+                    replicaID: ReplicaID(rawValue: preparation.targetReplicaID))
+                let rollback = EraseColdPreparationRollbackV1(preparation: preparation,
+                    targetIdentity: identity, emptyLedger: try emptyLedgerProof(),
+                    authority: authority, auxiliary: auxiliary, intentStore: intentStore)
+                try operation.retainRollback(rollback)
+                return false
+            }
+            try auxiliary.removeEraseRootIfEmpty()
+            return false
+        }
+        traceErasePhase("recovery.intent-contract")
+        guard EraseIntentCodecV1.valid(intent) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            if let preparation {
+                guard preparation.matches(intent) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            } else if intent.phase != .cleanupComplete {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else if preparation != nil {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.authority")
+        let authority = try generationFactory.makeRestoreGenerationAuthority(
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.targets")
+        try auxiliary.verifyTargets()
+        try requireRecoveryPresence(intent, authority: authority)
+        let subject = makeOperationSubject(
+            eraseID: intent.eraseID,
+            newGenerationID: intent.newGenerationID,
+            auxiliary: auxiliary
+        )
+        // Genuine cold startup owns access; no old original-operation
+        // reservation or receipt is minted for an on-disk intent.
+        try revalidateRecoveryAdmission(subject: subject, intent: intent,
+            preparation: preparation, auxiliary: auxiliary, intentStore: intentStore)
+
+        let session: StoreGenerationSession
+        switch intent.phase {
+        case .emptyGenerationPrepared:
+            session = try await advanceColdToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                operation: operation
+            )
+        case .pointerSwitched:
+            session = try await advanceColdPointerPhaseToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                operation: operation
+            )
+        case .sessionActivated:
+            traceErasePhase("recovery.activated-current")
+            try requireActivatedCurrent(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        case .cleanupComplete:
+            traceErasePhase("recovery.cleanup-presence")
+            try requireCleanupPresence(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        }
+
+        let activated = intent.phase == .cleanupComplete
+            ? intent
+            : intent.advancing(to: .sessionActivated)
+        try operation.requireServiceAccess()
+        if let privateSystemDiscoveryIndex {
+            try await privateSystemDiscoveryIndex.eraseAll(
+                operationID: try privateSystemDiscoveryOperationID(intent),
+                now: Date()
+            )
+        }
+        try operation.requireServiceAccess()
+        let binding = try operation.bindValidatedTarget(subject: subject, session: session)
+        let prepared = try await prepareColdCleanupForRetirement(activated, session: session,
+            authority: authority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
+            intentStore: intentStore, binding: binding, inventory: operation.inventory,
+            reservation: nil, operation: operation)
+        try operation.requireServiceAccess()
+        try operation.retainPrepared(prepared, intentStore: intentStore, intent: activated)
+        return true
+        } catch {
+            if c25PreRegistryStage != "inactive" {
+                let details = originalScratchLoanDiagnosticError(error)
+                let line = "V23_C25_COLD_REFUSAL_DIAG_V1 interval=pre-registry"
+                    + " stage=\(c25PreRegistryStage) type=\(details.type)"
+                    + " category=\(details.category)\n"
+                do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+                catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+            throw error
+        }
+#else
         // This only resumes actual in-memory admissions, before freezing the
         // first control observation or acquiring this cold operation's EX.
         try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(
@@ -4915,6 +5821,53 @@ final class EraseAllService {
                         manifest: manifestOwner)
                     preparedFirstAuxiliaryObserver = observer
                 }
+                if intent.phase == .pointerSwitched {
+                    // The first P parent/control cut precedes target private
+                    // validation and reader birth. It is not a born-R baseline.
+                    let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
+                    try operation.retainSchema2ColdAuxiliaryFirstObserver(
+                        observer, store: store, manifest: manifestOwner)
+                    let first = try manifestOwner
+                        .withHeldSchema2ColdAuxiliaryCapture(
+                            cachesDirectoryURL: cachesDirectoryURL,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) { support, caches, temporary in
+                            try observer.captureFirst(support: support,
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
+                        }
+                    try operation.bindSchema2ColdAuxiliaryFirstObservation(
+                        first, observer: observer, store: store,
+                        manifest: manifestOwner)
+                    try manifestOwner.observeSchema2ColdPointerOriginalRetiredFirstCut(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                    try manifestOwner.observeSchema2ColdPointerOriginalRetiredSemantic(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                }
+                if intent.phase == .sessionActivated {
+                    // A genuine first R captures its own parents and raw aux
+                    // before target work; it never inherits a first P cut.
+                    let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
+                    try operation.retainSchema2ColdAuxiliaryFirstObserver(
+                        observer, store: store, manifest: manifestOwner)
+                    let first = try manifestOwner
+                        .withHeldSchema2ColdAuxiliaryCapture(
+                            cachesDirectoryURL: cachesDirectoryURL,
+                            temporaryDirectoryURL: temporaryDirectoryURL,
+                            operation: operation) { support, caches, temporary in
+                            try observer.captureFirst(support: support,
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
+                        }
+                    try operation.bindSchema2ColdAuxiliaryFirstObservation(
+                        first, observer: observer, store: store,
+                        manifest: manifestOwner)
+                    try manifestOwner.observeSchema2ColdFirstActivatedOriginalAuxiliaryCut(
+                        intent: intent, preparation: preparation,
+                        store: store, operation: operation)
+                }
                 guard try registry.observeEraseSchema2ColdRegistry(
                         operation: operation, activity: activity) == tokens else {
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -5155,20 +6108,18 @@ final class EraseAllService {
                 do {
                     _ = try advanceSchema2ColdPointerSwitchedPhase(
                         operation: operation)
+                    // Consume the same operation's checked R/session/reader
+                    // under this Service frame; only the actual terminal
+                    // owner can authorize Router's later fresh publication.
+                    try await continueSchema2ColdActivatedForwardAfterSession(
+                        operation: operation)
                 } catch {
 #if DEBUG
                     reportSchema2ColdPForwardFailure(error)
 #endif
                     throw error
                 }
-                // Durable session activation is complete. The distinct
-                // sessionActivated cleanup/roster chain must consume this
-                // same operation; this frame cannot claim final Erase.
-                traceErasePhase("recovery.schema2.p-forward.explicit-refusal")
-#if DEBUG
-                print("V23_C05_P_FORWARD_DIAG_V1 stage=explicit-refusal family=erase")
-#endif
-                throw EraseAllServiceError.recoveryRequired
+                return true
             }
             if observed.intent?.phase == .sessionActivated,
                originalPresent {
@@ -5316,6 +6267,7 @@ final class EraseAllService {
         try operation.requireServiceAccess()
         try operation.retainPrepared(prepared, intentStore: intentStore, intent: activated)
         return true
+#endif
     }
 
     /// Called only by the factory's fixed, leased, synchronous retired read.
@@ -8368,6 +9320,11 @@ extension EraseAllService {
         _ = try operation.requireSchema2ColdActivatedEntryTempSettled(
             store: store)
         traceErasePhase("recovery.schema2.r-forward.entry-complete")
+        if manifest.hasSchema2ColdFirstActivatedAuxiliaryCut {
+            try manifest.requireSchema2ColdFirstActivatedOriginalAuxiliaryAdmission(
+                intent: first.intent, preparation: first.preparation,
+                store: store, operation: operation)
+        }
         traceErasePhase("recovery.schema2.r-forward.roster-enter")
         let roster: EraseSchema2ColdDeletionRosterV1
         if let observed = first.replayRoster {
@@ -8404,6 +9361,73 @@ extension EraseAllService {
     ) async throws {
         try await operation.beginServiceFrame()
         defer { operation.endServiceFrame() }
+        try await continueSchema2ColdActivatedForwardAfterSession(
+            operation: operation)
+    }
+
+    /// First P entry and same-operation R retry consume identical typed
+    /// owners under their already active Service frame. Keep the real target
+    /// session aliases in the inner scope until its projection is sealed,
+    /// then release those aliases before the existing checked weak drain.
+    private func continueSchema2ColdActivatedForwardAfterSession(
+        operation: EraseColdPreparationOperationV1
+    ) async throws {
+#if DEBUG
+        var c25ActivatedForwardStage = "typed-continuation"
+        do {
+        do {
+            let (intent, store, session, preparation, manifest,
+                source, registry, _) = try operation
+                    .requireSchema2ColdActivatedForwardContinuation()
+            c25ActivatedForwardStage = "activated-controls"
+            guard intent.schemaVersion == 2,
+                  intent.phase == .sessionActivated,
+                  preparation.c05JobDrainV3 == nil,
+                  try store.load() == intent,
+                  try operation.requireSchema2ColdPointerPhasePublished(
+                      expected: intent, store: store) === session else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            c25ActivatedForwardStage = "final-pointer"
+            try manifest.requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+            c25ActivatedForwardStage = "reader-census"
+            try operation.requireSchema2ColdTargetReaderTokenCensus(
+                registry: registry)
+            c25ActivatedForwardStage = "target-owner"
+            try operation.requireSchema2ColdTargetSource(source)
+            if operation.hasSchema2ColdPointerOriginalRetiredFirstEntry {
+                try manifest.requireSchema2ColdPointerOriginalRetiredRosterAdmission(
+                    intent: intent, preparation: preparation,
+                    store: store, operation: operation)
+            }
+            c25ActivatedForwardStage = "deletion-roster"
+            let roster = try publishOrRequireSchema2ColdDeletionRoster(
+                operation: operation, intent: intent,
+                preparation: preparation, store: store,
+                manifest: manifest)
+            c25ActivatedForwardStage = "generation-deletion"
+            try await advanceSchema2ColdRosteredGenerationDeletion(
+                operation: operation, roster: roster,
+                store: store, manifest: manifest)
+            c25ActivatedForwardStage = "post-generation-seal"
+            try sealSchema2ColdPostGenerationProjection(
+                intent: intent, preparation: preparation,
+                roster: roster, store: store, manifest: manifest,
+                operation: operation)
+        } // release this caller's real target model aliases before weak drain
+        c25ActivatedForwardStage = "terminal-retirement"
+        try await continueSchema2ColdPostGenerationThroughRetirement(operation: operation)
+        } catch {
+            let details = originalScratchLoanDiagnosticError(error)
+            let line = "V23_C25_COLD_REFUSAL_DIAG_V1 interval=p-activated-forward"
+                + " stage=\(c25ActivatedForwardStage) type=\(details.type)"
+                + " category=\(details.category)\n"
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            throw error
+        }
+#else
         do {
             let (intent, store, session, preparation, manifest,
                 source, registry, _) = try operation
@@ -8421,6 +9445,11 @@ extension EraseAllService {
             try operation.requireSchema2ColdTargetReaderTokenCensus(
                 registry: registry)
             try operation.requireSchema2ColdTargetSource(source)
+            if operation.hasSchema2ColdPointerOriginalRetiredFirstEntry {
+                try manifest.requireSchema2ColdPointerOriginalRetiredRosterAdmission(
+                    intent: intent, preparation: preparation,
+                    store: store, operation: operation)
+            }
             let roster = try publishOrRequireSchema2ColdDeletionRoster(
                 operation: operation, intent: intent,
                 preparation: preparation, store: store,
@@ -8434,6 +9463,7 @@ extension EraseAllService {
                 operation: operation)
         } // release this caller's real target model aliases before weak drain
         try await continueSchema2ColdPostGenerationThroughRetirement(operation: operation)
+#endif
     }
 
     /// Resume the same sealed post-generation owner before any original
@@ -8744,9 +9774,8 @@ extension EraseAllService {
         }
         _ = try advanceSchema2ColdPointerSwitchedPhase(
             operation: operation)
-        // The same first operation now holds a genuinely activated target
-        // session and exact R intent. Separate typed cleanup consumes it.
-        throw EraseAllServiceError.recoveryRequired
+        try await continueSchema2ColdActivatedForwardAfterSession(
+            operation: operation)
     }
 
     /// Resume only the same operation-retained private source attempt. The

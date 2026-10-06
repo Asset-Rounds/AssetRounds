@@ -35472,6 +35472,13 @@ struct EraseColdControlLeafFactV1: Equatable {
     }
 }
 
+/// First-captured P DATA shape. Neither case supplies effect authority.
+/// The ordinary issuing writer emits no retained-recovery record pair.
+enum EraseSchema2ColdPointerOriginalRecordShapeV1: Equatable {
+    case ordinaryNoRecords
+    case recoveredCompleteRecords
+}
+
 /// Durable first-image evidence for the original operation's P-cut retired
 /// transition. Decoding these bytes is only an observation; a live owner must
 /// separately prove its EX/G, first roster and held Store before an effect.
@@ -37764,6 +37771,29 @@ final class EraseIntentStore {
     private var coldProjectedAuxiliaryRosterFact:
         EraseColdControlLeafFactV1?
 
+    /// Immutable first P DATA is retained before the target reader. Later
+    /// phase/roster endpoints come only from this Store's checked effects.
+    private struct Schema2ColdPointerOriginalControlCutV1 {
+        let recordShape: EraseSchema2ColdPointerOriginalRecordShapeV1
+        let intent: EraseIntentV1
+        let preparation: ErasePreparationV2
+        let intentBytes: Data
+        let intentFact: EraseColdControlLeafFactV1
+        let preparationBytes: Data
+        let preparationFact: EraseColdControlLeafFactV1
+        let eraseRoot: EraseColdControlLeafFactV1
+        let names: [String]
+    }
+    private var coldPointerOriginalControlCut:
+        Schema2ColdPointerOriginalControlCutV1?
+    private var coldPointerPhasePublishedControlRoot:
+        EraseColdControlLeafFactV1?
+    private var coldProjectedOriginalRetiredFacts:
+        [String: EraseColdControlLeafFactV1] = [:]
+    private var coldVerifiedOriginalRetiredDispositions:
+        [String: ProtectedFileVerificationDispositionV1] = [:]
+    private var coldOriginalRetiredPolicyInFlight = false
+
     private func schema2ColdRosterNames(_ added: [String] = [])
         -> [String] {
         ([Self.intentName, Self.preparationName] +
@@ -37771,6 +37801,34 @@ final class EraseIntentStore {
                 [Self.auxiliaryRosterName]) +
             coldCapturedOpaqueOriginalRetired.keys.sorted() + added).sorted()
     }
+    /// First-R DATA and the sole checked displaced-P temporary postimage.
+    /// IDs bind retained owners without adding another strong owner cycle.
+    private struct Schema2ColdFirstActivatedEntryControlCutV1 {
+        let operationIdentity: ObjectIdentifier
+        let intent: EraseIntentV1
+        let preparation: ErasePreparationV2
+        let intentBytes: Data
+        let preparationBytes: Data
+        let firstRoot: EraseColdControlLeafFactV1
+        let firstNames: [String]
+        let rootFlags: UInt32
+        let phaseCut: Schema2ColdPhaseCASCutV1
+    }
+    private struct Schema2ColdFirstActivatedEntrySettledCutV1 {
+        let operationIdentity: ObjectIdentifier
+        let intentBytes: Data
+        let preparationBytes: Data
+        let firstRoot: EraseColdControlLeafFactV1
+        let firstNames: [String]
+        let settledRoot: EraseColdControlLeafFactV1
+        let settledNames: [String]
+        let rootFlags: UInt32
+    }
+    private var coldFirstActivatedEntryControlCut:
+        Schema2ColdFirstActivatedEntryControlCutV1?
+    private var coldFirstActivatedEntrySettledCut:
+        Schema2ColdFirstActivatedEntrySettledCutV1?
+
     private var coldExpectedIntentFact: EraseColdControlLeafFactV1?
     private var coldExpectedPreparationFact: EraseColdControlLeafFactV1?
     private var coldCapturedOpaqueNextFact: EraseColdControlLeafFactV1?
@@ -38277,6 +38335,483 @@ final class EraseIntentStore {
             cut.names)
     }
 
+    /// Classify only the immutable initial capture, never current survivors.
+    private func schema2ColdPointerOriginalRecordShape() throws
+        -> EraseSchema2ColdPointerOriginalRecordShapeV1 {
+        let names = coldCapturedOpaqueOriginalRetired.keys.sorted()
+        if names.isEmpty { return .ordinaryNoRecords }
+        guard names == [Self.originalRetiredCommitmentName,
+            Self.originalRetiredStageIdentityName].sorted() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return .recoveredCompleteRecords
+    }
+
+    /// Completed Original P records have a distinct first cut from E.
+    /// Capture it under the same pre-reader owner; no late R baseline exists.
+    @MainActor
+    func requireSchema2ColdObservedPointerOriginalRetiredControls(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (shape: EraseSchema2ColdPointerOriginalRecordShapeV1,
+                 records: [String: EraseColdExistingControlObservationV1
+                    .OpaqueOriginalRetiredLeafV1],
+                 eraseRoot: EraseColdControlLeafFactV1,
+                 names: [String]) {
+        try operation.requireSchema2ColdPointerOriginalRetiredCaptureOwner(
+            intent: intent, preparation: preparation, store: self)
+        let recordShape = try schema2ColdPointerOriginalRecordShape()
+        guard borrowsColdObservation, !coldEffectUncertain,
+              !coldCloseAttempted, !coldClosed,
+              intent.phase == .pointerSwitched,
+              preparation.matches(intent),
+              coldProjectedOriginalRetiredFacts.isEmpty,
+              coldVerifiedOriginalRetiredDispositions.isEmpty,
+              let intentBytes = coldExpectedIntentBytes,
+              let intentFact = coldExpectedIntentFact,
+              let preparationBytes = coldExpectedPreparationBytes,
+              let preparationFact = coldExpectedPreparationFact else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let controls = try requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        guard controls.intentBytes == intentBytes,
+              controls.preparationBytes == preparationBytes,
+              controls.names == schema2ColdRosterNames(),
+              !controls.names.contains(Self.nextName),
+              !coldCapturedOpaqueAuxiliaryRosterNextPresent,
+              coldCapturedOpaqueAuxiliaryRosterBytes != nil else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        for name in coldCapturedOpaqueOriginalRetired.keys.sorted() {
+            guard let first = coldCapturedOpaqueOriginalRetired[name],
+                  try readColdOpaqueOriginalRetired(name, expected: first) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        let after = try requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        guard after.intentBytes == controls.intentBytes,
+              after.preparationBytes == controls.preparationBytes,
+              after.eraseRoot == controls.eraseRoot,
+              after.names == controls.names else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if let retained = coldPointerOriginalControlCut {
+            guard retained.recordShape == recordShape,
+                  retained.intent == intent,
+                  retained.preparation == preparation,
+                  retained.intentBytes == intentBytes,
+                  retained.intentFact == intentFact,
+                  retained.preparationBytes == preparationBytes,
+                  retained.preparationFact == preparationFact,
+                  retained.eraseRoot == controls.eraseRoot,
+                  retained.names == controls.names else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        } else {
+            coldPointerOriginalControlCut = .init(recordShape: recordShape,
+                intent: intent,
+                preparation: preparation, intentBytes: intentBytes,
+                intentFact: intentFact, preparationBytes: preparationBytes,
+                preparationFact: preparationFact,
+                eraseRoot: controls.eraseRoot, names: controls.names)
+        }
+        return (recordShape, coldCapturedOpaqueOriginalRetired,
+            controls.eraseRoot, controls.names)
+    }
+
+    @MainActor
+    func requireSchema2ColdSemanticPointerOriginalRetiredControls(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (commitment: OriginalRecoveryRetiredCommitmentRecordV1,
+                 stage: OriginalRecoveryRetiredStageIdentityRecordV1?,
+                 first: [String: EraseColdExistingControlObservationV1
+                    .OpaqueOriginalRetiredLeafV1],
+                 root: EraseColdControlLeafFactV1,
+                 names: [String]) {
+        let cut = try requireSchema2ColdObservedPointerOriginalRetiredControls(
+            intent: intent, preparation: preparation, operation: operation)
+        guard cut.shape == .recoveredCompleteRecords else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let semantic = try decodeSchema2ColdPointerOriginalRetiredControls(
+            firstIntent: intent, preparation: preparation,
+            root: cut.eraseRoot, names: cut.names)
+        let after = try requireSchema2ColdObservedPointerOriginalRetiredControls(
+            intent: intent, preparation: preparation, operation: operation)
+        guard after.shape == cut.shape, after.records == cut.records,
+              after.eraseRoot == cut.eraseRoot, after.names == cut.names else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return semantic
+    }
+
+    /// Decode the recorded E commitment against the actual retained P.
+    /// Its E inode/times are historical DATA, not the replaced P/R leaf.
+    private func decodeSchema2ColdPointerOriginalRetiredControls(
+        firstIntent: EraseIntentV1, preparation: ErasePreparationV2,
+        root: EraseColdControlLeafFactV1, names: [String]
+    ) throws -> (commitment: OriginalRecoveryRetiredCommitmentRecordV1,
+                 stage: OriginalRecoveryRetiredStageIdentityRecordV1?,
+                 first: [String: EraseColdExistingControlObservationV1
+                    .OpaqueOriginalRetiredLeafV1],
+                 root: EraseColdControlLeafFactV1, names: [String]) {
+        guard let retained = coldPointerOriginalControlCut,
+              retained.recordShape == .recoveredCompleteRecords,
+              retained.intent == firstIntent,
+              firstIntent.phase == .pointerSwitched,
+              retained.preparation == preparation,
+              let commitmentLeaf = coldCapturedOpaqueOriginalRetired[
+                Self.originalRetiredCommitmentName],
+              let stageLeaf = coldCapturedOpaqueOriginalRetired[
+                Self.originalRetiredStageIdentityName],
+              coldCapturedOpaqueOriginalRetired.count == 2,
+              let auxiliaryBytes = coldCapturedOpaqueAuxiliaryRosterBytes,
+              let auxiliaryFact = coldCapturedOpaqueAuxiliaryRosterFact,
+              let auxiliaryPolicy = coldCapturedOpaqueAuxiliaryRosterPolicy,
+              !coldCapturedOpaqueAuxiliaryRosterNextPresent else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        for (bytes, fact, policy) in [
+            (commitmentLeaf.bytes, commitmentLeaf.fact, commitmentLeaf.policy),
+            (stageLeaf.bytes, stageLeaf.fact, stageLeaf.policy),
+            (auxiliaryBytes, auxiliaryFact, Optional(auxiliaryPolicy))] {
+            guard fact.mode & S_IFMT == S_IFREG,
+                  fact.links == 1, fact.size == off_t(bytes.count),
+                  fact.size > 0, fact.size <= off_t(Self.maximumJournalBytes),
+                  fact.device == retained.eraseRoot.device,
+                  fact.user == retained.eraseRoot.user,
+                  fact.group == retained.eraseRoot.group,
+                  policy?.device == UInt64(fact.device),
+                  policy?.inode == UInt64(fact.inode),
+                  policy?.linkCount == 1,
+                  policy?.backupExcluded == true,
+                  policy?.state == .strictComplete ||
+                    policy?.state == .pendingSimulatorRequest else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        typealias Fact = OriginalRecoveryRetiredCommitmentRecordV1.Fact
+        func full(_ value: EraseColdControlLeafFactV1) -> Fact {
+            Fact(device: value.device, inode: value.inode,
+                mode: value.mode, links: value.links,
+                user: value.user, group: value.group, size: value.size,
+                modifiedSeconds: value.modifiedSeconds,
+                modifiedNanoseconds: value.modifiedNanoseconds,
+                changedSeconds: value.changedSeconds,
+                changedNanoseconds: value.changedNanoseconds)
+        }
+        let commitment = try OriginalRecoveryRetiredCommitmentRecordV1
+            .decodeCanonical(commitmentLeaf.bytes)
+        let recorded = try EraseIntentCodecV1.decode(commitment.intentBytes)
+        guard try EraseIntentCodecV1.encode(recorded) == commitment.intentBytes,
+              recorded.phase == .emptyGenerationPrepared,
+              firstIntent == recorded.advancing(to: .pointerSwitched),
+              retained.intentBytes == (try EraseIntentCodecV1.encode(firstIntent)),
+              commitment.preparationBytes == retained.preparationBytes,
+              commitment.preparationFact == full(retained.preparationFact),
+              commitment.auxiliaryRosterBytes == auxiliaryBytes,
+              commitment.auxiliaryRosterFact == full(auxiliaryFact),
+              commitment.intentFact.mode & UInt32(S_IFMT) == UInt32(S_IFREG),
+              commitment.intentFact.links == 1,
+              commitment.intentFact.size == Int64(commitment.intentBytes.count),
+              commitment.intentFact.device == Int64(retained.eraseRoot.device),
+              commitment.intentFact.user == UInt32(retained.eraseRoot.user),
+              commitment.intentFact.group == UInt32(retained.eraseRoot.group),
+              commitment.eraseID == firstIntent.eraseID.uuidString.lowercased(),
+              commitment.sourceGenerationID == firstIntent.oldGenerationID
+                .uuidString.lowercased(),
+              commitment.targetGenerationID == firstIntent.newGenerationID
+                .uuidString.lowercased(),
+              commitment.erase.device == Int64(retained.eraseRoot.device),
+              commitment.erase.inode == UInt64(retained.eraseRoot.inode),
+              commitment.erase.mode == UInt32(retained.eraseRoot.mode),
+              commitment.erase.user == UInt32(retained.eraseRoot.user),
+              commitment.erase.group == UInt32(retained.eraseRoot.group) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let stage = try OriginalRecoveryRetiredStageIdentityRecordV1
+            .decodeCanonical(stageLeaf.bytes)
+        guard stage.eraseID == commitment.eraseID,
+              stage.commitmentSHA256 == StoreMigrationCanonicalJSONV1
+                .sha256(commitmentLeaf.bytes),
+              stage.commitmentFact == full(commitmentLeaf.fact),
+              stage.firstDataFact == commitment.namespace.data,
+              stage.firstDataChildren == [
+                .init(name: "current.json", kind: "regular",
+                    fact: commitment.namespace.currentFact),
+                .init(name: "generations", kind: "directory",
+                    fact: commitment.namespace.installedParent),
+                .init(name: "retired.json", kind: "regular",
+                    fact: commitment.namespace.retiredFact)],
+              stage.privateStageName == commitment.privateStageName,
+              stage.canonicalTempName == commitment.canonicalTempName,
+              stage.replacementSHA256 == commitment.replacementSHA256 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (commitment, stage, coldCapturedOpaqueOriginalRetired, root, names)
+    }
+
+    /// R can consume only its actual retained first P and checked own CAS.
+    /// A separately born R or equal survivor namespace cannot enter here.
+    @MainActor
+    func requireSchema2ColdActivatedOriginalRetiredControls(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (commitment: OriginalRecoveryRetiredCommitmentRecordV1,
+                 stage: OriginalRecoveryRetiredStageIdentityRecordV1?,
+                 first: [String: EraseColdExistingControlObservationV1
+                    .OpaqueOriginalRetiredLeafV1],
+                 root: EraseColdControlLeafFactV1, names: [String]) {
+        let cut = try requireSchema2ColdActivatedPointerOriginalControlCut(
+            intent: intent, preparation: preparation, operation: operation)
+        guard cut.shape == .recoveredCompleteRecords,
+              let retained = coldPointerOriginalControlCut,
+              retained.recordShape == cut.shape else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return try decodeSchema2ColdPointerOriginalRetiredControls(
+            firstIntent: retained.intent, preparation: preparation,
+            root: cut.eraseRoot, names: cut.names)
+    }
+
+    @MainActor
+    func requireSchema2ColdActivatedPointerOriginalControlCut(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (shape: EraseSchema2ColdPointerOriginalRecordShapeV1,
+                 records: [String: EraseColdExistingControlObservationV1
+                    .OpaqueOriginalRetiredLeafV1],
+                 eraseRoot: EraseColdControlLeafFactV1, names: [String]) {
+        let firstIntent = try operation
+            .requireSchema2ColdActivatedOriginalRetiredControlsOwner(
+                intent: intent, preparation: preparation, store: self)
+        guard borrowsColdObservation, !coldEffectUncertain,
+              !coldCloseAttempted, !coldClosed,
+              let retained = coldPointerOriginalControlCut,
+              retained.recordShape == (try schema2ColdPointerOriginalRecordShape()),
+              retained.intent == firstIntent,
+              retained.preparation == preparation,
+              intent == firstIntent.advancing(to: .sessionActivated),
+              let phaseRoot = coldPointerPhasePublishedControlRoot else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if retained.recordShape == .ordinaryNoRecords {
+            guard coldCapturedOpaqueOriginalRetired.isEmpty,
+                  coldProjectedOriginalRetiredFacts.isEmpty,
+                  coldVerifiedOriginalRetiredDispositions.isEmpty else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        var expectedRoot = phaseRoot
+        var expectedNames = retained.names
+        if let receipt = coldRosterPublication {
+            guard receipt.store === self, receipt.operation === operation,
+                  !coldRosterInFlight,
+                  receipt.intentBytes == coldExpectedIntentBytes,
+                  receipt.preparationBytes == retained.preparationBytes,
+                  let projected = receipt.postPublishedRoot,
+                  let bytes = coldOwnRosterBytes,
+                  let fact = coldOwnRosterFact,
+                  receipt.publishedFact == fact,
+                  let leaf = try readColdLeafIfPresent(Self.rosterName,
+                    maximumBytes: bytes.count), leaf.data == bytes else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            var named = stat()
+            guard Darwin.fstatat(eraseDescriptor, Self.rosterName,
+                    &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(named) == fact else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            expectedRoot = projected
+            expectedNames = (retained.names + [Self.rosterName]).sorted()
+        }
+        let before = try requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation, operation: operation)
+        guard before.eraseRoot == expectedRoot,
+              before.names == expectedNames,
+              before.intentBytes == coldExpectedIntentBytes,
+              before.preparationBytes == retained.preparationBytes else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        for name in coldCapturedOpaqueOriginalRetired.keys.sorted() {
+            guard let first = coldCapturedOpaqueOriginalRetired[name] else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let fact = coldProjectedOriginalRetiredFacts[name] ?? first.fact
+            let policy = try observeBorrowedColdPolicy(.journal,
+                at: applicationSupportURL.appendingPathComponent(
+                    policyRelativePath(name)))
+            if let disposition = coldVerifiedOriginalRetiredDispositions[name] {
+                guard coldProjectedOriginalRetiredFacts[name] != nil,
+                      policy.device == UInt64(first.fact.device),
+                      policy.inode == UInt64(first.fact.inode),
+                      policy.linkCount == 1, policy.backupExcluded == true,
+                      (disposition == .verifiedComplete
+                        ? policy.state == .strictComplete
+                        : (policy.state == .pendingSimulatorRequest ||
+                            policy.state == .strictComplete)) else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            } else {
+                guard coldProjectedOriginalRetiredFacts[name] == nil,
+                      policy == first.policy else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+            let projected = EraseColdExistingControlObservationV1
+                .OpaqueOriginalRetiredLeafV1(bytes: first.bytes,
+                    fact: fact, policy: policy)
+            guard try readColdOpaqueOriginalRetired(name, expected: projected) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        let after = try requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation, operation: operation)
+        guard after.eraseRoot == before.eraseRoot,
+              after.names == before.names,
+              after.intentBytes == before.intentBytes,
+              after.preparationBytes == before.preparationBytes else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (retained.recordShape, coldCapturedOpaqueOriginalRetired,
+            after.eraseRoot, after.names)
+    }
+
+    /// A real checked request, once per exact canonical record, is needed
+    /// before replay. No-request and cached paths retain the exact full fact;
+    /// only the helper's actual pending-request boundary permits own ctime.
+    @MainActor
+    func requireSchema2ColdVerifiedActivatedOriginalRetiredPolicies(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard !coldOriginalRetiredPolicyInFlight, !coldEffectUncertain else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        _ = try requireSchema2ColdActivatedOriginalRetiredControls(
+            intent: intent, preparation: preparation, operation: operation)
+        coldOriginalRetiredPolicyInFlight = true
+        do {
+            for name in [Self.originalRetiredCommitmentName,
+                         Self.originalRetiredStageIdentityName] {
+                guard let first = coldCapturedOpaqueOriginalRetired[name] else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                var expectedFact = coldProjectedOriginalRetiredFacts[name] ?? first.fact
+                var requestCtimeTransitionEntered = false
+                func witness() throws
+                    -> (value: Schema2ColdOriginalAuxiliaryPolicyWitnessV1,
+                        fact: EraseColdControlLeafFactV1) {
+                    try operation.requireSchema2ColdRosterObservationOwner(store: self)
+                    let controls = try self.requireSchema2ColdCanonicalControls(
+                        intent: intent, preparation: preparation, operation: operation)
+                    var named = stat()
+                    guard controls.names.contains(name),
+                          Darwin.fstatat(self.eraseDescriptor, name, &named,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          named.st_dev == first.fact.device,
+                          named.st_ino == first.fact.inode,
+                          named.st_mode == first.fact.mode,
+                          named.st_nlink == first.fact.links,
+                          named.st_uid == first.fact.user,
+                          named.st_gid == first.fact.group,
+                          named.st_uid == Darwin.getuid(),
+                          named.st_gid == Darwin.getgid(),
+                          named.st_size == first.fact.size,
+                          Int64(named.st_mtimespec.tv_sec) == first.fact.modifiedSeconds,
+                          Int64(named.st_mtimespec.tv_nsec) == first.fact.modifiedNanoseconds else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    let fact = EraseColdControlLeafFactV1(named)
+                    guard requestCtimeTransitionEntered || fact == expectedFact else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    let policy = try self.observeBorrowedColdPolicy(.journal,
+                        at: self.applicationSupportURL.appendingPathComponent(
+                            self.policyRelativePath(name)))
+                    let read = EraseColdExistingControlObservationV1
+                        .OpaqueOriginalRetiredLeafV1(bytes: first.bytes,
+                            fact: fact, policy: policy)
+                    var after = stat()
+                    guard try self.readColdOpaqueOriginalRetired(name, expected: read),
+                          Darwin.fstatat(self.eraseDescriptor, name, &after,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          EraseColdControlLeafFactV1(after) == fact,
+                          try self.coldRootFact() == controls.eraseRoot,
+                          try self.coldNamesChecked() == controls.names else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    return (.init(intentBytes: controls.intentBytes,
+                        preparationBytes: controls.preparationBytes,
+                        recordBytes: first.bytes, device: named.st_dev,
+                        inode: named.st_ino, mode: named.st_mode,
+                        user: named.st_uid, group: named.st_gid,
+                        links: named.st_nlink, size: named.st_size,
+                        modifiedSeconds: Int64(named.st_mtimespec.tv_sec),
+                        modifiedNanoseconds: Int64(named.st_mtimespec.tv_nsec),
+                        eraseRoot: controls.eraseRoot, names: controls.names), fact)
+                }
+                let before = try witness()
+                if coldVerifiedOriginalRetiredDispositions[name] == nil {
+                    _ = try requireSchema2ColdActivatedOriginalRetiredControls(
+                        intent: intent, preparation: preparation, operation: operation)
+                    let disposition = try ProtectedFilePolicyV1
+                        .verifyEraseColdTemporalPolicyWithCheckedRequest(.journal,
+                            at: applicationSupportURL.appendingPathComponent(
+                                policyRelativePath(name)),
+                            retainUncertainDescriptor: { value in
+                                self.coldUncertainFDs.append(value)
+                            }, willRequestCompleteProtection: {
+                                let actual = try witness()
+                                guard !requestCtimeTransitionEntered,
+                                      actual.value == before.value,
+                                      actual.fact == expectedFact else {
+                                    throw EraseIntentStoreError.invalidAuthority
+                                }
+                                requestCtimeTransitionEntered = true
+                            }, unchangedWitness: { try witness().value })
+                    let after = try witness()
+                    guard coldUncertainFDs.isEmpty,
+                          after.value == before.value,
+                          requestCtimeTransitionEntered || after.fact == expectedFact else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    // Freeze the exact actual returned endpoint immediately;
+                    // later witness calls cannot project a second transition.
+                    expectedFact = after.fact
+                    requestCtimeTransitionEntered = false
+                    let settled = try witness()
+                    guard settled.value == before.value,
+                          settled.fact == expectedFact else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    coldProjectedOriginalRetiredFacts[name] = expectedFact
+                    coldVerifiedOriginalRetiredDispositions[name] = disposition
+                }
+                _ = try requireSchema2ColdActivatedOriginalRetiredControls(
+                    intent: intent, preparation: preparation, operation: operation)
+                let settled = try witness()
+                guard settled.value == before.value,
+                      settled.fact == expectedFact else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+            coldOriginalRetiredPolicyInFlight = false
+        } catch {
+            coldEffectUncertain = true
+            throw error
+        }
+    }
     /// Re-read the first opaque record or zero/prefix temporary without a
     /// policy setter. Failed or ambiguous close leaves this Store terminal.
     private func readColdOpaqueOriginalRetired(_ name: String,
@@ -38483,6 +39018,8 @@ final class EraseIntentStore {
                 StoreMigrationCanonicalJSONV1.sha256(firstBytes) else {
             throw EraseIntentStoreError.invalidAuthority
         }
+        var expectedFullFact = coldProjectedAuxiliaryRosterFact ?? firstFact
+        var requestCtimeTransitionEntered = false
         func witness() throws
             -> Schema2ColdOriginalAuxiliaryPolicyWitnessV1 {
             try operation.requireSchema2ColdRosterObservationOwner(
@@ -38518,6 +39055,10 @@ final class EraseIntentStore {
                     == firstFact.modifiedNanoseconds,
                   try coldRootFact() == controls.eraseRoot,
                   try coldNamesChecked() == controls.names else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            guard requestCtimeTransitionEntered ||
+                    EraseColdControlLeafFactV1(named) == expectedFullFact else {
                 throw EraseIntentStoreError.invalidAuthority
             }
             return .init(intentBytes: controls.intentBytes,
@@ -38571,6 +39112,12 @@ final class EraseIntentStore {
                         policyRelativePath(Self.auxiliaryRosterName)),
                     retainUncertainDescriptor: { value in
                         self.coldUncertainFDs.append(value)
+                    }, willRequestCompleteProtection: {
+                        guard !requestCtimeTransitionEntered,
+                              try witness() == before else {
+                            throw EraseIntentStoreError.invalidAuthority
+                        }
+                        requestCtimeTransitionEntered = true
                     }, unchangedWitness: { try witness() })
             guard coldUncertainFDs.isEmpty,
                   try witness() == before else {
@@ -38582,6 +39129,13 @@ final class EraseIntentStore {
                     AT_SYMLINK_NOFOLLOW) == 0 else {
                 throw EraseIntentStoreError.invalidAuthority
             }
+            let returnedFullFact = EraseColdControlLeafFactV1(named)
+            guard requestCtimeTransitionEntered ||
+                    returnedFullFact == expectedFullFact else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            expectedFullFact = returnedFullFact
+            requestCtimeTransitionEntered = false
             let policy = try observeBorrowedColdPolicy(.journal,
                 at: applicationSupportURL.appendingPathComponent(
                     policyRelativePath(Self.auxiliaryRosterName)))
@@ -41188,6 +41742,21 @@ final class EraseIntentStore {
         let firstCut = try requireSchema2ColdPhaseCASCut(
             expected: expected, replacement: replacement,
             operation: operation)
+        if let retained = coldPointerOriginalControlCut {
+            let controls = try requireSchema2ColdCanonicalControls(
+                intent: expected, preparation: retained.preparation,
+                operation: operation)
+            guard retained.intent == expected,
+                  controls.intentBytes == retained.intentBytes,
+                  controls.preparationBytes == retained.preparationBytes,
+                  controls.eraseRoot == retained.eraseRoot,
+                  controls.names == retained.names,
+                  coldPointerPhasePublishedControlRoot == nil,
+                  coldProjectedOriginalRetiredFacts.isEmpty,
+                  coldVerifiedOriginalRetiredDispositions.isEmpty else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
         var enteredCanonicalCAS = false
         do {
             try operation.withSchema2ColdPointerPhaseMutation(
@@ -41210,16 +41779,210 @@ final class EraseIntentStore {
                         try self.removeCapturedOpaqueNextForColdCAS()
                     }
                 }
+                if let retained = self.coldPointerOriginalControlCut {
+                    let controls = try self.requireSchema2ColdCanonicalControls(
+                        intent: replacement, preparation: retained.preparation,
+                        operation: operation)
+                    guard controls.names == retained.names,
+                          controls.preparationBytes == retained.preparationBytes,
+                          controls.eraseRoot.device == retained.eraseRoot.device,
+                          controls.eraseRoot.inode == retained.eraseRoot.inode,
+                          controls.eraseRoot.mode == retained.eraseRoot.mode,
+                          controls.eraseRoot.user == retained.eraseRoot.user,
+                          controls.eraseRoot.group == retained.eraseRoot.group,
+                          controls.eraseRoot.links == retained.eraseRoot.links else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    self.coldPointerPhasePublishedControlRoot = controls.eraseRoot
+                }
             }
             guard try load() == replacement,
                   coldCapturedOpaqueNextBytes == nil else {
                 throw EraseIntentStoreError.intentMismatch
+            }
+            if let retained = coldPointerOriginalControlCut {
+                let controls = try requireSchema2ColdCanonicalControls(
+                    intent: replacement, preparation: retained.preparation,
+                    operation: operation)
+                guard controls.eraseRoot == coldPointerPhasePublishedControlRoot,
+                      controls.names == retained.names,
+                      controls.preparationBytes == retained.preparationBytes else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
             }
         } catch {
             // Once the canonical writer entered, a failed postproof or close
             // cannot permit a second CAS on the same borrowed owner.
             if enteredCanonicalCAS { coldEffectUncertain = true }
             throw error
+        }
+    }
+
+    /// Capture the actual first R parent before target work. Later DATA
+    /// reproof uses only this operation's completed temporary/roster effect.
+    /// No surviving parent or control leaf becomes a replacement baseline.
+    @MainActor
+    func requireSchema2ColdFirstActivatedEntryControlCut(
+        firstIntent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (firstRoot: EraseColdControlLeafFactV1,
+                 firstNames: [String],
+                 currentRoot: EraseColdControlLeafFactV1,
+                 currentNames: [String],
+                 phaseCut: Schema2ColdPhaseCASCutV1) {
+        try operation.requireSchema2ColdIntentStore(self)
+        guard borrowsColdObservation, !coldEffectUncertain,
+              !coldCloseAttempted, !coldClosed,
+              firstIntent.schemaVersion == 2,
+              firstIntent.phase == .sessionActivated,
+              preparation.matches(firstIntent),
+              coldPointerOriginalControlCut == nil,
+              coldCapturedOpaqueAuxiliaryRosterBytes != nil,
+              !coldCapturedOpaqueAuxiliaryRosterNextPresent else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if coldFirstActivatedEntryControlCut == nil {
+            let (first, heldStore, _, _, _, _, _) =
+                try operation.requireSchema2ColdOriginalContinuation()
+            guard heldStore === self, first.intent == firstIntent,
+                  first.preparation == preparation,
+                  first.observed.intent == firstIntent,
+                  first.observed.preparation == preparation,
+                  first.observed.opaqueAuxiliaryRosterPresent,
+                  !first.observed.opaqueAuxiliaryRosterNextPresent,
+                  let phaseCut = first.phaseCut,
+                  case .published = phaseCut,
+                  operation.schema2ColdTargetValidationAttempt == nil,
+                  operation.schema2ColdActivatedTargetAttempt == nil,
+                  coldFirstActivatedEntrySettledCut == nil,
+                  coldRosterPublication == nil else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let controls = try requireSchema2ColdCanonicalControls(
+                intent: firstIntent, preparation: preparation,
+                operation: operation)
+            let flags = try coldRootFlagsMatching(controls.eraseRoot)
+            guard try requireSchema2ColdPhaseCASCut(
+                    expected: firstIntent.advancing(to: .pointerSwitched),
+                    replacement: firstIntent, operation: operation) == phaseCut,
+                  try coldRootFact() == controls.eraseRoot,
+                  try coldNamesChecked() == controls.names else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            coldFirstActivatedEntryControlCut = .init(
+                operationIdentity: ObjectIdentifier(operation),
+                intent: firstIntent, preparation: preparation,
+                intentBytes: controls.intentBytes,
+                preparationBytes: controls.preparationBytes,
+                firstRoot: controls.eraseRoot, firstNames: controls.names,
+                rootFlags: flags, phaseCut: phaseCut)
+        }
+        guard let retained = coldFirstActivatedEntryControlCut,
+              retained.operationIdentity == ObjectIdentifier(operation),
+              retained.intent == firstIntent,
+              retained.preparation == preparation else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var expectedRoot = retained.firstRoot
+        var expectedNames = retained.firstNames
+        if let settled = coldFirstActivatedEntrySettledCut {
+            guard settled.operationIdentity == retained.operationIdentity,
+                  settled.intentBytes == retained.intentBytes,
+                  settled.preparationBytes == retained.preparationBytes,
+                  settled.firstRoot == retained.firstRoot,
+                  settled.firstNames == retained.firstNames,
+                  settled.rootFlags == retained.rootFlags,
+                  operation.hasSchema2ColdActivatedEntryTempSettled else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            expectedRoot = settled.settledRoot
+            expectedNames = settled.settledNames
+        } else {
+            guard !operation.hasSchema2ColdActivatedEntryTempSettled else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        if let receipt = coldRosterPublication {
+            guard coldFirstActivatedEntrySettledCut != nil,
+                  receipt.store === self, receipt.operation === operation,
+                  !coldRosterInFlight,
+                  receipt.originalRoot == expectedRoot,
+                  receipt.intentBytes == retained.intentBytes,
+                  receipt.preparationBytes == retained.preparationBytes,
+                  let projected = receipt.postPublishedRoot,
+                  let bytes = coldOwnRosterBytes,
+                  let fact = coldOwnRosterFact,
+                  receipt.publishedFact == fact,
+                  let leaf = try readColdLeafIfPresent(Self.rosterName,
+                    maximumBytes: bytes.count), leaf.data == bytes else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            var named = stat()
+            guard Darwin.fstatat(eraseDescriptor, Self.rosterName, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(named) == fact else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            expectedRoot = projected
+            expectedNames = (expectedNames + [Self.rosterName]).sorted()
+        }
+        let controls = try requireSchema2ColdCanonicalControls(
+            intent: firstIntent, preparation: preparation,
+            operation: operation)
+        guard controls.intentBytes == retained.intentBytes,
+              controls.preparationBytes == retained.preparationBytes,
+              controls.eraseRoot == expectedRoot,
+              controls.names == expectedNames,
+              try coldRootFlagsMatching(controls.eraseRoot) == retained.rootFlags,
+              try coldRootFact() == controls.eraseRoot,
+              try coldNamesChecked() == controls.names else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (retained.firstRoot, retained.firstNames,
+            controls.eraseRoot, controls.names, retained.phaseCut)
+    }
+
+    private func coldRootFlagsMatching(_ fact: EraseColdControlLeafFactV1)
+        throws -> UInt32 {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(eraseDescriptor, &held) == 0,
+              Darwin.fstatat(applicationSupportDescriptor, Self.directoryName,
+                &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(held) == fact,
+              EraseColdControlLeafFactV1(named) == fact,
+              held.st_flags == named.st_flags else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return held.st_flags
+    }
+
+    private func requireFirstActivatedAuxiliarySurvivor(
+        root: EraseColdControlLeafFactV1, names: [String]
+    ) throws {
+        guard let bytes = coldCapturedOpaqueAuxiliaryRosterBytes,
+              let fact = coldCapturedOpaqueAuxiliaryRosterFact,
+              let policy = coldCapturedOpaqueAuxiliaryRosterPolicy,
+              !coldCapturedOpaqueAuxiliaryRosterNextPresent,
+              coldProjectedAuxiliaryRosterFact == nil,
+              coldVerifiedAuxiliaryDisposition == nil,
+              !coldObservedAuxiliaryPolicyInFlight,
+              try coldRootFact() == root,
+              try coldNamesChecked() == names,
+              let read = try readColdLeafIfPresent(Self.auxiliaryRosterName,
+                maximumBytes: Self.maximumJournalBytes), read.data == bytes else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var named = stat()
+        guard Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterName, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(named) == fact,
+              try observeBorrowedColdPolicy(.journal,
+                at: applicationSupportURL.appendingPathComponent(
+                    policyRelativePath(Self.auxiliaryRosterName))) == policy,
+              try coldRootFact() == root,
+              try coldNamesChecked() == names else {
+            throw EraseIntentStoreError.invalidAuthority
         }
     }
 
@@ -41247,6 +42010,8 @@ final class EraseIntentStore {
             throw EraseIntentStoreError.invalidAuthority
         }
         var entered = false
+        var settledCut: Schema2ColdFirstActivatedEntrySettledCutV1?
+        let retained = coldFirstActivatedEntryControlCut
         do {
             try operation.withSchema2ColdActivatedEntryTempCleanup(
                 pending: pending, published: published, store: self) {
@@ -41255,14 +42020,95 @@ final class EraseIntentStore {
                     operation: operation) == firstCut else {
                     throw EraseIntentStoreError.invalidAuthority
                 }
+                if let retained {
+                    guard retained.operationIdentity == ObjectIdentifier(operation),
+                          retained.intent == published,
+                          retained.phaseCut == firstCut,
+                          coldFirstActivatedEntrySettledCut == nil else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    let controls = try self.requireSchema2ColdCanonicalControls(
+                        intent: published, preparation: retained.preparation,
+                        operation: operation)
+                    guard controls.intentBytes == retained.intentBytes,
+                          controls.preparationBytes == retained.preparationBytes,
+                          controls.eraseRoot == retained.firstRoot,
+                          controls.names == retained.firstNames,
+                          try self.coldRootFlagsMatching(controls.eraseRoot)
+                            == retained.rootFlags else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    try self.requireFirstActivatedAuxiliarySurvivor(
+                        root: controls.eraseRoot, names: controls.names)
+                }
                 entered = true
                 if self.coldCapturedOpaqueNextBytes != nil {
                     try self.removeCapturedOpaqueNextForColdCAS()
+                }
+                if let retained {
+                    let controls = try self.requireSchema2ColdCanonicalControls(
+                        intent: published, preparation: retained.preparation,
+                        operation: operation)
+                    guard case .published(let displaced, let displacedFact) = firstCut,
+                          (displaced == nil) == (displacedFact == nil),
+                          retained.firstNames.contains(Self.nextName)
+                            == (displaced != nil),
+                          controls.intentBytes == retained.intentBytes,
+                          controls.preparationBytes == retained.preparationBytes,
+                          controls.names == retained.firstNames.filter({
+                            $0 != Self.nextName }),
+                          controls.eraseRoot.device == retained.firstRoot.device,
+                          controls.eraseRoot.inode == retained.firstRoot.inode,
+                          controls.eraseRoot.mode == retained.firstRoot.mode,
+                          controls.eraseRoot.user == retained.firstRoot.user,
+                          controls.eraseRoot.group == retained.firstRoot.group,
+                          (displaced == nil ||
+                            (retained.firstRoot.links ==
+                                nlink_t(2 + retained.firstNames.count) &&
+                             controls.eraseRoot.links ==
+                                nlink_t(2 + controls.names.count)) ||
+                            (retained.firstRoot.links == 2 &&
+                             controls.eraseRoot.links == 2)),
+                          try self.coldRootFlagsMatching(controls.eraseRoot)
+                            == retained.rootFlags,
+                          displaced != nil || controls.eraseRoot == retained.firstRoot else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    try self.requireFirstActivatedAuxiliarySurvivor(
+                        root: controls.eraseRoot, names: controls.names)
+                    settledCut = .init(
+                        operationIdentity: retained.operationIdentity,
+                        intentBytes: controls.intentBytes,
+                        preparationBytes: controls.preparationBytes,
+                        firstRoot: retained.firstRoot, firstNames: retained.firstNames,
+                        settledRoot: controls.eraseRoot, settledNames: controls.names,
+                        rootFlags: retained.rootFlags)
                 }
             }
             guard try load() == published,
                   coldCapturedOpaqueNextBytes == nil else {
                 throw EraseIntentStoreError.intentMismatch
+            }
+            if let retained {
+                guard let settledCut,
+                      operation.hasSchema2ColdActivatedEntryTempSettled,
+                      settledCut.firstRoot == retained.firstRoot,
+                      settledCut.firstNames == retained.firstNames else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                let controls = try requireSchema2ColdCanonicalControls(
+                    intent: published, preparation: retained.preparation,
+                    operation: operation)
+                guard controls.intentBytes == settledCut.intentBytes,
+                      controls.preparationBytes == settledCut.preparationBytes,
+                      controls.eraseRoot == settledCut.settledRoot,
+                      controls.names == settledCut.settledNames,
+                      try coldRootFlagsMatching(controls.eraseRoot) == settledCut.rootFlags else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                try requireFirstActivatedAuxiliarySurvivor(
+                    root: controls.eraseRoot, names: controls.names)
+                coldFirstActivatedEntrySettledCut = settledCut
             }
         } catch {
             if entered { coldEffectUncertain = true }

@@ -3279,14 +3279,30 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
                     support: support.descriptor,
                     caches: caches.descriptor,
                     temporary: temporary.descriptor,
-                    applicationSupportURL: supportURL)
+                    applicationSupportURL: supportURL, retainingOriginalScratchImage: true)
                 try requireParents(borrowedSupport: borrowed)
                 return observed
             }
         }
         first = value
         captureInFlight = false
+        _ = try requireOperation(owner)
+        try owner.bindOriginalScratchContinuity(self)
         return value
+    }
+
+    /// Original DATA only. Rechecks the strong operation association and the
+    /// real owner's held G, then the complete current first/prior projection.
+    func originalScratchImageInsideOriginalRecoveryG(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
+    ) throws -> ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1 {
+        _ = try requireOperation(owner)
+        try owner.requireHeldInsideOriginalRecoveryG()
+        _ = try requireProjectedInsideOriginalRecoveryG(owner: owner)
+        let image = try receipts.last?.afterScratchImage ?? observer.originalScratchFirstImage()
+        _ = try requireOperation(owner)
+        try owner.requireHeldInsideOriginalRecoveryG()
+        return image
     }
 
     /// The checked Store callback is nonthrowing. Any mismatched receipt is
@@ -3318,7 +3334,8 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
             }
             if receipts.count == 1 {
                 guard receipt.beforeScratchRootFact == firstFact,
-                      receipt.beforeScratchDigest == firstDigest else {
+                      receipt.beforeScratchDigest == firstDigest,
+                      receipt.beforeScratchImage == (try observer.originalScratchFirstImage()) else {
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
                 }
             } else {
@@ -3326,7 +3343,8 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
                 guard receipt.beforeScratchRootFact ==
                         prior.afterScratchRootFact,
                       receipt.beforeScratchDigest ==
-                        prior.afterScratchDigest else {
+                        prior.afterScratchDigest,
+                      receipt.beforeScratchImage == prior.afterScratchImage else {
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
                 }
             }
@@ -3339,7 +3357,12 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
     ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
         try owner.withExclusiveSourceScratch { _ in
-            try requireProjectedInsideOriginalRecoveryG(owner: owner)
+            let value = try requireProjectedInsideOriginalRecoveryG(owner: owner)
+            // Service may replace the pre-open owner after its real admission
+            // await. Bind only after this same retained first/prior image and
+            // the operation's current owner have passed actual EX/G reproof.
+            try owner.bindOriginalScratchContinuity(self)
+            return value
         }
     }
 
@@ -3559,6 +3582,7 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
         StoreTemporalNormalizationExclusionV1?
     private var uncertainPolicyDescriptors: [Int32] = []
     private let intentIO = EraseAbortCheckedSnapshotIOV1()
+    private weak var originalScratchContinuity: StoreOriginalEraseRecoveryAuxiliaryContinuityV1?
     private(set) var observation: EraseIntentStore.OriginalRecoveryObservation?
     private var projectedControlPolicyObservation:
         EraseIntentStore.OriginalRecoveryObservation?
@@ -3729,6 +3753,34 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
         try intentIO.requireSettled()
         try requireHeldInsideOriginalRecoveryG()
         return value
+    }
+
+    fileprivate func bindOriginalScratchContinuity(
+        _ continuity: StoreOriginalEraseRecoveryAuxiliaryContinuityV1
+    ) throws {
+        guard originalScratchContinuity == nil || originalScratchContinuity === continuity,
+              let operation, let coordinator else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireOriginalRecoveryAuxiliaryContinuity(
+            continuity, owner: self, coordinator: coordinator)
+        originalScratchContinuity = continuity
+    }
+
+    func requireOriginalScratchImageInsideOriginalRecoveryG() throws
+        -> ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1 {
+        try requireHeldInsideOriginalRecoveryG()
+        guard let continuity = originalScratchContinuity,
+              let operation, let coordinator else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireOriginalRecoveryAuxiliaryContinuity(
+            continuity, owner: self, coordinator: coordinator)
+        let image = try continuity.originalScratchImageInsideOriginalRecoveryG(owner: self)
+        try operation.requireOriginalRecoveryAuxiliaryContinuity(
+            continuity, owner: self, coordinator: coordinator)
+        try requireHeldInsideOriginalRecoveryG()
+        return image
     }
 
     func requireObservationUnchangedInsideOriginalRecoveryG() throws {

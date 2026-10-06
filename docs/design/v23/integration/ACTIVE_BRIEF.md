@@ -1,32 +1,37 @@
-# Active integration brief — 2026-10-05
+# Active integration brief — 2026-10-06
 
 ## Current state
 
-- Goal: verified V23 base incorporating accepted S10, then main. Full V23 remains required for release.
-- Published integration da4959fda1da44d91bba077684e26ee4feeae815 / tree b22ec259bcf31e1cb7c72b47c4c306b0529b5c66 (C16); main b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged.
-- Branch codex/v23-s10-integration-20260910. All five Phase1 gates OPEN (0/5); releaseReady=false.
-- C16 pinned cold DEVELOPMENT37404385344 FAILED one Swift inference error at StoreMigrationService64726. All3716 methods/33partitions UNRUN; app-test failure count UNKNOWN.
-- Sole collection completed once exit1/INCOMPLETE. Producer raw ZIP/API digest/request/COMPLETE transport receipt agree; independent C13 DATA-only PASS. Current raw ctime differs from receipt: strict resume refuses; old originals/HOLDs stay preserved.
-- Root C18 isolated compiler correction hoists the callback and fixed literal into typed UInt64 locals. Exact source3668557/f5202b6f…; genuine C9 Sol6.1/xhigh NONAUTHOR Source PASS, same arithmetic/order/guards/interfaces/persistence.
-- C18 local27 full-module compile completed336.556s/zero Swift errors. Outer wrapper exit1/HOLD1988ctime-only Source deltas; all2819raw/other9fields agree. Fresh current2819raw/FULL10 quiet2s matches; genuine C9 Sol6.1/xhigh actual compiler/current applicability PASS; original metadata HOLD preserved. Pinned26.6 compatibility UNPROVEN. No native/runtime/SourceReady/gate credit.
-- Unchanged C16 tooling502 method successes retain exact reviewed DEVELOPMENT scope; metadata wrapper HOLDs remain. No passing-suite repetition just to erase those HOLDs.
-- One additional genuine functional family: cold Ready lifetime's permanent64 top-level request pool exhausts on request65; after-save failure can disable autosave. Independent C9 HOLD remains.
-- C17 Source/Main author owns StartupRouter+StoreMigrationService; separate Native author owns StoreGenerationFactory. Actual typed loans/cuts and bounded history coalescence remain UNVERIFIED. Real129-cycle same-session regression draft preserved; genuine retirement/fault seams and compile/runtime verification remain due.
-- Affected4 S6_6 completed-abort regressions remain PENDING in next new-head pinned full cold DEVELOPMENT original; inference-only scheduling never covers C17 behavior changes.
-- Prospective physical evidence-root clarification uses one persistent root per future candidate lifecycle, genuine historical consumed-question continuity, unchanged identity/durability/space guards. No past rebaseline or root switching midchain.
-- External APFS233GiB ownership is now enabled/verified; initial concrete-root creation FAILED EACCES (volume top uid0/mode0755). Owner workspace-folder command pending; no original/ledger born. Internal capacity14GiB; recheck before every expensive operation. Source and coordination records stay Dropbox.
+- V23 becomes the app baseline incorporating accepted S10; full V23 remains required for release.
+- Published integration/local origin: 93bee7638e9f943f0abefc68fafd54874213be49 (C18). Main: b1d04ae5e684aa9c6807af655089efa1df8a7ed6.
+- Branch codex/v23-s10-integration-20260910; 0/5 Phase 1 gates closed; releaseReady=false.
+- Latest completed affected app original C25 TEN: 3 PASS / 7 FAIL / 0 SKIP. Whole-app failure count UNKNOWN.
+- C25 ordinary local27 full-module compiler and Python CI502 passed with genuine independent DATA reviews. Their exact old input scopes remain; original TEN failure and immutable HOLD remain.
+- C26 corrects three proven families: authentic Original reader publication retirement; first-P/first-R auxiliary admission and owned-temp settlement; conservation of genuine pre-existing Scratch remainder.
+- Final supplierV6/TargetQ2/Cold148624 and ScratchQ2/Production/census composition received separate genuine NONAUTHOR GPT-6.1 Sol/xhigh Source PASS. These are not app-test outcomes.
+- C26 first local27 full-module original FAILED native65 after171.932s with exactly2 actor-isolation errors in one Ledger local helper. Source raw/FULLTEN conserved; no app tests. Failed original recorded/append-only; all logs retained.
+- Root corrected only27-byte @MainActor annotation before that helper. Same Scratch NONAUTHOR reviewer PASS; all calls, order, guards and cleanup unchanged. Corrected full-module compiler V3 PASSED native0/zero Swift errors in694.464s.
+- Fresh corrected Source snapshot external development-v2 has2819 files/418 directories; current11 owned endpoints verified. Old development-v1 compiler/Products/source remain preserved.
+- Current census:3726 unique methods/33 partitions, exactly4 genuine regressions added; incumbent selectors, partition/tier/sweep/relative order preserved and independently reviewed.
+- Reviewed Native40 keeps incumbentTEN first,26 existing affected methods and4 new regressions. Compiler V3, Native V3 and CI3 received genuine Sourceleaf NONAUTHOR Sol/xhigh Source PASS; all CI502 PASSED with genuine independent current DATA review; Native40 used test-without-building; whole no-rebuild validation REFUSED.
+- Root imported exact11 reviewed Source endpoints at93bee; five0600 modes and owner drafts preserved. Owned15 now staged; import15614/b58a4a7f; final successor NONAUTHOR Sol/xhigh DEVELOPMENT candidate review PASS; commit/push pending.
+- Two required Primary originals were selectively downloaded and joined to exact93bee; own filesystem intervals begin after materialization. Historical archives remain online-only.
+- Recovered-pair hostile fixture SPEC_BLOCKED/DUE: inspected ordinary-P fixture cannot produce genuine pair or retained current-only handoff. Invalid drafts preserved; no synthetic records or false coverage.
+- Latest pinned DEVELOPMENT37409941599 failed26.6 type-check before tests; its3716/33 plus completed-abort4 UNRUN; collection INCOMPLETE/producer transport COMPLETE.
+- C26 Native40 terminated at5400s: native-15/positive direct wait, controller1/timedOut. No complete xcresult export; retained stdout has26 completions(12pass/14fail),14 without completion. Complete affected result UNPROVEN; same C9 genuine DATA PASS; Root canonical record/append0 as FAILED/TIMED_OUT/INCOMPLETE. Original failures/HOLD preserved; intended129/130/global64 remain unproved.
+- Current Scratch sample:10 main-thread frames in genuine preparation/marker publication show bounded nested lease/PFP checks; one postprimitive ancestor inspection can fan out to48 activity validations. Read-only feasibility found no safe six-to-one/leaf bypass; no performance Source candidate. One-second location only; performance remains DUE.
+- Future C27 diagnostic-only Factory2672457/fb2b has genuine NONAUTHOR Sol/xhigh Source PASS and DEBUG/Release grammar0; unimported, full compile/native UNRUN; no functional receipt-lifetime fix.
+- Future cold collector2 has genuine NONAUTHOR Sol/xhigh Source PASS: derive full census from committed inputs instead of obsolete3716/33. Actual CI/fixtures/composition DUE. Separate slow-Scratch37-partition V3 is prepared; composition/current checks UNRUN, budgets unchanged, no dispatch.
+- All original failures/HOLDs, owner drafts and frozen historical checkouts preserved. New Source/records stay Dropbox; evidence/DD/Products use /Volumes/EXTERNAL/AssetRounds-resume-20261002.
+- Local DEVELOPMENT: Xcode27.0/27A266a, Swift6.4/language5, SDK27.0/24A430, iOS26.2/23C54. Official GitHub:26.6/17F113, SDK26.5/23F81a, runtime26.2/23C54.
 
 ## Next steps
 
-1. Collect C18 actual compile and source-binding result; integrate only reviewed exact bytes, record/checkpoint review, explicit staging and normal publication after fresh refs.
-2. Check unused new-head/question across preserved historical ledger/attempts and remote originals. Bind one qualified physical evidence root, regenerate actual26-source cold plan, preregister/dispatch once.
-3. Sole collect pinned full cold DEVELOPMENT3716/33 including affected4. Fix actual new failure families; never retry failing originals unchanged.
-4. In parallel finish C17 retirement Source + real same-session129/130 saves/reproofs and refusal negatives, independent review and affected local native verification.
-5. Freeze only after functional corrections and affected tests pass; cold protocol qualification then all same-head coverage/UI/independent/genuine-owner/mainFF/pinnedexactmain gates.
-6. Full V23, physical protection, privacy and Store owner release obligations remain due. No signing/distribution.
+1. Final successor NONAUTHOR Sol/xhigh actual-import/fifteen-path DEVELOPMENT candidate review PASS; retain partial Native40 and all obligations.
+2. Create one linear integration checkpoint from only owned15 staged paths, refresh refs and non-force publish after review.
+3. Keep future diagnostic/census/routing Source separate; compose the prepared routing V3 and verify one fresh successor.
+4. Next cold dispatch waits for reviewed/verified current-census collector correction and scheduling composition, then one fresh-head pinned DEVELOPMENT full census plus completed-abort4; qualification remains DUE.
+5. Freeze one candidate for all same-head gates, qualified UI, independent and genuine owner review; only then fast-forward main and pinned exact-main verification.
+6. Full V23 scope, physical protection, privacy and App Store owner release work remain DUE.
 
-## Execution and evidence
-
-- Local DEVELOPMENT Xcode27.0/27A266a, Swift6.4/language5, SDK27.0/24A430/iOS26.2/23C54; official GitHub26.6/17F113, SDK26.5/23F81a/iOS26.2/23C54.
-- Source/receipts Dropbox .codex-temp/resume-20261002; DD/TMP ~/Library/Caches/AssetRounds-resume-20261002. Historical archives remain online-only.
-- Root alone Git/native/admission/evidence/dispatch/collection. Helpers GPT-6.1 Sol/xhigh, genuine separate NONAUTHOR review, useful context reused.
+Root alone Git/native/admission/dispatch/collection; useful helpers actual GPT-6.1 Sol/xhigh. No credentials stored, signing or distribution.

@@ -92,6 +92,7 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
     private let io = EraseAbortCheckedSnapshotIOV1()
     private var attempted = false
     private var first: Snapshot?
+    private var firstScratchImage: ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1?
     private var ingressControlURL: URL?
     private var notificationControlURL: URL?
 
@@ -100,7 +101,8 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
     /// Cache/temp sibling activity is outside our ownership: only each parent
     /// identity and the exact FieldEvidenceApp child are observed there.
     func captureFirst(support: Int32, caches: Int32, temporary: Int32,
-        applicationSupportURL: URL) throws -> Snapshot {
+        applicationSupportURL: URL, retainingOriginalScratchImage: Bool = false
+    ) throws -> Snapshot {
         guard !attempted else { throw EraseAllServiceError.invalidAuthority }
         attempted = true
         guard applicationSupportURL.isFileURL else {
@@ -120,6 +122,15 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
         let two = try observe(support: support, caches: caches, temporary: temporary)
         try io.requireSettled()
         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+        if retainingOriginalScratchImage,
+           let scratch = one.operationsChildren["ScratchDataV1"],
+           case .directory(let rootFact, let digest) = scratch {
+            let image = try observeScratchImage(support: support)
+            let repeated = try observeScratchImage(support: support)
+            guard image == repeated, image.rootFact == rootFact,
+                  image.digest == digest else { throw EraseAllServiceError.invalidAuthority }
+            firstScratchImage = image
+        }
         first = one
         return one
     }
@@ -130,6 +141,21 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
         try io.requireSettled()
         guard let first else { throw EraseAllServiceError.invalidAuthority }
         return first
+    }
+
+    func originalScratchFirstImage() throws -> ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1 {
+        _ = try firstObservation()
+        guard let firstScratchImage else { throw EraseAllServiceError.invalidAuthority }
+        return firstScratchImage
+    }
+
+    private func observeScratchImage(support: Int32) throws
+        -> ScratchDataLeaseStoreV1.OriginalEraseScratchImageV1 {
+        try io.withOpen(parent: support, name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY) { operations in
+            try ScratchDataLeaseStoreV1.observeOriginalEraseScratchImage(
+                io: io, operations: operations)
+        }
     }
 
     /// Reproves the immutable first image using the same genuinely held
@@ -860,7 +886,7 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
 
     /// Data-only projection for exact checked original-owner ScratchData
     /// source-read settlements. Every Operations sibling remains the first
-    /// physical child; only the existing empty ScratchData root may advance
+    /// physical child; only the existing ScratchData root metadata may advance
     /// through the receipt chain. The caller binds every receipt to its own
     /// operation and retained EX/G before borrowing these descriptors.
     func requireScratchProjected(
@@ -876,15 +902,18 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
         }
         var priorFact = scratchFact
         var priorDigest = scratchDigest
+        var priorImage = try originalScratchFirstImage()
         for receipt in receipts {
             try receipt.requireCheckedSettlement()
             guard receipt.operationsFact == operationsFact,
                   receipt.beforeScratchRootFact == priorFact,
-                  receipt.beforeScratchDigest == priorDigest else {
+                  receipt.beforeScratchDigest == priorDigest,
+                  receipt.beforeScratchImage == priorImage else {
                 throw EraseAllServiceError.invalidAuthority
             }
             priorFact = receipt.afterScratchRootFact
             priorDigest = receipt.afterScratchDigest
+            priorImage = receipt.afterScratchImage
         }
         func requireProjected(_ value: Snapshot) throws {
             guard value.supportIdentity == expected.supportIdentity,
@@ -920,7 +949,12 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
             caches: caches, temporary: temporary)
         try io.requireSettled()
         try requireProjected(one)
-        guard two == one else { throw EraseAllServiceError.invalidAuthority }
+        let image = try observeScratchImage(support: support)
+        let repeated = try observeScratchImage(support: support)
+        try io.requireSettled()
+        guard two == one, image == priorImage, repeated == priorImage else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         return two
     }
 
