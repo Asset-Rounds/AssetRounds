@@ -788,7 +788,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "6125CB531675E3C73F7FD515477FE3F8D16A50D414178BE286B70B18F6F5C619"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
@@ -831,7 +831,8 @@ SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("4F0E5780EA2EA56E869F90E1C3160
                                                  "EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED",
                                                  "20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41",
                                                  "A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5",
-                                                 "724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36")
+                                                 "724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36",
+                                                 "1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 # Owner decision 15 (2026-09-25): after the first exact event of a kind in a process, later
 # identical events of that kind are journaled as bounded per-kind summaries carrying a count.
@@ -1246,12 +1247,23 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
             return cold_durable_collect(root, artifact, environment, interrupted,
                 native_exit_status, started, monotonic)
     session = None
+    plan = None
     try:
         with _diagnostic_real_time_limit(remaining()):
-            session = phase1_diagnostic_mode(root, artifact, environment, phase1_admission_artifact, remaining)
+            event_path = environment.get("GITHUB_EVENT_PATH")
+            if event_path is not None:
+                gate = load_phase1_gates(root)
+                raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES)
+                plan, _ = phase1_plan_from_event(root, raw)
+            if plan is None or plan.get("schema") != "v23-phase1-functional-gate-plan.v2":
+                session = phase1_diagnostic_mode(root, artifact, environment, phase1_admission_artifact, remaining)
     except (_DiagnosticCollectionDeadline, OSError, subprocess.SubprocessError, ValueError, TypeError, KeyError) as error:
         session = {"identity": None, "phase": "ui" if phase1_admission_artifact is not None else "unit",
                    "before": None, "after": None, "error": "Phase1 diagnostic binding incomplete: " + str(error)[:1000]}
+    if plan is not None and plan.get("schema") == "v23-phase1-functional-gate-plan.v2":
+        with _diagnostic_real_time_limit(remaining()):
+            return phase1_durable_collect(root, artifact, environment, interrupted,
+                native_exit_status, started, monotonic, admission_artifact=phase1_admission_artifact)
     return _collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=interrupted,
         run=run or subprocess.run, monotonic=monotonic, read_chunk=read_chunk,
         _phase1=session, _started=started if session is not None else None)
@@ -1683,8 +1695,11 @@ def persist_simulator_diagnostic_observations(root, artifact, record):
     evidence, parse_error = simulator_diagnostic_observations(root, artifact, record)
     output = artifact / SIMULATOR_DIAGNOSTIC_OUTPUT
     require(not output.exists() and not output.is_symlink(), "simulator diagnostic evidence already exists")
-    with output.open("xb") as stream:
-        stream.write(canonical(evidence))
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        _phase1_durable_emit(output, canonical(evidence))
+    else:
+        with output.open("xb") as stream:
+            stream.write(canonical(evidence))
     if parse_error is not None:
         raise ValueError("invalid V23 native evidence: simulator diagnostic transport parse") from parse_error
     return evidence
@@ -1692,6 +1707,8 @@ def persist_simulator_diagnostic_observations(root, artifact, record):
 
 def phase1_collect_ui_snapshot(root, artifact, record, environment, *, exit_status, interrupted):
     """Second immutable phase; all setup/binding/copy/fsync shares the existing budget."""
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        return phase1_collect_ui_snapshot_v2(root, artifact, record, environment, exit_status=exit_status, interrupted=interrupted)
     started = time.monotonic()
     require(type(interrupted) is bool, "Phase1 UI interruption mode")
     bound = SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS
@@ -1726,8 +1743,12 @@ def phase1_seal_ui_log(root, artifact, record):
     gate = load_phase1_gates(root)
     snapshot = artifact / "phase1-ui-diagnostics"
     require(snapshot.is_dir() and not snapshot.is_symlink(), "Phase1 UI final snapshot")
-    write_new_evidence(snapshot / "test-smoke.log",
-                       gate.regular_bytes(artifact / "ui-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES))
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        _phase1_durable_emit(snapshot / "test-smoke.log",
+                            gate.regular_bytes(artifact / "ui-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES))
+    else:
+        write_new_evidence(snapshot / "test-smoke.log",
+                           gate.regular_bytes(artifact / "ui-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES))
     return persist_simulator_diagnostic_observations(root, snapshot, record)
 
 
@@ -1798,6 +1819,8 @@ def phase1_retained_diagnostic_facts(root, artifact, record, expected_binding):
     deliberately disabled. This primitive cannot prove unobserved app lifetimes
     or replace the independently reviewed cold execution/retention proof.
     """
+    if phase1_event_is_v2(expected_binding):
+        return phase1_retained_diagnostic_facts_v2(root, artifact, record, expected_binding)
     gate = load_phase1_gates(root)
     require(type(expected_binding) is dict and expected_binding.get("schema") == gate.EVENT_SCHEMA,
             "Phase1 expected event binding")
@@ -2977,7 +3000,10 @@ def refuse_inactive_phase1_event(root, environment):
     if event_path is None:
         return
     gate = load_phase1_gates(root)
-    plan, _ = gate.plan_from_event(gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES))
+    raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES)
+    plan, _ = phase1_plan_from_event(root, raw)
+    if plan is not None and plan.get("schema") == "v23-phase1-functional-gate-plan.v2":
+        return phase1_worker_context(root, environment)[0]
     if plan is not None:
         binding, _, _, _ = phase1_worker_context(root, environment)
         gate.refuse_dispatch()
@@ -2994,7 +3020,7 @@ def phase1_worker_context(root, environment, *, remaining=None):
     event_path = environment.get("GITHUB_EVENT_PATH")
     require(type(event_path) is str and event_path, "Phase1 actual caller event path")
     raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES)
-    plan, _ = gate.plan_from_event(raw)
+    plan, _ = phase1_plan_from_event(root, raw)
     require(plan is not None, "Phase1 actual caller plan")
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True,
                                    **({"timeout": remaining()} if remaining is not None else {})).strip()
@@ -3004,7 +3030,8 @@ def phase1_worker_context(root, environment, *, remaining=None):
     require(selection_record["selectionID"] == plan["selection"], "Phase1 actual worker selection")
     resolved = shared_selection(root) if plan["selection"] == SHARED_SELECTION_ID else selected
     sources = {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES)) for path in gate.SOURCES}
-    binding = gate.bind_original_event(raw, environment, head=head, tree=tree,
+    bind = gate.bind_original_event_v2 if plan.get("schema") == "v23-phase1-functional-gate-plan.v2" else gate.bind_original_event
+    binding = bind(raw, environment, head=head, tree=tree,
                                       resolved_bytes=canonical(resolved), sources=sources)
     return binding, raw, selected, selection_record
 
@@ -3058,7 +3085,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     if selection_record is None:
         selection_record = {"selectionID": DEFAULT_SELECTION_ID,
                             "selectionSHA256": sha256(canonical(selection)), "selectionMapSHA256": ""}
-    cold_binding = cold_event_admission(root, e, selection_record)
+    cold_binding = None if phase1_event_is_v2(phase1_binding) else cold_event_admission(root, e, selection_record)
     require(stage in ("dispatch", "worker"), "admission stage")
     if stage == "dispatch":
         lane = e.get("SHARED_LANE", "")
@@ -3092,8 +3119,11 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         }
         ui = e.get("DISPATCH_RUN_UI_SMOKE")
     validate_selection(selection)
-    require(e.get("GITHUB_REF") == "refs/heads/codex/v23-s10-integration-20260910",
-            "simulator diagnostic source is never a main route")
+    if phase1_event_is_v2(phase1_binding):
+        require(e.get("GITHUB_REF") == phase1_binding["plan"]["ref"], "Phase1 V2 actual purpose/ref")
+    else:
+        require(e.get("GITHUB_REF") == "refs/heads/codex/v23-s10-integration-20260910",
+                "simulator diagnostic source is never a main route")
     require(not any("SIMULATOR_FILE_PROTECTION" in key for key in e),
             "caller-supplied simulator diagnostic policy")
     diagnostic_policy = simulator_diagnostic_policy_binding(root)
@@ -3112,7 +3142,8 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(e.get(key) == value for key, value in fields.items()), "foreign execution inputs")
     require(ui == str(selection["runUISmoke"]).lower(), "dispatch UI selection")
     require(e.get("GITHUB_REPOSITORY") == REPOSITORY, "repository")
-    require(e.get("GITHUB_REF") in REFS, "ref")
+    require(e.get("GITHUB_REF") in REFS or (phase1_event_is_v2(phase1_binding)
+            and e.get("GITHUB_REF") == phase1_binding["plan"]["ref"]), "ref")
     require(e.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "event")
     head = e.get("GITHUB_SHA", "")
     require(re.fullmatch(r"[0-9a-f]{40}", head) is not None and checkout_head == head, "exact checkout head")
@@ -3438,6 +3469,1314 @@ def build_order_observations(artifact, record, selected_udid):
             "observedSelectedStates": observed_states, "elapsedSeconds": times[-1],
             "samplingIntervalSeconds": 60, "continuousStateProof": False,
             "acceptance": False, "performanceImprovementProven": False}
+
+
+
+# Phase 1 transport is an additive original-context protocol. Cold DEVELOPMENT
+# schemas and bodies below retain their original scope and bytes.
+PHASE1_EMITTED_CONTEXT_SCHEMA = "v23-phase1-emitted-original-context.v1"
+PHASE1_EMITTED_FORWARD_SCHEMA = "v23-phase1-emitted-context-forwarding.v1"
+PHASE1_EMITTED_BUILD_SCHEMA = "v23-phase1-emitted-context-build-command.v1"
+PHASE1_EMITTED_CONTEXT_DEFINE = "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1"
+PHASE1_EMITTED_BUILD_SETTING = "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG " + PHASE1_EMITTED_CONTEXT_DEFINE
+PHASE1_EMITTED_MODE = "required-phase1-original-context-v1"
+PHASE1_DURABLE_SCHEMA = "v23-phase1-emitted-durable-binding.v1"
+PHASE1_DURABLE_RECORD_SCHEMA = "v23-phase1-emitted-durable-record.v1"
+PHASE1_DURABLE_CONTEXT_SCHEMA = PHASE1_EMITTED_CONTEXT_SCHEMA
+PHASE1_WITNESS_SCHEMA_V2 = "v23-phase1-shared-live-observation.v2"
+PHASE1_EMITTED_STRONGER_CLAIMS = {"totalPolicyCallCountProven": False,
+    "exhaustiveKernelProcessCohortProven": False, "perPIDDescriptorRetirementProven": False,
+    "exactCheckpointRepeatProven": False}
+
+
+def phase1_emitted_names(phase):
+    require(phase in ("unit", "ui"), "Phase1 emitted exact phase")
+    return {"environment": "phase1-emitted-original-context-" + phase + ".env",
+            "forwarding": "phase1-emitted-context-forwarding-" + phase + ".json",
+            "sink": "phase1-emitted-durable-original-" + phase,
+            "proof": "phase1-emitted-durable-proof-" + phase + ".json"}
+
+
+def phase1_event_is_v2(binding):
+    return type(binding) is dict and binding.get("schema") == "v23-phase1-original-event-binding.v2"
+
+
+def phase1_plan_from_event(root, raw):
+    gate = load_phase1_gates(root)
+    # External GitHub JSON need not be canonical; embedded intent still must be.
+    gate.require(type(raw) is bytes and 0 < len(raw) <= gate.MAX_EVENT_BYTES, "bounded original event")
+    try:
+        event = json.loads(raw.decode("utf-8"), object_pairs_hook=gate.object_pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(gate.Refused("nonfinite original event")))
+    except (ValueError, UnicodeError) as error:
+        raise gate.Refused("Phase1 gate: original event JSON: " + str(error)) from error
+    gate.require(type(event) is dict, "original event object")
+    inputs = event.get("inputs", {})
+    gate.require(type(inputs) is dict, "original dispatch inputs")
+    encoded, cold_encoded = inputs.get(gate.PLAN_INPUT, ""), inputs.get(gate.COLD_PLAN_INPUT, "")
+    gate.require(type(encoded) is str, "original plan input string")
+    gate.require(type(cold_encoded) is str and not (encoded and cold_encoded), "simultaneous cold and gate plans")
+    if encoded:
+        hint = gate.decode(encoded.encode("utf-8"), limit=gate.MAX_PLAN_BYTES)
+        if type(hint) is dict and hint.get("schema") == "v23-phase1-functional-gate-plan.v2":
+            return gate.plan_from_event_v2(raw)
+    return gate.plan_from_event(raw)
+
+
+def phase1_observation_identity_v2(root, artifact, record):
+    gate = load_phase1_gates(root)
+    binding = record.get("phase1Gate")
+    require(phase1_event_is_v2(binding), "Phase1 V2 live observation event")
+    plan = gate.validate_plan_v2(binding.get("plan"))
+    require((record.get("head"), record.get("gitTree"), record.get("ref"), record.get("selectionID"))
+            == (plan["head"], plan["tree"], plan["ref"], plan["selection"])
+            and binding.get("planSHA256") == sha256(canonical(plan))
+            and binding.get("runID") == record.get("runID")
+            and record.get("runAttempt") == binding.get("runAttempt") == "1"
+            and binding.get("kind") == "gate" and binding.get("functionalQualification") == gate.PENDING,
+            "Phase1 V2 live original identity")
+    require(plan["sources"] == {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES))
+                                  for path in gate.SOURCES}, "Phase1 V2 live Source closure")
+    require(gate.regular_bytes(artifact / "native-admission.json", limit=PHASE1_WITNESS_BYTES)
+            == canonical(record), "Phase1 V2 live admission bytes")
+    return {"eventBindingSHA256": sha256(canonical(binding)), "admissionSHA256": sha256(canonical(record)),
+        "planSHA256": binding["planSHA256"], "head": record["head"], "gitTree": record["gitTree"],
+        "ref": record["ref"], "runID": record["runID"], "runAttempt": "1", "sourceSHA256": plan["sources"],
+        "functionalQualification": gate.PENDING, "executionScope": "phase1-functional-gate",
+        "offlineFilesystemReplay": False, "simulatorProtection": "UNSUPPORTED",
+        "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+        "acceptance": False, "providerQualification": False, "releaseReady": False}
+
+
+def phase1_emitted_validate_context(context):
+    keys = {"schema", "originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256",
+            "selectionSHA256", "writerSourceSHA256", "head", "tree", "ref", "runID", "runAttempt", "purpose",
+            "selectionID", "role", "partitionID", "phase", "simulatorUDID", "executionScope",
+            "durableSinkPath", "durableSinkBindingSHA256"}
+    require(type(context) is dict and set(context) == keys
+            and all(type(value) is str for value in context.values()), "Phase1 emitted closed string context")
+    require(context["schema"] == PHASE1_EMITTED_CONTEXT_SCHEMA and context["runAttempt"] == "1"
+            and context["executionScope"] == "phase1-simulator-functional-gate-v1"
+            and context["phase"] in ("unit", "ui"), "Phase1 emitted original scope")
+    purposes = {"phase1-candidate-functional-v1": "refs/heads/codex/v23-s10-integration-20260910",
+                "phase1-exact-main-functional-v1": "refs/heads/main"}
+    require(context["purpose"] in purposes and context["ref"] == purposes[context["purpose"]],
+            "Phase1 emitted purpose/ref")
+    require((context["role"] == "consumer" and context["selectionID"] == SHARED_SELECTION_ID
+             and SHARED_PARTITION_ID.fullmatch(context["partitionID"]) and context["phase"] == "unit")
+            or (context["role"] == "rui1" and context["selectionID"] == UI_BATCH_SELECTION_ID
+                and context["partitionID"] == ""), "Phase1 emitted role/selection/phase")
+    require(re.fullmatch(r"[1-9][0-9]*", context["runID"])
+            and all(re.fullmatch(r"[0-9a-f]{40}", context[key]) for key in ("head", "tree"))
+            and all(re.fullmatch(r"[0-9A-F]{64}", context[key]) for key in
+                ("originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256",
+                 "selectionSHA256", "writerSourceSHA256", "durableSinkBindingSHA256"))
+            and re.fullmatch(r"[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}", context["simulatorUDID"]),
+            "Phase1 emitted exact identity format")
+    path = context["durableSinkPath"]
+    require(path.startswith("/") and len(path.encode("utf-8")) <= 4096
+            and path == os.path.normpath(path) and not any(c in path for c in ("\n", "\r", "\0"))
+            and Path(path).name == phase1_emitted_names(context["phase"])["sink"],
+            "Phase1 emitted exact original sink spelling")
+    require(len(canonical(context)) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "Phase1 emitted context bound")
+    return context
+
+
+def phase1_emitted_context_base_v2(root, artifact, record, phase):
+    identity = phase1_observation_identity_v2(root, artifact, record)
+    gate = load_phase1_gates(root)
+    binding = record["phase1Gate"]
+    event_raw = gate.regular_bytes(artifact / "phase1-original-event.json", limit=gate.MAX_EVENT_BYTES)
+    plan, _ = gate.plan_from_event_v2(event_raw)
+    require(plan == binding["plan"] and binding.get("originalEventSHA256") == sha256(event_raw)
+            and gate.regular_bytes(artifact / "phase1-event-binding.json", limit=gate.MAX_EVENT_BYTES) == canonical(binding)
+            and gate.regular_bytes(artifact / "phase1-gate-plan.json", limit=gate.MAX_PLAN_BYTES) == canonical(plan),
+            "Phase1 emitted actual retained event/plan/binding")
+    require(all(record.get(key) == value for key, value in source_binding(root).items()),
+            "Phase1 emitted current native protocol Source")
+    role = shared_role(record) if record["selectionID"] == SHARED_SELECTION_ID else "rui1"
+    require(role in ("consumer", "rui1") and (phase == "unit" or role == "rui1"),
+            "Phase1 emitted admitted consumer phase")
+    simulator = key_values(artifact / "simulator-selection.txt")
+    require((simulator.get("runtime"), simulator.get("runtime_build"), simulator.get("name"), simulator.get("initial_state"))
+            == ("iOS 26.2", "23C54", "iPhone 17", "Shutdown"), "Phase1 emitted pinned owned Simulator")
+    return {"schema": PHASE1_EMITTED_CONTEXT_SCHEMA, "originalEventSHA256": sha256(event_raw),
+        "eventBindingSHA256": identity["eventBindingSHA256"], "admissionSHA256": identity["admissionSHA256"],
+        "planSHA256": binding["planSHA256"],
+        "selectionSHA256": record[SHARED_KEY]["planSHA256"] if role == "consumer" else record["selectionSHA256"],
+        "writerSourceSHA256": sha256(gate.regular_bytes(root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH, limit=PHASE1_WITNESS_BYTES)),
+        "head": record["head"], "tree": record["gitTree"], "ref": record["ref"], "runID": record["runID"],
+        "runAttempt": "1", "purpose": plan["purpose"], "selectionID": record["selectionID"], "role": role,
+        "partitionID": record[SHARED_KEY]["partitionID"] if role == "consumer" else "", "phase": phase,
+        "simulatorUDID": simulator["udid"], "executionScope": "phase1-simulator-functional-gate-v1"}
+
+
+def phase1_emitted_forward_environment(context):
+    import base64
+    phase1_emitted_validate_context(context)
+    raw = canonical(context)
+    return {"TEST_RUNNER_V23_PHASE1_EMITTED_MODE": PHASE1_EMITTED_MODE,
+            "TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT": base64.b64encode(raw).decode("ascii"),
+            "TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT_SHA256": sha256(raw)}
+
+
+def phase1_emitted_context_forwarding(root, artifact, record, environment, phase):
+    require(not any(key.startswith(("V23_PHASE1_EMITTED_", "TEST_RUNNER_V23_PHASE1_EMITTED_",
+                                   "V23_COLD_EMITTED_", "TEST_RUNNER_V23_COLD_EMITTED_")) for key in environment),
+            "Phase1 emitted forwarding refuses inherited contexts")
+    binding, _event, _selected, _selection = phase1_worker_context(root, environment)
+    require(phase1_event_is_v2(binding) and record.get("phase1Gate") == binding,
+            "Phase1 emitted actual V2 worker event")
+    context = phase1_emitted_context_base_v2(root, artifact, record, phase)
+    simulator = context["simulatorUDID"]
+    require(environment.get("CI_SIMULATOR_UDID") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID") == simulator
+            and environment.get("CI_DESTINATION") == "platform=iOS Simulator,id=" + simulator,
+            "Phase1 emitted actual destination")
+    if context["role"] == "consumer":
+        metadata_raw = load_phase1_gates(root).regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+        metadata = read_json(artifact / SHARED_PAYLOAD_METADATA)
+        require(all(metadata.get(key) == record.get(key) for key in ("repository", "ref", "head", "gitTree", "runID", "runAttempt"))
+                and metadata.get("payloadArtifactName") == record[SHARED_KEY]["payloadArtifactName"]
+                and metadata.get("planSHA256") == record[SHARED_KEY]["planSHA256"]
+                and metadata.get("partitionsSHA256") == record[SHARED_KEY]["partitionsSHA256"],
+                "Phase1 emitted actual payload original/plan identity")
+        before = read_json(artifact / "v23-shared-fingerprint-before.json")
+        restore = read_json(artifact / SHARED_RESTORE_RECEIPT)
+        require(restore.get("metadataSHA256") == sha256(metadata_raw)
+                and restore.get("partitionID") == context["partitionID"] and restore.get("simulatorUDID") == simulator
+                and (restore.get("head"), restore.get("gitTree"), restore.get("workspace"))
+                    == (record["head"], record["gitTree"], str(root)), "Phase1 emitted actual restored payload")
+        require(before.get("phase") == "before" and before.get("matchesProducer") is True
+                and before.get("buildEvidence") == [] and before.get("error") is None
+                and before.get("partitionID") == context["partitionID"], "Phase1 emitted actual before fingerprint")
+        temp = Path(environment["RUNNER_TEMP"])
+        require(shared_build_evidence(artifact, temp) == []
+                and shared_products_binding(load_payload_kernel(root), temp) == metadata.get("products")
+                and all(before.get(key) == metadata["products"].get({"productsTreeSHA256": "treeSHA256",
+                    "xctestrunSHA256": "xctestrunSHA256", "entryCount": "entryCount"}[key]) for key in SHARED_FINGERPRINT_PRODUCT_KEYS),
+                "Phase1 emitted current Products/no-build boundary")
+        command_hash = metadata["buildCommandReceiptSHA256"]
+    else:
+        build = verify_no_index_build(root, artifact, record, environment)
+        command_hash = build["commandReceiptSHA256"]
+        if phase == "ui":
+            unit = read_json(artifact / phase1_emitted_names("unit")["proof"])
+            require(unit.get("schema") == "v23-phase1-emitted-durable-proof.v1"
+                    and unit.get("status") == "SEALED_EMITTED_TRANSPORT_ONLY"
+                    and unit.get("nativeExitStatus") == 0 and unit.get("interrupted") is False,
+                    "Phase1 UI requires original completed unit seal")
+            require(load_phase1_gates(root).regular_bytes(artifact / phase1_emitted_names("unit")["sink"] / "STATE", limit=8)
+                    == b"SEALED\n", "Phase1 UI requires actual retained unit terminal state")
+    require(type(command_hash) is str and re.fullmatch(r"[0-9A-F]{64}", command_hash),
+            "Phase1 emitted actual compiled-context receipt digest")
+    retained = {}
+    prepared = phase1_durable_prepare(artifact, context, retained)
+    context.update(durableSinkPath=prepared["path"], durableSinkBindingSHA256=prepared["bindingSHA256"])
+    forwarded = phase1_emitted_forward_environment(context)
+    receipt = {"schema": PHASE1_EMITTED_FORWARD_SCHEMA, "context": context, "contextSHA256": sha256(canonical(context)),
+        "forwardedEnvironment": forwarded, "buildCommandReceiptSHA256": command_hash,
+        "durableSinkPreparation": prepared, "durableSinkPreparationIO": retained["io"],
+        "transportCompletion": "PENDING", "strongerClaims": dict(PHASE1_EMITTED_STRONGER_CLAIMS),
+        "functionalQualification": "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW", "providerQualification": False,
+        "acceptance": False, "releaseReady": False, "executionAuthority": False}
+    raw = "".join(key + "=" + forwarded[key] + "\n" for key in sorted(forwarded)).encode("ascii")
+    return receipt, raw
+
+
+def phase1_emitted_retain_forwarding(root, artifact, record, environment, phase):
+    receipt, raw = phase1_emitted_context_forwarding(root, artifact, record, environment, phase)
+    names = phase1_emitted_names(phase)
+    _phase1_durable_emit(artifact / names["forwarding"], canonical(receipt))
+    _phase1_durable_emit(artifact / names["environment"], raw)
+    return receipt["forwardedEnvironment"]
+
+
+def phase1_emitted_build_receipt(root, artifact, record, arguments, *, unpinned):
+    phase1_observation_identity_v2(root, artifact, record)
+    require(record["selectionID"] == UI_BATCH_SELECTION_ID or shared_role(record) == "producer",
+            "Phase1 emitted build-only producer or RUI1")
+    require(arguments[-1] == "build-for-testing" and PHASE1_EMITTED_BUILD_SETTING not in arguments,
+            "Phase1 emitted exact build setting insertion")
+    return {"schemaVersion": 1, "schema": PHASE1_EMITTED_BUILD_SCHEMA, "selectionID": record["selectionID"],
+        "head": record["head"], "parent": None if unpinned else NO_INDEX_ROUTES[record["selectionID"]][0],
+        "runID": record["runID"], "runAttempt": "1", "admissionSHA256": sha256(canonical(record)),
+        "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
+        "sourceTrees": None if unpinned else no_index_source_trees(record["selectionID"]),
+        "argv": [*arguments[:-1], PHASE1_EMITTED_BUILD_SETTING, arguments[-1]],
+        "requiredOriginalContextDefine": PHASE1_EMITTED_CONTEXT_DEFINE,
+        "writerSourceSHA256": sha256(load_phase1_gates(root).regular_bytes(root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH, limit=PHASE1_WITNESS_BYTES)),
+        "uiForwarderSourceSHA256": sha256(load_phase1_gates(root).regular_bytes(root / "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests.swift", limit=PHASE1_WITNESS_BYTES)),
+        "diagnosticOnly": True, "acceptance": False}
+
+
+def phase1_emitted_compiler_context_guard(compiler_lines):
+    require(compiler_lines, "Phase1 emitted actual SwiftDriver commands")
+    for line in compiler_lines:
+        tokens = shlex.split(line)
+        require(("-D" + PHASE1_EMITTED_CONTEXT_DEFINE) in tokens
+                or any(token == "-D" and index + 1 < len(tokens) and tokens[index + 1] == PHASE1_EMITTED_CONTEXT_DEFINE
+                       for index, token in enumerate(tokens)), "Phase1 emitted define missing from actual SwiftDriver")
+        require(COLD_EMITTED_CONTEXT_DEFINE not in tokens and ("-D" + COLD_EMITTED_CONTEXT_DEFINE) not in tokens,
+                "Phase1 emitted compiler refuses cold context define")
+
+def _phase1_durable_close(owners, rows, primary):
+    # Ownership is registered immediately after each actual open returns.
+    for role, descriptor in reversed(owners):
+        row = {"role": role, "descriptor": descriptor, "closeEntered": True,
+               "closeReturned": False, "closeUncertain": False, "error": None}
+        rows.append(row)
+        try:
+            actual = os.close(descriptor)
+            require(actual is None, "Phase1 durable close did not return actual None")
+            row["closeReturned"] = True
+        except BaseException as error:
+            row.update(closeUncertain=True, error=repr(error))
+            if primary is None:
+                primary = error
+    return primary
+
+
+def _phase1_durable_write(directory, name, raw, owners, rows, *, mode=0o600, binding_payload=None):
+    descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                         mode, dir_fd=directory)
+    owners.append((name + "Writer", descriptor))
+    first = None
+    row = {"name": name, "descriptor": descriptor, "exclusiveReturned": True,
+           "writeReturned": False, "fsyncReturned": False, "fchmodReturned": False}
+    rows.append(row)
+    try:
+        if binding_payload is not None:
+            # Only the genuine header may defer composition until its own fd exists.
+            require(name == "BINDING.json" and mode == 0o444 and raw is None
+                    and type(binding_payload) is dict
+                    and set(binding_payload) == {"schema", "originalContext", "dataIdentity", "stateIdentity"}
+                    and binding_payload["schema"] == PHASE1_DURABLE_SCHEMA
+                    and type(binding_payload["originalContext"]) is dict
+                    and binding_payload["originalContext"].get("schema") == PHASE1_DURABLE_CONTEXT_SCHEMA
+                    and binding_payload["originalContext"].get("role") in ("consumer", "rui1"),
+                    "cold durable deferred actual binding payload only")
+            require(binding_payload["dataIdentity"] == _cold_durable_identity(
+                        os.stat("EMITTED.jsonl", dir_fd=directory, follow_symlinks=False))
+                    and binding_payload["stateIdentity"] == _cold_durable_identity(
+                        os.stat("STATE", dir_fd=directory, follow_symlinks=False))
+                    and sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                    "cold durable header actual own birth and retained data/state identities")
+            directory_after_birth = os.fstat(directory)
+            row["bindingDirectoryAfterExclusiveBirth"] = _cold_durable_ten(directory_after_birth)
+            binding_payload["directoryIdentity"] = _cold_durable_identity(directory_after_birth)
+            raw = canonical(binding_payload)
+            require(len(raw) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "cold durable binding frame bound")
+            row["bindingPayloadReturned"] = True
+        # Generation, length and hash failure remain inside this actual fd owner.
+        row.update(bytes=len(raw), sha256=sha256(raw))
+        require(os.write(descriptor, raw) == len(raw), "cold durable exclusive full write")
+        row["writeReturned"] = True
+        os.fsync(descriptor)
+        row["fsyncReturned"] = True
+        os.fchmod(descriptor, mode)
+        row["fchmodReturned"] = True
+        row["afterWriteBeforeClose"] = _cold_durable_ten(os.fstat(descriptor))
+        require(row["afterWriteBeforeClose"] == _cold_durable_ten(
+                os.stat(name, dir_fd=directory, follow_symlinks=False)), "cold durable writer named/held")
+    except BaseException as error:
+        first = error
+    # This owner's actual close is attempted once now; remove only this entry.
+    actual = owners.pop()
+    require(actual == (name + "Writer", descriptor), "cold durable actual writer owner")
+    first = _phase1_durable_close([actual], rows, first)
+    if first is not None:
+        raise first
+    post_close = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    require(_cold_durable_ten(post_close) == row["afterWriteBeforeClose"],
+            "cold durable writer post-positive-onceclose exact named endpoint")
+    return post_close
+
+def phase1_durable_prepare(artifact, context, retained):
+    """Actual host birth only; app accessibility/durability is not assumed here."""
+    require(type(retained) is dict and not retained, "cold durable fresh retained owner journal")
+    require(context["schema"] == PHASE1_DURABLE_CONTEXT_SCHEMA and context["role"] in ("consumer", "rui1"),
+            "cold durable current original consumer context")
+    owners, rows = [], []
+    retained.update(owners=owners, io=rows, outputBirthReturned=False, firstError=None)
+    first = None
+    result = None
+    try:
+        parent, parent_before = _cold_durable_root(artifact, owners, "artifactParent")
+        path = artifact / phase1_emitted_names(context["phase"])["sink"]
+        require(not os.path.lexists(path), "cold durable exclusive original path")
+        birth = {"role":"sinkDirectory","mkdirReturned":False}
+        rows.append(birth)
+        directory, born = _cold_durable_mkdir(parent,artifact,parent_before,phase1_emitted_names(context["phase"])["sink"],
+                                            owners,"sinkDirectory",birth)
+        retained["outputBirthReturned"] = birth["mkdirReturned"]
+        data = _phase1_durable_write(directory, "EMITTED.jsonl", b"", owners, rows)
+        state = _phase1_durable_write(directory, "STATE", b"OPEN\n", owners, rows)
+        binding = {"schema": PHASE1_DURABLE_SCHEMA, "originalContext": dict(context),
+                   "dataIdentity": _cold_durable_identity(data), "stateIdentity": _cold_durable_identity(state)}
+        header = _phase1_durable_write(directory, "BINDING.json", None, owners, rows,
+                                     mode=0o444, binding_payload=binding)
+        raw = canonical(binding)
+        os.fsync(directory)
+        retained["directorySyncReturned"] = True
+        require(sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                "cold durable exclusive member roster")
+        result = {"path": str(path), "bindingSHA256": sha256(raw), "binding": binding,
+                  "bindingFullTEN": _cold_durable_ten(header), "sinkBirthIdentity": _cold_durable_identity(born),
+                  "appAccessibilityProved": False, "outsideAppContainerProved": False,
+                  "actualAppReadWriteSyncStillRequired": True, "qualification": False}
+        retained["result"] = result
+    except BaseException as error:
+        first = error
+        retained["outputBirthReturned"] = any(row.get("mkdirReturned") is True for row in rows)
+        retained["firstError"] = error
+    first = _phase1_durable_close(owners, rows, first)
+    if first is not None:
+        retained["firstError"] = first
+        raise first
+    return result
+
+
+def _phase1_durable_parse(descriptor, context, binding_hash, fence, consume_frame):
+    """Stream the one raw original. Reuse _strict_frame; no second payload parser."""
+    phase1_emitted_validate_context(context)
+    require(binding_hash == context["durableSinkBindingSHA256"], "Phase1 raw exact context/binding digest")
+    sequences, starts, digests, byte_counts = {}, {}, {}, {}
+    pending = None
+    frame_pending = None
+    raw_hash = hashlib.sha256()
+    total = 0
+    buffer = b""
+    def receive(line):
+        nonlocal pending, frame_pending
+        require(0 < len(line) <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES and line.endswith(b"\n")
+                and b"\n" not in line[:-1] and b"\r" not in line, "cold durable line bound/delimiter")
+        value = json.loads(line[:-1].decode("utf-8"), object_pairs_hook=unique_pairs)
+        if type(value) is dict and value.get("schema") == SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA:
+            require(pending is not None and frame_pending is None, "cold durable prepared frame adjacency")
+            frame, _payload, _event, _occurrences = _strict_frame(line)
+            require(frame["streamID"] == pending["streamID"] and frame["sequence"] == pending["sequence"]
+                    and len(line) == pending["frameBytes"] and sha256(line) == pending["frameSHA256"],
+                    "cold durable exact prepared framed bytes")
+            frame_pending = line
+            return
+        require(type(value) is dict and value.get("schema") == PHASE1_DURABLE_RECORD_SCHEMA
+                and canonical(value) == line, "cold durable canonical control")
+        common = {"schema", "kind", "streamID", "emitterID", "contextSHA256", "bindingSHA256"}
+        require(value.get("contextSHA256") == sha256(canonical(context))
+                and value.get("bindingSHA256") == binding_hash
+                and type(value.get("streamID")) is str
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["streamID"])
+                and type(value.get("emitterID")) is str
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["emitterID"]),
+                "cold durable original/stream/emitter association")
+        stream = value["streamID"]
+        if value["kind"] == "STREAM_START":
+            require(set(value) == common | {"actualPID", "actualHome", "actualBundleID", "actualExecutable"}
+                    and pending is None and stream not in starts and len(starts) < SIMULATOR_DIAGNOSTIC_MAX_FILES
+                    and type(value["actualPID"]) is int and value["actualPID"] > 0
+                    and value["actualBundleID"] == SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID
+                    and type(value["actualExecutable"]) is str
+                    and Path(value["actualExecutable"]).name == "FieldEvidenceApp"
+                    and type(value["actualHome"]) is str and value["actualHome"].startswith("/")
+                    and context["durableSinkPath"] != value["actualHome"]
+                    and not context["durableSinkPath"].startswith(value["actualHome"] + "/"),
+                    "cold durable actual host/outside-container stream start")
+            starts[stream] = value
+            sequences[stream] = 0
+            digests[stream] = hashlib.sha256()
+            byte_counts[stream] = 0
+            return
+        require(set(value) == common | {"sequence", "frameBytes", "frameSHA256"}
+                and stream in starts and value["emitterID"] == starts[stream]["emitterID"]
+                and type(value["sequence"]) is int and type(value["frameBytes"]) is int
+                and 0 < value["frameBytes"] <= SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES
+                and type(value["frameSHA256"]) is str and re.fullmatch(r"[0-9A-F]{64}", value["frameSHA256"]),
+                "cold durable committed record fields")
+        if value["kind"] == "FRAME_PREPARE":
+            require(pending is None and frame_pending is None
+                    and value["sequence"] == sequences[stream] + 1
+                    and value["sequence"] <= SIMULATOR_DIAGNOSTIC_MAX_EVENTS,
+                    "cold durable contiguous prepare")
+            pending = value
+            return
+        require(value["kind"] == "FRAME_COMMIT" and pending is not None and frame_pending is not None
+                and {**pending, "kind": "FRAME_COMMIT"} == value, "cold durable genuine complete commit")
+        consume_frame(stream, frame_pending)
+        digests[stream].update(frame_pending)
+        byte_counts[stream] += len(frame_pending)
+        sequences[stream] = value["sequence"]
+        pending = frame_pending = None
+    before = os.fstat(descriptor)
+    require(0 <= before.st_size <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES, "cold durable total raw bytes")
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    while True:
+        fence()
+        chunk = os.read(descriptor, 1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        require(total <= before.st_size, "cold durable streamed raw bound")
+        raw_hash.update(chunk)
+        buffer += chunk
+        while b"\n" in buffer:
+            line, buffer = buffer.split(b"\n", 1)
+            receive(line + b"\n")
+            fence()
+        require(len(buffer) < SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, "cold durable unfinished line bound")
+    require(not buffer and pending is None and frame_pending is None
+            and total == before.st_size and os.lseek(descriptor, 0, os.SEEK_CUR) == total
+            and _cold_durable_ten(os.fstat(descriptor)) == _cold_durable_ten(before),
+            "cold durable complete raw EOF/cursor/committed frontier")
+    require(all(value > 0 for value in sequences.values()), "cold durable no abandoned stream start")
+    return {"rawBytes": total, "rawSHA256": raw_hash.hexdigest().upper(),
+            "streamStarts": starts, "streams": [{"streamID": stream, "lastCommittedSequence": sequences[stream],
+            "bytes": byte_counts[stream], "sha256": digests[stream].hexdigest().upper()} for stream in sorted(starts)]}
+
+
+def _phase1_durable_emit(path, raw):
+    """Exclusive immutable receipt; positive actual close before returning facts."""
+    import stat
+    owners, rows = [], []
+    first = None
+    result = None
+    try:
+        parent, before = _cold_durable_root(path.parent, owners, "receiptParent")
+        inventory = sorted(os.listdir(parent))
+        require(path.name not in inventory and not os.path.lexists(path), "cold durable receipt never replaces original")
+        descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
+        owners.append(("receiptWriter", descriptor))
+        # Admit only this returned entry birth, before any receipt payload write.
+        parent_birth = os.fstat(parent)
+        require(all(getattr(parent_birth, key) == getattr(before, key) for key in
+                    ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_flags"))
+                and parent_birth.st_nlink == before.st_nlink + 1
+                and _cold_durable_ten(parent_birth) == _cold_durable_ten(os.lstat(path.parent))
+                and str(path.parent.resolve(strict=True)) == str(path.parent)
+                and sorted(os.listdir(parent)) == sorted(inventory + [path.name]),
+                "cold durable receipt exact own returned birth transition")
+        require(os.write(descriptor, raw) == len(raw), "cold durable exact immutable receipt write")
+        os.fsync(descriptor)
+        os.fchmod(descriptor, 0o444)
+        written = os.fstat(descriptor)
+        require(stat.S_ISREG(written.st_mode) and written.st_nlink == 1
+                and written.st_size == len(raw) and _cold_durable_ten(written)
+                == _cold_durable_ten(os.stat(path.name,dir_fd=parent,follow_symlinks=False))
+                and _cold_durable_identity(os.fstat(parent)) == _cold_durable_identity(parent_birth)
+                and _cold_durable_ten(os.fstat(parent)) == _cold_durable_ten(parent_birth)
+                == _cold_durable_ten(os.lstat(path.parent))
+                and str(path.parent.resolve(strict=True)) == str(path.parent)
+                and sorted(os.listdir(parent)) == sorted(inventory + [path.name]),
+                "cold durable receipt held/name/owned-birth membership")
+        result = {"path":str(path),"bytes":len(raw),"sha256":sha256(raw),
+            "exclusiveOpenReturned":True,"writeReturned":True,"fsyncReturned":True,
+            "fchmodReturned":True,"afterWriteBeforeClose":_cold_durable_ten(written),"closeRows":rows}
+    except BaseException as error:
+        first = error
+    first = _phase1_durable_close(owners, rows, first)
+    if first is not None:
+        raise first
+    require(_cold_durable_ten(os.lstat(path)) == result["afterWriteBeforeClose"],
+            "cold durable receipt post-onceclose endpoint")
+    return result
+
+def phase1_durable_collect(root, artifact, environment, interrupted, native_exit_status, started, monotonic, *, admission_artifact=None):
+    """Seal emitted bytes under the writer's actual lock, inside the old clock."""
+    import fcntl
+    require(type(interrupted) is bool and type(native_exit_status) is int and 0 <= native_exit_status <= 255,
+            "cold durable actual shell command disposition")
+    work = SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_WORK_SECONDS
+    bound = SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS
+    def fence():
+        _require_collection_time(started, monotonic, work)
+    sink_artifact = artifact if admission_artifact is None else admission_artifact
+    names = phase1_emitted_names("unit" if admission_artifact is None else "ui")
+    owners, rows, writers = [], [], {}
+    locked = None
+    first = None
+    proof = {"schema": "v23-phase1-emitted-durable-proof.v1", "status": "INCOMPLETE",
+             "interrupted": interrupted, "nativeExitStatus": native_exit_status,
+             "countsAreTotalInvocations": False, "trailingRepeatCountsMayBeUnobserved": True,
+             "processLifetimesProven": False, "appDescriptorRetirementProven": False,
+             "functionalQualification": "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW",
+             "strongerClaims": dict(PHASE1_EMITTED_STRONGER_CLAIMS), "executionAuthority": False, "providerQualification": False,
+             "acceptance": False, "releaseReady": False, "io": rows, "firstError": None}
+    try:
+        fence()
+        sink_artifact = artifact if admission_artifact is None else admission_artifact
+        phase = "unit" if admission_artifact is None else "ui"
+        names = phase1_emitted_names(phase)
+        binding, event_raw, _selected, _selection = phase1_worker_context(root, environment, remaining=lambda: work-(monotonic()-started))
+        record = read_json(sink_artifact / "native-admission.json")
+        require(phase1_event_is_v2(binding) and record.get("phase1Gate") == binding,
+                "Phase1 durable actual V2 original admission")
+        forwarded = read_json(sink_artifact / names["forwarding"])
+        context = phase1_emitted_validate_context(forwarded["context"])
+        base = phase1_emitted_context_base_v2(root, sink_artifact, record, phase)
+        require(context == {**base, "durableSinkPath": str(sink_artifact / names["sink"]),
+                           "durableSinkBindingSHA256": context["durableSinkBindingSHA256"]}
+                and context["simulatorUDID"] == environment["CI_SIMULATOR_UDID"]
+                and forwarded["contextSHA256"] == sha256(canonical(context))
+                and forwarded["forwardedEnvironment"] == phase1_emitted_forward_environment(context),
+                "Phase1 durable same original/source/destination/context")
+        path = sink_artifact / names["sink"]
+        directory, root_before = _cold_durable_root(path, owners, "sinkDirectory")
+        require(sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                "cold durable closed original member roster")
+        header_fd, header_before = _cold_durable_leaf(directory, "BINDING.json", os.O_RDONLY, owners, "bindingReader")
+        header_raw, _ = _cold_durable_read(header_fd, SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, fence)
+        header = json.loads(header_raw, object_pairs_hook=unique_pairs)
+        require(canonical(header) == header_raw and sha256(header_raw) == context["durableSinkBindingSHA256"]
+                and set(header) == {"schema", "originalContext", "directoryIdentity", "dataIdentity", "stateIdentity"}
+                and header["schema"] == PHASE1_DURABLE_SCHEMA
+                and header["originalContext"] == {k:v for k,v in context.items()
+                    if k not in ("durableSinkPath", "durableSinkBindingSHA256")}
+                and header["directoryIdentity"] == _cold_durable_identity(root_before),
+                "cold durable actual immutable binding")
+        data_fd, _ = _cold_durable_leaf(directory, "EMITTED.jsonl", os.O_RDWR, owners, "authoritativeReader", header["dataIdentity"], shared_append=True)
+        fcntl.flock(data_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        locked = data_fd
+        require(_cold_durable_ten(os.fstat(data_fd)) == _cold_durable_ten(
+                os.stat("EMITTED.jsonl", dir_fd=directory, follow_symlinks=False)),
+                "cold durable shared append full TEN under actual lock")
+        rows.append({"role":"authoritativeReader", "lockEntered":True, "lockReturned":True, "nonblocking":True})
+        state_fd, state_before = _cold_durable_leaf(directory, "STATE", os.O_RDWR, owners, "sealState", header["stateIdentity"])
+        state_raw, _ = _cold_durable_read(state_fd, 8, fence)
+        require(state_raw == b"OPEN\n", "cold durable seal refuses failed/prior terminal state")
+        os.fsync(data_fd)
+        require(_cold_durable_identity(os.fstat(data_fd)) == header["dataIdentity"],
+                "cold durable positive terminal data sync fixed identity")
+        rows.append({"role":"authoritativeReader","terminalDataFsyncReturned":True})
+        # This genuine state transition prohibits every subsequent Source-wired append.
+        require(os.pwrite(state_fd, b"SEALED\n", 0) == 7, "cold durable exact terminal state write")
+        os.ftruncate(state_fd, 7)
+        os.fsync(state_fd)
+        require(os.pread(state_fd, 8, 0) == b"SEALED\n", "cold durable terminal state readback")
+        rows.append({"role":"sealState", "writeReturned":True, "fsyncReturned":True,
+                     "readbackExact":True, "before":_cold_durable_ten(state_before),
+                     "after":_cold_durable_ten(os.fstat(state_fd))})
+        out = _transport_directory(artifact)
+        artifact_fd, artifact_before = _cold_durable_root(artifact, owners, "artifactOutputParent")
+        require(out.parent == artifact,"cold durable new derived directory parent")
+        birth = {"role":"transportDirectory","mkdirReturned":False}
+        rows.append(birth)
+        out_fd, out_born = _cold_durable_mkdir(artifact_fd,artifact,artifact_before,out.name,
+                                             owners,"transportDirectory",birth)
+        out_identity = _cold_durable_identity(out_born)
+        out_expected = _cold_durable_ten(out_born)
+        require(not os.listdir(out_fd), "cold durable exclusive derived stream directory")
+        def derived_fence():
+            require(_cold_durable_identity(os.fstat(out_fd)) == out_identity
+                    and _cold_durable_ten(os.fstat(out_fd)) == out_expected
+                    == _cold_durable_ten(os.stat(out.name,dir_fd=artifact_fd,follow_symlinks=False))
+                    == _cold_durable_ten(os.lstat(out))
+                    and str(out.resolve(strict=True)) == str(out)
+                    and sorted(os.listdir(out_fd)) == sorted(x + ".jsonl" for x in writers),
+                    "cold durable derived current held/name/canonical/exact-roster endpoint")
+        def consume(stream, line):
+            nonlocal out_expected, out_identity
+            fence()
+            derived_fence()
+            if stream not in writers:
+                descriptor = os.open(stream + ".jsonl", os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                    | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=out_fd)
+                owners.append(("derivedStream:" + stream, descriptor))
+                writers[stream] = descriptor
+                returned_birth = os.fstat(out_fd)
+                after_birth = _cold_durable_ten(returned_birth)
+                require(all(after_birth[key] == out_expected[key] for key in
+                            ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_flags"))
+                        and after_birth["st_nlink"] == out_expected["st_nlink"] + 1
+                        and after_birth == _cold_durable_ten(os.stat(out.name,dir_fd=artifact_fd,follow_symlinks=False))
+                        == _cold_durable_ten(os.lstat(out))
+                        and str(out.resolve(strict=True)) == str(out)
+                        and sorted(os.listdir(out_fd)) == sorted(x + ".jsonl" for x in writers),
+                        "cold durable exact own returned derived-leaf birth transition")
+                rows.append({"role":"transportDirectory","ownLeafExclusiveReturned":True,
+                             "leaf":stream + ".jsonl","before":out_expected,"after":after_birth})
+                out_expected = after_birth
+                out_identity = _cold_durable_identity(returned_birth)
+                derived_fence()
+            require(os.write(writers[stream], line) == len(line), "cold durable exact derived frame write")
+        observed = _phase1_durable_parse(data_fd, context, context["durableSinkBindingSHA256"], fence, consume)
+        originals = []
+        for item in observed["streams"]:
+            descriptor = writers[item["streamID"]]
+            os.fsync(descriptor)
+            before = os.fstat(descriptor)
+            name = item["streamID"] + ".jsonl"
+            require(before.st_size == item["bytes"] and _cold_durable_ten(before)
+                    == _cold_durable_ten(os.stat(name, dir_fd=out_fd, follow_symlinks=False)),
+                    "cold durable derived held/name/size")
+            originals.append({"name":name,"bytes":item["bytes"],"sha256":item["sha256"]})
+        derived_fence()
+        require(sorted(x["name"] for x in originals) == sorted(os.listdir(out_fd)),
+                "cold durable terminal derived roster is the exact published union")
+        rows.append({"role":"transportDirectory","finalEndpointChecked":True,
+                     "fullTEN":out_expected,"files":[x["name"] for x in originals]})
+        require(_cold_durable_ten(os.fstat(header_fd)) == _cold_durable_ten(header_before)
+                == _cold_durable_ten(os.stat("BINDING.json",dir_fd=directory,follow_symlinks=False))
+                and _cold_durable_identity(os.fstat(directory)) == header["directoryIdentity"]
+                and _cold_durable_ten(os.fstat(directory)) == _cold_durable_ten(os.lstat(path))
+                and _cold_durable_identity(os.fstat(data_fd)) == header["dataIdentity"]
+                and _cold_durable_identity(os.fstat(state_fd)) == header["stateIdentity"]
+                and _cold_durable_ten(os.fstat(data_fd)) == _cold_durable_ten(
+                    os.stat("EMITTED.jsonl",dir_fd=directory,follow_symlinks=False))
+                and _cold_durable_ten(os.fstat(state_fd)) == _cold_durable_ten(
+                    os.stat("STATE",dir_fd=directory,follow_symlinks=False)), "cold durable terminal endpoints")
+        proof.update(context=context, bindingSHA256=sha256(header_raw), authoritativePath=str(path / "EMITTED.jsonl"),
+                     observed=observed, files=originals, emittedBoundary="SOURCE_WIRED_APPEND_CLOSED_BY_ACTUAL_SHARED_LOCK_AND_SEALED_STATE",
+                     status="SEALED_EMITTED_TRANSPORT_ONLY" if not interrupted and native_exit_status == 0 else "SEALED_FAILED_EXECUTION_PREFIX_ONLY")
+    except BaseException as error:
+        first = error
+        proof["firstError"] = repr(error)
+    if locked is not None:
+        try:
+            fcntl.flock(locked, fcntl.LOCK_UN)
+            rows.append({"role":"authoritativeReader","unlockReturned":True})
+        except BaseException as error:
+            rows.append({"role":"authoritativeReader","unlockReturned":False,"error":repr(error)})
+            if first is None:
+                first = error
+    first = _phase1_durable_close(owners, rows, first)
+    if first is not None:
+        proof.update(status="INCOMPLETE", firstError=repr(first))
+    # Reporting happens only after every retained data/state/derived owner
+    # close attempt. A deadline/reporting failure remains secondary to first.
+    secondary = []
+    try:
+        _require_collection_time(started, monotonic, bound)
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        # There is no renewed clock or receipt-write grace after the old bound.
+        raise first
+    try:
+        proof_writer = _phase1_durable_emit(sink_artifact / names["proof"], canonical(proof))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        proof_writer = None
+    status = {"schema":SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA,
+        "status":"INTERRUPTED" if interrupted else ("UNSAFE" if first is not None else ("AVAILABLE" if proof.get("files") else "ZERO_USE")),
+        "simulatorUDID":environment.get("CI_SIMULATOR_UDID"),"appBundleID":SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory":SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,"sourcePath":SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256":proof.get("context",{}).get("writerSourceSHA256"),"files":proof.get("files",[]),
+        "fileCount":len(proof.get("files",[])),"totalBytes":sum(x["bytes"] for x in proof.get("files",[])),
+        "inventorySHA256":sha256(canonical(proof.get("files",[]))),"collectionBoundSeconds":bound,
+        "collectionMode":"interrupted" if interrupted else "completed"}
+    if first is not None or interrupted:
+        status["error"] = repr(first) if first is not None else "native command interrupted"
+    try:
+        status_writer = _phase1_durable_emit(_transport_status_path(artifact), canonical(status))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+        status_writer = None
+    try:
+        _require_collection_time(started,monotonic,bound)
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+    # Do not infer stdout's OS close; retain these actual writer returns in the
+    # worker's existing complete raw console originals, not a self-close flag.
+    try:
+        print(json.dumps({"schema":"v23-phase1-emitted-durable-final-return.v1",
+            "status":status["status"],"proofPath":str(sink_artifact/names["proof"]),
+            "proofWriter":proof_writer,"transportStatusWriter":status_writer,
+            "firstError":None if first is None else repr(first),"secondaryErrors":secondary,
+            "qualification":False,"acceptance":False,"releaseReady":False},sort_keys=True,separators=(",", ":"),allow_nan=False))
+    except BaseException as error:
+        secondary.append(repr(error))
+        if first is None:
+            first = error
+    if first is not None:
+        raise first
+    return status
+
+def phase1_shared_live_observation_v2(root, artifact, record, environment, stage, kernel,
+                                   *, source_before=None):
+    """Bounded live witness at an existing successful kernel/checkpoint boundary.
+
+    Raw payloads retain their existing retention policy. These observations name
+    live checks; their hashes cannot substitute for authenticated artifact origin.
+    Legacy development receipts are retained as protocol facts, never relabelled.
+    """
+    require(stage in PHASE1_WITNESS_STAGES, "Phase1 V2 live observation stage")
+    identity = phase1_observation_identity(root, artifact, record)
+    role = shared_role(record)
+    require((stage == "seal") == (role == "producer"), "Phase1 live observation role")
+    temp = Path(environment["RUNNER_TEMP"])
+    payload = temp / SHARED_PAYLOAD_DIRECTORY if stage == "seal" else temp
+    entries = phase1_product_inventory(payload / kernel["ROOT_LABEL"], kernel)
+    products = shared_products_binding(kernel, payload)
+    require(kernel["object_sha"](entries) == products["treeSHA256"], "Phase1 live product inventory changed")
+    metadata = read_json(artifact / SHARED_PAYLOAD_METADATA)
+    require(products == metadata["products"], "Phase1 live products differ from producer")
+    value = {"schema": PHASE1_WITNESS_SCHEMA_V2, **identity, "stage": stage, "role": role,
+             "partitionID": record[SHARED_KEY].get("partitionID"), "workspace": str(root),
+             "runnerTemp": str(temp), "artifactDirectory": str(artifact),
+             "payloadArtifactName": record[SHARED_KEY]["payloadArtifactName"],
+             "metadataSHA256": sha256((artifact / SHARED_PAYLOAD_METADATA).read_bytes()),
+             "products": products, "productInventory": entries}
+    if stage in ("seal", "restore"):
+        receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+        receipt = read_json(artifact / receipt_name)
+        tar = temp / (SHARED_TRANSPORT_DIRECTORY if stage == "seal" else SHARED_DOWNLOAD_DIRECTORY) / SHARED_TAR
+        require(receipt["archive"] == {"name": SHARED_TAR, "bytes": tar.stat().st_size,
+                                       "sha256": kernel["sha256_file"](tar)}, "Phase1 observed payload archive")
+        value.update(archive=receipt["archive"], archiveMemberCensus=phase1_tar_census(tar, kernel),
+                     receiptSHA256=sha256((artifact / receipt_name).read_bytes()))
+        if stage == "seal":
+            after = phase1_product_inventory(temp / "FieldEvidenceDerivedData/Build/Products", kernel)
+            require(source_before == after, "Phase1 original products changed while sealing")
+            value.update(sourceProductInventory=after, sourceUnchangedDuringSeal=True,
+                         testsExecuted=0, diagnostics="NOT_APPLICABLE_BUILD_ONLY")
+        else:
+            value.update(safeExtractionObserved=True, extractionKernelSHA256=identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL])
+    else:
+        inventory = phase1_derived_inventory(temp / "FieldEvidenceDerivedData", kernel)
+        value["derivedDataInventory"] = phase1_inventory([dict(inventory[p], path=p) for p in sorted(inventory)])
+        value["fingerprintSHA256"] = sha256((artifact / ("v23-shared-fingerprint-" + stage + ".json")).read_bytes())
+        value["activityLogs"] = []
+        if stage == "after":
+            directory = artifact / "phase1-activity-logs-v2"
+            directory.mkdir(mode=0o700)
+            total = 0
+            gate = load_phase1_gates(root)
+            for entry in value["derivedDataInventory"]:
+                if not (entry["path"].startswith("Logs/Build/") and entry["path"].endswith(".xcactivitylog")
+                        and entry["type"] == "file"):
+                    continue
+                total += entry["size"]
+                require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "Phase1 activity log retention bound")
+                raw = gate.regular_bytes(temp / "FieldEvidenceDerivedData" / entry["path"],
+                                         limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                require(len(raw) == entry["size"] and sha256(raw) == entry["sha256"],
+                        "Phase1 activity log changed during retention")
+                name = "%06d.xcactivitylog" % len(value["activityLogs"])
+                _cold_payload_write_v2(directory / name, raw)
+                require(shared_activity_log_compile_step(directory / name) is None,
+                        "Phase1 retained activity log compile evidence")
+                value["activityLogs"].append({"sourcePath": entry["path"], "retainedPath": name,
+                                              "bytes": len(raw), "sha256": sha256(raw)})
+            require(inventory == phase1_derived_inventory(temp / "FieldEvidenceDerivedData", kernel),
+                    "Phase1 DerivedData changed during retention")
+    raw = canonical(value)
+    require(len(raw) <= PHASE1_WITNESS_BYTES, "Phase1 complete live observation byte bound")
+    _cold_payload_write_v2(artifact / ("phase1-shared-live-v2-" + stage + ".json"), raw)
+    return value
+
+
+def phase1_retained_shared_facts_v2(root, artifact, record, expected_binding):
+    """Recompute retained facts, without opening original runner temp/payload paths.
+
+    The caller first authenticates expected_binding, artifact digests and the sole
+    root attempt. This function is not that authentication or cold qualification.
+    """
+    gate = load_phase1_gates(root)
+    require(record.get("phase1Gate") == expected_binding, "Phase1 V2 shared expected original")
+    identity = phase1_observation_identity(root, artifact, record)
+    kernel = load_payload_kernel(root)
+    role = shared_role(record)
+    stages = ("seal",) if role == "producer" else ("restore", "before", "after")
+    metadata_raw = gate.regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    metadata = gate.decode(metadata_raw, limit=PHASE1_WITNESS_BYTES)
+    require(all(metadata.get(key) == record.get(key) for key in ("repository", "ref", "head", "gitTree", "runID", "runAttempt"))
+            and metadata.get("payloadArtifactName") == record[SHARED_KEY]["payloadArtifactName"]
+            and metadata.get("planSHA256") == record[SHARED_KEY]["planSHA256"]
+            and metadata.get("partitionsSHA256") == record[SHARED_KEY]["partitionsSHA256"],
+            "Phase1 retained payload original identity")
+    observations = {}
+    for stage in stages:
+        raw = gate.regular_bytes(artifact / ("phase1-shared-live-v2-" + stage + ".json"), limit=PHASE1_WITNESS_BYTES)
+        value = gate.decode(raw, limit=PHASE1_WITNESS_BYTES)
+        keys = {"schema", *identity, "stage", "role", "partitionID", "workspace", "runnerTemp",
+                "artifactDirectory", "payloadArtifactName", "metadataSHA256", "products", "productInventory"}
+        keys |= ({"archive", "archiveMemberCensus", "receiptSHA256"} if stage in ("seal", "restore")
+                 else {"derivedDataInventory", "fingerprintSHA256", "activityLogs"})
+        keys |= ({"sourceProductInventory", "sourceUnchangedDuringSeal", "testsExecuted", "diagnostics"}
+                 if stage == "seal" else {"safeExtractionObserved", "extractionKernelSHA256"}
+                 if stage == "restore" else set())
+        require(type(value) is dict and set(value) == keys and value["schema"] == PHASE1_WITNESS_SCHEMA_V2,
+                "Phase1 closed live observation")
+        gate.exact({key: value[key] for key in identity}, identity, "Phase1 live observation identity")
+        require((value["stage"], value["role"], value["partitionID"], value["payloadArtifactName"])
+                == (stage, role, record[SHARED_KEY].get("partitionID"), record[SHARED_KEY]["payloadArtifactName"])
+                and value["metadataSHA256"] == sha256(metadata_raw), "Phase1 observation payload/role")
+        for name in ("workspace", "runnerTemp", "artifactDirectory"):
+            require(type(value[name]) is str and value[name].startswith("/") and "\x00" not in value[name]
+                    and all(part not in (".", "..") for part in value[name].split("/")),
+                    "Phase1 original runner path spelling")
+        require(value["workspace"] == metadata.get("workspace"), "Phase1 original workspace binding")
+        if observations:
+            require(all(value[key] == observations[stages[0]][key]
+                        for key in ("workspace", "runnerTemp", "artifactDirectory")),
+                    "Phase1 inconsistent live runner paths")
+        entries = phase1_inventory(value["productInventory"], products=True)
+        products = value["products"]
+        require(products == metadata["products"] and kernel["object_sha"](entries) == products["treeSHA256"]
+                and len(entries) == products["entryCount"]
+                and sum(item.get("size", 0) for item in entries) == products["fileBytes"],
+                "Phase1 retained product inventory binding")
+        xctestruns = [entry for entry in entries if entry["path"].endswith(".xctestrun") and entry["type"] == "file"]
+        require(len(xctestruns) == 1 and (xctestruns[0]["path"], xctestruns[0]["sha256"])
+                == (products["xctestrunPath"], products["xctestrunSHA256"]), "Phase1 retained xctestrun binding")
+        if stage in ("seal", "restore"):
+            receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+            receipt_raw = gate.regular_bytes(artifact / receipt_name, limit=PHASE1_WITNESS_BYTES)
+            receipt = gate.decode(receipt_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["receiptSHA256"] == sha256(receipt_raw) and value["archive"] == receipt["archive"]
+                    and receipt["metadataSHA256"] == value["metadataSHA256"]
+                    and receipt["productsTreeSHA256"] == products["treeSHA256"], "Phase1 retained payload receipt")
+            census = value["archiveMemberCensus"]
+            require(type(census) is list and 0 < len(census) <= PHASE1_WITNESS_ENTRIES,
+                    "Phase1 retained archive census bound")
+            paths = []
+            for item in census:
+                require(type(item) is dict and set(item) == {"path", "type", "size", "mode"}
+                        and item["type"] in ("file", "directory")
+                        and type(item["size"]) is int and item["size"] >= 0
+                        and (item["type"] != "directory" or item["size"] == 0)
+                        and type(item["mode"]) is int and 0 <= item["mode"] <= 0o777,
+                        "Phase1 retained archive member")
+                paths.append(phase1_relative_path(item["path"]))
+            require(paths == sorted(set(paths)) and len({p.casefold() for p in paths}) == len(paths),
+                    "Phase1 retained archive order/duplicate")
+            by_path = {item["path"]: item for item in census}
+            expected_paths = {"FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"],
+                              SHARED_PAYLOAD_METADATA}
+            for item in entries:
+                path = kernel["ROOT_LABEL"] + "/" + item["path"]
+                expected_paths.add(path)
+                require(by_path.get(path) == {"path": path, "type": item["type"], "mode": item["mode"],
+                                               "size": item.get("size", 0)}, "Phase1 archive/product census")
+            require(set(paths) == expected_paths
+                    and by_path[SHARED_PAYLOAD_METADATA]["type"] == "file"
+                    and by_path[SHARED_PAYLOAD_METADATA]["size"] == len(metadata_raw)
+                    and all(by_path[p]["type"] == "directory" for p in
+                            ("FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"])),
+                    "Phase1 complete payload root census")
+            if stage == "seal":
+                phase1_inventory(value["sourceProductInventory"], products=True)
+                require(value["sourceUnchangedDuringSeal"] is True and type(value["testsExecuted"]) is int
+                        and value["testsExecuted"] == 0 and value["diagnostics"] == "NOT_APPLICABLE_BUILD_ONLY",
+                        "Phase1 build-only seal observation")
+            else:
+                require(value["safeExtractionObserved"] is True
+                        and value["extractionKernelSHA256"] == identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL],
+                        "Phase1 observed extraction kernel")
+        else:
+            inventory = phase1_inventory(value["derivedDataInventory"])
+            fingerprint_raw = gate.regular_bytes(artifact / ("v23-shared-fingerprint-" + stage + ".json"),
+                                                 limit=PHASE1_WITNESS_BYTES)
+            fingerprint = gate.decode(fingerprint_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["fingerprintSHA256"] == sha256(fingerprint_raw)
+                    and fingerprint.get("phase") == stage and fingerprint.get("matchesProducer") is True
+                    and fingerprint.get("buildEvidence") == [] and fingerprint.get("error") is None
+                    and fingerprint.get("productsTreeSHA256") == products["treeSHA256"]
+                    and fingerprint.get("xctestrunSHA256") == products["xctestrunSHA256"]
+                    and fingerprint.get("entryCount") == len(entries), "Phase1 retained fingerprint")
+            if stage == "before":
+                require(fingerprint.get("derivedDataEntries") == inventory and value["activityLogs"] == [],
+                        "Phase1 retained before inventory")
+                require(not any(item["path"] == prefix or item["path"].startswith(prefix + "/")
+                                for item in inventory for prefix in ("Logs/Build", "Build/Intermediates.noindex")),
+                        "Phase1 retained before build tree")
+            else:
+                require(fingerprint.get("matchesBefore") is True, "Phase1 retained products changed")
+                before = {item["path"]: {k: v for k, v in item.items() if k != "path"}
+                          for item in observations["before"]["derivedDataInventory"]}
+                after = {item["path"]: {k: v for k, v in item.items() if k != "path"} for item in inventory}
+                delta_raw = gate.regular_bytes(artifact / SHARED_DERIVED_DATA_DELTA, limit=PHASE1_WITNESS_BYTES)
+                delta = gate.decode(delta_raw, limit=PHASE1_WITNESS_BYTES)
+                expected_delta = shared_derived_delta(before, after)
+                require(all(delta.get(k) == v for k, v in expected_delta.items())
+                        and delta.get("beforeEntryCount") == len(before) and delta.get("afterEntryCount") == len(after)
+                        and delta.get("compileEvidence") == []
+                        and fingerprint["derivedDataDelta"]["sha256"] == sha256(delta_raw),
+                        "Phase1 complete retained DerivedData delta")
+                # Lists in the legacy delta can be capped. Full retained inventories
+                # above are authoritative for this recomputation, not capped lists.
+                require(not any(item["path"].startswith("Build/Intermediates")
+                                and item["path"].endswith(SHARED_COMPILE_OUTPUT_SUFFIXES) for item in inventory),
+                        "Phase1 retained compile output")
+                logs = [item for item in inventory if item["path"].startswith("Logs/Build/")
+                        and item["path"].endswith(".xcactivitylog") and item["type"] == "file"]
+                require(type(value["activityLogs"]) is list and len(value["activityLogs"]) == len(logs),
+                        "Phase1 complete retained activity logs")
+                total = 0
+                for index, (entry, retained) in enumerate(zip(logs, value["activityLogs"])):
+                    name = "%06d.xcactivitylog" % index
+                    require(retained == {"sourcePath": entry["path"], "retainedPath": name,
+                                         "bytes": entry["size"], "sha256": entry["sha256"]},
+                            "Phase1 activity log identity")
+                    total += entry["size"]
+                    require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "Phase1 retained activity byte bound")
+                    path = artifact / "phase1-activity-logs-v2" / name
+                    log_raw = gate.regular_bytes(path, limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                    require(len(log_raw) == entry["size"] and sha256(log_raw) == entry["sha256"]
+                            and shared_activity_log_compile_step(path) is None, "Phase1 retained activity scan")
+                directory = artifact / "phase1-activity-logs-v2"
+                require(directory.is_dir() and not directory.is_symlink()
+                        and sorted(p.name for p in directory.iterdir()) == ["%06d.xcactivitylog" % i for i in range(len(logs))],
+                        "Phase1 activity log directory census")
+                require(shared_test_log_compile_lines(artifact / "test-smoke.log") == []
+                        and not shared_local_build_artifacts(artifact), "Phase1 retained no-rebuild log/artifact scan")
+        observations[stage] = value
+    require(all(value["products"] == observations[stages[0]]["products"] for value in observations.values()),
+            "Phase1 products changed between observations")
+    return {"schema": "v23-phase1-retained-shared-facts.v2", **identity, "role": role,
+            "status": "COMPLETE_RETAINED_SHARED_OBSERVATIONS",
+            "liveObservationSHA256": {stage: sha256(canonical(value)) for stage, value in observations.items()},
+            "payloadArchiveRetained": False, "liveChecksIndependentlyReexecuted": False}
+
+
+
+
+def phase1_retained_emitted_phase_v2(root, artifact, record, phase):
+    """Recompute the complete immutable raw and derived union; no live app replay.
+
+    API/ZIP/manifest/source authentication remains the enclosing collector's
+    duty. These facts retain the closed Source-wired emission boundary only.
+    """
+    gate = load_phase1_gates(root)
+    names = phase1_emitted_names(phase)
+    base = phase1_emitted_context_base_v2(root, artifact, record, phase)
+    forwarding_raw = gate.regular_bytes(artifact / names["forwarding"], limit=PHASE1_WITNESS_BYTES)
+    forwarding = gate.decode(forwarding_raw, limit=PHASE1_WITNESS_BYTES)
+    require(type(forwarding) is dict and set(forwarding) == {"schema", "context", "contextSHA256",
+        "forwardedEnvironment", "buildCommandReceiptSHA256", "durableSinkPreparation", "durableSinkPreparationIO",
+        "transportCompletion", "strongerClaims", "functionalQualification", "providerQualification", "acceptance",
+        "releaseReady", "executionAuthority"}, "Phase1 retained closed forwarding")
+    context = phase1_emitted_validate_context(forwarding["context"])
+    require({key: value for key, value in context.items() if key not in ("durableSinkPath", "durableSinkBindingSHA256")} == base
+            and forwarding["schema"] == PHASE1_EMITTED_FORWARD_SCHEMA
+            and forwarding["contextSHA256"] == sha256(canonical(context))
+            and forwarding["forwardedEnvironment"] == phase1_emitted_forward_environment(context)
+            and forwarding["transportCompletion"] == "PENDING"
+            and forwarding["strongerClaims"] == PHASE1_EMITTED_STRONGER_CLAIMS
+            and forwarding["functionalQualification"] == "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW"
+            and all(forwarding[k] is False for k in ("providerQualification", "acceptance", "releaseReady", "executionAuthority")),
+            "Phase1 retained actual forwarding/context/scope")
+    env_raw = "".join(key + "=" + forwarding["forwardedEnvironment"][key] + "\n"
+                      for key in sorted(forwarding["forwardedEnvironment"])).encode("ascii")
+    require(gate.regular_bytes(artifact / names["environment"], limit=32768) == env_raw,
+            "Phase1 retained exact forwarded environment bytes")
+    receipt_hash = (read_json(artifact / SHARED_PAYLOAD_METADATA)["buildCommandReceiptSHA256"]
+                    if context["role"] == "consumer" else sha256(gate.regular_bytes(artifact / NO_INDEX_RECEIPT, limit=PHASE1_WITNESS_BYTES)))
+    require(forwarding["buildCommandReceiptSHA256"] == receipt_hash, "Phase1 retained compiled-context receipt join")
+    path = artifact / names["sink"]
+    owners, rows, first, observed = [], [], None, None
+    derived_hashes, derived_bytes = {}, {}
+    try:
+        directory, root_before = _cold_durable_root(path, owners, "retainedSink")
+        require(sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"],
+                "Phase1 retained exact sink roster")
+        header_fd, header_before = _cold_durable_leaf(directory, "BINDING.json", os.O_RDONLY, owners, "retainedBinding")
+        header_raw, _ = _cold_durable_read(header_fd, SIMULATOR_DIAGNOSTIC_MAX_FRAME_BYTES, lambda: None)
+        header = gate.decode(header_raw)
+        require(type(header) is dict and set(header) == {"schema", "originalContext", "directoryIdentity", "dataIdentity", "stateIdentity"}
+                and header["schema"] == PHASE1_DURABLE_SCHEMA and header["originalContext"] == base
+                and canonical(header) == header_raw and sha256(header_raw) == context["durableSinkBindingSHA256"],
+                "Phase1 retained actual binding raw/context")
+        prepared = forwarding["durableSinkPreparation"]
+        require(type(prepared) is dict and set(prepared) == {"path", "bindingSHA256", "binding", "bindingFullTEN", "sinkBirthIdentity",
+                "appAccessibilityProved", "outsideAppContainerProved", "actualAppReadWriteSyncStillRequired", "qualification"}
+                and prepared["path"] == context["durableSinkPath"] and prepared["bindingSHA256"] == sha256(header_raw)
+                and prepared["binding"] == header and prepared["appAccessibilityProved"] is False
+                and prepared["outsideAppContainerProved"] is False and prepared["actualAppReadWriteSyncStillRequired"] is True
+                and prepared["qualification"] is False, "Phase1 retained actual preparation join")
+        state_fd, state_before = _cold_durable_leaf(directory, "STATE", os.O_RDONLY, owners, "retainedState")
+        state_raw, _ = _cold_durable_read(state_fd, 8, lambda: None)
+        require(state_raw == b"SEALED\n", "Phase1 retained actual complete terminal state")
+        data_fd, data_before = _cold_durable_leaf(directory, "EMITTED.jsonl", os.O_RDONLY, owners, "retainedRaw")
+        def fence():
+            require(_cold_durable_ten(os.fstat(directory)) == _cold_durable_ten(root_before) == _cold_durable_ten(os.lstat(path))
+                    and sorted(os.listdir(directory)) == ["BINDING.json", "EMITTED.jsonl", "STATE"]
+                    and _cold_durable_ten(os.fstat(data_fd)) == _cold_durable_ten(data_before)
+                        == _cold_durable_ten(os.stat("EMITTED.jsonl",dir_fd=directory,follow_symlinks=False))
+                    and _cold_durable_ten(os.fstat(header_fd)) == _cold_durable_ten(header_before)
+                        == _cold_durable_ten(os.stat("BINDING.json",dir_fd=directory,follow_symlinks=False))
+                    and _cold_durable_ten(os.fstat(state_fd)) == _cold_durable_ten(state_before)
+                        == _cold_durable_ten(os.stat("STATE",dir_fd=directory,follow_symlinks=False)),
+                    "Phase1 retained complete guarded raw interval")
+        def consume(stream, line):
+            if stream not in derived_hashes:
+                derived_hashes[stream], derived_bytes[stream] = hashlib.sha256(), 0
+            derived_hashes[stream].update(line)
+            derived_bytes[stream] += len(line)
+        observed = _phase1_durable_parse(data_fd, context, sha256(header_raw), fence, consume)
+        fence()
+    except BaseException as error:
+        first = error
+    first = _phase1_durable_close(owners, rows, first)
+    if first is not None:
+        raise first
+    require(all(item["bytes"] == derived_bytes[item["streamID"]]
+                and item["sha256"] == derived_hashes[item["streamID"]].hexdigest().upper()
+                for item in observed["streams"]), "Phase1 retained independently derived complete union")
+    proof_raw = gate.regular_bytes(artifact / names["proof"], limit=PHASE1_WITNESS_BYTES)
+    proof = gate.decode(proof_raw, limit=PHASE1_WITNESS_BYTES)
+    require(type(proof) is dict and set(proof) == {"schema", "status", "interrupted", "nativeExitStatus",
+        "countsAreTotalInvocations", "trailingRepeatCountsMayBeUnobserved", "processLifetimesProven", "appDescriptorRetirementProven",
+        "functionalQualification", "strongerClaims", "executionAuthority", "providerQualification", "acceptance", "releaseReady",
+        "io", "firstError", "context", "bindingSHA256", "authoritativePath", "observed", "files", "emittedBoundary"},
+        "Phase1 retained closed complete durable proof")
+    expected_files = [{"name": item["streamID"] + ".jsonl", "bytes": item["bytes"], "sha256": item["sha256"]}
+                      for item in observed["streams"]]
+    require(proof["schema"] == "v23-phase1-emitted-durable-proof.v1"
+            and proof["status"] == "SEALED_EMITTED_TRANSPORT_ONLY" and proof["interrupted"] is False
+            and type(proof["nativeExitStatus"]) is int and proof["nativeExitStatus"] == 0
+            and proof["context"] == context and proof["bindingSHA256"] == sha256(header_raw)
+            and proof["authoritativePath"] == context["durableSinkPath"] + "/EMITTED.jsonl"
+            and proof["observed"] == observed and proof["files"] == expected_files
+            and proof["emittedBoundary"] == "SOURCE_WIRED_APPEND_CLOSED_BY_ACTUAL_SHARED_LOCK_AND_SEALED_STATE"
+            and proof["firstError"] is None and proof["strongerClaims"] == PHASE1_EMITTED_STRONGER_CLAIMS
+            and proof["functionalQualification"] == "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW"
+            and proof["trailingRepeatCountsMayBeUnobserved"] is True
+            and all(proof[key] is False for key in ("countsAreTotalInvocations", "processLifetimesProven", "appDescriptorRetirementProven",
+                   "executionAuthority", "providerQualification", "acceptance", "releaseReady")),
+            "Phase1 retained complete emitted-only proof")
+    snapshot = artifact if phase == "unit" else artifact / "phase1-ui-diagnostics"
+    status_raw = gate.regular_bytes(snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS, limit=PHASE1_WITNESS_BYTES)
+    transport = gate.decode(status_raw, limit=PHASE1_WITNESS_BYTES)
+    expected_status = {"schema": SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA, "status": "AVAILABLE" if expected_files else "ZERO_USE",
+        "simulatorUDID": context["simulatorUDID"], "appBundleID": SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory": SIMULATOR_DIAGNOSTIC_APP_DIRECTORY, "sourcePath": SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256": context["writerSourceSHA256"], "files": expected_files, "fileCount": len(expected_files),
+        "totalBytes": sum(item["bytes"] for item in expected_files), "inventorySHA256": sha256(canonical(expected_files)),
+        "collectionBoundSeconds": SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS, "collectionMode": "completed"}
+    require(transport == expected_status, "Phase1 retained exact terminal transport status")
+    evidence, error = simulator_diagnostic_observations(root, snapshot, record)
+    require(error is None and evidence["parseStatus"] == "PASS" and evidence["testLog"]["availability"] == "AVAILABLE"
+            and evidence["transport"] == transport and read_json(snapshot / SIMULATOR_DIAGNOSTIC_OUTPUT) == evidence,
+            "Phase1 retained strict actual derived diagnostic files")
+    original_log = "test-smoke.log" if phase == "unit" else "ui-smoke.log"
+    log_raw = gate.regular_bytes(artifact / original_log, limit=SHARED_MAX_TEST_LOG_BYTES)
+    require(b"V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE" not in log_raw, "Phase1 retained original writer poison")
+    returns = []
+    for line in log_raw.splitlines():
+        if line.startswith(b'{'):
+            try:
+                value = gate.decode(line + b"\n", limit=PHASE1_WITNESS_BYTES)
+            except (ValueError, UnicodeError):
+                continue
+            if type(value) is dict and value.get("schema") == "v23-phase1-emitted-durable-final-return.v1":
+                returns.append(value)
+    require(len(returns) == 1, "Phase1 retained actual sole durable return in original console")
+    final = returns[0]
+    require(set(final) == {"schema", "status", "proofPath", "proofWriter", "transportStatusWriter", "firstError",
+        "secondaryErrors", "qualification", "acceptance", "releaseReady"}
+        and final["status"] == transport["status"] and final["proofPath"] == str(Path(context["durableSinkPath"]).parent / names["proof"])
+        and final["firstError"] is None and final["secondaryErrors"] == []
+        and all(final[k] is False for k in ("qualification", "acceptance", "releaseReady")),
+        "Phase1 retained actual successful final return")
+    for key, raw, original_path in (("proofWriter", proof_raw, final["proofPath"]),
+            ("transportStatusWriter", status_raw, str(Path(context["durableSinkPath"]).parent /
+                (SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS if phase == "unit" else "phase1-ui-diagnostics/" + SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)))):
+        writer = final[key]
+        require(type(writer) is dict and set(writer) == {"path", "bytes", "sha256", "exclusiveOpenReturned", "writeReturned",
+            "fsyncReturned", "fchmodReturned", "afterWriteBeforeClose", "closeRows"}
+            and writer["path"] == original_path and writer["bytes"] == len(raw) and writer["sha256"] == sha256(raw)
+            and all(writer[k] is True for k in ("exclusiveOpenReturned", "writeReturned", "fsyncReturned", "fchmodReturned"))
+            and type(writer["closeRows"]) is list and [row.get("role") for row in writer["closeRows"]] == ["receiptWriter", "receiptParent"]
+            and all(set(row) == {"role", "descriptor", "closeEntered", "closeReturned", "closeUncertain", "error"}
+                and type(row["descriptor"]) is int and row["closeEntered"] is True and row["closeReturned"] is True
+                and row["closeUncertain"] is False and row["error"] is None for row in writer["closeRows"]),
+            "Phase1 retained actual immutable receipt/once-close console join")
+    if phase == "ui":
+        require(gate.regular_bytes(snapshot / "test-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES) == log_raw
+                and gate.regular_bytes(snapshot / "simulator-selection.txt") == gate.regular_bytes(artifact / "simulator-selection.txt"),
+                "Phase1 retained separate UI log and Simulator join")
+        finalization = read_json(snapshot / "phase1-ui-finalization-v2.json")
+        require(finalization == {"schema": "v23-phase1-ui-finalization.v2", **phase1_observation_identity_v2(root, artifact, record),
+            "phase": "ui", "nativeExitStatus": 0, "interrupted": False, "transportSHA256": sha256(status_raw),
+            "transportStatus": transport["status"], "allLifetimesProven": False, "countsAreTotalInvocations": False,
+            "trailingRepeatCountsMayBeUnobserved": True}, "Phase1 retained actual completed UI finalization")
+    return {"contextSHA256": sha256(canonical(context)), "forwardingReceiptSHA256": sha256(forwarding_raw),
+        "durableProofSHA256": sha256(proof_raw), "bindingSHA256": sha256(header_raw),
+        "raw": {"path": names["sink"] + "/EMITTED.jsonl", "bytes": observed["rawBytes"], "sha256": observed["rawSHA256"]},
+        "streams": observed["streams"], "transportStatusSHA256": sha256(status_raw),
+        "emittedBoundary": "SEALED_COMPLETE_EMITTED_TRANSPORT"}
+
+
+def phase1_retained_emitted_facts_v2(root, artifact, record, expected_binding):
+    require(phase1_event_is_v2(expected_binding) and record.get("phase1Gate") == expected_binding,
+            "Phase1 emitted retained actual V2 event")
+    phase1_observation_identity_v2(root, artifact, record)
+    role = shared_role(record) if record["selectionID"] == SHARED_SELECTION_ID else "rui1"
+    partition = record[SHARED_KEY]["partitionID"] if role == "consumer" else None
+    if role == "producer":
+        require(not any((artifact / name).exists() or (artifact / name).is_symlink()
+            for phase in ("unit", "ui") for name in phase1_emitted_names(phase).values()),
+            "Phase1 emitted build-only producer has no contexts/sinks")
+        return {"role": "producer", "partitionID": None, "phases": {}}
+    phases = ("unit", "ui") if role == "rui1" else ("unit",)
+    if role == "consumer":
+        require(not any((artifact / name).exists() or (artifact / name).is_symlink()
+                    for name in phase1_emitted_names("ui").values()), "Phase1 emitted shared consumer has no UI branch")
+    facts = {phase: phase1_retained_emitted_phase_v2(root, artifact, record, phase) for phase in phases}
+    if role == "rui1":
+        require(not ({row["streamID"] for row in facts["unit"]["streams"]}
+                     & {row["streamID"] for row in facts["ui"]["streams"]}),
+                "Phase1 emitted phases have independent complete stream identities")
+    return {"role": role, "partitionID": partition, "phases": facts}
+
+
+def phase1_retained_diagnostic_facts_v2(root, artifact, record, expected_binding):
+    emitted = phase1_retained_emitted_facts_v2(root, artifact, record, expected_binding)
+    return {"schema": "v23-phase1-retained-diagnostics.v2", "planSHA256": expected_binding["planSHA256"],
+        "status": "NOT_APPLICABLE_BUILD_ONLY" if emitted["role"] == "producer" else "COMPLETE_RETAINED_EMITTED_TRANSPORT",
+        "phases": emitted["phases"], "strongerClaims": dict(PHASE1_EMITTED_STRONGER_CLAIMS),
+        "functionalQualification": "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW", "simulatorProtection": "UNSUPPORTED",
+        "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+        "providerQualification": False, "acceptance": False, "releaseReady": False, "executionAuthority": False}
+
+def phase1_collect_ui_snapshot_v2(root, artifact, record, environment, *, exit_status, interrupted):
+    """Second immutable phase; all setup/binding/copy/fsync shares the existing budget."""
+    started = time.monotonic()
+    require(type(interrupted) is bool, "Phase1 V2 UI interruption mode")
+    bound = SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS
+    work = SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_WORK_SECONDS
+    with _diagnostic_real_time_limit(work - (time.monotonic() - started)):
+        identity = phase1_observation_identity(root, artifact, record)
+        require(record.get("selectionID") == UI_BATCH_SELECTION_ID
+                and (exit_status is None or type(exit_status) is int), "Phase1 UI finalization identity")
+        snapshot = artifact / "phase1-ui-diagnostics"
+        snapshot.mkdir(mode=0o700)
+        gate = load_phase1_gates(root)
+        _phase1_durable_emit(snapshot / "simulator-selection.txt", gate.regular_bytes(artifact / "simulator-selection.txt"))
+        _require_collection_time(started, time.monotonic, work)
+    transport = collect_simulator_diagnostic_transport(root, snapshot, environment, interrupted=interrupted,
+        phase1_admission_artifact=artifact, _started=started,
+        native_exit_status=exit_status if type(exit_status) is int and exit_status >= 0 else 143)
+    with _diagnostic_real_time_limit(bound - (time.monotonic() - started)):
+        value = {"schema": "v23-phase1-ui-finalization.v2", **identity,
+                 "phase": "ui", "nativeExitStatus": exit_status, "interrupted": interrupted,
+                 "transportSHA256": sha256(gate.regular_bytes(snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS,
+                                                              limit=PHASE1_WITNESS_BYTES)),
+                 "transportStatus": transport["status"], "allLifetimesProven": False,
+                 "countsAreTotalInvocations": False, "trailingRepeatCountsMayBeUnobserved": True}
+        _phase1_durable_emit(snapshot / "phase1-ui-finalization-v2.json", canonical(value))
+        _require_collection_time(started, time.monotonic, bound)
+    if exit_status == 0 and not interrupted:
+        require(transport["status"] in ("AVAILABLE", "ZERO_USE"), "Phase1 UI diagnostic transport incomplete")
+    return value
+
+
+def phase1_retained_worker_chain_v2(root, request_path):
+    """Exact-source subprocess entry point used only after authenticated collection.
+
+    Its request carries locations, not authority. The enclosing collector retains
+    the fetched API responses and authenticated ZIPs and binds this output in the
+    original manifest. Remaining full-proof predicates deliberately stay pending.
+    """
+    gate = load_phase1_gates(root)
+    request = gate.decode(gate.regular_bytes(request_path))
+    require(type(request) is dict and set(request) == {"schema", "runID", "planSHA256"}
+            and request["schema"] == "v23-phase1-retained-chain-request.v2"
+            and type(request["runID"]) is int and request["runID"] > 0, "Phase1 retained chain request")
+    directory = request_path.parent
+    registration = gate.decode(gate.regular_bytes(directory / "phase1-registration.json"))
+    plan = gate.validate_plan_v2(registration.get("plan"))
+    require(gate.sha(gate.canonical(plan)) == request["planSHA256"] == registration.get("planSHA256"),
+            "Phase1 retained chain registered plan")
+    sources = {p: gate.sha(gate.regular_bytes(root / p, limit=PHASE1_WITNESS_BYTES)) for p in gate.SOURCES}
+    gate.exact(sources, plan["sources"], "Phase1 exact archived verifier/source closure")
+    resolved = shared_selection(root) if plan["selection"] == SHARED_SELECTION_ID else load_ui_evidence(root).selection(root)
+    api_run = gate.decode(gate.regular_bytes(directory / "run-attempt-1.json", limit=PHASE1_WITNESS_BYTES),
+                          limit=PHASE1_WITNESS_BYTES)
+    require(api_run.get("id") == request["runID"], "Phase1 retained chain API run")
+    labels = (["producer"] + resolved[SHARED_KEY]["partitionIDs"]
+              if plan["selection"] == SHARED_SELECTION_ID else ["rui1"])
+    artifacts = directory / "artifacts"
+    require(artifacts.is_dir() and not artifacts.is_symlink()
+            and sorted(p.name for p in artifacts.iterdir()) == sorted(labels), "Phase1 complete worker artifact census")
+    facts, first_event, units, emitted = {}, None, [], {}
+    execution = {"status": "INCOMPLETE", "jobs": {}, "workers": {}, "problems": []}
+    try:
+        require(api_run.get("status") == "completed" and api_run.get("conclusion") == "success",
+                "Phase1 original execution did not succeed")
+        execution["jobs"] = phase1_job_execution_facts(root, directory, plan, resolved, request["runID"])
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        execution["problems"].append("job/command proof: " + str(error)[:1000])
+    for label in labels:
+        artifact = artifacts / label
+        require(artifact.is_dir() and not artifact.is_symlink(), "Phase1 regular worker artifact")
+        record = gate.decode(gate.regular_bytes(artifact / "native-admission.json", limit=PHASE1_WITNESS_BYTES),
+                             limit=PHASE1_WITNESS_BYTES)
+        binding = gate.decode(gate.regular_bytes(artifact / "phase1-event-binding.json", limit=gate.MAX_EVENT_BYTES),
+                              limit=gate.MAX_EVENT_BYTES)
+        event = gate.regular_bytes(artifact / "phase1-original-event.json", limit=gate.MAX_EVENT_BYTES)
+        require(gate.regular_bytes(artifact / "phase1-gate-plan.json") == gate.canonical(plan)
+                and record.get("phase1Gate") == binding, "Phase1 original worker plan/admission")
+        gate.verify_collected_event_v2(binding, registered_plan_bytes=gate.canonical(plan), original_event_bytes=event,
+            api_run=api_run, tree=plan["tree"], resolved_bytes=canonical(resolved), sources=sources)
+        require(first_event is None or event == first_event, "Phase1 workers received different dispatch events")
+        first_event = event
+        require(all(record.get(k) == v for k, v in source_binding(root).items()), "Phase1 exact native protocol binding")
+        selected = shared_selection(root, label) if label not in ("producer", "rui1") else resolved
+        require(gate.regular_bytes(artifact / "ci-selection.selected.json", limit=PHASE1_WITNESS_BYTES)
+                == canonical(selected) and record.get("selectionSHA256") == sha256(canonical(selected)),
+                "Phase1 exact worker selection")
+        if label != "rui1":
+            require(shared_role(record) == ("producer" if label == "producer" else "consumer")
+                    and (label == "producer" or record[SHARED_KEY].get("partitionID") == label),
+                    "Phase1 exact worker role/partition")
+        emitted[label] = phase1_retained_emitted_facts_v2(root, artifact, record, binding)
+        diagnostic = phase1_retained_diagnostic_facts_v2(root, artifact, record, binding)
+        shared = phase1_retained_shared_facts_v2(root, artifact, record, binding) if label != "rui1" else None
+        executed = [] if label == "producer" else executed_methods(read_json(artifact / "unit-test-results.json"),
+            selected["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")
+        units.extend(executed)
+        if label == "rui1":
+            from types import SimpleNamespace
+            native = SimpleNamespace(source_binding=source_binding, verify_checkpoint=verify_checkpoint,
+                                     executed_methods=executed_methods, canonical=canonical)
+            load_ui_evidence(root).collected_review(root, artifact, native, plan["head"], str(request["runID"]))
+        # This hashes retained XCResult bytes only; it does not perform an
+        # xcresulttool export or pretend to revisit a vanished live filesystem.
+        kernel = load_payload_kernel(root)
+        result_names = ["Build.xcresult"] if label == "producer" else (["Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"]
+                                                                     if label == "rui1" else ["UnitTests.xcresult"])
+        inventories = {}
+        for name in result_names:
+            require((artifact / name).is_dir() and not (artifact / name).is_symlink(), "Phase1 raw result directory")
+            inventory = phase1_product_inventory((artifact / name).resolve(), kernel)
+            require(any(item["type"] == "file" and item["size"] > 0 for item in inventory), "Phase1 nonempty raw result inventory")
+            inventories[name] = {"entries": inventory, "inventorySHA256": kernel["object_sha"](inventory)}
+        facts[label] = {"eventBindingSHA256": sha256(canonical(binding)), "diagnostics": diagnostic,
+                        "shared": shared, "executedUnitMethods": executed, "rawResultInventories": inventories}
+        if execution["jobs"]:
+            try:
+                execution["workers"][label] = phase1_worker_execution_facts(
+                    root, artifact, record, selected, label, execution["jobs"][label])
+            except (ValueError, OSError, KeyError, TypeError) as error:
+                execution["problems"].append(label + " execution proof: " + str(error)[:1000])
+        require(len(canonical(facts)) <= PHASE1_WITNESS_BYTES, "Phase1 retained worker facts bound")
+    require(len(units) == len(set(units)) and set(units) == set(resolved["unitTestSelectors"]),
+            "Phase1 complete every-method unit union")
+    if execution["jobs"]:
+        try:
+            execution["payload"] = phase1_payload_execution_facts(root, directory, plan, resolved,
+                                                                 request["runID"], execution["jobs"])
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            execution["problems"].append("payload/artifact proof: " + str(error)[:1000])
+    if not execution["problems"] and set(execution["workers"]) == set(labels):
+        execution["status"] = "RETAINED_EXECUTION_FACTS_VERIFIED"
+    require(len(canonical(execution)) <= PHASE1_WITNESS_BYTES, "Phase1 execution facts bound")
+    require(execution["status"] == "RETAINED_EXECUTION_FACTS_VERIFIED", "Phase1 V2 complete actual execution facts")
+    return {"schema": "v23-phase1-retained-worker-chain.v2", "status": "RECOMPUTED_PHASE1_FUNCTIONAL_FACTS_DATA_ONLY",
+        "runID": request["runID"], "planSHA256": request["planSHA256"], "workers": facts, "executionProof": execution,
+        "emittedTransportV2": emitted, "strongerClaims": dict(PHASE1_EMITTED_STRONGER_CLAIMS),
+        "functionalQualification": "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW", "acceptance": False,
+        "providerQualification": False, "releaseReady": False, "executionAuthority": False}
+
 
 
 COLD_EMITTED_CONTEXT_SCHEMA = "v23-cold-emitted-original-context.v2"
@@ -4168,6 +5507,8 @@ def no_index_build_receipt(root, artifact, record, environment, *, command_artif
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
     if "coldOriginal" in record:
         return cold_emitted_build_receipt(root, artifact, record, arguments, unpinned=unpinned)
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        return phase1_emitted_build_receipt(root, artifact, record, arguments, unpinned=unpinned)
     # The development batch and shared producer pin no parent or trees; their admission
     # record (bound by admissionSHA256) carries the exact head, head tree and list digest.
     return {"schemaVersion": 1, "selectionID": record["selectionID"],
@@ -4202,6 +5543,11 @@ def verify_no_index_build(root, artifact, record, environment, *, command_artifa
                 and expected.get("requiredOriginalContextDefine") == COLD_EMITTED_CONTEXT_DEFINE,
                 "cold exact compiled-context receipt version")
         cold_emitted_compiler_context_guard(compiler_lines)
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        require(expected.get("schema") == PHASE1_EMITTED_BUILD_SCHEMA
+                and expected.get("requiredOriginalContextDefine") == PHASE1_EMITTED_CONTEXT_DEFINE,
+                "Phase1 emitted exact compiled-context receipt")
+        phase1_emitted_compiler_context_guard(compiler_lines)
     return {"commandReceiptSHA256": sha256(canonical(expected)),
             "executedCommandExact": True, "compilerDriverCommands": len(compiler_lines),
             "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": expected["sourceTrees"],
@@ -4438,6 +5784,8 @@ def phase1_observation_identity(root, artifact, record):
     """Source binding only; root/API authentication remains the collector's duty."""
     gate = load_phase1_gates(root)
     binding = record.get("phase1Gate")
+    if phase1_event_is_v2(binding):
+        return phase1_observation_identity_v2(root, artifact, record)
     require(type(binding) is dict and binding.get("schema") == gate.EVENT_SCHEMA,
             "Phase1 live observation event")
     plan = gate.validate_plan(binding.get("plan"))
@@ -4600,6 +5948,8 @@ def phase1_shared_live_observation(root, artifact, record, environment, stage, k
     live checks; their hashes cannot substitute for authenticated artifact origin.
     Legacy development receipts are retained as protocol facts, never relabelled.
     """
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        return phase1_shared_live_observation_v2(root, artifact, record, environment, stage, kernel, source_before=source_before)
     require(stage in PHASE1_WITNESS_STAGES, "Phase1 live observation stage")
     identity = phase1_observation_identity(root, artifact, record)
     role = shared_role(record)
@@ -4676,6 +6026,8 @@ def phase1_retained_shared_facts(root, artifact, record, expected_binding):
     root attempt. This function is not that authentication or cold qualification.
     """
     gate = load_phase1_gates(root)
+    if phase1_event_is_v2(expected_binding):
+        return phase1_retained_shared_facts_v2(root, artifact, record, expected_binding)
     require(record.get("phase1Gate") == expected_binding, "Phase1 shared expected original")
     identity = phase1_observation_identity(root, artifact, record)
     kernel = load_payload_kernel(root)
@@ -5850,7 +7202,8 @@ def phase1_worker_execution_facts(root, artifact, record, selected, label, job):
     if label == "rui1":
         environment, original_artifact = load_ui_evidence(root).retained_environment(read_json(artifact / "rui1-command.json")["argv"])
     else:
-        witness = read_json(artifact / ("phase1-shared-live-seal.json" if label == "producer" else "phase1-shared-live-restore.json"))
+        prefix = "phase1-shared-live-v2-" if phase1_event_is_v2(record.get("phase1Gate")) else "phase1-shared-live-"
+        witness = read_json(artifact / (prefix + ("seal.json" if label == "producer" else "restore.json")))
         original_artifact = PurePosixPath(witness["artifactDirectory"])
         environment = {"PROJECT_PATH": "FieldEvidenceApp.xcodeproj", "SCHEME": "FieldEvidenceApp", "CONFIGURATION": "Debug",
                        "CODE_SIGNING_ALLOWED": "NO", "CI_SIMULATOR_UDID": simulator["udid"],
@@ -5980,11 +7333,12 @@ def phase1_payload_execution_facts(root, directory, plan, resolved, run_id, jobs
             "Phase1 retained payload API identity")
     producer = directory / "artifacts/producer"
     metadata = gate.regular_bytes(producer / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
-    archive = read_json(producer / "phase1-shared-live-seal.json")["archive"]
+    prefix = "phase1-shared-live-v2-" if plan.get("schema") == "v23-phase1-functional-gate-plan.v2" else "phase1-shared-live-"
+    archive = read_json(producer / (prefix + "seal.json"))["archive"]
     for partition in resolved[SHARED_KEY]["partitionIDs"]:
         consumer = directory / "artifacts" / partition
         require(gate.regular_bytes(consumer / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES) == metadata
-                and read_json(consumer / "phase1-shared-live-restore.json")["archive"] == archive,
+                and read_json(consumer / (prefix + "restore.json"))["archive"] == archive,
                 "Phase1 same producer TAR and metadata for every consumer")
         log = gate.regular_bytes(directory / "phase1-job-logs" / (str(jobs[partition]["jobID"]) + ".log"),
                                  limit=256 * 1024 * 1024).decode("utf-8-sig")
@@ -6008,6 +7362,8 @@ def phase1_retained_worker_chain(root, request_path):
     """
     gate = load_phase1_gates(root)
     request = gate.decode(gate.regular_bytes(request_path))
+    if type(request) is dict and request.get("schema") == "v23-phase1-retained-chain-request.v2":
+        return phase1_retained_worker_chain_v2(root, request_path)
     require(type(request) is dict and set(request) == {"schema", "runID", "planSHA256"}
             and request["schema"] == "v23-phase1-retained-chain-request.v1"
             and type(request["runID"]) is int and request["runID"] > 0, "Phase1 retained chain request")
@@ -6111,12 +7467,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build",
                                             "shared-seal", "shared-restore", "shared-fingerprint", "phase1-retained-chain",
-                                            "cold-context-forward"))
+                                            "cold-context-forward", "phase1-context-forward", "phase1-build-setting"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
     parser.add_argument("--native-exit-status", type=int)
-    parser.add_argument("--phase", choices=SHARED_FINGERPRINT_PHASES)
+    parser.add_argument("--phase", choices=(*SHARED_FINGERPRINT_PHASES, "unit", "ui"))
     parser.add_argument("--phase1-request", type=Path)
     args = parser.parse_args()
     if args.command == "phase1-retained-chain":
@@ -6159,7 +7515,8 @@ def main():
                         tiers, separators=(",", ":")) + "\n")
         return
     if args.command in ("observe-build-before-boot", "record-no-index-build",
-                        "shared-seal", "shared-restore", "shared-fingerprint", "cold-context-forward"):
+                        "shared-seal", "shared-restore", "shared-fingerprint", "cold-context-forward",
+                        "phase1-context-forward", "phase1-build-setting"):
         require(record is not None, "diagnostic command requires admitted integration route")
     if record is None:
         return
@@ -6177,7 +7534,10 @@ def main():
                      "phase1-event-binding.json": canonical(binding), "phase1-original-event.json": event_raw}
         for relative, raw in originals.items():
             if args.command == "admit":
-                write_new_evidence(artifact / relative, raw)
+                if phase1_event_is_v2(record["phase1Gate"]):
+                    _phase1_durable_emit(artifact / relative, raw)
+                else:
+                    write_new_evidence(artifact / relative, raw)
             else:
                 require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
                         "Phase1 worker original event changed")
@@ -6192,6 +7552,18 @@ def main():
             else:
                 require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
                         "cold worker original event changed")
+    if args.command == "phase1-build-setting":
+        require(phase1_event_is_v2(record.get("phase1Gate")), "Phase1 build setting requires actual V2 event")
+        phase1_observation_identity_v2(root, artifact, record)
+        require(record["selectionID"] == UI_BATCH_SELECTION_ID or shared_role(record) == "producer",
+                "Phase1 build setting producer/RUI1 only")
+        print(PHASE1_EMITTED_BUILD_SETTING)
+        return
+    if args.command == "phase1-context-forward":
+        require(args.phase in ("unit", "ui") and args.output == str(artifact / phase1_emitted_names(args.phase)["environment"]),
+                "Phase1 exact context phase/output path")
+        phase1_emitted_retain_forwarding(root, artifact, record, os.environ, args.phase)
+        return
     if args.command == "cold-context-forward":
         require(args.output == str(artifact / COLD_EMITTED_CONTEXT_ENV), "cold exact context-output path")
         receipt, environment_raw = cold_emitted_context_forwarding(root, artifact, record, os.environ)
@@ -6202,8 +7574,11 @@ def main():
         raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
     if args.command == "record-no-index-build":
         receipt = no_index_build_receipt(root, artifact, record, os.environ)
-        with (artifact / NO_INDEX_RECEIPT).open("xb") as stream:
-            stream.write(canonical(receipt))
+        if phase1_event_is_v2(record.get("phase1Gate")):
+            _phase1_durable_emit(artifact / NO_INDEX_RECEIPT, canonical(receipt))
+        else:
+            with (artifact / NO_INDEX_RECEIPT).open("xb") as stream:
+                stream.write(canonical(receipt))
         return
     if args.command == "shared-seal":
         shared_seal(root, artifact, record, os.environ)
@@ -6212,15 +7587,18 @@ def main():
         shared_restore(root, artifact, record, os.environ)
         return
     if args.command == "shared-fingerprint":
-        require(args.phase is not None, "shared fingerprint phase")
+        require(args.phase in SHARED_FINGERPRINT_PHASES, "shared fingerprint phase")
         shared_fingerprint(root, artifact, record, os.environ, args.phase)
         return
     name = "native-admission.json"
     if args.command == "verify":
         record = verify_checkpoint(root, artifact, record, selection, os.environ)
         name = "native-checkpoint.json"
-    with (artifact / name).open("xb") as stream:
-        stream.write(canonical(record))
+    if phase1_event_is_v2(record.get("phase1Gate")):
+        _phase1_durable_emit(artifact / name, canonical(record))
+    else:
+        with (artifact / name).open("xb") as stream:
+            stream.write(canonical(record))
 
 
 if __name__ == "__main__":

@@ -1,3 +1,39 @@
+## C15 current obligations — 2026-10-05
+
+Current bounded tooling corrections are verified: Native394/DATA235/exactdispatcher32 all PASS, plus independently scoped unchanged predecessor reuse. Preserve every historical original/HOLD and Root invocation/assertion failure. Do not repeat these unchanged development suites merely for copy/bookkeeping.
+
+Immediate: publish the independently approved DEVELOPMENT checkpoint with explicit owned staging/linear publication, then a new published-head/tree/26-source cold plan, preregistration, original dispatch and sole collection. No C14 plan/consumed attempt reuse.
+
+Cold prerequisite and native/qualification evidence remain DUE. The tested dispatcher32 intentionally substitutes a pending archived-call boundary; it is not real DATA2-loader qualification. Two-macro local Products prove compilation only, not suitable Phase1 native launch/context or pinned acceptance.
+
+All same-head full unit/UI, independent frozen-phase review, genuine human owner screenshots/checklist, main fast-forward and pinned exact-main gates remain DUE (0/5). Mainb1d04ae unchanged; releaseReady=false. Full V23, physical protection, minimum runtime/device, privacy successor and Store owner release actions remain open.
+## Historical C15 obligations (superseded by v9) — 2026-10-05
+
+- Complete the bounded canonical-return and same-clock selector corrections with exact transitive pins and separately reviewed historical-generator/legacy-UI fixture corrections. Preserve every original failure/HOLD; no predicate or budget weakening.
+- Focused activation24 and malformed-selector2 verification are running; finish actual results. Required final current native-CI/selection and affected producer/Reader/dispatcher checks remain due. Selection45 predecessor passed but is not new-candidate execution.
+- Fresh local27 full-module compile passed at the exact two-macro tuple, without tests. Those Products admit no genuine local Phase1 UI route; appropriate hosted runtime coverage remains due. No fabricated gate context or unchanged rebuild.
+- Record final current bindings/verdict, publish one coherent DEVELOPMENT checkpoint with refreshed refs and a non-force push, and dispatch one new changed-head cold original with one collector.
+- Qualify cold payload/no-rebuild route, then all five frozen same-head coverage/UI/independent/genuine-owner/main-fast-forward+pinned-exact-main gates. Main b1d04ae5 unchanged; 0/5 gates; releaseReady=false; full app failures UNKNOWN.
+- Full V23, physical/minimum-runtime protection, privacy/C55/Store owner items and release decisions remain due. No signing/distribution. All source/drafts/evidence/archives stay preserved and organized in the existing area.
+
+Exact current source/results/review and retained failures are in CURRENT_INTEGRATION and ACTIVE_BRIEF.
+
+Earlier obligations retain their historical scope.
+
+## C14 published and exact hosted bootstrap blocker — 2026-10-05
+
+Root committed/published 880454a7747c96608cd1518196a5bd8ea46b178a/tree919e8f766f85fe880c5f2fb02c7ab42b50744e83, parentffce. Reviewed Source7 conserved; only faithful verdict records differ from reviewedtreeaf045. Command-scoped author metadata matches prior checkpoints; no account/config change. First missing-Git-author commit refusal is preserved. Actual commit14541/7e384f26 and non-force publication4717/6d545ae4 at verification/c14-genuine-final-verdict-bindings-and-commit-v2 and c14-reviewed-development-linear-publication-v1 verify exact origin/mainb1d04 unchanged. Primary drafts remain unstaged.
+
+Fresh published-head pending cold plan4645/0e2d99d9 covers3716/33; preparation43770/e8b7bc86, preregistration7358/d7ea800a and actual first dispatch7406/65de1a90 are retained. Pre-preparation V1 wrong partition-field failure is retained before plan/registration/dispatch effects. First changed-head cold DEVELOPMENT run37387803052 is terminal bootstrap FAILURE:1failed/30skipped/noappbuild/tests. Sole current collector returned1 and retained INCOMPLETE proof, full originals/logs/manifest; no current collection File Provider exception. There is no retry/cancel or app/full-coverage claim.
+
+Authentic diagnostic names missingKeys exactly s10_4_segment_source_run_ids, s10_4_shared_payload_run_id, v23_phase1_gate_plan, whose actual requested values were empty strings; no changed values or extra keys were reported. Received-event bytes were not retained, and provider cause remains unknown. Rootverified26 original manifest members; ZIP11976/635d7d23, fulljob19363/d7022190 and failingstep3722/f7212b6e match originals. Genuine C9 GPT-6.1 Sol/xhigh NONAUTHOR PASS_BOUNDED_ACTUAL_C14_FAILED_COLD_BOOTSTRAP_AND_INPUT_DIAGNOSTIC_RETENTION_DATA_ONLY binds result22387/568418cf at verification/c14-full-cold-bootstrap-diagnostic-retained-v1. Source/tool/current reads retain exact scope; no external writer-close or historical metadata interval is inferred. Cold request/received-event correction is separately authored on exact880 with real binder/attempt checks, preserving complete request bytes, original event hashes, unexpected/nonempty-field refusals and the diagnostic. OriginalC13/C14 failures/HOLDs remain unchanged.
+
+All three isolated future Source lanes now have genuine NONAUTHOR GPT-6.1 Sol/xhigh approvals: SourceLeaf PASS_SOURCE_ONLY_C14_PHASE1_EMITTED_PRODUCER_V2_CURRENT_ENDPOINT_ONLY; DATA2reviewer PASS_SOURCE_ONLY_C14_PHASE1_RETAINED_READER_V2_COMPLETE_INTERVAL_SUCCESSOR_CURRENT_ENDPOINT_ONLY; ordinary PASS_SOURCE_ONLY_C14_PHASE1_ACTIVATION_V2_CURRENT_ENDPOINT_ONLY. Preserved producer-event V1, Readerinterval V1 and lifecycle-settlement V1 HOLDs are closed only for their named successor Source endpoints. Producer21/Reader27/activation21 remain UNRUN. Root exact880 Dropbox composition worktree creation5842/853f3a5b and isolated approved producer7 import45252/c7dc49e5 are retained. Single-branch origin/main-name setup refusal is preserved before worktree birth; explicit materialized refspec successor created no old Source mutation. Fresh local27 two-macro full-module compile started23:25:16UTC/PID36000 with freshDD; no terminal result yet. Pre-native regex preflight failure is preserved separately; no native original was started by that failed wrapper.
+
+C14 tooling0 known unresolved errors; one confirmed current hosted bootstrap-input family remains; fullappfailurecountUNKNOWN. AllfivePhase1gatesOPEN(0/5), mainacceptedS10b1d04 unchanged, releaseReadyfalse. Future Source composition/pins/required currentCI+selection/affected tests/changedSwift/real cold qualification and all frozen-head coverage/UI/independentcandidate/genuineowner/mainFF+exactmain gates remain due. FullV23, physicalprotection/privacy/Storeowner obligations remain; no signing/distribution. Existing efficiency authority suffices; no gate/policy waiver or broad archive hydration.
+
+Earlier entries retain their exact historical observation scope.
+
 ## C14 current obligations — 2026-10-05
 
 - Commit/publish exact12path DEVELOPMENT checkpoint after faithful final verdict records; genuine C9 actual42/candidate review PASS. Current nativeCI394/Reader41/affecteddispatcher32/DATA235/selection42 PASS0fail/error/skip; focused7+7 and authentic rawGET retain exact unchanged Source scope. Genuine C9 actual4/import reviews PASS;54current/107historical selection inputs conserved.

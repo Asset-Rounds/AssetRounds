@@ -2,31 +2,32 @@
 
 ## Current state
 
-- Goal: verified V23 baseline incorporating accepted S10, then main. Full V23 remains required for release.
-- Published integration HEAD/origin: ffce2a27a12f6543099e16ae1669607ef39ef552, tree590cd046429bd0df395eb61aa76c325714e465b5; branch codex/v23-s10-integration-20260910.
-- Main/origin remains accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6. All five Phase1 gates OPEN(0/5); releaseReady=false; no signing/distribution.
-- Full cold DEVELOPMENT original37379483873 FAILED in bootstrap closed input equality:1 failed job/30 skipped, no app build/tests.3716 methods/33 partitions were planned only. Actual differing field remains UNKNOWN.
-- Sole collector failed INCOMPLETE; same-claim resume failed File Provider metadata drift. Both original failures/partials/HOLDs retained. Authentic failing-step/full-job logs retained; wholejob18888/8e0258c1 exactly matches original ZIP.
-- C14 seven reviewed Source paths imported once after isolated and Primary gitapply--check0/apply0 at exactffce. Protected drafts unchanged; Source remains Dropbox. No commit/push yet.
-- Current corrected W2 DEVELOPMENT: nativeCI394PASS653.524s, Reader41PASS489.613s, affected dispatcher32PASS610.077s, DATA235PASS30.404s, selection42PASS709.537s; all0fail/error/skip. Genuine C9 Sol6.1/xhigh DATA/import/209scoped-reuse/current42/12path checkpoint reviews PASS; explicit commit/non-force publication due.
-- Focused input-diagnostic7 and raw-transport7 PASS; authenticated reviewed raw GET retains exact18888/8e0258c1 original bytes. These unchanged bodies retain their exact predecessor Source scope.
-- First dispatcher244 original FAILED41error outcomes/18methods/3historicalskips. Two proven tooling families corrected: Reader Gates pin and lifecycle borrowed helpers. Failed original remains failed; no full current244 claim.
-- Current selection42PASS with54 current Source/107 historical-blob before/after equality. W1 selection42PASS790.305s is retained separately; its incomplete Source closure was not substituted.
-- Current tooling0 known unresolved failures; app failure count UNKNOWN. Tooling checks are not app passes or gate evidence. Unchanged Swift/project inputs retain313.323s local27 macro app compile scope only.
+- Goal: verified V23 base incorporating accepted S10, then main. Full V23 remains required for release.
+- Previous published integration checkpoint: 880454a7747c96608cd1518196a5bd8ea46b178a. C15 successor has17 reviewed Source paths plus four Root records; independent current checkpoint review PASS; publication due.
+- Branch: codex/v23-s10-integration-20260910. Main stays b1d04ae5e684aa9c6807af655089efa1df8a7ed6; all five Phase1 gates OPEN (0/5), releaseReady=false.
+- C14 cold DEVELOPMENT37387803052 failed bootstrap before app build/tests; received request omitted exactly three empty optional inputs. Originals, INCOMPLETE collection and HOLDs remain preserved.
+- C15 accepts only that closed received shape, adds versioned Phase1 emitted context/reader/activation support, preserves genuine Source/data/coverage predicates, and fixes compact durable JSON plus guarded malformed selectors.
+- Exact final v9 Source is in Primary Dropbox and isolated W18. Root gitapply--check/apply0; protected owner files/Root records and exact owned delta verified. No broad staging or main change.
+- Actual current v9 DEVELOPMENT: NativeCI394 PASS, DATA235 PASS, exact dispatcher32 PASS, zero failures/errors/skips in each; all1962 raw/FULL10 before/after bindings conserved.
+- Independent Source/coupling review permits unchanged predecessor DEVELOPMENT scope: selection45, fast84, Reader41, Phase1Reader30, activation24. Authentic v5 results and current1960-of1962 raw equality remain separate from current execution.
+- Selection reuse proof joins54 current dependencies and107 historical objects; genuine Sol6.1/xhigh PASS. It binds the recorded explicit runner/environment profile, not unobserved equality of every inherited variable.
+- Fresh local27 two-macro full-module compile PASS, zero Swift errors, no tests executed. Exact compiled Swift leaves remain unchanged; Products are not native/Phase1 qualification.
+- Previous C15 failures, two ctime-only Source HOLDs, Root wrong-path/broad-selection attempts and post-apply permission assertion are preserved; fresh endpoints never extend historical lifetime.
+- Known bounded tooling defects remaining:0. Full current app failure count UNKNOWN; actual cold qualification/runtime and all five gates remain due.
 
-## Next executable steps
+## Next steps
 
-1. Commit exact reviewed12paths with faithful final verdict records, refresh refs and publish non-force; preserve all first failures.
-2. Publish bounded C14 checkpoint by linear non-force push, then one first changed-head cold DEVELOPMENT diagnostic original using fresh exact plan/admission and sole collector. No cold retry/cancel or assumed input normalization.
-3. Three isolated future lanes implement real gate lifecycle/Native emitted transport/retained ReaderV2. Producer first Source review HOLD on raw GitHub-event canonicalization is with same author; this work is excluded from C14.
-4. Freeze one merge candidate; same-head qualified full coverage/UI, independent review and genuine owner screenshots/checklist, then main fast-forward and pinned exact-main verification.
-5. Full V23, physical protection, V23 privacy owner sign-off and Store/release owner obligations remain due.
+1. Publish the independently reviewed C15 checkpoint linearly after fresh refs; leave main at accepted S10 until all gates pass.
+2. Generate a fresh26-source cold plan from the new published head/tree; preregister, dispatch one changed-head DEVELOPMENT original and use the sole collector.
+3. Triaging that actual hosted result establishes the next app blocker; do not retry a failing original unchanged or promote development evidence.
+4. Freeze the Phase1 merge candidate: cold route qualification, same-head full unit/UI, independent candidate and genuine owner screenshots/checklist, main fast-forward and pinned exact-main.
+5. Full V23, physical protection, privacy and Store owner release obligations remain due.
 
 ## Execution and evidence
 
-- Local DEVELOPMENT:Xcode27.0/27A266a,Swift6.4/language5,SDK27.0/24A430,iOS26.2/23C54. Official gates/exact-main remain GitHubXcode26.6/17F113,SDK26.5/23F81a,iOS26.2/23C54.
-- New Source/retained receipts stay in Dropbox .codex-temp/resume-20261002. Mutable originals/DD/TMP stay together in ~/Library/Caches/AssetRounds-resume-20261002. Historical archives stay online-only.
-- Cold lifecycle uses physical Dropbox evidence root, preserving owner aliases/ledger. Required catalogue originalhash verified; changed File Provider identity is recorded.
-- Latest21GiB internal free/16GiB RAM/10CPU; external233GiB available. No local app build/tests active. Recheck capacity before large extraction/native; serial held-ancestor suites stay jobs1.
-- Root alone Git/native/admission/evidence/dispatch/collection. Helpers GPT-6.1 Sol/xhigh, disjoint ownership; useful future lanes overlap current verification.
-- Efficiency audit found no needed gate/policy relaxation. Complete prospective input bindings, one combined review handoff and prepared next-hosted intake use existing authority. Stale PERFORMANCE syntax sentence corrected to its existing October5 permission.
+- Local DEVELOPMENT: Xcode27.0/27A266a, Swift6.4/language5, SDK27.0/24A430, iOS26.2/23C54. Official gates/exact-main: GitHub26.6/17F113, SDK26.5/23F81a, iOS26.2/23C54.
+- Compiled two-macro Products are compile-only: Phase1 native context refuses the Cold define, and UI needs genuine original-bound Phase1 context; actual Phase1 native verification remains due.
+- Source/receipts stay under Dropbox .codex-temp/resume-20261002; DD/TMP/originals share ~/Library/Caches/AssetRounds-resume-20261002. Historical archives stay online-only.
+- Latest capacity21GiB internal/233GiB external;16GiB RAM/10CPU,62% system memory free. Current NativeCI6+dispatcher1 finished; no heldProducts rebuild.
+- Root alone operates Git/native/admission/evidence/dispatch/collection. Useful helpers use GPT-6.1 Sol/xhigh with private ownership or read-only scope; reuse existing contexts.
+- Existing proportionate verification and narrow selection reuse remove duplicate development work. Main gates, full scope, data safety and owner decisions remain binding.

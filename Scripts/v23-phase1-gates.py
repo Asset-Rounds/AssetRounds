@@ -121,6 +121,8 @@ def exact(value, expected, message):
 
 
 def validate_plan(value):
+    if type(value) is dict and value.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return validate_plan_v2(value)
     require(type(value) is dict and set(value) == PLAN_KEYS, "closed plan keys")
     require(value["schema"] == SCHEMA, "plan schema")
     require(type(value["purpose"]) is str and value["purpose"] in PURPOSE_REFS, "closed purpose")
@@ -273,6 +275,8 @@ def make_plan(*, purpose, head, tree, selection, resolved_bytes, sources, reques
 
 
 def bind_facts(plan, *, head, tree, integration_head, main_head, resolved_bytes, sources):
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return bind_facts_v2(plan, head=head, tree=tree, integration_head=integration_head, main_head=main_head, resolved_bytes=resolved_bytes, sources=sources)
     validate_plan(plan)
     require(head == plan["head"] == integration_head and tree == plan["tree"], "frozen checkout/ref/tree")
     require(main_head == (BASE_MAIN if plan["purpose"] == CANDIDATE else head), "main moved or wrong phase")
@@ -291,6 +295,8 @@ def original_stem(plan):
 
 
 def conflicting_originals(plan, records, attempt_names):
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return conflicting_originals_v2(plan, records, attempt_names)
     """Conservative legacy collisions; a closed name alone never authorizes reuse.
 
     Cross-purpose separation is only a mathematical key here. Verifying the prior
@@ -343,6 +349,8 @@ ACTIVE_RUN_STATUSES = ("queued", "in_progress", "waiting", "pending", "requested
 
 
 def dispatch_inputs(plan):
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return dispatch_inputs_v2(plan)
     validate_plan(plan)
     require(plan["purpose"] == CANDIDATE, "candidate-only attempt lifecycle")
     return {"execution_lane": ROUTE["executionLane"], "native_selection_id": plan["selection"],
@@ -354,6 +362,14 @@ def dispatch_inputs(plan):
 
 
 def verify_attempt_inputs(attempt, original_event_raw):
+    if type(attempt) is dict and attempt.get("schema") == ATTEMPT_SCHEMA_V3:
+        plan, event = plan_from_event_v2(original_event_raw)
+        require(plan is not None and canonical(plan).decode("utf-8") == attempt["planBytes"], "V3 original event attempt plan")
+        requested_bytes = canonical(dispatch_inputs_v2(plan)).decode("utf-8")
+        require(type(attempt["inputBytes"]) is str and attempt["inputBytes"] == requested_bytes,
+                "V3 actual complete requested13 bytes preserved")
+        validate_received_inputs_v2(event["inputs"], plan)
+        return {"originalEventSHA256": sha(original_event_raw), "inputSHA256": sha(attempt["inputBytes"].encode("utf-8"))}
     plan, event = plan_from_event(original_event_raw)
     require(plan is not None and canonical(plan).decode("utf-8") == attempt["planBytes"], "original event attempt plan")
     require(canonical(event["inputs"]).decode("utf-8") == attempt["inputBytes"], "original event exact requested inputs")
@@ -382,6 +398,8 @@ def validate_run_census(value, *, head=None):
 
 
 def validate_ref_observations(value, plan):
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return validate_ref_observations_v2(value, plan)
     require(type(value) is dict and set(value) == {"integration", "main"}, "closed ref observations")
     for key, ref, head in (("integration", INTEGRATION_REF, plan["head"]),
                            ("main", "refs/heads/main", BASE_MAIN)):
@@ -397,6 +415,8 @@ def validate_attempt(value, plan, registration_raw):
     Actual fixed-endpoint capture belongs to the dormant dispatcher. Collection
     rechecks these bytes, the live original and exact worker inputs separately.
     """
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return validate_attempt_v2(value, plan, registration_raw)
     validate_plan(plan)
     require(plan["purpose"] == CANDIDATE, "candidate-only attempt lifecycle")
     keys = {"schema", "planBytes", "planSHA256", "registrationSHA256", "collectorSHA256", "collectorID",
@@ -462,6 +482,8 @@ def validate_attempt(value, plan, registration_raw):
 
 
 def make_attempt(plan, registration_raw, *, collector_id, requested_at, observations, ledger_bytes, attempt_names):
+    if type(plan) is dict and plan.get('schema') == ACTIVATION_PLAN_SCHEMA:
+        return make_attempt_v2(plan, registration_raw, collector_id=collector_id, requested_at=requested_at, observations=observations, ledger_bytes=ledger_bytes, attempt_names=attempt_names)
     value = {"schema": ATTEMPT_SCHEMA, "planBytes": canonical(plan).decode("utf-8"),
              "planSHA256": sha(canonical(plan)), "registrationSHA256": sha(registration_raw),
              "collectorSHA256": plan["sources"][COLLECTOR], "collectorID": collector_id,
@@ -666,6 +688,500 @@ def review_pending_assessment(head, records):
             "providerQualification": False, "releaseReady": False, "trustBoundary": REVIEW_TRUST}
 
 
+# Additive Phase1 V2 bindings. V1 plans, raw proofs and provenance remain pending.
+ACTIVATION_PLAN_SCHEMA = "v23-phase1-functional-gate-plan.v2"
+EVENT_SCHEMA_V2 = "v23-phase1-original-event-binding.v2"
+REGISTRATION_SCHEMA_V2 = "v23-phase1-functional-gate-registration.v2"
+ATTEMPT_SCHEMA_V3 = "v23-phase1-original-attempt.v3"
+CHAIN_SCHEMA_V2 = "v23-phase1-retained-worker-chain.v2"
+FUNCTIONAL_SCHEMA_V2 = "v23-phase1-functional-qualification.v2"
+COLD_PREREQUISITE_KEYS_V2 = {"runID", "assessmentSHA256", "manifestSHA256", "reviewSHA256"}
+STRONGER_CLAIMS_V2 = {"totalPolicyCallCountProven": False,
+    "exhaustiveKernelProcessCohortProven": False,
+    "perPIDDescriptorRetirementProven": False, "exactCheckpointRepeatProven": False}
+COLD_STRONGER_CLAIMS_V2 = {"totalPolicyCallCounts": "UNPROVEN",
+    "exhaustiveAppKernelLifetimeCohorts": "UNPROVEN", "perPIDDescriptorRetirement": "UNPROVEN",
+    "exactRepeatCounts": "UNPROVEN"}
+FUNCTIONAL_SCOPE_V2 = "QUALIFIED_PHASE1_SIMULATOR_FUNCTIONAL_V2"
+
+
+def reference_v2(value, *, raw_stream=False):
+    """A typed byte reference is binding DATA, never speaker or gate authority."""
+    hash_key = "sha256" if raw_stream else "SHA256"
+    require(type(value) is dict and set(value) == {"path", "bytes", hash_key}, "V2 closed reference")
+    name = value["path"]
+    require(type(name) is str and name and "\x00" not in name and "\\" not in name
+            and Path(name).is_absolute() and str(Path(name)) == name
+            and all(part not in ("", ".", "..") for part in name.split("/")[1:]), "V2 canonical reference path")
+    require(type(value["bytes"]) is int and (value["bytes"] >= 0 if raw_stream else value["bytes"] > 0)
+            and (raw_stream or value["bytes"] <= 32 * 1024 * 1024)
+            and digest(value[hash_key]), "V2 actual reference bytes/hash")
+    return value
+
+
+def validate_plan_v2(value):
+    require(type(value) is dict and set(value) == PLAN_KEYS | {"coldPrerequisite"}
+            and value["schema"] == ACTIVATION_PLAN_SCHEMA, "closed activation V2 plan")
+    # An explicit, nonmutating projection reuses the complete V1 policy/route checks.
+    base = {key: value[key] for key in PLAN_KEYS}
+    base["schema"] = SCHEMA
+    validate_plan(base)
+    prerequisite = value["coldPrerequisite"]
+    require(type(prerequisite) is dict and set(prerequisite) == COLD_PREREQUISITE_KEYS_V2
+            and type(prerequisite["runID"]) is int and prerequisite["runID"] > 0
+            and all(digest(prerequisite[key]) for key in COLD_PREREQUISITE_KEYS_V2 - {"runID"}),
+            "closed cold prerequisite descriptor; digest declarations are not review authority")
+    return value
+
+
+def make_plan_v2(*, purpose, head, tree, selection, resolved_bytes, sources, requested_at, cold_prerequisite):
+    base = make_plan(purpose=purpose, head=head, tree=tree, selection=selection,
+        resolved_bytes=resolved_bytes, sources=sources, requested_at=requested_at)
+    return validate_plan_v2({**base, "schema": ACTIVATION_PLAN_SCHEMA,
+                             "coldPrerequisite": dict(cold_prerequisite)})
+
+
+def plan_from_event_v2(raw):
+    require(type(raw) is bytes and 0 < len(raw) <= MAX_EVENT_BYTES, "V2 finite original event bytes")
+    try:
+        event = json.loads(raw.decode("utf-8"), object_pairs_hook=object_pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(Refused("nonfinite original event")))
+    except (ValueError, UnicodeError) as error:
+        raise Refused("Phase1 gate: invalid original event") from error
+    require(type(event) is dict, "V2 original event object")
+    inputs = event.get("inputs")
+    require(inputs is None or type(inputs) is dict, "V2 original event inputs")
+    supplied = inputs.get(PLAN_INPUT) if inputs is not None else None
+    cold_supplied = inputs.get("v23_cold_original_plan", "") if inputs is not None else ""
+    require(type(cold_supplied) is str and not (supplied and cold_supplied), "V2 simultaneous cold and gate plans")
+    if supplied in (None, ""):
+        return None, event
+    require(type(supplied) is str and len(supplied.encode("utf-8")) <= MAX_PLAN_BYTES,
+            "V2 finite original plan input")
+    plan = validate_plan_v2(decode(supplied.encode("utf-8")))
+    require(canonical(plan).decode("utf-8") == supplied, "V2 canonical original plan bytes")
+    return plan, event
+
+
+def bind_original_event_v2(raw, environment, *, head, tree, resolved_bytes, sources):
+    plan, event = plan_from_event_v2(raw)
+    if plan is None:
+        return None
+    e, inputs = environment, event["inputs"]
+    validate_received_inputs_v2(inputs, plan)
+    require(e.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and e.get("GITHUB_REPOSITORY") == REPOSITORY
+            and type(event.get("repository")) is dict and event["repository"].get("full_name") == REPOSITORY,
+            "V2 original dispatch repository")
+    require(e.get("GITHUB_REF") == plan["ref"]
+            and event.get("ref") in (plan["ref"], plan["ref"].removeprefix("refs/heads/")), "V2 original ref")
+    require(e.get("GITHUB_SHA") == head == plan["head"] and tree == plan["tree"], "V2 original head/tree")
+    require(e.get("GITHUB_RUN_ATTEMPT") == "1" and type(e.get("GITHUB_RUN_ID")) is str
+            and re.fullmatch(r"[1-9][0-9]*", e["GITHUB_RUN_ID"]), "V2 original run/attempt")
+    workflow_ref = REPOSITORY + "/" + ROUTE["workflow"] + "@" + plan["ref"]
+    require(e.get("GITHUB_WORKFLOW_REF") == workflow_ref and e.get("GITHUB_WORKFLOW_SHA") == head,
+            "V2 original workflow Source")
+    require(inputs.get("v23_run_kind") == "gate" and inputs.get("native_selection_id") == plan["selection"]
+            and inputs.get("execution_lane") == ROUTE["executionLane"]
+            and inputs.get("run_ui_smoke") == ("true" if plan["selection"] == RUI1 else "false"),
+            "V2 original kind/selection/lane/UI")
+    rebuilt = make_plan_v2(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"],
+        cold_prerequisite=plan["coldPrerequisite"])
+    exact(plan, rebuilt, "V2 original committed Source/selection")
+    return {"schema": EVENT_SCHEMA_V2, "plan": plan, "planSHA256": sha(canonical(plan)),
+        "originalEventSHA256": sha(raw), "repository": REPOSITORY, "ref": plan["ref"],
+        "head": head, "tree": tree, "workflowRef": workflow_ref, "workflowSHA": head,
+        "runID": e["GITHUB_RUN_ID"], "runAttempt": "1", "kind": "gate", "selection": plan["selection"],
+        "functionalQualification": PENDING}
+
+
+def verify_collected_event_v2(binding, *, registered_plan_bytes, original_event_bytes, api_run,
+                              tree, resolved_bytes, sources):
+    require(type(binding) is dict and binding.get("schema") == EVENT_SCHEMA_V2, "V2 retained event schema")
+    plan = validate_plan_v2(decode(registered_plan_bytes))
+    exact(binding.get("plan"), plan, "V2 retained registered plan")
+    require(binding.get("planSHA256") == sha(registered_plan_bytes)
+            and binding.get("originalEventSHA256") == sha(original_event_bytes), "V2 retained event raw bytes")
+    require(type(api_run) is dict and type(api_run.get("id")) is int and api_run["id"] > 0
+            and type(api_run.get("run_attempt")) is int and api_run["run_attempt"] == 1,
+            "V2 authenticated API original")
+    require((api_run.get("head_sha"), api_run.get("head_branch"), api_run.get("event"), api_run.get("path"))
+            == (plan["head"], plan["ref"].removeprefix("refs/heads/"), "workflow_dispatch", ROUTE["workflow"]),
+            "V2 authenticated API identity")
+    expected = bind_original_event_v2(original_event_bytes, {
+        "GITHUB_EVENT_NAME": api_run["event"], "GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REF": plan["ref"],
+        "GITHUB_SHA": api_run["head_sha"], "GITHUB_RUN_ID": str(api_run["id"]),
+        "GITHUB_RUN_ATTEMPT": str(api_run["run_attempt"]),
+        "GITHUB_WORKFLOW_REF": REPOSITORY + "/" + ROUTE["workflow"] + "@" + plan["ref"],
+        "GITHUB_WORKFLOW_SHA": api_run["head_sha"]}, head=api_run["head_sha"], tree=tree,
+        resolved_bytes=resolved_bytes, sources=sources)
+    exact(binding, expected, "V2 complete retained event binding")
+    return {"planSHA256": sha(registered_plan_bytes), "originalEventSHA256": sha(original_event_bytes),
+            "runID": str(api_run["id"]), "runAttempt": "1", "functionalQualification": PENDING}
+
+
+def bind_facts_v2(plan, *, head, tree, integration_head, main_head, resolved_bytes, sources):
+    validate_plan_v2(plan)
+    require(head == plan["head"] == integration_head and tree == plan["tree"], "V2 frozen checkout/ref/tree")
+    require(main_head == (BASE_MAIN if plan["purpose"] == CANDIDATE else head), "V2 main moved/wrong purpose")
+    exact(plan, make_plan_v2(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"],
+        cold_prerequisite=plan["coldPrerequisite"]), "V2 committed Source/selection binding")
+
+
+def validate_ref_observations_v2(value, plan):
+    validate_plan_v2(plan)
+    require(type(value) is dict and set(value) == {"integration", "main"}, "V2 closed ref observations")
+    for key, ref, head in (("integration", INTEGRATION_REF, plan["head"]),
+                          ("main", "refs/heads/main", BASE_MAIN if plan["purpose"] == CANDIDATE else plan["head"])):
+        row = value[key]
+        require(type(row) is dict and row.get("ref") == ref and type(row.get("object")) is dict
+                and row["object"].get("type") == "commit" and row["object"].get("sha") == head,
+                "V2 authenticated ref moved: " + key)
+
+
+def dispatch_inputs_v2(plan):
+    validate_plan_v2(plan)
+    return {"execution_lane": ROUTE["executionLane"], "native_selection_id": plan["selection"],
+        "run_ui_smoke": "true" if plan["selection"] == RUI1 else "false", "s10_4_shard_id": "none",
+        "s10_4_minimum_core_smoke_id": "none", "s10_4_shared_segment_id": "none",
+        "s10_4_shared_payload_run_id": "", "s10_4_segment_source_run_ids": "", "v23_run_kind": "gate",
+        "v23_d50_compiler_observation": "false", "v23_d50_swift_driver_jobs_two": "false",
+        "v23_cold_original_plan": "",
+        PLAN_INPUT: canonical(plan).decode("utf-8")}
+
+
+def validate_received_inputs_v2(received, plan):
+    """Compare the two exact received shapes without rewriting either input.
+
+    GitHub may omit precisely the three requested empty string defaults. Every
+    nonempty/false/none-profile value remains an actual closed string equality.
+    The complete requested bytes and original received event bytes stay separate.
+    This shape comparison is DATA, never an original or qualification grant.
+    """
+    requested = dispatch_inputs_v2(plan)
+    omitted = {"s10_4_shared_payload_run_id", "s10_4_segment_source_run_ids", "v23_cold_original_plan"}
+    require(type(received) is dict and all(type(key) is str for key in received)
+            and all(type(value) is str for value in received.values()),
+            "V2 closed received input string types")
+    keys = set(received)
+    require(len(requested) == 13 and all(type(value) is str for value in requested.values())
+            and omitted <= set(requested) and all(requested[key] == "" for key in omitted),
+            "V2 actual complete requested13 and exact empty default profile")
+    if keys == set(requested):
+        exact(received, requested, "V2 complete received inputs equal requested13")
+        return "COMPLETE_13"
+    require(keys == set(requested) - omitted, "V2 only simultaneous omission of exactly three empty defaults")
+    exact(received, {key: value for key, value in requested.items() if key not in omitted},
+          "V2 received10 preserves every complete requested nonempty value")
+    return "OMITTED_EMPTY_DEFAULTS_10"
+
+
+def conflicting_originals_v2(plan, records, attempt_names):
+    validate_plan_v2(plan)
+    head, purpose, selection = original_key(plan)
+    conflicts, candidates = [], 0
+    for row in records:
+        require(type(row) is dict, "V2 historical ledger row")
+        if "event" in row or (row.get("head"), row.get("selection")) != (head, selection):
+            continue
+        if purpose == EXACT_MAIN and row.get("kind") == "gate" and row.get("phase1Purpose") == CANDIDATE:
+            try:
+                previous = validate_plan_v2(decode(row.get("phase1PlanBytes", "").encode("utf-8")))
+                require(original_key(previous) == (head, CANDIDATE, selection)
+                        and row.get("phase1PlanSHA256") == sha(canonical(previous))
+                        and row.get("phase1RegistrationSchema") == REGISTRATION_SCHEMA_V2,
+                        "V2 prior candidate declaration")
+                candidates += 1
+            except (Refused, AttributeError):
+                conflicts.append("unbound-candidate:" + str(row.get("runID", "unknown")))
+        else:
+            conflicts.append("ledger:" + str(row.get("runID", "unknown")))
+    own = original_stem(plan)
+    candidate = head + "-" + CANDIDATE + "-" + selection
+    for name in attempt_names:
+        require(type(name) is str and Path(name).name == name, "V2 attempt basename")
+        if name.startswith(head + "-" + selection) or name.startswith(own):
+            conflicts.append("attempt:" + name)
+        elif name.startswith(head + "-") and selection in name:
+            if not (purpose == EXACT_MAIN and candidates == 1 and name in (candidate + ".json", candidate + ".discovery")):
+                conflicts.append("ambiguous-attempt:" + name)
+    if candidates > 1:
+        conflicts.append("multiple candidate originals")
+    return conflicts
+
+
+def registration_record_v2(plan, cold_binding):
+    validate_plan_v2(plan)
+    require(type(cold_binding) is dict and set(cold_binding) == {"assessment", "manifest", "review"},
+            "V2 exact actual cold control references")
+    for reference in cold_binding.values():
+        reference_v2(reference)
+    exact({"assessmentSHA256": cold_binding["assessment"]["SHA256"],
+           "manifestSHA256": cold_binding["manifest"]["SHA256"],
+           "reviewSHA256": cold_binding["review"]["SHA256"]},
+          {key: plan["coldPrerequisite"][key] for key in COLD_PREREQUISITE_KEYS_V2 - {"runID"}},
+          "V2 cold descriptor/control byte association")
+    return {"schema": REGISTRATION_SCHEMA_V2, "plan": plan, "planSHA256": sha(canonical(plan)),
+        "coldBinding": cold_binding, "dispatchEnabled": False, "functionalQualification": PENDING}
+
+
+def validate_attempt_v2(value, plan, registration_raw):
+    validate_plan_v2(plan)
+    keys = {"schema", "planBytes", "planSHA256", "registrationSHA256", "collectorSHA256", "collectorID",
+        "workflowID", "repositoryID", "knownRunIDs", "requestedAtUTC", "integrationHead", "mainHead",
+        "inputBytes", "argv", "observations", "ledgerBytes", "attemptNames"}
+    require(type(value) is dict and set(value) == keys and value["schema"] == ATTEMPT_SCHEMA_V3,
+            "closed V2 consumed attempt")
+    registration = decode(registration_raw)
+    exact(registration, registration_record_v2(plan, registration.get("coldBinding")), "V2 pending registration")
+    require(value["planBytes"] == canonical(plan).decode("utf-8") and value["planSHA256"] == sha(canonical(plan))
+            and value["registrationSHA256"] == sha(registration_raw)
+            and value["collectorSHA256"] == plan["sources"][COLLECTOR]
+            and value["integrationHead"] == plan["head"]
+            and value["mainHead"] == (BASE_MAIN if plan["purpose"] == CANDIDATE else plan["head"]),
+            "V2 consumed Source/head/registration")
+    require(type(value["collectorID"]) is str and re.fullmatch(r"[0-9a-f]{32}", value["collectorID"]), "V2 collector identity")
+    validate_plan_v2(dict(plan, requestedAtUTC=value["requestedAtUTC"]))
+    require(value["requestedAtUTC"] >= plan["requestedAtUTC"], "V2 attempt predates reservation")
+    require(type(value["workflowID"]) is int and value["workflowID"] > 0, "V2 workflow ID")
+    exact(value["argv"], ["gh", "workflow", "run", str(value["workflowID"]), "--repo", REPOSITORY,
+          "--ref", plan["ref"].removeprefix("refs/heads/"), "--json"], "V2 original argv")
+    require(value["inputBytes"] == canonical(dispatch_inputs_v2(plan)).decode("utf-8"), "V2 exact dispatch inputs")
+    observations = value["observations"]
+    require(type(observations) is dict and set(observations) == {"repository", "workflow", "refs", "headRuns", "activeRuns"},
+            "V2 complete current observations")
+    repository, workflow = observations["repository"], observations["workflow"]
+    require(type(repository) is dict and repository.get("full_name") == REPOSITORY
+            and type(repository.get("id")) is int and repository["id"] > 0
+            and type(value["repositoryID"]) is int and value["repositoryID"] == repository["id"], "V2 current repository")
+    require(type(workflow) is dict and type(workflow.get("id")) is int and workflow["id"] == value["workflowID"]
+            and workflow.get("path") == ROUTE["workflow"] and workflow.get("state") == "active", "V2 active workflow")
+    validate_ref_observations_v2(observations["refs"], plan)
+    identifiers = validate_run_census(observations["headRuns"], head=plan["head"])
+    exact(value["knownRunIDs"], identifiers, "V2 original known-run census")
+    active = observations["activeRuns"]
+    require(type(active) is dict and set(active) == set(ACTIVE_RUN_STATUSES), "V2 active census")
+    for status in ACTIVE_RUN_STATUSES:
+        require(not validate_run_census(active[status]), "V2 gate requires no active original")
+    require(type(value["ledgerBytes"]) is str, "V2 actual ledger bytes")
+    try:
+        rows = [json.loads(line, object_pairs_hook=object_pairs,
+            parse_constant=lambda _: (_ for _ in ()).throw(Refused("V2 nonfinite ledger")))
+            for line in value["ledgerBytes"].splitlines() if line.strip()]
+    except (ValueError, UnicodeError) as error:
+        raise Refused("Phase1 gate: V2 invalid retained ledger") from error
+    require(all(type(row) is dict for row in rows), "V2 ledger objects")
+    originals = [row for row in rows if "event" not in row]
+    require(all(type(row.get("runID")) is int and row["runID"] > 0 for row in originals), "V2 ledger IDs")
+    known = [row["runID"] for row in originals]
+    require(len(known) == len(set(known)) and set(identifiers) <= set(known), "V2 unknown/duplicate original")
+    by_id = {row["runID"]: row for row in originals}
+    require(all(by_id[identifier].get("head") == plan["head"] for identifier in identifiers), "V2 ledger head")
+    names = value["attemptNames"]
+    require(type(names) is list and all(type(name) is str for name in names) and names == sorted(set(names)),
+            "V2 complete attempt census")
+    require(not conflicting_originals_v2(plan, rows, names), "V2 consumed/historical question collision")
+    require(len(canonical(value)) <= MAX_ATTEMPT_BYTES, "V2 finite consumed attempt")
+    return value
+
+
+def make_attempt_v2(plan, registration_raw, *, collector_id, requested_at, observations, ledger_bytes, attempt_names):
+    value = {"schema": ATTEMPT_SCHEMA_V3, "planBytes": canonical(plan).decode("utf-8"),
+        "planSHA256": sha(canonical(plan)), "registrationSHA256": sha(registration_raw),
+        "collectorSHA256": plan["sources"][COLLECTOR], "collectorID": collector_id,
+        "workflowID": observations["workflow"]["id"], "repositoryID": observations["repository"]["id"],
+        "knownRunIDs": validate_run_census(observations["headRuns"], head=plan["head"]),
+        "requestedAtUTC": requested_at, "integrationHead": plan["head"],
+        "mainHead": BASE_MAIN if plan["purpose"] == CANDIDATE else plan["head"],
+        "inputBytes": canonical(dispatch_inputs_v2(plan)).decode("utf-8"),
+        "argv": ["gh", "workflow", "run", str(observations["workflow"]["id"]), "--repo", REPOSITORY,
+                 "--ref", plan["ref"].removeprefix("refs/heads/"), "--json"],
+        "observations": observations, "ledgerBytes": ledger_bytes, "attemptNames": attempt_names}
+    return validate_attempt_v2(value, plan, registration_raw)
+
+
+def validate_chain_v2(value, plan, resolved):
+    """Check recomputed fact bindings, never authenticate an offline supplied proof."""
+    validate_plan_v2(plan)
+    keys = {"schema", "status", "runID", "planSHA256", "workers", "executionProof", "emittedTransportV2",
+            "strongerClaims", "functionalQualification", "acceptance", "providerQualification", "releaseReady", "executionAuthority"}
+    require(type(value) is dict and set(value) == keys and value["schema"] == CHAIN_SCHEMA_V2
+            and value["status"] == "RECOMPUTED_PHASE1_FUNCTIONAL_FACTS_DATA_ONLY"
+            and type(value["runID"]) is int and value["runID"] > 0
+            and value["planSHA256"] == sha(canonical(plan)) and value["functionalQualification"] == PENDING
+            and all(value[key] is False for key in ("acceptance", "providerQualification", "releaseReady", "executionAuthority")),
+            "V2 actual chain DATA scope")
+    exact(value["strongerClaims"], STRONGER_CLAIMS_V2, "V2 separately unproven stronger claims")
+    require(type(resolved) is dict and type(resolved.get("unitTestSelectors")) is list
+            and type(resolved.get("uiTestSelectors")) is list
+            and sha(canonical(resolved)) == plan["selectionSHA256"], "V2 exact canonical resolved selection")
+    labels = ["producer"] + resolved["sharedCoverage"]["partitionIDs"] if plan["selection"] == SHARED else ["rui1"]
+    require(len(labels) == len(set(labels)) and type(value["workers"]) is dict
+            and set(value["workers"]) == set(labels) and type(value["emittedTransportV2"]) is dict
+            and set(value["emittedTransportV2"]) == set(labels), "V2 complete worker/transport census")
+    execution = value["executionProof"]
+    require(type(execution) is dict and execution.get("status") == "RETAINED_EXECUTION_FACTS_VERIFIED"
+            and execution.get("problems") == [] and type(execution.get("jobs")) is dict
+            and type(execution.get("workers")) is dict and set(execution["jobs"]) == set(labels)
+            and set(execution["workers"]) == set(labels), "V2 complete actual execution proof")
+    require(plan["selection"] != SHARED or type(execution.get("payload")) is dict,
+            "V2 shared actual payload/extraction/no-rebuild execution proof")
+    units = []
+    phase_keys = {"contextSHA256", "forwardingReceiptSHA256", "durableProofSHA256", "bindingSHA256",
+                  "raw", "streams", "transportStatusSHA256", "emittedBoundary"}
+    for label in labels:
+        worker = value["workers"][label]
+        require(type(worker) is dict and type(worker.get("executedUnitMethods")) is list
+                and all(type(name) is str for name in worker["executedUnitMethods"]), "V2 actual executed method rows")
+        units.extend(worker["executedUnitMethods"])
+        transport = value["emittedTransportV2"][label]
+        require(type(transport) is dict and set(transport) == {"role", "partitionID", "phases"}, "V2 closed emitted worker")
+        expected_role = "producer" if label == "producer" else ("rui1" if label == "rui1" else "consumer")
+        require(transport["role"] == expected_role and transport["partitionID"] == (label if expected_role == "consumer" else None),
+                "V2 emitted role/partition")
+        phases = transport["phases"]
+        expected_phases = set() if label == "producer" else ({"unit", "ui"} if label == "rui1" else {"unit"})
+        require(type(phases) is dict and set(phases) == expected_phases, "V2 complete emitted execution phases")
+        for phase_name, phase in phases.items():
+            require(type(phase) is dict and set(phase) == phase_keys
+                    and phase["emittedBoundary"] == "SEALED_COMPLETE_EMITTED_TRANSPORT"
+                    and all(digest(phase[key]) for key in phase_keys - {"raw", "streams", "emittedBoundary"}),
+                    "V2 complete sealed emitted phase binding")
+            raw = phase["raw"]
+            require(type(raw) is dict and set(raw) == {"path", "bytes", "sha256"}
+                and raw["path"] == "phase1-emitted-durable-original-" + phase_name + "/EMITTED.jsonl"
+                and type(raw["bytes"]) is int and raw["bytes"] >= 0 and digest(raw["sha256"]),
+                "V2 actual retained emitted raw path/byte/hash; zero requires authentic sealed producer proof")
+            streams = phase["streams"]
+            require(type(streams) is list and len(streams) <= 64, "V2 emitted stream census bound")
+            identifiers = []
+            for stream in streams:
+                require(type(stream) is dict and set(stream) == {"streamID", "bytes", "sha256", "lastCommittedSequence"}
+                        and type(stream["streamID"]) is str
+                        and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", stream["streamID"])
+                        and type(stream["bytes"]) is int and stream["bytes"] > 0 and digest(stream["sha256"])
+                        and type(stream["lastCommittedSequence"]) is int
+                        and 0 < stream["lastCommittedSequence"] <= 100000,
+                        "V2 actual complete emitted stream rows")
+                identifiers.append(stream["streamID"])
+            require(len(identifiers) == len(set(identifiers)), "V2 duplicate emitted stream")
+    require(len(units) == len(set(units)) and set(units) == set(resolved["unitTestSelectors"]),
+            "V2 every required executed unit method; counts cannot rescue missing methods")
+    return {"status": "VERIFIED_BINDINGS_DATA_ONLY", "functionalQualification": PENDING,
+            "gateQualification": False, "acceptance": False, "releaseReady": False, "executionAuthority": False}
+
+
+def make_functional_assessment_v2(plan, *, run_id, manifest, chain, cold_binding, gallery):
+    """Actual-caller byte bindings awaiting genuine independent source review."""
+    validate_plan_v2(plan)
+    require(type(run_id) is int and run_id > 0, "V2 assessment original ID")
+    for value in (manifest, chain):
+        reference_v2(value)
+    registration_record_v2(plan, cold_binding)
+    require(gallery is None if plan["selection"] == SHARED else type(gallery) is dict,
+            "V2 RUI1 actual qualified gallery required")
+    if gallery is not None:
+        require(set(gallery) == {"catalogueSHA256", "proofSHA256", "presentationSHA256",
+                "checklistSHA256", "attachmentsSHA256"} and all(digest(v) for v in gallery.values()),
+                "V2 closed actual gallery byte bindings")
+    return {"schema": FUNCTIONAL_SCHEMA_V2, "status": "ACTUAL_FUNCTIONAL_DATA_READY_REVIEW_PENDING",
+        "runID": run_id, "runAttempt": 1, "head": plan["head"], "tree": plan["tree"],
+        "purpose": plan["purpose"], "selection": plan["selection"], "planSHA256": sha(canonical(plan)),
+        "sourceSHA256": plan["sources"], "manifest": manifest, "chain": chain, "coldBinding": cold_binding,
+        "gallery": gallery, "strongerClaims": dict(STRONGER_CLAIMS_V2), "independentReview": None,
+        "trustBoundary": "ROOT_GENUINE_SOURCE_MESSAGES_AND_INDEPENDENCE_REQUIRED",
+        "functionalQualification": PENDING, "simulatorProtection": "UNSUPPORTED",
+        "countsAsPerKindProtectionSuccess": False, "physicalProtection": "UNVERIFIED/DEFERRED",
+        "physicalProtectionReleaseBlocker": True, "providerQualification": False,
+        "acceptance": False, "releaseReady": False, "executionAuthority": False}
+
+
+def validate_functional_review_v2(value, *, pending_reference, pending, message, context):
+    """Check Root's genuinely received review binding; byte hashes cannot prove a speaker."""
+    keys = {"schema", "subject", "verdict", "reviewer", "actualModel", "actualReasoningEffort",
+            "independentNonauthor", "readOnly", "assessment", "manifest", "chain", "head", "tree",
+            "runID", "runAttempt", "purpose", "selection", "planSHA256", "sourceSHA256", "message",
+            "context", "executionAuthority", "acceptance", "releaseReady", "providerQualification"}
+    require(type(value) is dict and set(value) == keys
+        and value["schema"] == "root.faithful.received.phase1-functional-original-review.v2"
+        and value["subject"] == ("shared-cold-original" if pending["selection"] == SHARED else "rui1-cold-original")
+        and value["verdict"] == "PASS_BOUNDED_ACTUAL_PHASE1_SIMULATOR_FUNCTIONAL_ORIGINAL_V2"
+        and type(value["reviewer"]) is str and re.fullmatch(r"/root/[a-z0-9_]+", value["reviewer"])
+        and value["actualModel"] == "gpt-6.1-sol" and value["actualReasoningEffort"] == "xhigh"
+        and value["independentNonauthor"] is True and value["readOnly"] is True
+        and all(value[key] is False for key in ("executionAuthority", "acceptance", "releaseReady", "providerQualification")),
+        "V2 genuinely received independent original review scope")
+    reference_v2(pending_reference)
+    exact(value["assessment"], pending_reference, "V2 review pending assessment bytes")
+    for key in ("manifest", "chain", "head", "tree", "runID", "runAttempt", "purpose", "selection", "planSHA256", "sourceSHA256"):
+        exact(value[key], pending[key], "V2 review exact " + key)
+    for key, raw in (("message", message), ("context", context)):
+        reference_v2(value[key])
+        require(type(raw) is bytes and len(raw) == value[key]["bytes"] and sha(raw) == value[key]["SHA256"],
+                "V2 genuine retained review " + key)
+        try:
+            require(bool(raw.decode("utf-8").strip()), "V2 nonempty source " + key)
+        except UnicodeError as error:
+            raise Refused("Phase1 gate: V2 review UTF8") from error
+    return value
+
+
+def qualify_functional_v2(pending, *, pending_reference, review_reference, review, message, context):
+    validate_functional_review_v2(review, pending_reference=pending_reference, pending=pending,
+                                  message=message, context=context)
+    reference_v2(review_reference)
+    require(review_reference["SHA256"] == sha(canonical(review)), "V2 review canonical raw digest")
+    require(pending["status"] == "ACTUAL_FUNCTIONAL_DATA_READY_REVIEW_PENDING"
+            and pending["functionalQualification"] == PENDING and pending["independentReview"] is None,
+            "V2 only current pending original DATA may qualify")
+    return {**pending, "status": "ROOT_REVIEWED_PHASE1_SIMULATOR_FUNCTIONAL_ORIGINAL_V2",
+        "functionalQualification": FUNCTIONAL_SCOPE_V2, "independentReview": review_reference,
+        "pendingAssessment": pending_reference,
+        "trustBoundary": "ROOT_GENUINE_SOURCE_REVIEW_BOUND_FUNCTIONAL_ONLY_NO_EXECUTION_OR_RELEASE_AUTHORITY"}
+
+
+def validate_genuine_candidate_review_v2(value, record, record_reference, *, message, context):
+    """Two existing owner/integration subjects; no synthetic or model substitute for owner review."""
+    keys = {"schema", "subject", "verdict", "reviewRecord", "head", "tree", "originals", "gallery",
+        "reviewer", "actualModel", "actualReasoningEffort", "independentNonauthor", "readOnly", "humanOwner",
+        "message", "context", "executionAuthority", "acceptance", "releaseReady", "providerQualification"}
+    require(type(value) is dict and set(value) == keys
+        and value["schema"] == "root.faithful.received.phase1-candidate-review.v2"
+        and value["subject"] in ("candidate-integration", "owner-critical-states")
+        and value["verdict"] == "APPROVE_PHASE1_FROZEN_CANDIDATE_V2"
+        and all(value[key] is False for key in ("executionAuthority", "acceptance", "releaseReady", "providerQualification")),
+        "V2 actual candidate review subject/scope")
+    request = validate_review_request(record["request"], test_only=False)
+    require(request["subject"] == value["subject"] and request["reportedDisposition"] == "approve"
+        and record["status"] == REVIEW_PENDING and record["functionalQualification"] == PENDING,
+        "V2 preserve V1 pending provenance and approving actual message")
+    reference_v2(record_reference)
+    exact(value["reviewRecord"], record_reference, "V2 exact provenance record")
+    for key in ("head", "tree", "originals", "gallery"):
+        exact(value[key], request[key], "V2 exact candidate review " + key)
+    owner = value["subject"] == "owner-critical-states"
+    if owner:
+        require(value["humanOwner"] is True and value["reviewer"] is None and value["actualModel"] is None
+            and value["actualReasoningEffort"] is None and value["independentNonauthor"] is None
+            and value["readOnly"] is None, "V2 genuine human owner review; no model substitute")
+    else:
+        require(value["humanOwner"] is False and type(value["reviewer"]) is str
+            and re.fullmatch(r"/root/[a-z0-9_]+", value["reviewer"])
+            and value["actualModel"] == "gpt-6.1-sol" and value["actualReasoningEffort"] == "xhigh"
+            and value["independentNonauthor"] is True and value["readOnly"] is True,
+            "V2 genuine independent integration reviewer")
+        exact((request["reviewer"]["model"], request["reviewer"]["effort"]),
+              (value["actualModel"], value["actualReasoningEffort"]), "V2 actual integration model/effort provenance")
+        require(request["speakerReference"] != request["reviewer"]["authorReference"], "V2 integration author cannot approve")
+    for key, raw in (("message", message), ("context", context)):
+        reference_v2(value[key])
+        require(type(raw) is bytes and len(raw) == value[key]["bytes"] and sha(raw) == value[key]["SHA256"]
+            == request[key + "SHA256"] and raw == record[key + "UTF8"].encode("utf-8"),
+            "V2 exact genuinely received " + key)
+    return value
+
+
 # A separate development question; these schemas never enter PURPOSE_REFS.
 COLD_SELECTION = "v23-cold-shared-original-v1"
 COLD_PURPOSE = "cold-shared-route-development-v1"
@@ -764,6 +1280,26 @@ def bind_cold_facts(plan, *, head, tree, integration_head, main_head, resolved_b
 
 
 
+def cold_received_inputs_match_v2(received, requested):
+    """Compare two closed received shapes without rewriting event/request bytes.
+
+    v2 admits the complete request or the measured simultaneous omission of
+    exactly three declared empty-string defaults. No subset or supplied profile
+    is accepted; callers derive requested from cold_dispatch_inputs(plan).
+    """
+    omitted = {"s10_4_segment_source_run_ids", "s10_4_shared_payload_run_id", PLAN_INPUT}
+    retained = {"execution_lane", "native_selection_id", "run_ui_smoke", "s10_4_shard_id",
+                "s10_4_minimum_core_smoke_id", "s10_4_shared_segment_id", "v23_run_kind",
+                "v23_d50_compiler_observation", "v23_d50_swift_driver_jobs_two", COLD_PLAN_INPUT}
+    if type(received) is not dict or type(requested) is not dict or set(requested) != omitted | retained:
+        return False
+    if any(type(value) is not str for value in requested.values()) or any(requested[key] != "" for key in omitted):
+        return False
+    if set(received) != set(requested) and set(received) != retained:
+        return False
+    return all(type(received[key]) is str and received[key] == requested[key] for key in received)
+
+
 def cold_dispatch_input_difference(raw, actual, expected):
     """Bounded refusal detail only; fingerprints never replace original inputs."""
     def value_facts(value):
@@ -827,7 +1363,7 @@ def bind_cold_original_event(raw, environment, *, head, tree, resolved_bytes, so
             "original event UI intent")
     expected_inputs = cold_dispatch_inputs(plan)
     try:
-        require(inputs == expected_inputs, "closed cold original dispatch inputs")
+        require(cold_received_inputs_match_v2(inputs, expected_inputs), "closed cold original dispatch inputs")
     except Refused as primary:
         try:
             primary.add_note(cold_dispatch_input_difference(raw, inputs, expected_inputs))
@@ -933,7 +1469,9 @@ def cold_dispatch_argv(plan, workflow_id):
 def verify_cold_attempt_inputs(attempt, original_event_raw):
     plan, event = cold_plan_from_event(original_event_raw)
     require(plan is not None and canonical(plan).decode("utf-8") == attempt["planBytes"], "cold original intent")
-    require(canonical(event["inputs"]).decode("utf-8") == attempt["inputBytes"], "cold exact requested inputs")
+    expected_inputs = cold_dispatch_inputs(plan)
+    require(canonical(expected_inputs).decode("utf-8") == attempt["inputBytes"]
+            and cold_received_inputs_match_v2(event["inputs"], expected_inputs), "cold exact requested inputs")
     return {"originalEventSHA256": sha(original_event_raw), "inputSHA256": sha(attempt["inputBytes"].encode("utf-8"))}
 
 

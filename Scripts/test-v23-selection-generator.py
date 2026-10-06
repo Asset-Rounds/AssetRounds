@@ -1208,6 +1208,74 @@ class GeneratorTests(unittest.TestCase):
                 self.assertEqual(self.generate_source_case("class FixtureTests: XCTestCase {\n" + hidden + "\n" + method + "\n}")[2]["selectorCount"], 1)
 
 
+    def test_phase1_emitted_context_condition_preserves_exact_membership_outputs(self):
+        # This approved flag is active for membership, never a runtime/gate claim.
+        flag = "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1"
+        method = "func testSelected() {}"
+        expected = self.generate_source_case("class FixtureTests: XCTestCase {\n" + method + "\n}")
+        variants = (
+            "#if " + flag + "\n" + method + "\n#endif",
+            "#if " + flag + "\n" + method + "\n#else\nfunc helper() {}\n#endif",
+            "#if DEBUG\n#if " + flag + "\n" + method + "\n#endif\n#endif",
+            "#if DEBUG && os(iOS) && targetEnvironment(simulator)\n#if " + flag + "\n" + method + "\n#endif\n#endif",
+            "#if false\nfunc helper() {}\n#elseif " + flag + "\n" + method + "\n#endif",
+            "#if SWIFT_PACKAGE\nfunc helper() {}\n#elseif " + flag + "\n" + method + "\n#else\nfunc other() {}\n#endif",
+            "#if " + flag + "\n#if SWIFT_PACKAGE\nfunc helper() {}\n#else\n" + method + "\n#endif\n#endif",
+            "#if " + flag + "\n#if " + flag + "\n" + method + "\n#endif\n#endif",
+        )
+        for directives in variants:
+            with self.subTest(directives=directives):
+                actual = self.generate_source_case("class FixtureTests: XCTestCase {\n" + directives + "\n}")
+                self.assertEqual(actual, expected)
+                self.assertEqual(actual[0]["unitTestSelectors"], ["FieldEvidenceAppTests/FixtureTests/testSelected"])
+                self.assertEqual(actual[2]["selectorCount"], 1)
+                self.assertIs(actual[2]["nativeReady"], False)
+                self.assertIs(actual[2]["acceptance"], False)
+        source = ("class FixtureTests: XCTestCase {\n#if " + flag + "\n"
+                  "func testOne() {}\nfunc testTwo() async throws {}\n#endif\n"
+                  "func testThree() {}\n}")
+        masked = generator._active_swift(generator._mask_swift_noncode(source))
+        base, bodies = generator._class_bodies(masked, "FixtureTests", ("testOne", "testTwo", "testThree"))
+        self.assertEqual(base, "XCTestCase")
+        generator._verify_methods(bodies, "FixtureTests", ("testOne", "testTwo", "testThree"))
+        self.assertEqual(len(masked), len(source))
+        self.assertEqual(masked.count("\n"), source.count("\n"))
+
+    def test_phase1_known_flag_never_admits_unknown_or_compound_in_inactive_nested_branches(self):
+        flag = "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1"
+        method = "func testSelected() {}"
+        expressions = ("UNKNOWN", "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V2",
+            "V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1", flag.lower(), "!" + flag,
+            flag + " && DEBUG", "DEBUG && " + flag, flag + " || DEBUG",
+            "DEBUG && os(iOS) && targetEnvironment(simulator) && " + flag)
+        for expression in expressions:
+            variants = (
+                "#if " + expression + "\nfunc helper() {}\n#endif\n" + method,
+                "#if false\n#if " + expression + "\nfunc helper() {}\n#endif\n#else\n" + method + "\n#endif",
+                "#if " + flag + "\n" + method + "\n#else\n#if " + expression + "\nfunc helper() {}\n#endif\n#endif",
+                "#if DEBUG\n" + method + "\n#elseif " + expression + "\nfunc helper() {}\n#endif",
+            )
+            for directives in variants:
+                with self.subTest(expression=expression, directives=directives), self.assertRaisesRegex(
+                        generator.ManifestError, "^unsupported Swift condition: "):
+                    self.generate_source_case("class FixtureTests: XCTestCase {\n" + directives + "\n}")
+
+    def test_phase1_known_flag_preserves_inactive_parents_and_taken_branch_exclusion(self):
+        flag = "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1"
+        method = "func testSelected() {}"
+        variants = (
+            "#if false\n#if " + flag + "\n" + method + "\n#endif\n#endif",
+            "#if SWIFT_PACKAGE\n#if " + flag + "\n" + method + "\n#endif\n#endif",
+            "#if " + flag + "\nfunc helper() {}\n#else\n" + method + "\n#endif",
+            "#if DEBUG\nfunc helper() {}\n#elseif " + flag + "\n" + method + "\n#endif",
+        )
+        for directives in variants:
+            with self.subTest(directives=directives), self.assertRaisesRegex(
+                    generator.ManifestError, "^missing or duplicate source method declaration: "):
+                self.generate_source_case("class FixtureTests: XCTestCase {\n" + directives + "\n}")
+
+
+
 class BraceDepthSpanTests(unittest.TestCase):
     @staticmethod
     def reference(source):

@@ -742,7 +742,7 @@ def phase1_gates():
     return module
 
 
-def preregister_phase1(plan_path):
+def preregister_phase1(plan_path, *, activation_v2=False):
     """Retain an exact-source candidate intent; Stage A cannot dispatch or qualify it.
 
     All source facts come from the pushed commit, not the working tree. A future
@@ -751,8 +751,12 @@ def preregister_phase1(plan_path):
     """
     gate = phase1_gates()
     try:
-        plan = gate.parse_plan(gate.regular_bytes(plan_path))
-        gate.require(plan["purpose"] == gate.CANDIDATE, "exact-main prerequisites are not implemented")
+        gate.require(type(activation_v2) is bool, 'explicit V2 activation mode')
+        plan = gate.parse_plan(cold_v2_regular_bytes(gate, plan_path) if activation_v2 else gate.regular_bytes(plan_path))
+        gate.require(plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA if activation_v2 else plan['purpose'] == gate.CANDIDATE
+            and plan['schema'] == gate.SCHEMA, 'explicit V2 plan; old exact-main remains inactive')
+        if activation_v2 and plan['purpose'] == gate.EXACT_MAIN:
+            phase1_exact_main_prerequisites_v2(gate, plan)
         run("git", "fetch", "--quiet", "origin", BRANCH, "main")
         head = run("git", "rev-parse", "HEAD").strip()
         remote = run("git", "rev-parse", f"origin/{BRANCH}").strip()
@@ -776,7 +780,16 @@ def preregister_phase1(plan_path):
         known = {entry["runID"] for entry in ledger_dispatches()}
         unknown = [record["id"] for record in runs_for(head) if record["id"] not in known]
         gate.require(not unknown, "unledgered originals: " + str(unknown))
-        target, record = gate.register_candidate(plan, EVIDENCE / "v23-phase1-plans")
+        if activation_v2:
+            gate.require(not EVIDENCE.is_symlink(), 'V2 physical evidence root')
+            record = phase1_cold_registration_v2(gate, plan)
+            phase1_cold_prerequisite_v2(gate, plan, record)
+            parent = phase1_registration_directory_v2(plan)
+            gate.durable_directory(parent)
+            target = parent / (gate.original_stem(plan) + '.json')
+            phase1_publish_v2(gate, plan, target, gate.canonical(record))
+        else:
+            target, record = gate.register_candidate(plan, EVIDENCE / "v23-phase1-plans")
     except gate.Refused as error:
         raise SystemExit(str(error)) from error
     print(json.dumps({"path": str(target), "planSHA256": record["planSHA256"],
@@ -819,7 +832,8 @@ def phase1_ref_observations():
 
 
 def phase1_frozen_candidate(gate, plan, *, discovery=False):
-    gate.require(plan["purpose"] == gate.CANDIDATE, "candidate-only lifecycle")
+    v2 = plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA
+    gate.require(v2 or plan["purpose"] == gate.CANDIDATE, "candidate-only V1 lifecycle")
     run("git", "fetch", "--quiet", "origin", BRANCH, "main")
     head = run("git", "rev-parse", "HEAD").strip()
     tree = run("git", "rev-parse", head + "^{tree}").strip()
@@ -833,16 +847,21 @@ def phase1_frozen_candidate(gate, plan, *, discovery=False):
         # A moved remote ref is retained by discovery below, not an excuse to
         # replace the frozen local source or lose the uncertainty observation.
         gate.require(head == plan["head"] and tree == plan["tree"], "frozen discovery source")
-        gate.exact(gate.make_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
-            resolved_bytes=gate.canonical(selected), sources=sources, requested_at=plan["requestedAtUTC"]),
-            plan, "frozen discovery source/selection")
+        gate.exact(phase1_rebuilt_plan_v2(gate, plan, head=head, tree=tree,
+            resolved_bytes=gate.canonical(selected), sources=sources), plan, 'frozen discovery source/selection')
     else:
         gate.bind_facts(plan, head=head, tree=tree, integration_head=integration, main_head=main_head,
                         resolved_bytes=gate.canonical(selected), sources=sources)
     for p in (gate.COLLECTOR, "Scripts/v23-phase1-gates.py"):
         gate.require(gate.sha(gate.regular_bytes(ROOT / p, limit=4 * 1024 * 1024)) == sources[p],
                      "lifecycle implementation differs from frozen source")
-    registration = gate.regular_bytes(EVIDENCE / "v23-phase1-plans" / (gate.original_stem(plan) + ".json"))
+    path = phase1_registration_directory_v2(plan) / (gate.original_stem(plan) + '.json')
+    registration = cold_v2_regular_bytes(gate, path) if v2 else gate.regular_bytes(path)
+    if v2 and not discovery:
+        phase1_cold_prerequisite_v2(gate, plan, cold_v2_decode(gate, registration))
+        phase1_reader_ready_v2(gate, plan)
+        if plan['purpose'] == gate.EXACT_MAIN:
+            phase1_exact_main_prerequisites_v2(gate, plan)
     return selected, registration
 
 
@@ -936,19 +955,22 @@ def phase1_discovery_state(gate, plan, attempt, snapshot, receipt, prior):
 
 
 def phase1_read_lifecycle(gate, plan, attempt):
+    def read_control(path, *, limit):
+        return (cold_v2_regular_bytes(gate, path, limit=limit) if plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA
+                else gate.regular_bytes(path, limit=limit))
     directory = phase1_lifecycle_directory(gate, plan)
     gate.require(directory.is_dir() and not directory.is_symlink(), "regular discovery directory")
     names = sorted(p.name for p in directory.iterdir())
     request = None
     if "request.json" in names:
-        request = gate.decode(gate.regular_bytes(directory / "request.json", limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
+        request = gate.decode(read_control(directory / "request.json", limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
         phase1_validate_request(gate, attempt, request)
         names.remove("request.json")
     gate.require(len(names) <= 1000 and names == ["%06d.json" % i for i in range(len(names))],
                  "complete append-only discovery census")
     previous, entries, retained_bytes = None, [], 0
     for index, name in enumerate(names):
-        raw = gate.regular_bytes(directory / name, limit=gate.MAX_ATTEMPT_BYTES)
+        raw = read_control(directory / name, limit=gate.MAX_ATTEMPT_BYTES)
         retained_bytes += len(raw)
         gate.require(retained_bytes <= 64 * 1024 * 1024, "aggregate discovery retention bound")
         item = gate.decode(raw, limit=gate.MAX_ATTEMPT_BYTES)
@@ -999,7 +1021,8 @@ def phase1_dispatch_record(gate, plan, attempt, selected, entry):
         "url": f"https://github.com/{REPO}/actions/runs/{identifier}", "argv": attempt["argv"],
         "resolvedSelection": selected, "resolvedSelectionSHA256": plan["selectionSHA256"],
         "phase1Purpose": plan["purpose"], "phase1PlanBytes": attempt["planBytes"], "phase1PlanSHA256": attempt["planSHA256"],
-        "phase1RegistrationSHA256": attempt["registrationSHA256"], "phase1RegistrationSchema": gate.REGISTRATION_SCHEMA,
+        "phase1RegistrationSHA256": attempt["registrationSHA256"], "phase1RegistrationSchema":
+            gate.REGISTRATION_SCHEMA_V2 if plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA else gate.REGISTRATION_SCHEMA,
         "phase1AttemptSHA256": gate.sha(gate.canonical(attempt)), "phase1DiscoverySHA256": gate.sha(gate.canonical(entry)),
         "functionalQualification": gate.PENDING, "acceptance": False, "releaseReady": False}
     if plan["selection"] == SHARED_SELECTION_ID:
@@ -1061,21 +1084,25 @@ def phase1_discover_original(gate, plan, attempt, selected):
     return record
 
 
-def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_retry_of=None, reason=None, discover=False):
-    """Dormant candidate caller. Existing dispatch and this entry both refuse.
+def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_retry_of=None, reason=None, discover=False, activation_v2=False):
+    """Versioned original lifecycle: V1 stays refused, V2 verifies prerequisites.
 
-    Tests replace the refusal only inside synthetic protocol fixtures. Neither
-    the public command nor importing and invoking this caller can dispatch now.
+    Only explicit V2 mode with the complete current cold/Source/API bindings
+    can consume one original. Cleanup never repairs or redispatches a failure.
     """
     gate = phase1_gates()
-    gate.refuse_dispatch()
-    plan = gate.parse_plan(gate.regular_bytes(plan_path))
+    gate.require(type(activation_v2) is bool, 'explicit V2 activation mode')
+    if not activation_v2:
+        gate.refuse_dispatch()
+    plan = gate.parse_plan(cold_v2_regular_bytes(gate, plan_path) if activation_v2 else gate.regular_bytes(plan_path))
+    gate.require(plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA if activation_v2 else plan['schema'] == gate.SCHEMA, 'explicit versioned activation plan')
     gate.require((selection is None or selection == plan["selection"]) and kind in (None, "gate")
         and infra_retry_of is None and reason is None, "candidate gate inputs; no retry or alternate kind")
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     gate.require(not EVIDENCE.is_symlink(), "regular root evidence directory")
     lock = EVIDENCE / "phase1-dispatch-active"
     lock.mkdir()
+    v2_primary = None
     try:
         selected, registration = phase1_frozen_candidate(gate, plan, discovery=discover)
         gate.durable_directory(ATTEMPTS)
@@ -1109,12 +1136,21 @@ def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_re
                 receipt = phase1_request_receipt(gate, attempt, error=error)
             gate.write_immutable(directory / "request.json", gate.canonical(receipt))
         return phase1_discover_original(gate, plan, attempt, selected)
+    except BaseException as error:
+        if activation_v2:
+            v2_primary = error
+        raise
     finally:
-        lock.rmdir()
+        if activation_v2:
+            phase1_settle_v2(v2_primary, removals=(("dispatch-authority-lock", lock.rmdir),))
+        else:
+            lock.rmdir()
 
 
 def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan=None,
-             compiler_observation=False, swift_driver_jobs_two=False, cold_plan=None):
+             compiler_observation=False, swift_driver_jobs_two=False, cold_plan=None, phase1_activation_v2=False):
+    if phase1_activation_v2 and cold_plan is not None:
+        raise SystemExit('simultaneous V2 gate and cold DEVELOPMENT inputs')
     if cold_plan is not None:
         if phase1_plan is not None or compiler_observation or swift_driver_jobs_two:
             raise SystemExit("simultaneous cold/gate/compiler inputs are refused")
@@ -1122,6 +1158,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
                                        infra_retry_of=infra_retry_of, reason=reason)
     if selection == COLD_SELECTION_ID:
         raise SystemExit("cold selection requires the dedicated canonical predispatch intent")
+    if phase1_activation_v2 and phase1_plan is None:
+        raise SystemExit('V2 activation requires an explicit Phase1 plan')
     if phase1_plan is not None:
         if compiler_observation or swift_driver_jobs_two:
             raise SystemExit("compiler experiments are development-only, never a Phase1 gate input")
@@ -1129,9 +1167,10 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
         # intent is not activation of the incomplete Phase1 gate path.
         gate = phase1_gates()
         try:
-            gate.refuse_dispatch()
+            if not phase1_activation_v2:
+                gate.refuse_dispatch()
             return phase1_candidate_lifecycle(phase1_plan, selection=selection, kind=kind,
-                                             infra_retry_of=infra_retry_of, reason=reason)
+                infra_retry_of=infra_retry_of, reason=reason, activation_v2=phase1_activation_v2)
         except gate.Refused as error:
             raise SystemExit(str(error)) from error
     kind = run_kind(selection, kind)
@@ -1510,7 +1549,10 @@ def phase1_original_context(run_id, *, retention_only=False):
     raw = gate.regular_bytes(directory / "dispatch.json", limit=4 * 1024 * 1024)
     dispatched = gate.decode(raw, limit=4 * 1024 * 1024)
     plan = gate.parse_plan(dispatched.get("phase1PlanBytes", "").encode("utf-8"))
-    gate.require(plan["purpose"] == gate.CANDIDATE, "exact-main collection prerequisites remain disabled")
+    v2 = plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA
+    gate.require(v2 or plan["purpose"] == gate.CANDIDATE, "exact-main V1 collection prerequisites remain disabled")
+    if v2:
+        gate.require(cold_v2_regular_bytes(gate, directory / 'dispatch.json') == raw, 'V2 checked original dispatch')
     gate.require((dispatched.get("kind"), dispatched.get("head"), dispatched.get("ref"),
                   dispatched.get("selection"), dispatched.get("phase1Purpose"), dispatched.get("runAttempt"))
                  == ("gate", plan["head"], plan["ref"], plan["selection"], plan["purpose"], 1)
@@ -1518,18 +1560,20 @@ def phase1_original_context(run_id, *, retention_only=False):
                  and type(dispatched.get("runID")) is int and dispatched["runID"] == run_id,
                  "root original kind/head/ref/purpose/attempt")
     stem = gate.original_stem(plan)
-    registration_raw = gate.regular_bytes(EVIDENCE / "v23-phase1-plans" / (stem + ".json"))
+    path = phase1_registration_directory_v2(plan) / (stem + '.json')
+    registration_raw = cold_v2_regular_bytes(gate, path) if v2 else gate.regular_bytes(path)
     registration = gate.decode(registration_raw)
-    gate.exact(registration, {"schema": gate.REGISTRATION_SCHEMA, "plan": plan,
-        "planSHA256": gate.sha(gate.canonical(plan)), "dispatchEnabled": False,
-        "functionalQualification": gate.PENDING}, "root preregistered pending intent")
+    expected_registration = (gate.registration_record_v2(plan, registration.get('coldBinding')) if v2 else
+        {"schema": gate.REGISTRATION_SCHEMA, "plan": plan, "planSHA256": gate.sha(gate.canonical(plan)),
+         "dispatchEnabled": False, "functionalQualification": gate.PENDING})
+    gate.exact(registration, expected_registration, 'root preregistered pending intent')
     attempt_raw = gate.regular_bytes(ATTEMPTS / (stem + ".json"), limit=gate.MAX_ATTEMPT_BYTES)
     attempt = gate.decode(attempt_raw, limit=gate.MAX_ATTEMPT_BYTES)
     gate.validate_attempt(attempt, plan, registration_raw)
     gate.require(attempt["planSHA256"] == dispatched.get("phase1PlanSHA256")
         and attempt["registrationSHA256"] == dispatched.get("phase1RegistrationSHA256")
         and gate.sha(attempt_raw) == dispatched.get("phase1AttemptSHA256")
-        and dispatched.get("phase1RegistrationSchema") == gate.REGISTRATION_SCHEMA
+        and dispatched.get("phase1RegistrationSchema") == (gate.REGISTRATION_SCHEMA_V2 if v2 else gate.REGISTRATION_SCHEMA)
         and attempt["requestedAtUTC"] == dispatched.get("requestedAtUTC")
         and run_id not in attempt["knownRunIDs"], "root predispatch registration/attempt binding")
     request, history = phase1_read_lifecycle(gate, plan, attempt)
@@ -1549,21 +1593,22 @@ def phase1_original_context(run_id, *, retention_only=False):
     if plan["selection"] == SHARED_SELECTION_ID:
         gate.exact(dispatched.get("sharedPartitions"), shared_partitions(plan["head"], resolved),
                    "root exact committed partition census")
-    gate.exact(gate.make_plan(purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
-        selection=plan["selection"], resolved_bytes=gate.canonical(resolved), sources=sources,
-        requested_at=plan["requestedAtUTC"]), plan, "root recomputed exact plan")
+    gate.exact(phase1_rebuilt_plan_v2(gate, plan, head=plan['head'], tree=plan['tree'],
+        resolved_bytes=gate.canonical(resolved), sources=sources), plan, 'root recomputed exact plan')
     bound_discovery = next(x for x in history if gate.sha(gate.canonical(x)) == dispatched["phase1DiscoverySHA256"])
     gate.exact(dispatched, phase1_dispatch_record(gate, plan, attempt, resolved, bound_discovery),
                "closed original dispatch writer/reader schema")
     gate.require(attempt["collectorSHA256"] == sources[gate.COLLECTOR]
         == gate.sha(gate.regular_bytes(Path(__file__), limit=4 * 1024 * 1024)), "sole exact-source collector")
     same_question = [entry for entry in ledger_dispatches()
-                     if (entry.get("head"), entry.get("selection")) == (plan["head"], plan["selection"])]
+        if (entry.get('head'), entry.get('selection')) == (plan['head'], plan['selection'])
+        and (not v2 or entry.get('phase1Purpose') == plan['purpose'])]
     gate.require(len(same_question) == 1 and all(same_question[0].get(key) == dispatched.get(key)
         for key in ("runID", "kind", "head", "selection", "phase1Purpose", "phase1PlanBytes", "phase1PlanSHA256",
                     "phase1RegistrationSchema", "phase1AttemptSHA256", "phase1DiscoverySHA256")), "sole preregistered ledger original")
     other_attempts = [p.name for p in ATTEMPTS.iterdir() if p.name not in (stem + ".json", stem + ".discovery")]
-    gate.require(not gate.conflicting_originals(plan, [], other_attempts), "ambiguous historical original attempts")
+    historical = [row for row in ledger_dispatches() if row.get('runID') != run_id] if v2 else []
+    gate.require(not gate.conflicting_originals(plan, historical, other_attempts), 'ambiguous historical original attempts')
     return gate, directory, dispatched, plan, attempt, raw, registration_raw, attempt_raw, resolved
 
 
@@ -1871,7 +1916,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "415931FFD81305A2A9F1E97391392B26BC842128B892696BF98489B0986DAA10"
+PHASE1_RETAINED_READER_SHA256 = "7C656F86B1C7D227F54324536B79D30E6753F2FB6059FC9137AD37FEC8673A43"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -2264,7 +2309,9 @@ def phase1_recompute_payload(gate, directory, plan, attempt, claim_value, payloa
     gate.exact({key: value["SHA256"] for key, value in before["sources"].items()}, plan["sources"], "bridge archived source bytes")
     gate.require(plan["sources"]["Scripts/dev/v23-retained-payload.py"] == PHASE1_RETAINED_READER_SHA256,
                  "bridge literal approved reader version")
-    envelope = {"schema": "v23-retained-payload-input.v1", "plan": plan, "runID": claim_value["runID"],
+    v2 = plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA
+    envelope = {"schema": 'v23-retained-payload-input.v2' if v2 else 'v23-retained-payload-input.v1',
+                "plan": plan, "runID": claim_value["runID"],
                 "runAttempt": 1, "payloadArtifact": payload_api}
     envelope_raw = gate.canonical(envelope)
     headroom = phase1_payload_reader_headroom(gate, directory, before["raw"]["bytes"])
@@ -2335,11 +2382,13 @@ def phase1_recompute_payload(gate, directory, plan, attempt, claim_value, payloa
     gate.write_immutable(target / "request.json", request_raw)
     status, failure, interruption = "REFUSED_PRESERVED_DATA", None, None
     try:
-        completed = phase1_payload_reader_run(archived_root, target / "request.json", gate.sha(request_raw))
+        completed = (phase1_payload_reader_run_v2 if v2 else phase1_payload_reader_run)(
+            archived_root, target / "request.json", gate.sha(request_raw))
         gate.require(completed.returncode == 0, "bridge reader child exit")
         facts_raw = gate.regular_bytes(target / "reader-owned/FACTS.json", limit=32 * 1024 * 1024)
         facts = gate.decode(facts_raw, limit=32 * 1024 * 1024)
-        gate.require(facts["schema"] == "v23-retained-payload-facts.v1" and facts["status"] == "RECOMPUTED_RETAINED_PAYLOAD_DATA"
+        gate.require(facts["schema"] == ('v23-retained-payload-facts.v2' if v2 else 'v23-retained-payload-facts.v1')
+            and facts["status"] == ('RECOMPUTED_PHASE1_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED' if v2 else 'RECOMPUTED_RETAINED_PAYLOAD_DATA')
             and facts["durability"]["status"] == "FSYNCED_OWNED_DATA_PROJECTION" and facts["pendingProof"]
             and facts["workerJoins"]["status"] == "RECOMPUTED_ALL_RETAINED_WORKER_JOINS_DATA", "bridge DATA-only durable complete worker result")
         gate.exact(facts["sourceSHA256"], plan["sources"], "bridge reader source result")
@@ -2406,7 +2455,9 @@ def collect_phase1(run_id, resume):
     authority_lock = EVIDENCE / "phase1-dispatch-active"
     authority_locked, collection_ended = False, False
     collection_observations = []
-    notes = ["INCOMPLETE: qualification lifecycle and independent cold review remain disabled"]
+    v2_primary = None
+    v2 = plan['schema'] == gate.ACTIVATION_PLAN_SCHEMA
+    notes = [] if v2 else ["INCOMPLETE: qualification lifecycle and independent cold review remain disabled"]
     transport_problems = []
     try:
         authority_lock.mkdir()  # Serializes the shared append-only discovery writer.
@@ -2614,7 +2665,8 @@ def collect_phase1(run_id, resume):
             retain_partial()
         retain("phase1-registration.json", registration_raw)
         retain("phase1-attempt.json", attempt_raw)
-        request = retain("phase1-chain-request.json", gate.canonical({"schema": "v23-phase1-retained-chain-request.v1",
+        request = retain("phase1-chain-request.json", gate.canonical({"schema":
+            'v23-phase1-retained-chain-request.v2' if v2 else 'v23-phase1-retained-chain-request.v1',
             "runID": run_id, "planSHA256": attempt["planSHA256"]}))
         checker_log, chain_bytes = b"", None
         payload_recomputation = {"status": "PENDING_MISSING_PAYLOAD_OR_WORKERS"}
@@ -2655,10 +2707,14 @@ def collect_phase1(run_id, resume):
                     notes.append("exact-source retained worker chain failed; see phase1-chain-check.log")
                 else:
                     chain = json.loads(checked.stdout, object_pairs_hook=gate.object_pairs)
-                    gate.require(chain.get("schema") == "v23-phase1-retained-worker-chain.v1"
-                        and chain.get("runID") == run_id and chain.get("planSHA256") == attempt["planSHA256"]
-                        and chain.get("status") == "INCOMPLETE" and chain.get("functionalQualification") == gate.PENDING,
-                        "retained worker chain cannot self-qualify")
+                    if v2:
+                        gate.validate_chain_v2(chain, plan, resolved)
+                        gate.require(chain['runID'] == run_id, 'V2 actual chain original')
+                    else:
+                        gate.require(chain.get('schema') == 'v23-phase1-retained-worker-chain.v1'
+                            and chain.get('runID') == run_id and chain.get('planSHA256') == attempt['planSHA256']
+                            and chain.get('status') == 'INCOMPLETE' and chain.get('functionalQualification') == gate.PENDING,
+                            'retained worker chain cannot self-qualify')
                     chain_bytes = gate.canonical(chain)
                     notes.extend("retained execution: " + p for p in chain.get("executionProof", {}).get("problems", []))
             except subprocess.TimeoutExpired as error:
@@ -2680,7 +2736,7 @@ def collect_phase1(run_id, resume):
             retain_partial()
         retain("phase1-chain-check.log", checker_log)
         if chain_bytes is not None:
-            retain("phase1-retained-worker-chain.json", chain_bytes)
+            retain('phase1-retained-worker-chain-v2.json' if v2 else 'phase1-retained-worker-chain.json', chain_bytes)
         request_outcome, discovery_history = phase1_read_lifecycle(gate, plan, attempt)
         retain("phase1-lifecycle.json", gate.canonical({"request": request_outcome, "history": discovery_history}))
         proof = {"schema": "v23-phase1-raw-proof.v1", "status": "INCOMPLETE", "runID": run_id,
@@ -2695,14 +2751,25 @@ def collect_phase1(run_id, resume):
                     "files": phase1_file_manifest(directory), "rawProofSHA256": gate.sha(gate.canonical(proof))}
         retain("manifest.json", gate.canonical(manifest))
         print(json.dumps(proof, indent=2, sort_keys=True))
+        if v2:
+            return proof  # Separate actual assessment and genuine review are still required.
         raise SystemExit("Phase1 original retained; raw proof INCOMPLETE; no functional qualification")
+    except BaseException as error:
+        if v2:
+            v2_primary = error
+        raise
     finally:
-        try:
-            if collection_observations and not collection_ended:
-                observe_collection("end-exception")
-        finally:
-            if authority_locked: authority_lock.rmdir()
-            lock.rmdir()
+        if v2:
+            observer = (lambda: observe_collection("end-exception")) if collection_observations and not collection_ended else None
+            removals = (("dispatch-authority-lock", authority_lock.rmdir),) if authority_locked else ()
+            phase1_settle_v2(v2_primary, observer=observer, removals=removals + (("collection-lock", lock.rmdir),))
+        else:
+            try:
+                if collection_observations and not collection_ended:
+                    observe_collection("end-exception")
+            finally:
+                if authority_locked: authority_lock.rmdir()
+                lock.rmdir()
 
 
 def phase1_file_manifest(directory):
@@ -3812,6 +3879,571 @@ def cold_file_manifest(directory):
     return phase1_file_manifest(directory)
 
 
+def phase1_settle_v2(primary, *, observer=None, removals=()):
+    """Settle only V2 owned operations once; retain the actual first object.
+
+    Raw exception objects remain in the attached observation state. The stderr
+    projection is diagnostic DATA and cannot repair an original or authorize a
+    retry. Its publication result is observed after print, never guessed in the
+    line being published. Legacy V1 settlement does not call this function.
+    """
+    state = {"schema": "v23-phase1-owned-settlement-observation.v2", "primary": primary,
+        "observer": None, "removals": [], "association": None, "report": None, "fallback": None,
+        "executionAuthority": False, "qualification": False, "releaseReady": False}
+    def retain(error):
+        nonlocal primary
+        if primary is None:
+            primary = error
+            state["primary"] = error
+    def attempt(label, callback):
+        row = {"operation": label, "attempted": True, "returnedNone": False, "error": None}
+        try:
+            returned = callback()
+            row["returnedNone"] = returned is None
+            if returned is not None:
+                raise ValueError("Phase1 V2 settlement operation did not return None")
+        except BaseException as error:
+            row["error"] = error
+            retain(error)
+        return row
+    if observer is not None:
+        state["observer"] = attempt("end-exception-observer", observer)
+    for label, callback in removals:
+        state["removals"].append(attempt(label, callback))
+    def associate():
+        if primary is None or state["association"] is not None:
+            return
+        row = {"attempted": True, "returnedNone": False, "error": None}
+        state["association"] = row
+        try:
+            returned = setattr(primary, "phase1SettlementV2", state)
+            row["returnedNone"] = returned is None
+        except BaseException as error:
+            row["error"] = error
+            retain(error)
+    associate()
+    state["report"] = {"attempted": True, "returnedNone": False, "error": None}
+    try:
+        def projected(row):
+            return None if row is None else {**{key: value for key, value in row.items() if key != "error"},
+                                             "error": None if row["error"] is None else repr(row["error"])}
+        projection = {"schema": state["schema"], "primary": None if primary is None else repr(primary),
+            "observer": projected(state["observer"]), "removals": [projected(row) for row in state["removals"]],
+            "association": projected(state["association"]), "publicationPending": True,
+            "executionAuthority": False, "qualification": False, "releaseReady": False}
+        returned = print("PHASE1_V2_SETTLEMENT " + json.dumps(projection, sort_keys=True), file=sys.stderr)
+        state["report"]["returnedNone"] = returned is None
+        if returned is not None:
+            raise ValueError("Phase1 V2 settlement report did not return None")
+    except BaseException as error:
+        state["report"]["error"] = error
+        retain(error)
+        associate()
+        state["fallback"] = {"attempted": True, "returnedNone": False, "error": None}
+        try:
+            fallback = {"schema": state["schema"], "reportFailed": True, "publicationPending": True,
+                "primaryType": type(primary).__name__, "reportErrorType": type(error).__name__,
+                "removalAttempts": len(state["removals"]), "executionAuthority": False,
+                "qualification": False, "releaseReady": False}
+            returned = print("PHASE1_V2_SETTLEMENT_FALLBACK " + json.dumps(fallback, sort_keys=True), file=sys.stderr)
+            state["fallback"]["returnedNone"] = returned is None
+            if returned is not None:
+                raise ValueError("Phase1 V2 settlement fallback did not return None")
+        except BaseException as fallback_error:
+            state["fallback"]["error"] = fallback_error
+            retain(fallback_error)
+    if primary is not None:
+        raise primary
+    return state
+
+
+# Phase1 V2 operates only on actual retained originals and Root-genuine reviews.
+# The closed cold DEVELOPMENT lifecycle and all old false records are conserved.
+def phase1_registration_directory_v2(plan):
+    return EVIDENCE / ("v23-phase1-plans-v2" if plan["schema"] == "v23-phase1-functional-gate-plan.v2"
+                       else "v23-phase1-plans")
+
+
+def phase1_rebuilt_plan_v2(gate, plan, *, head, tree, resolved_bytes, sources):
+    arguments = {"purpose": plan["purpose"], "head": head, "tree": tree,
+        "selection": plan["selection"], "resolved_bytes": resolved_bytes,
+        "sources": sources, "requested_at": plan["requestedAtUTC"]}
+    return (gate.make_plan_v2(**arguments, cold_prerequisite=plan["coldPrerequisite"])
+            if plan["schema"] == gate.ACTIVATION_PLAN_SCHEMA else gate.make_plan(**arguments))
+
+
+def phase1_cold_registration_v2(gate, plan):
+    gate.validate_plan_v2(plan)
+    run_id = plan["coldPrerequisite"]["runID"]
+    assessment_path = EVIDENCE / "v23-cold-assessments-v2" / str(run_id) / "reviewed-protocol-assessment.json"
+    manifest_path = EVIDENCE / str(run_id) / "manifest.json"
+    assessment_raw = cold_v2_regular_bytes(gate, assessment_path)
+    manifest_raw = cold_v2_regular_bytes(gate, manifest_path)
+    assessment = cold_v2_decode(gate, assessment_raw)
+    binding = {"assessment": {"path": str(assessment_path), "bytes": len(assessment_raw), "SHA256": gate.sha(assessment_raw)},
+        "manifest": {"path": str(manifest_path), "bytes": len(manifest_raw), "SHA256": gate.sha(manifest_raw)},
+        "review": cold_v2_reference(gate, assessment.get("independentReview"))}
+    return gate.registration_record_v2(plan, binding)
+
+
+def phase1_reader_ready_v2(gate, plan):
+    """A missing genuine versioned reader blocks before the original is consumed."""
+    if plan["selection"] != gate.SHARED:
+        return
+    def check(source_root):
+        path = "Scripts/dev/v23-retained-payload.py"
+        reader = cold_v2_source_module(gate, source_root, path, plan["sources"][path])
+        gate.require(reader.get("PHASE1_INPUT_SCHEMA_V2") == "v23-retained-payload-input.v2"
+            and reader.get("PHASE1_FACT_SCHEMA_V2") == "v23-retained-payload-facts.v2"
+            and callable(reader.get("recompute_phase1_retained_payload_v2")),
+            "V2 genuine retained payload reader prerequisite missing; never project V2 into V1")
+    cold_v2_archived_call(gate, plan, check)
+
+
+# The changed bootstrap conserves every original byte outside its one entry.
+# The original bootstrap and old entry stay exact for V1 collection.
+_PHASE1_READER_ENTRY_V1 = 'namespace["recompute_retained_payload"]('
+_PHASE1_READER_ENTRY_V2 = 'namespace["recompute_phase1_retained_payload_v2"]('
+if PHASE1_PAYLOAD_READER_BOOTSTRAP.count(_PHASE1_READER_ENTRY_V1) != 1:
+    raise ValueError("Phase1 V2 reader bootstrap literal correspondence")
+PHASE1_PAYLOAD_READER_BOOTSTRAP_V2 = PHASE1_PAYLOAD_READER_BOOTSTRAP.replace(
+    _PHASE1_READER_ENTRY_V1, _PHASE1_READER_ENTRY_V2, 1)
+
+
+def phase1_payload_reader_run_v2(archived_root, request_path, request_sha256):
+    return subprocess.run([sys.executable, "-B", "-c", PHASE1_PAYLOAD_READER_BOOTSTRAP_V2,
+        str(request_path), str(archived_root), PHASE1_RETAINED_READER_SHA256, request_sha256],
+        cwd=archived_root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+
+
+def phase1_cold_prerequisite_v2(gate, plan, registration):
+    """Recompute a final-head cold original; supplied reviews/counts cannot grant it.
+
+    Root must genuinely capture the independently received source messages. The
+    existing cold V2 receipt is a byte-bound trust boundary, never speaker proof.
+    """
+    gate.validate_plan_v2(plan)
+    expected = gate.registration_record_v2(plan, registration.get("coldBinding"))
+    gate.exact(registration, expected, "V2 current closed pending registration")
+    binding = registration["coldBinding"]
+    assessment_raw = cold_v2_read_reference(gate, binding["assessment"])
+    assessment = cold_v2_decode(gate, assessment_raw)
+    run_id = plan["coldPrerequisite"]["runID"]
+    parent = EVIDENCE / "v23-cold-assessments-v2" / str(run_id)
+    gate.require(Path(binding["assessment"]["path"]) == parent / "reviewed-protocol-assessment.json",
+                 "V2 exact final cold assessment namespace")
+    _, directory, _, cold_plan, attempt, _, _, _, _ = cold_original_context(run_id)
+    gate.exact((cold_plan["head"], cold_plan["tree"], cold_plan["sources"], cold_plan["policies"], cold_plan["route"]),
+        (plan["head"], plan["tree"], plan["sources"], plan["policies"], plan["route"]),
+        "V2 cold prerequisite final frozen head/tree/source/runtime; no cross-head promotion")
+    manifest_raw, receipt_raw, proof, payload, execution = cold_v2_assessment_inputs(
+        gate, directory, cold_plan, attempt, run_id, binding["manifest"])
+    receipt = cold_v2_decode(gate, receipt_raw)
+    gate.require(type(assessment) is dict and assessment.get("schema") == "v23-cold-qualification-assessment.v2"
+        and assessment.get("status") == "REVIEWED_COLD_PROTOCOL_ASSESSMENT_DATA_ONLY"
+        and assessment.get("protocolQualification") == "ROOT_REVIEWED_DEVELOPMENT_COLD_PROTOCOL_V2"
+        and assessment.get("trustBoundary") == "ROOT_GENUINE_RECEIVED_REVIEW_BOUND_NO_GATE_OR_EXECUTION_AUTHORITY",
+        "V2 genuine reviewed cold protocol is required; static/supplied data cannot qualify")
+    gate.exact({key: assessment.get(key) for key in ("head", "tree", "runID", "runAttempt", "planSHA256", "sourceSHA256")},
+        {"head": cold_plan["head"], "tree": cold_plan["tree"], "runID": run_id, "runAttempt": 1,
+         "planSHA256": attempt["planSHA256"], "sourceSHA256": cold_plan["sources"]}, "V2 actual cold identity")
+    gate.exact(assessment.get("manifest"), binding["manifest"], "V2 actual cold manifest reference")
+    gate.exact(assessment.get("independentReview"), binding["review"], "V2 actual cold review reference")
+    gate.exact(assessment.get("strongerClaims"), gate.COLD_STRONGER_CLAIMS_V2, "V2 stronger claims remain unproven")
+    gate.require(assessment.get("kind") == "development" and assessment.get("developmentOnly") is True
+        and assessment.get("functionalQualification") == gate.PENDING
+        and assessment.get("simulatorProtection") == "UNSUPPORTED"
+        and assessment.get("physicalProtection") == "UNVERIFIED/DEFERRED"
+        and assessment.get("physicalProtectionReleaseBlocker") is True
+        and all(assessment.get(key) is False for key in ("providerQualification", "gateQualification",
+            "exactMainVerification", "acceptance", "releaseReady", "executionAuthority")), "V2 preserve cold DEVELOPMENT scope")
+    prior_ref = cold_v2_reference(gate, assessment.get("priorAssessment"))
+    gate.require(Path(prior_ref["path"]) == parent / "pending-assessment.json", "V2 exact pending cold assessment")
+    prior_raw = cold_v2_read_reference(gate, prior_ref)
+    prior = cold_v2_decode(gate, prior_raw)
+    received, review_raw = cold_v2_review_binding(gate, binding["review"], prior_ref, prior,
+                                                binding["manifest"], cold_plan, receipt)
+    additions = {"receivedReview", "receivedReviewSHA256", "priorAssessment"}
+    reconstructed = {key: value for key, value in assessment.items() if key not in additions}
+    reconstructed.update(status="ASSESSMENT_DATA_READY_REVIEW_PENDING", independentReview=None,
+        protocolQualification="PENDING", trustBoundary="ROOT_GENUINE_REVIEW_REQUIRED")
+    gate.exact(prior, reconstructed, "V2 exact reviewed cold predecessor, no omitted fields")
+    gate.exact(assessment["receivedReview"], received, "V2 genuine cold review retained fields")
+    gate.require(assessment["receivedReviewSHA256"] == gate.sha(review_raw)
+        and assessment["recomputationReceiptSHA256"] == gate.sha(receipt_raw)
+        and assessment["originalEventSHA256"] == receipt["originalEventSHA256"]
+        and assessment["runtimeFactsSHA256"] == gate.sha(gate.canonical({"payloadWorkers": payload["workerJoins"], "execution": execution})),
+        "V2 cold actual runtime/event/recomputation joins")
+    data_ref = cold_v2_reference(gate, assessment["sealedDataV2"])
+    gate.require(Path(data_ref["path"]) == parent / "data/SEALED_DATA_V2.json", "V2 exact sealed cold DATA namespace")
+    data_raw = cold_v2_read_reference(gate, data_ref)
+    def rederive(source_root):
+        reader = cold_v2_source_module(gate, source_root, COLD_PAYLOAD_DATA_V2_PATH, COLD_PAYLOAD_DATA_V2_SHA256)
+        data = reader["read_cold_payload_data_v2"](directory, source_root,
+            {"schema": "v23-cold-payload-data-input.v2", "head": cold_plan["head"], "tree": cold_plan["tree"],
+             "runID": run_id, "runAttempt": 1, "manifestSHA256": gate.sha(manifest_raw)})
+        gate.require(gate.canonical(data) == data_raw, "V2 complete cold DATA recomputation, not cached qualification")
+        gate.exact(data["qualificationContract"], reader["qualification_contract_v2"](), "V2 current qualification contract")
+        gate.exact(data["qualificationContract"], assessment["qualificationContract"], "V2 reviewed actual contract")
+        gate.require(data["status"] == "DATA_ONLY_UNQUALIFIED" and data["v1Data"]["declaredConclusion"] == "success"
+            and data["v1Data"]["rawProofProblems"] == [COLD_PAYLOAD_RECOMPUTATION_NOTE_V1]
+            and data["emittedTransport"]["status"] == "DATA_BOUND_RECOMPUTED", "V2 complete authentic emitted cold transport")
+        gate.exact(data["strongerClaims"], gate.COLD_STRONGER_CLAIMS_V2, "V2 no stronger proof inferred")
+        gate.exact(data["v1Data"]["sourceSHA256"], cold_plan["sources"], "V2 actual cold Source closure")
+        return data
+    cold_v2_archived_call(gate, cold_plan, rederive)
+    base = f"repos/{REPO}/actions/runs/{run_id}"
+    current = api(base + "/attempts/1")
+    cold_api_original(gate, current, run_id, cold_plan, attempt)
+    gate.require(current.get("status") == "completed" and current.get("conclusion") == "success", "V2 current cold original successful")
+    gate.exact(phase1_artifact_census(gate, base + "/artifacts"),
+        cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "artifacts.json")), "V2 current cold artifact census")
+    gate.exact(paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS),
+        cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "jobs.json")), "V2 current cold jobs")
+    cold_v2_assessment_inputs(gate, directory, cold_plan, attempt, run_id, binding["manifest"])
+    for reference, raw in ((binding["assessment"], assessment_raw), (binding["review"], review_raw),
+                            (prior_ref, prior_raw), (data_ref, data_raw)):
+        gate.require(cold_v2_read_reference(gate, reference) == raw, "V2 cold current control changed through admission")
+    return binding
+
+
+def phase1_chain_v2(gate, directory, plan, resolved):
+    """Use the exact existing original180 retained checker; no alternate runner."""
+    request = directory / "phase1-chain-request.json"
+    expected = {"schema": "v23-phase1-retained-chain-request.v2", "runID": int(directory.name),
+                "planSHA256": gate.sha(gate.canonical(plan))}
+    gate.exact(cold_v2_decode(gate, cold_v2_regular_bytes(gate, request)), expected, "V2 actual chain request")
+    def rederive(source_root):
+        checked = subprocess.run([sys.executable, "-B", "Scripts/v23-native-ci.py", "phase1-retained-chain",
+            "--phase1-request", str(request)], cwd=source_root, stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=180)
+        gate.require(checked.returncode == 0 and type(checked.stdout) is bytes and 0 < len(checked.stdout) <= 32 * 1024 * 1024
+            and checked.stderr == b"", "V2 actual Native checker normal successful return/complete bounded channels")
+        chain = json.loads(checked.stdout, object_pairs_hook=gate.object_pairs,
+            parse_constant=lambda _: (_ for _ in ()).throw(gate.Refused("V2 nonfinite chain")))
+        gate.validate_chain_v2(chain, plan, resolved)
+        gate.require(chain["runID"] == expected["runID"], "V2 actual chain original")
+        return chain
+    return cold_v2_archived_call(gate, plan, rederive)
+
+
+def phase1_payload_binding_v2(gate, directory, plan, proof, manifest):
+    """Join the actual successful versioned reader projection in the sealed census.
+
+    The Native chain independently rederives payload/extraction/no-rebuild facts;
+    this requires the separate retained-reader DATA prerequisite too. Its false
+    scope is conserved and cannot itself grant functional qualification.
+    """
+    result = proof.get("payloadRecomputation")
+    if plan["selection"] != gate.SHARED:
+        gate.require(result is None, "V2 RUI1 has no shared payload reader projection")
+        return
+    gate.require(type(result) is dict and set(result) == {"status", "receipt", "functionalQualification",
+        "acceptance", "providerQualification", "releaseReady", "continuationRequired"}
+        and result["status"] == "RECOMPUTED_DURABLE_PAYLOAD_DATA" and result["functionalQualification"] == gate.PENDING
+        and all(result[key] is False for key in ("acceptance", "providerQualification", "releaseReady", "continuationRequired")),
+        "V2 actual successful payload reader prerequisite")
+    ref = result["receipt"]
+    gate.require(type(ref) is dict and set(ref) == {"path", "SHA256"} and type(ref["path"]) is str
+        and re.fullmatch(r"phase1-payload-recomputations/[0-9]{6}/receipt\.json", ref["path"])
+        and gate.digest(ref["SHA256"]), "V2 exact retained reader receipt reference")
+    receipt_path = directory / ref["path"]
+    receipt_raw = cold_v2_regular_bytes(gate, receipt_path, limit=gate.MAX_ATTEMPT_BYTES)
+    gate.require(gate.sha(receipt_raw) == ref["SHA256"] == manifest["files"].get(ref["path"]),
+        "V2 reader receipt actual bytes/original manifest join")
+    receipt = cold_v2_decode(gate, receipt_raw)
+    gate.require(receipt["schema"] == "v23-phase1-payload-recomputation.v1" and receipt["status"] == result["status"]
+        and receipt["failureCategory"] is None and receipt["inputInvariance"] is True
+        and receipt["continuationRequired"] is False and receipt["proofStatus"] == "INCOMPLETE"
+        and receipt["functionalQualification"] == gate.PENDING
+        and all(receipt[key] is False for key in ("acceptance", "providerQualification", "releaseReady")),
+        "V2 actual reader projection remains unqualified and error-free")
+    parent = receipt_path.parent
+    facts_path = parent / "reader-owned/FACTS.json"
+    facts_raw = cold_v2_regular_bytes(gate, facts_path)
+    gate.require(gate.sha(facts_raw) == manifest["files"].get(facts_path.relative_to(directory).as_posix())
+        == receipt["results"]["FACTS.json"]["SHA256"], "V2 reader FACTS actual raw/receipt/manifest join")
+    facts = cold_v2_decode(gate, facts_raw)
+    gate.require(facts["schema"] == "v23-retained-payload-facts.v2"
+        and facts["status"] == "RECOMPUTED_PHASE1_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED"
+        and facts["durability"]["status"] == "FSYNCED_OWNED_DATA_PROJECTION" and facts["pendingProof"]
+        and facts["workerJoins"]["status"] == "RECOMPUTED_ALL_RETAINED_WORKER_JOINS_DATA",
+        "V2 real safe-extraction/Products/source/worker reader DATA prerequisite")
+    gate.require(type(facts["scope"]) is dict and facts["scope"].get("emittedTransport") == "PENDING"
+        and all(facts["scope"].get(key) is False for key in ("executionAuthority", "authentication", "qualification",
+            "providerQualification", "acceptance", "releaseReady")), "V2 reader DATA cannot promote itself")
+    gate.exact(facts["sourceSHA256"], plan["sources"], "V2 reader exact frozen Source closure")
+    gate.exact(facts["originalDATA"], {"repository": gate.REPOSITORY, "ref": plan["ref"], "head": plan["head"],
+        "tree": plan["tree"], "runID": int(directory.name), "runAttempt": 1, "planSHA256": gate.sha(gate.canonical(plan))},
+        "V2 reader exact original identity")
+
+
+def phase1_original_data_v2(gate, run_id):
+    context = phase1_original_context(run_id, retention_only=True)
+    _, directory, _, plan, attempt, _, registration_raw, _, resolved = context
+    gate.validate_plan_v2(plan)
+    manifest_raw = cold_v2_regular_bytes(gate, directory / "manifest.json")
+    manifest = cold_v2_decode(gate, manifest_raw)
+    gate.require(type(manifest) is dict and set(manifest) == {"schema", "runID", "runAttempt", "files", "rawProofSHA256"}
+        and manifest["schema"] == "v23-phase1-original-manifest.v1"
+        and type(manifest["runID"]) is int and manifest["runID"] == run_id
+        and type(manifest["runAttempt"]) is int and manifest["runAttempt"] == 1, "V2 actual sealed original manifest")
+    before = phase1_file_manifest(directory)
+    gate.require(before.pop("manifest.json") == gate.sha(manifest_raw), "V2 manifest current census")
+    gate.exact(before, manifest["files"], "V2 complete raw original census")
+    proof_raw = cold_v2_regular_bytes(gate, directory / "phase1-raw-proof.json")
+    proof = cold_v2_decode(gate, proof_raw)
+    gate.require(gate.sha(proof_raw) == manifest["rawProofSHA256"], "V2 original raw proof hash")
+    gate.require(proof.get("schema") == "v23-phase1-raw-proof.v1" and proof.get("status") == "INCOMPLETE"
+        and proof.get("functionalQualification") == gate.PENDING and proof.get("problems") == []
+        and proof.get("originalAttribution", {}).get("status") == "DISCOVERED_PENDING_PROOF"
+        and all(proof.get(key) is False for key in ("acceptance", "providerQualification", "releaseReady")),
+        "V2 preserve old raw scope; no unresolved collection or attribution errors")
+    gate.exact([proof.get(key) for key in ("runID", "runAttempt", "head", "tree", "planSHA256", "simulatorProtection",
+        "physicalProtection", "physicalProtectionReleaseBlocker")],
+        [run_id, 1, plan["head"], plan["tree"], attempt["planSHA256"], "UNSUPPORTED", "UNVERIFIED/DEFERRED", True],
+        "V2 exact original identity/protection split")
+    phase1_payload_binding_v2(gate, directory, plan, proof, manifest)
+    base = f"repos/{REPO}/actions/runs/{run_id}"
+    current = api(base + "/attempts/1")
+    phase1_api_original(gate, current, run_id, plan, attempt)
+    gate.require(current.get("status") == "completed" and current.get("conclusion") == "success", "V2 actual completed successful gate original")
+    gate.exact(current, cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "run-attempt-1.json")),
+               "V2 authenticated API original equals retained original")
+    artifacts = phase1_artifact_census(gate, base + "/artifacts")
+    jobs = paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS)
+    gate.exact(artifacts, cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "artifacts.json")), "V2 current artifact census")
+    gate.exact(jobs, cold_v2_decode(gate, cold_v2_regular_bytes(gate, directory / "jobs.json")), "V2 current job census")
+    chain_path = directory / "phase1-retained-worker-chain-v2.json"
+    chain_raw = cold_v2_regular_bytes(gate, chain_path)
+    gate.require(manifest["files"].get(chain_path.name) == gate.sha(chain_raw), "V2 manifest-bound actual chain")
+    chain = phase1_chain_v2(gate, directory, plan, resolved)
+    gate.require(gate.canonical(chain) == chain_raw, "V2 actual retained chain rederivation equals manifest bytes")
+    for label, worker in chain["emittedTransportV2"].items():
+        for phase_name, phase in worker["phases"].items():
+            prefix = "artifacts/" + label + "/"
+            hashes = {"forwardingReceiptSHA256": "phase1-emitted-context-forwarding-" + phase_name + ".json",
+                "durableProofSHA256": "phase1-emitted-durable-proof-" + phase_name + ".json",
+                "bindingSHA256": "phase1-emitted-durable-original-" + phase_name + "/BINDING.json",
+                "transportStatusSHA256": ("phase1-ui-diagnostics/" if phase_name == "ui" else "")
+                    + "simulator-file-protection-transport-status.json"}
+            for key, name in hashes.items():
+                gate.require(manifest["files"].get(prefix + name) == phase[key], "V2 emitted metadata original manifest join")
+            forwarding_path = directory / prefix / hashes["forwardingReceiptSHA256"]
+            forwarding_raw = cold_v2_regular_bytes(gate, forwarding_path)
+            gate.require(gate.sha(forwarding_raw) == phase["forwardingReceiptSHA256"], "V2 manifest-bound forwarding bytes")
+            forwarding = cold_v2_decode(gate, forwarding_raw)
+            gate.require(gate.sha(gate.canonical(forwarding["context"])) == phase["contextSHA256"],
+                         "V2 context digest joins actual manifest-bound forwarding context, not different env bytes")
+            gate.require(manifest["files"].get(prefix + phase["raw"]["path"]) == phase["raw"]["sha256"],
+                         "V2 emitted complete raw original manifest join")
+    registration = cold_v2_decode(gate, registration_raw)
+    cold_binding = phase1_cold_prerequisite_v2(gate, plan, registration)
+    gallery = phase1_review_gallery(gate, directory, plan, run_id) if plan["selection"] == gate.RUI1 else None
+    manifest_ref = {"path": str(directory / "manifest.json"), "bytes": len(manifest_raw), "SHA256": gate.sha(manifest_raw)}
+    chain_ref = {"path": str(chain_path), "bytes": len(chain_raw), "SHA256": gate.sha(chain_raw)}
+    pending = gate.make_functional_assessment_v2(plan, run_id=run_id, manifest=manifest_ref,
+        chain=chain_ref, cold_binding=cold_binding, gallery=gallery)
+    after = phase1_file_manifest(directory)
+    gate.require(after.pop("manifest.json") == gate.sha(manifest_raw), "V2 final original manifest unchanged")
+    gate.exact(after, before, "V2 all retained original bytes through assessment")
+    gate.exact(api(base + "/attempts/1"), current, "V2 API original changed during assessment")
+    gate.exact(phase1_artifact_census(gate, base + "/artifacts"), artifacts, "V2 artifact census changed during assessment")
+    gate.exact(paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS), jobs, "V2 jobs changed during assessment")
+    return pending
+
+
+def phase1_publish_v2(gate, plan, path, raw):
+    """Reuse the Source-bound checked writer; no second receipt/kernel implementation."""
+    gate.require(type(raw) is bytes and 0 < len(raw) <= gate.MAX_ATTEMPT_BYTES, "V2 unchanged immutable control cap")
+    def publish(source_root):
+        native = cold_v2_source_module(gate, source_root, "Scripts/v23-native-ci.py", plan["sources"]["Scripts/v23-native-ci.py"])
+        return native["_cold_durable_emit"](path, raw)
+    result = cold_v2_archived_call(gate, plan, publish)
+    gate.require(cold_v2_regular_bytes(gate, path) == raw, "V2 actual checked writer readback")
+    return result
+
+
+def qualify_phase1_v2(request_path):
+    """Two-stage Root-only actual original assessment, outside immutable V1 originals."""
+    gate = phase1_gates()
+    request_raw = cold_v2_regular_bytes(gate, request_path)
+    request = cold_v2_decode(gate, request_raw)
+    gate.require(type(request) is dict and set(request) == {"schema", "stage", "runID", "manifest", "priorAssessment", "independentReview"}
+        and request["schema"] == "v23-phase1-functional-assessment-request.v2"
+        and request["stage"] in ("ASSESS_DATA_ONLY", "RECORD_REVIEWED_FUNCTIONAL")
+        and type(request["runID"]) is int and request["runID"] > 0, "V2 closed actual functional assessment request")
+    reviewed = request["stage"] == "RECORD_REVIEWED_FUNCTIONAL"
+    gate.require((request["priorAssessment"] is not None and request["independentReview"] is not None) if reviewed
+                 else (request["priorAssessment"] is None and request["independentReview"] is None), "V2 explicit assessment stages")
+    pending = phase1_original_data_v2(gate, request["runID"])
+    gate.exact(pending["manifest"], gate.reference_v2(request["manifest"]), "V2 requested original exact manifest")
+    context = phase1_original_context(request["runID"], retention_only=True)
+    plan = context[3]
+    parent = EVIDENCE / "v23-phase1-functional-v2" / str(request["runID"])
+    value = pending
+    if reviewed:
+        prior_ref = gate.reference_v2(request["priorAssessment"])
+        gate.require(Path(prior_ref["path"]) == parent / "pending-assessment.json", "V2 exact pending original assessment")
+        prior_raw = cold_v2_read_reference(gate, prior_ref)
+        gate.exact(cold_v2_decode(gate, prior_raw), pending, "V2 current pending original DATA remains exact")
+        review_ref = gate.reference_v2(request["independentReview"])
+        review_raw = cold_v2_read_reference(gate, review_ref)
+        review = cold_v2_decode(gate, review_raw)
+        message = cold_v2_read_reference(gate, review.get("message"))
+        source_context = cold_v2_read_reference(gate, review.get("context"))
+        value = gate.qualify_functional_v2(pending, pending_reference=prior_ref,
+            review_reference=review_ref, review=review, message=message, context=source_context)
+        for ref, raw in ((prior_ref, prior_raw), (review_ref, review_raw),
+                         (review["message"], message), (review["context"], source_context)):
+            gate.require(cold_v2_read_reference(gate, ref) == raw, "V2 review source changed through qualification")
+    # No review may rescue an altered original or any failed actual producer.
+    gate.exact(phase1_original_data_v2(gate, request["runID"]), pending, "V2 final actual original rederivation")
+    gate.require(cold_v2_regular_bytes(gate, request_path) == request_raw, "V2 assessment request changed")
+    gate.durable_directory(parent.parent)
+    gate.durable_directory(parent)
+    target = parent / ("reviewed-functional-assessment.json" if reviewed else "pending-assessment.json")
+    raw = gate.canonical(value)
+    publication = phase1_publish_v2(gate, plan, target, raw)
+    return {"assessmentReference": {"path": str(target), "bytes": len(raw), "SHA256": gate.sha(raw)},
+            "assessment": value, "publication": publication, "executionAuthority": False, "acceptance": False, "releaseReady": False}
+
+
+def phase1_qualified_original_v2(gate, run_id, *, purpose, head):
+    """Always rederive; a previous qualified record is not cached authorization."""
+    pending = phase1_original_data_v2(gate, run_id)
+    gate.require(pending["purpose"] == purpose and pending["head"] == head, "V2 requested qualified purpose/head")
+    parent = EVIDENCE / "v23-phase1-functional-v2" / str(run_id)
+    path = parent / "reviewed-functional-assessment.json"
+    raw = cold_v2_regular_bytes(gate, path)
+    value = cold_v2_decode(gate, raw)
+    prior = gate.reference_v2(value.get("pendingAssessment"))
+    gate.require(Path(prior["path"]) == parent / "pending-assessment.json", "V2 actual prior qualification namespace")
+    gate.exact(cold_v2_decode(gate, cold_v2_read_reference(gate, prior)), pending, "V2 current qualified pending bytes")
+    review_ref = gate.reference_v2(value.get("independentReview"))
+    review = cold_v2_decode(gate, cold_v2_read_reference(gate, review_ref))
+    expected = gate.qualify_functional_v2(pending, pending_reference=prior, review_reference=review_ref,
+        review=review, message=cold_v2_read_reference(gate, review["message"]),
+        context=cold_v2_read_reference(gate, review["context"]))
+    gate.exact(value, expected, "V2 qualified actual original and genuine review exact")
+    gate.require(cold_v2_regular_bytes(gate, path) == raw, "V2 qualified record changed")
+    return value
+
+
+def phase1_candidate_originals_v2(gate, head, *, purpose):
+    rows = [row for row in ledger_dispatches() if row.get("head") == head and row.get("kind") == "gate"
+        and row.get("phase1Purpose") == purpose and row.get("phase1RegistrationSchema") == gate.REGISTRATION_SCHEMA_V2]
+    gate.require(len(rows) == 2 and sorted(row["selection"] for row in rows) == sorted(gate.SELECTIONS)
+        and len({row["runID"] for row in rows}) == 2, "V2 exact two original full-coverage/RUI1 questions")
+    qualified = {row["selection"]: phase1_qualified_original_v2(gate, row["runID"], purpose=purpose, head=head) for row in rows}
+    values = list(qualified.values())
+    gate.exact((values[0]["tree"], values[0]["sourceSHA256"], values[0]["coldBinding"]),
+        (values[1]["tree"], values[1]["sourceSHA256"], values[1]["coldBinding"]), "V2 common same-head frozen tuple")
+    return qualified
+
+
+def phase1_candidate_reviews_v2(gate, head, originals):
+    """Rebind existing provenance to genuine Root-received independent/human messages."""
+    records = phase1_read_reviews(gate, head, test_only=False)
+    needed = ("candidate-integration", "owner-critical-states")
+    selected = {subject: [record for record in records if record["request"]["subject"] == subject] for subject in needed}
+    gate.require(all(len(selected[subject]) == 1 for subject in needed), "V2 each genuine review once; contradictory history refuses")
+    references, tree = {}, next(iter(originals.values()))["tree"]
+    for subject in needed:
+        record = selected[subject][0]
+        index = record["index"]
+        record_path = phase1_review_root(gate, head) / ("%06d.json" % index)
+        record_raw = cold_v2_regular_bytes(gate, record_path)
+        record_ref = {"path": str(record_path), "bytes": len(record_raw), "SHA256": gate.sha(record_raw)}
+        receipt_path = EVIDENCE / "v23-phase1-genuine-reviews-v2" / head / (subject + ".json")
+        receipt_raw = cold_v2_regular_bytes(gate, receipt_path)
+        receipt = cold_v2_decode(gate, receipt_raw)
+        message = cold_v2_read_reference(gate, receipt.get("message"))
+        source_context = cold_v2_read_reference(gate, receipt.get("context"))
+        gate.validate_genuine_candidate_review_v2(receipt, record, record_ref, message=message, context=source_context)
+        gate.require(record["request"]["head"] == head and record["request"]["tree"] == tree, "V2 review exact frozen candidate")
+        expected = [originals[gate.RUI1]] if subject == "owner-critical-states" else list(originals.values())
+        gate.exact(record["request"]["originals"], sorted([{"runID": item["runID"], "manifestSHA256": item["manifest"]["SHA256"]}
+            for item in expected], key=lambda item: item["runID"]), "V2 review exact qualified originals")
+        if subject == "owner-critical-states":
+            gate.exact(record["request"]["gallery"], originals[gate.RUI1]["gallery"], "V2 genuine owner saw qualified critical-state package")
+        gate.require(cold_v2_regular_bytes(gate, receipt_path) == receipt_raw
+            and cold_v2_regular_bytes(gate, record_path) == record_raw, "V2 review controls changed through binding")
+        references[subject] = {"path": str(receipt_path), "bytes": len(receipt_raw), "SHA256": gate.sha(receipt_raw)}
+    return references
+
+
+def record_phase1_genuine_review_v2(receipt_path):
+    """Retain Root's genuine-message receipt, not approval from an offline summary.
+
+    Root must actually verify human identity or NONAUTHOR model review against
+    original source messages. This local byte verifier cannot authenticate a
+    speaker; it rederives the current originals and exact presented bundle.
+    """
+    gate = phase1_gates()
+    receipt_raw = cold_v2_regular_bytes(gate, receipt_path)
+    receipt = cold_v2_decode(gate, receipt_raw)
+    head = receipt.get("head")
+    originals = phase1_candidate_originals_v2(gate, head, purpose=gate.CANDIDATE)
+    records = phase1_read_reviews(gate, head, test_only=False)
+    selected = [item for item in records if item["request"]["subject"] == receipt.get("subject")]
+    gate.require(len(selected) == 1, "V2 single actual review provenance; conflicts remain closed")
+    record = selected[0]
+    record_path = phase1_review_root(gate, head) / ("%06d.json" % record["index"])
+    record_raw = cold_v2_regular_bytes(gate, record_path)
+    record_ref = {"path": str(record_path), "bytes": len(record_raw), "SHA256": gate.sha(record_raw)}
+    message = cold_v2_read_reference(gate, receipt.get("message"))
+    context = cold_v2_read_reference(gate, receipt.get("context"))
+    gate.validate_genuine_candidate_review_v2(receipt, record, record_ref, message=message, context=context)
+    expected = [originals[gate.RUI1]] if receipt["subject"] == "owner-critical-states" else list(originals.values())
+    gate.exact(record["request"]["originals"], sorted([{"runID": item["runID"], "manifestSHA256": item["manifest"]["SHA256"]}
+        for item in expected], key=lambda item: item["runID"]), "V2 actual review qualified originals")
+    if receipt["subject"] == "owner-critical-states":
+        gate.exact(record["request"]["gallery"], originals[gate.RUI1]["gallery"], "V2 actual presented critical-state package")
+    gate.require(cold_v2_regular_bytes(gate, receipt_path) == receipt_raw
+        and cold_v2_regular_bytes(gate, record_path) == record_raw, "V2 actual receipt/provenance changed")
+    parent = EVIDENCE / "v23-phase1-genuine-reviews-v2" / head
+    gate.durable_directory(parent.parent)
+    gate.durable_directory(parent)
+    plan = phase1_original_context(originals[gate.SHARED]["runID"], retention_only=True)[3]
+    target = parent / (receipt["subject"] + ".json")
+    publication = phase1_publish_v2(gate, plan, target, receipt_raw)
+    return {"receiptReference": {"path": str(target), "bytes": len(receipt_raw), "SHA256": gate.sha(receipt_raw)},
+            "publication": publication, "executionAuthority": False, "acceptance": False, "releaseReady": False}
+
+
+def phase1_exact_main_prerequisites_v2(gate, plan):
+    gate.require(plan["purpose"] == gate.EXACT_MAIN, "V2 exact-main prerequisite purpose")
+    originals = phase1_candidate_originals_v2(gate, plan["head"], purpose=gate.CANDIDATE)
+    first = originals[gate.SHARED]
+    candidate_plan = phase1_original_context(first["runID"], retention_only=True)[3]
+    gate.exact((first["tree"], first["sourceSHA256"], candidate_plan["coldPrerequisite"]),
+        (plan["tree"], plan["sources"], plan["coldPrerequisite"]),
+        "V2 exact-main same frozen candidate Source and actual cold prerequisite")
+    return phase1_candidate_reviews_v2(gate, plan["head"], originals)
+
+
+def verify_phase1_main_v2(head, *, exact_main=False):
+    """Read-only Root decision intake; this never moves main or grants release."""
+    gate = phase1_gates()
+    gate.require(type(head) is str and re.fullmatch(r"[0-9a-f]{40}", head), "V2 requested candidate head")
+    originals = phase1_candidate_originals_v2(gate, head, purpose=gate.CANDIDATE)
+    reviews = phase1_candidate_reviews_v2(gate, head, originals)
+    if exact_main:
+        phase1_candidate_originals_v2(gate, head, purpose=gate.EXACT_MAIN)
+    run("git", "fetch", "--quiet", "origin", BRANCH, "main")
+    gate.require(run("git", "rev-parse", "HEAD").strip() == head
+        == run("git", "rev-parse", "origin/" + BRANCH).strip(), "V2 current frozen integration/checkout")
+    gate.require(run("git", "rev-parse", "origin/main").strip() == (head if exact_main else gate.BASE_MAIN),
+                 "V2 main moved or exact-main not matching candidate")
+    gate.require(run("git", "diff", "--cached", "--name-only").strip() == "", "V2 actual index empty")
+    return {"schema": "v23-phase1-main-verification.v2", "head": head,
+        "status": "EXACT_MAIN_FUNCTIONAL_VERIFIED_V2" if exact_main else "CANDIDATE_READY_FOR_ROOT_NONFORCE_FAST_FORWARD_V2",
+        "qualifiedOriginals": {key: value["runID"] for key, value in originals.items()}, "genuineReviews": reviews,
+        "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+        "acceptance": False, "providerQualification": False, "releaseReady": False, "executionAuthority": False}
+
+
 def preregister_cold(plan_path):
     """Register a source-frozen development intent; registration alone grants no execution.
 
@@ -4472,9 +5104,9 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
 
 # Additive cold DATA bridge. Original V1 records and ordinary routes stay exact.
 COLD_RETAINED_READER_V2_PATH = "Scripts/dev/v23-retained-payload.py"
-COLD_RETAINED_READER_V2_SHA256 = "415931FFD81305A2A9F1E97391392B26BC842128B892696BF98489B0986DAA10"  # Exact candidate Source; genuine companion review/composition required.
+COLD_RETAINED_READER_V2_SHA256 = "7C656F86B1C7D227F54324536B79D30E6753F2FB6059FC9137AD37FEC8673A43"  # Exact candidate Source; genuine companion review/composition required.
 COLD_PAYLOAD_DATA_V2_PATH = "Scripts/dev/v23-cold-payload-data.py"
-COLD_PAYLOAD_DATA_V2_SHA256 = "9D47A76C6E14255CB8F62103237125BCA7D6DE951BFC6755DA92C2B146451EC9"  # Transitive original-tree dependency; not a plan.sources key.
+COLD_PAYLOAD_DATA_V2_SHA256 = "B58FEB48EA5A142CA4A8333BB553A001C297F734DD48F695D1E5BEDA1AC0D16F"  # Transitive original-tree dependency; not a plan.sources key.
 COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
 COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
 
@@ -6086,6 +6718,7 @@ def main():
     dispatch_parser.add_argument("--reason", help="required with --infra-retry-of")
     dispatch_parser.add_argument("--phase1-plan", metavar="PATH",
                                  help="reserved Phase1 contract; dispatch is disabled pending implementation/review")
+    dispatch_parser.add_argument('--phase1-activation-v2', action='store_true', help='closed V2 lifecycle with actual final-head cold/review prerequisites')
     dispatch_parser.add_argument("--cold-plan", type=Path, help="dedicated cold DEVELOPMENT intent; no qualification")
     cold_register = commands.add_parser("preregister-cold")
     cold_register.add_argument("--plan", type=Path, required=True)
@@ -6096,8 +6729,15 @@ def main():
     register_parser = commands.add_parser("preregister-phase1")
     register_parser.add_argument("--plan", type=Path, required=True,
                                  help="canonical pending candidate plan; no dispatch or gate credit")
+    register_parser.add_argument('--activation-v2', action='store_true')
     discovery_parser = commands.add_parser("discover-phase1")
     discovery_parser.add_argument("--plan", type=Path, required=True, help="disabled pending lifecycle review; never redispatch")
+    discovery_parser.add_argument('--activation-v2', action='store_true')
+    commands.add_parser('qualify-phase1-v2').add_argument('--request', type=Path, required=True)
+    commands.add_parser('record-phase1-genuine-review-v2').add_argument('--receipt', type=Path, required=True)
+    main_verifier = commands.add_parser('verify-phase1-main-v2')
+    main_verifier.add_argument('--head', required=True)
+    main_verifier.add_argument('--exact-main', action='store_true')
     review_parser = commands.add_parser("register-phase1-review", help="retain genuine source-message bytes; always pending")
     review_parser.add_argument("--request", type=Path, required=True)
     review_parser.add_argument("--message", type=Path, required=True)
@@ -6122,7 +6762,7 @@ def main():
         EVIDENCE.mkdir(parents=True, exist_ok=True)
     if args.command == "dispatch":
         dispatch(args.selection, args.kind, args.infra_retry_of, args.reason, args.phase1_plan,
-                 args.compiler_observation, args.swift_driver_jobs_two, args.cold_plan)
+                 args.compiler_observation, args.swift_driver_jobs_two, args.cold_plan, args.phase1_activation_v2)
     elif args.command == "preregister-cold":
         preregister_cold(args.plan)
     elif args.command == "discover-cold":
@@ -6130,9 +6770,15 @@ def main():
     elif args.command == "qualify-cold-v2":
         print(json.dumps(qualify_cold_v2(args.request), indent=2, sort_keys=True))
     elif args.command == "preregister-phase1":
-        preregister_phase1(args.plan)
-    elif args.command == "discover-phase1":
-        phase1_candidate_lifecycle(args.plan, discover=True)
+        preregister_phase1(args.plan, activation_v2=args.activation_v2)
+    elif args.command == 'discover-phase1':
+        phase1_candidate_lifecycle(args.plan, discover=True, activation_v2=args.activation_v2)
+    elif args.command == 'qualify-phase1-v2':
+        print(json.dumps(qualify_phase1_v2(args.request), indent=2, sort_keys=True))
+    elif args.command == 'record-phase1-genuine-review-v2':
+        print(json.dumps(record_phase1_genuine_review_v2(args.receipt), indent=2, sort_keys=True))
+    elif args.command == 'verify-phase1-main-v2':
+        print(json.dumps(verify_phase1_main_v2(args.head, exact_main=args.exact_main), indent=2, sort_keys=True))
     elif args.command == "register-phase1-review":
         register_phase1_review(args.request, args.message, args.context)
     elif args.command == "assess-phase1-reviews":

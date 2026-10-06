@@ -104,6 +104,13 @@ if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then
   v23_cold_original_context_setting='SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1'
 fi
 
+# The actual V2 admission triggers an independently bound Native recheck.
+v23_phase1_original_context_setting=""
+if jq -e '.phase1Gate.schema == "v23-phase1-original-event-binding.v2"' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then
+  v23_phase1_original_context_setting="$(python3 Scripts/v23-native-ci.py phase1-build-setting)"
+  test "$v23_phase1_original_context_setting" = 'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1'
+fi
+
 # Passive observation is closed to the current interruption diagnostic.
 # The observer admits the exact source, route and unmodified no-index argv.
 # Bash 3.2 nounset requires a nonempty array on ordinary routes too.
@@ -127,6 +134,7 @@ fi
   CODE_SIGNING_ALLOWED=NO \
   ${v23_index_setting:+"$v23_index_setting"} \
   ${v23_cold_original_context_setting:+"$v23_cold_original_context_setting"} \
+  ${v23_phase1_original_context_setting:+"$v23_phase1_original_context_setting"} \
   build-for-testing
 
 test -d "$result_bundle_path"

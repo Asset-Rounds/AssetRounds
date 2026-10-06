@@ -30,6 +30,9 @@ collect_v23_diagnostic_transport() {
   if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then
     collector_args+=(--native-exit-status "$command_status")
   fi
+  if jq -e '.phase1Gate.schema == "v23-phase1-original-event-binding.v2"' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then
+    collector_args+=(--native-exit-status "$command_status")
+  fi
   if [ "$diagnostic_transport_interrupted" = true ]; then
     collector_args+=(--interrupted)
   fi
@@ -65,6 +68,27 @@ if [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then
     cold_forwarded_keys=$((cold_forwarded_keys + 1))
   done < "$CI_ARTIFACT_DIR/cold-emitted-original-context.env"
   test "$cold_forwarded_keys" -eq 3
+fi
+
+# Closed Phase 1 forwarding is distinct from the unchanged cold DEVELOPMENT path.
+if jq -e '.phase1Gate.schema == "v23-phase1-original-event-binding.v2"' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then
+  python3 Scripts/v23-native-ci.py phase1-context-forward --phase unit --output "$CI_ARTIFACT_DIR/phase1-emitted-original-context-unit.env"
+  phase1_mode_seen=false
+  phase1_context_seen=false
+  phase1_digest_seen=false
+  while IFS= read -r phase1_forwarded_line; do
+    phase1_forwarded_key="${phase1_forwarded_line%%=*}"
+    phase1_forwarded_value="${phase1_forwarded_line#*=}"
+    test -n "$phase1_forwarded_value"
+    case "$phase1_forwarded_key" in
+      TEST_RUNNER_V23_PHASE1_EMITTED_MODE) test "$phase1_mode_seen" = false; phase1_mode_seen=true ;;
+      TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT) test "$phase1_context_seen" = false; phase1_context_seen=true ;;
+      TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT_SHA256) test "$phase1_digest_seen" = false; phase1_digest_seen=true ;;
+      *) printf 'invalid Phase 1 original-context forwarding key\n' >&2; exit 65 ;;
+    esac
+    export "$phase1_forwarded_key=$phase1_forwarded_value"
+  done < "$CI_ARTIFACT_DIR/phase1-emitted-original-context-unit.env"
+  test "$phase1_mode_seen:$phase1_context_seen:$phase1_digest_seen" = true:true:true
 fi
 
 only_testing_args=()

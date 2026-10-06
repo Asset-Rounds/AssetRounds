@@ -18,7 +18,7 @@ INPUT_SCHEMA = "v23-cold-payload-data-input.v1"
 FACT_SCHEMA = "v23-cold-payload-data-facts.v1"
 CONTRACT_PATH = "Scripts/v23-phase1-gates.py"
 # Same actual executable contract pinned by the published Stage 2 reader.
-CONTRACT_SHA256 = "4652CD2EAE172ED07FF29B6F33CF15650C46B5539CFBC07472730CD1BCD0F5CA"
+CONTRACT_SHA256 = "D97B166EAF2BDEABB7929503014CA4237DAC570561B198EE25CF178DB4AB4B8E"
 JSON_BYTES = 32 * 1024 ** 2
 ZIP_BYTES = 4 * 1024 ** 3
 MAX_FILES = 100000
@@ -569,7 +569,7 @@ FACT_SCHEMA_V2 = "v23-cold-payload-data-facts.v2"
 QUALIFICATION_CONTRACT_SCHEMA_V2 = "v23-cold-qualification-contract.v2"
 EMITTED_NATIVE_SOURCE_PATH_V2 = "Scripts/v23-native-ci.py"
 # Exact Native candidate Source dependency; independent review/current binding remain Root prerequisites.
-EMITTED_NATIVE_SOURCE_SHA256_V2 = "AB26A4D60553FACB664A357934881DE47467313534204394FFE85AEBF6328E89"
+EMITTED_NATIVE_SOURCE_SHA256_V2 = "82B9D320FF17048A6B58E6F9B127FC510D5C239687B5302DCFF2C95F3B58390A"
 STRONGER_CLAIMS_V2 = ("totalPolicyCallCounts", "exhaustiveAppKernelLifetimeCohorts",
                       "perPIDDescriptorRetirement", "exactRepeatCounts")
 

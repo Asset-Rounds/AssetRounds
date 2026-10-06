@@ -381,6 +381,65 @@ SHARED_TEST_SMOKE_POST = '''  if [ "$v23_shared_role" = consumer ]; then
 '''
 
 
+# Authentic standalone Phase1 parser addition is reversed only for historical
+# generator Source comparisons; actual current generator behavior uses originals.
+GENERATOR_PHASE1_SOURCE_SHA256 = {'current': 'c9cca4ff93227290f9d867e9ab19e574dca26ce4cdbf6b12e748bf63325452e1', 'prior': '4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a'}
+GENERATOR_PHASE1_CONDITION_CURRENT = b'    conditions = {"DEBUG": True, "SWIFT_PACKAGE": False,\n                  "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1": True,\n                  "DEBUG && os(iOS) && targetEnvironment(simulator)": True,\n'
+GENERATOR_PHASE1_CONDITION_PRIOR = b'    conditions = {"DEBUG": True, "SWIFT_PACKAGE": False,\n                  "DEBUG && os(iOS) && targetEnvironment(simulator)": True,\n'
+
+
+def before_phase1_generator_condition(raw):
+    """Restore the exact approved condition donor before historical Source pins."""
+    if type(raw) is not bytes:
+        raise AssertionError("Phase1 generator inverse requires exact bytes")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest == GENERATOR_PHASE1_SOURCE_SHA256["prior"]:
+        return raw
+    if digest != GENERATOR_PHASE1_SOURCE_SHA256["current"]:
+        raise AssertionError("changed frozen Phase1 generator input")
+    if raw.count(GENERATOR_PHASE1_CONDITION_CURRENT) != 1:
+        raise AssertionError("expected one closed Phase1 generator condition hunk")
+    restored = raw.replace(GENERATOR_PHASE1_CONDITION_CURRENT, GENERATOR_PHASE1_CONDITION_PRIOR, 1)
+    if hashlib.sha256(restored).hexdigest() != GENERATOR_PHASE1_SOURCE_SHA256["prior"]:
+        raise AssertionError("Phase1 generator inverse changed historical Source")
+    return restored
+
+
+# Historical Source comparisons reverse only the approved Phase1 shell additions
+# before the incumbent cold/historical inverses. Current runtime tests use originals.
+# Both exact complete input/output hashes and closed literal contexts are required.
+PHASE1_ORIGINAL_CONTEXT_SOURCE_SHA256 = {'Scripts/build-smoke.sh': ('d8e647d50d27a0be8b87efaf070178dbb2c3fd1eaf0b692fd72a6f6d76fd7bd8', '3b64cef151bc2db1c491b893502eb96b4bda10b93c0143c6e2b20461b6d7b2c2'), 'Scripts/test-smoke.sh': ('fac84e54955097dc494b4832ef94efd0b62705a8b31de2374170859b2835f089', 'cf23bea598adbe7260de8756b45ac78305c0bed4cd51967cdf0d94d14b0a65a7')}
+PHASE1_ORIGINAL_CONTEXT_REPLACEMENTS = {'Scripts/build-smoke.sh': [('# The actual V2 admission triggers an independently bound Native recheck.\nv23_phase1_original_context_setting=""\nif jq -e \'.phase1Gate.schema == "v23-phase1-original-event-binding.v2"\' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then\n  v23_phase1_original_context_setting="$(python3 Scripts/v23-native-ci.py phase1-build-setting)"\n  test "$v23_phase1_original_context_setting" = \'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1\'\nfi\n\n# Passive observation is closed to the current interruption diagnostic.\n', '# Passive observation is closed to the current interruption diagnostic.\n'), ('  ${v23_cold_original_context_setting:+"$v23_cold_original_context_setting"} \\\n  ${v23_phase1_original_context_setting:+"$v23_phase1_original_context_setting"} \\\n  build-for-testing\n', '  ${v23_cold_original_context_setting:+"$v23_cold_original_context_setting"} \\\n  build-for-testing\n')], 'Scripts/test-smoke.sh': [('  if jq -e \'.phase1Gate.schema == "v23-phase1-original-event-binding.v2"\' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then\n    collector_args+=(--native-exit-status "$command_status")\n  fi\n  if [ "$diagnostic_transport_interrupted" = true ]; then\n', '  if [ "$diagnostic_transport_interrupted" = true ]; then\n'), ('# Closed Phase 1 forwarding is distinct from the unchanged cold DEVELOPMENT path.\nif jq -e \'.phase1Gate.schema == "v23-phase1-original-event-binding.v2"\' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then\n  python3 Scripts/v23-native-ci.py phase1-context-forward --phase unit --output "$CI_ARTIFACT_DIR/phase1-emitted-original-context-unit.env"\n  phase1_mode_seen=false\n  phase1_context_seen=false\n  phase1_digest_seen=false\n  while IFS= read -r phase1_forwarded_line; do\n    phase1_forwarded_key="${phase1_forwarded_line%%=*}"\n    phase1_forwarded_value="${phase1_forwarded_line#*=}"\n    test -n "$phase1_forwarded_value"\n    case "$phase1_forwarded_key" in\n      TEST_RUNNER_V23_PHASE1_EMITTED_MODE) test "$phase1_mode_seen" = false; phase1_mode_seen=true ;;\n      TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT) test "$phase1_context_seen" = false; phase1_context_seen=true ;;\n      TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT_SHA256) test "$phase1_digest_seen" = false; phase1_digest_seen=true ;;\n      *) printf \'invalid Phase 1 original-context forwarding key\\n\' >&2; exit 65 ;;\n    esac\n    export "$phase1_forwarded_key=$phase1_forwarded_value"\n  done < "$CI_ARTIFACT_DIR/phase1-emitted-original-context-unit.env"\n  test "$phase1_mode_seen:$phase1_context_seen:$phase1_digest_seen" = true:true:true\nfi\n\nonly_testing_args=()\n', 'only_testing_args=()\n')]}
+PHASE1_ORIGINAL_CONTEXT_MARKERS = (
+    b"v23_phase1_original_context_setting", b"V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1",
+    b"phase1Gate.schema", b"phase1-context-forward", b"TEST_RUNNER_V23_PHASE1_EMITTED_",
+    b"phase1_forwarded_", b"phase1_mode_seen", b"phase1_context_seen", b"phase1_digest_seen",
+)
+
+
+def before_phase1_original_context(relative, raw):
+    """Restore only authentic Phase1 shell additions before existing cold inverses."""
+    if type(raw) is not bytes:
+        raise AssertionError("Phase1 original-context inverse requires exact bytes")
+    if relative not in PHASE1_ORIGINAL_CONTEXT_SOURCE_SHA256:
+        return raw
+    current_sha, prior_sha = PHASE1_ORIGINAL_CONTEXT_SOURCE_SHA256[relative]
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest == prior_sha:
+        return raw
+    if not any(marker in raw for marker in PHASE1_ORIGINAL_CONTEXT_MARKERS):
+        return raw  # Earlier inputs still face incumbent cold/historical exact checks.
+    if digest != current_sha:
+        raise AssertionError("changed frozen Phase1 original-context input: " + relative)
+    text = raw.decode("utf-8")
+    for current, previous in PHASE1_ORIGINAL_CONTEXT_REPLACEMENTS[relative]:
+        text = remove_exactly_once(text, current, previous)
+    restored = text.encode("utf-8")
+    if hashlib.sha256(restored).hexdigest() != prior_sha:
+        raise AssertionError("Phase1 original-context inverse changed historical Source: " + relative)
+    return restored
+
+
 # Historical Source comparisons alone reverse these independently reviewed cold
 # macro/context shell additions. Actual current cold tests never use this inverse.
 # Both whole-file input/output hashes and closed literal contexts remain required.
@@ -397,6 +456,7 @@ def before_cold_original_context(relative, raw):
     """Restore only exact cold shell additions before incumbent historical checks."""
     if type(raw) is not bytes:
         raise AssertionError("cold original-context inverse requires exact bytes")
+    raw = before_phase1_original_context(relative, raw)
     if relative not in COLD_ORIGINAL_CONTEXT_SOURCE_SHA256:
         return raw
     current_sha, prior_sha = COLD_ORIGINAL_CONTEXT_SOURCE_SHA256[relative]
@@ -3391,6 +3451,7 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
         # C9 raw-source successor preserves prior current724 as the twelfth historical pin.
         # Cold durable candidate retains the exact f06 current4F0E as the new first historical pin.
+        # C15 Phase1 conserves actual prior-current1057 after the unchanged history tuple.
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
                          ('4F0E5780EA2EA56E869F90E1C316011252164D0BD2E561C8834722CE0123685A',
                           '7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38',
@@ -3404,7 +3465,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                       'EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED',
                   '20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41',
                   'A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5',
-                  '724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36'))
+                  '724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36',
+                  '1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))
@@ -3663,6 +3725,25 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             historical_bytes = subprocess.check_output(
                 ['git', 'show', self.source_parent + ':' + path], cwd=ROOT)
             if path == 'Scripts/v23-selection-generator.py':
+                raw_generator = current_bytes
+                self.assertEqual(hashlib.sha256(raw_generator).hexdigest(), GENERATOR_PHASE1_SOURCE_SHA256['current'])
+                current_bytes = before_phase1_generator_condition(raw_generator)
+                self.assertEqual(before_phase1_generator_condition(current_bytes), current_bytes)
+                hunk = GENERATOR_PHASE1_CONDITION_CURRENT
+                self.assertEqual(raw_generator.count(hunk), 1)
+                changed_inputs = (raw_generator + b" ", raw_generator + b"# unknown Phase1 condition override\n",
+                    raw_generator.replace(hunk, b"", 1), raw_generator.replace(hunk, hunk + hunk, 1),
+                    raw_generator.replace(hunk, hunk[:-1] + b" # changed\n", 1),
+                    raw_generator.replace(hunk, b"", 1) + hunk)
+                for changed in changed_inputs:
+                    with self.subTest(generatorChangedSHA256=hashlib.sha256(changed).hexdigest()):
+                        with self.assertRaises(AssertionError): before_phase1_generator_condition(changed)
+                        # Only the synthetic input pin changes to exercise actual
+                        # closed hunk/output guards; the prior output pin stays real.
+                        with mock.patch.dict(GENERATOR_PHASE1_SOURCE_SHA256,
+                                {'current': hashlib.sha256(changed).hexdigest()}):
+                            with self.assertRaises(AssertionError): before_phase1_generator_condition(changed)
+                with self.assertRaises(AssertionError): before_phase1_generator_condition(raw_generator.decode('utf-8'))
                 # Brace-span amendment: exact new bytes and unchanged historic
                 # baseline are pinned; all route/output comparisons below remain.
                 self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
@@ -4020,6 +4101,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
                 current_bytes = worker_before_interruption_build_order(self, current_bytes)
             historical_bytes = frozen(path)
             if path == 'Scripts/v23-selection-generator.py':
+                current_bytes = before_phase1_generator_condition(current_bytes)
                 # Brace-span amendment: exact new bytes and unchanged historic
                 # baseline are pinned; all route/output comparisons below remain.
                 self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
@@ -4278,6 +4360,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                 current_bytes = CI.canonical(manifest)
             historical_bytes = frozen(path)
             if path == 'Scripts/v23-selection-generator.py':
+                current_bytes = before_phase1_generator_condition(current_bytes)
                 # Brace-span amendment: exact new bytes and unchanged historic
                 # baseline are pinned; all route/output comparisons below remain.
                 self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
@@ -10242,8 +10325,10 @@ class RUI1RouteTests(unittest.TestCase):
 
     def test_real_runner_argv_forwards_strict_audit_and_preserves_native_failure(self):
         from types import SimpleNamespace
+        self.assertNotIn('phase1Gate', self.record)
+        self.assertIs(CI.phase1_event_is_v2(self.record.get('phase1Gate')), False)
         native = SimpleNamespace(selected_input=lambda root, environment: (self.selected, self.record),
-                                 canonical=CI.canonical)
+                                 canonical=CI.canonical, phase1_event_is_v2=CI.phase1_event_is_v2)
         for override in (False, True):
             out = self.artifact / ('override' if override else 'failure')
             out.mkdir()
@@ -11490,9 +11575,40 @@ class ColdHistoricalInverseTests(unittest.TestCase):
                 self.assertNotIn(b"v23_cold", previous)
 
     def test_original_context_shell_inverse_restores_exact_inputs_and_rejects_closed_hunk_tampering(self):
+        for relative, (current_sha, prior_sha) in PHASE1_ORIGINAL_CONTEXT_SOURCE_SHA256.items():
+            with self.subTest(phase1Relative=relative):
+                raw = (ROOT / relative).read_bytes()
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), current_sha)
+                previous = before_phase1_original_context(relative, raw)
+                self.assertEqual(hashlib.sha256(previous).hexdigest(), prior_sha)
+                self.assertEqual(prior_sha, COLD_ORIGINAL_CONTEXT_SOURCE_SHA256[relative][0])
+                self.assertEqual(before_phase1_original_context(relative, previous), previous)
+                self.assertEqual(before_cold_original_context(relative, raw),
+                                 before_cold_original_context(relative, previous))
+                changed_inputs = [raw + b" ", raw + b"# unknown Phase1 original-context override\n"]
+                for current, _ in PHASE1_ORIGINAL_CONTEXT_REPLACEMENTS[relative]:
+                    hunk = current.encode("utf-8")
+                    self.assertEqual(raw.count(hunk), 1)
+                    changed_inputs.extend((raw.replace(hunk, b"", 1),
+                        raw.replace(hunk, hunk + hunk, 1),
+                        raw.replace(hunk, hunk[:-1] + b" # changed\n", 1),
+                        raw.replace(hunk, b"", 1) + hunk))
+                for changed in changed_inputs:
+                    with self.subTest(phase1ChangedSHA256=hashlib.sha256(changed).hexdigest()):
+                        self.assertNotEqual(changed, raw)
+                        with self.assertRaises(AssertionError):
+                            before_phase1_original_context(relative, changed)
+                        # A synthetic input pin only isolates closed literal guards;
+                        # the authentic prior whole-file output hash never changes.
+                        with mock.patch.dict(PHASE1_ORIGINAL_CONTEXT_SOURCE_SHA256,
+                                {relative: (hashlib.sha256(changed).hexdigest(), prior_sha)}):
+                            with self.assertRaises(AssertionError):
+                                before_phase1_original_context(relative, changed)
+                with self.assertRaises(AssertionError):
+                    before_phase1_original_context(relative, raw.decode("utf-8"))
         for relative, (current_sha, prior_sha) in COLD_ORIGINAL_CONTEXT_SOURCE_SHA256.items():
             with self.subTest(relative=relative):
-                raw = (ROOT / relative).read_bytes()
+                raw = before_phase1_original_context(relative, (ROOT / relative).read_bytes())
                 self.assertEqual(hashlib.sha256(raw).hexdigest(), current_sha)
                 previous = before_cold_original_context(relative, raw)
                 self.assertEqual(hashlib.sha256(previous).hexdigest(), prior_sha)

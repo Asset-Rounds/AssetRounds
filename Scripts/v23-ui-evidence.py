@@ -298,6 +298,37 @@ def retained_environment(argv):
     return environment, result.parent
 
 
+def phase1_emitted_runner_environment_v2(artifact, admission):
+    """Bind the real retained UI context to the existing XCTest forwarding API."""
+    import base64
+    raw = regular(artifact / "phase1-emitted-context-forwarding-ui.json")
+    receipt = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs)
+    context = receipt.get("context")
+    context_keys = {"schema", "originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256",
+        "selectionSHA256", "writerSourceSHA256", "head", "tree", "ref", "runID", "runAttempt", "purpose", "selectionID",
+        "role", "partitionID", "phase", "simulatorUDID", "executionScope", "durableSinkPath", "durableSinkBindingSHA256"}
+    require(type(context) is dict and set(context) == context_keys and all(type(v) is str for v in context.values())
+            and context.get("schema") == "v23-phase1-emitted-original-context.v1"
+            and context.get("role") == "rui1" and context.get("phase") == "ui"
+            and context.get("selectionID") == ROUTE and context.get("partitionID") == ""
+            and context.get("admissionSHA256") == sha(canonical(admission))
+            and context.get("planSHA256") == admission["phase1Gate"]["planSHA256"]
+            and context.get("purpose") == admission["phase1Gate"]["plan"]["purpose"]
+            and context.get("tree") == admission.get("gitTree")
+            and context.get("selectionSHA256") == admission.get("selectionSHA256")
+            and context.get("executionScope") == "phase1-simulator-functional-gate-v1"
+            and all(context.get(k) == admission.get(k) for k in ("head", "runID", "runAttempt", "ref")),
+            "Phase1 actual UI forwarded original")
+    context_raw = canonical(context)
+    forwarded = {"TEST_RUNNER_V23_PHASE1_EMITTED_MODE": "required-phase1-original-context-v1",
+        "TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT": base64.b64encode(context_raw).decode("ascii"),
+        "TEST_RUNNER_V23_PHASE1_EMITTED_CONTEXT_SHA256": sha(context_raw)}
+    require(receipt.get("schema") == "v23-phase1-emitted-context-forwarding.v1"
+            and receipt.get("contextSHA256") == sha(context_raw) and receipt.get("forwardedEnvironment") == forwarded,
+            "Phase1 retained exact UI runner map")
+    return {"TEST_RUNNER_V23_P1_AX_AUDIT_STRICT": "1", **forwarded}
+
+
 def verify(root, artifact, admission, selected, native, environment=None, *, command_artifact=None):
     require(admission.get("rui1ProtocolSources") == protocol_sources(root), "RUI1 admitted source closure")
     rows = attachments(root, artifact, admission, selected)
@@ -306,10 +337,13 @@ def verify(root, artifact, admission, selected, native, environment=None, *, com
     receipt = read(artifact / "rui1-command.json")
     require(set(receipt) == {"schema", "head", "runID", "runAttempt", "admissionSHA256", "argv",
                             "runnerEnvironment", "acceptance", "releaseReady"}, "command receipt keys")
-    require(receipt["schema"] == "v23-rui1-command.v1"
+    phase1_v2 = admission.get("phase1Gate", {}).get("schema") == "v23-phase1-original-event-binding.v2"
+    expected_runner = (phase1_emitted_runner_environment_v2(artifact, admission) if phase1_v2
+                       else {"TEST_RUNNER_V23_P1_AX_AUDIT_STRICT": "1"})
+    require(receipt["schema"] == ("v23-rui1-command.v2" if phase1_v2 else "v23-rui1-command.v1")
             and all(receipt[k] == admission[k] for k in ("head", "runID", "runAttempt"))
             and receipt["admissionSHA256"] == sha(native.canonical(admission))
-            and receipt["runnerEnvironment"] == {"TEST_RUNNER_V23_P1_AX_AUDIT_STRICT": "1"}
+            and receipt["runnerEnvironment"] == expected_runner
             and receipt["acceptance"] is False and receipt["releaseReady"] is False, "command binding")
     argv = receipt["argv"]
     retained_environment(argv)
@@ -319,7 +353,10 @@ def verify(root, artifact, admission, selected, native, environment=None, *, com
     final = regular(artifact / "ui-final.png")
     require(final == regular(artifact / rows[-1]["image"]), "explicit last catalogue state alias")
     phase1 = {}
-    if "phase1Gate" in admission:
+    if phase1_v2:
+        phase1 = {"phase1PlanSHA256": admission["phase1Gate"]["planSHA256"],
+                  "phase1UIFinalizationV2SHA256": sha(regular(artifact / "phase1-ui-diagnostics/phase1-ui-finalization-v2.json"))}
+    elif "phase1Gate" in admission:
         phase1 = {"phase1PlanSHA256": admission["phase1Gate"]["planSHA256"],
                   "phase1UIFinalizationSHA256": sha(regular(artifact / "phase1-ui-diagnostics/phase1-ui-finalization.json"))}
     return {"schema": "v23-rui1-review.v1", **phase1, "head": admission["head"], "runID": admission["runID"],
@@ -446,7 +483,11 @@ def run(root, artifact):
     runner = {"TEST_RUNNER_V23_P1_AX_AUDIT_STRICT": "1"}
     require(not any(k.startswith("TEST_RUNNER_V23_P1_") or k == "V23_P1_AX_AUDIT_STRICT"
                     for k in os.environ), "caller UI audit overrides")
-    write_new(artifact / "rui1-command.json", canonical({"schema": "v23-rui1-command.v1",
+    phase1_v2 = native.phase1_event_is_v2(admission.get("phase1Gate"))
+    if phase1_v2:
+        runner.update(native.phase1_emitted_retain_forwarding(root, artifact, admission, os.environ, "ui"))
+        require(runner == phase1_emitted_runner_environment_v2(artifact, admission), "Phase1 exact live UI runner forwarding")
+    write_new(artifact / "rui1-command.json", canonical({"schema": "v23-rui1-command.v2" if phase1_v2 else "v23-rui1-command.v1",
         **{k: admission[k] for k in ("head", "runID", "runAttempt")},
         "admissionSHA256": sha(native.canonical(admission)), "argv": args, "runnerEnvironment": runner,
         "acceptance": False, "releaseReady": False}))

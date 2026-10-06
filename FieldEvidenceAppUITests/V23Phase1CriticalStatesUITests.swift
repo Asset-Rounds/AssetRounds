@@ -553,7 +553,71 @@ final class V23Phase1CriticalStatesUITests: XCTestCase {
         }
         app.launchArguments = arguments + extraArguments
         app.launchEnvironment["V23_MIGRATION_TEST_ID"] = storeID
+        #if V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1
+        do {
+            for (key, value) in try phase1EmittedAppEnvironment() {
+                app.launchEnvironment[key] = value
+            }
+        } catch {
+            XCTFail("Phase 1 emitted original-context forwarding failed: \(error)")
+        }
+        #endif
     }
+
+    #if V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1
+    private enum Phase1EmittedContextError: Error { case invalidOriginalContext }
+
+    /// XCTest receives the Native map through the existing TEST_RUNNER_ API;
+    /// XCUIApplication gets these exact three values at every configured launch.
+    private func phase1EmittedAppEnvironment() throws -> [String: String] {
+        let environment = ProcessInfo.processInfo.environment
+        let prefix = "V23_PHASE1_EMITTED_"
+        let supplied = environment.filter { $0.key.hasPrefix(prefix) }
+        let keys: Set<String> = [prefix + "MODE", prefix + "CONTEXT", prefix + "CONTEXT_SHA256"]
+        guard Set(supplied.keys) == keys,
+              supplied[prefix + "MODE"] == "required-phase1-original-context-v1",
+              !environment.keys.contains(where: { $0.hasPrefix("V23_COLD_EMITTED_") }),
+              let encoded = supplied[prefix + "CONTEXT"], encoded.utf8.count <= 4 * ((8_192 + 2) / 3),
+              let raw = Data(base64Encoded: encoded), raw.count <= 8_192,
+              raw.base64EncodedString() == encoded, raw.last == 10,
+              !raw.dropLast().contains(10), !raw.contains(13), raw.allSatisfy({ $0 < 128 }),
+              supplied[prefix + "CONTEXT_SHA256"] == SHA256.hash(data: raw).map({ String(format: "%02X", $0) }).joined(),
+              let context = try JSONSerialization.jsonObject(with: raw) as? [String: String] else {
+            throw Phase1EmittedContextError.invalidOriginalContext
+        }
+        let contextKeys: Set<String> = ["schema", "originalEventSHA256", "eventBindingSHA256", "admissionSHA256",
+            "planSHA256", "selectionSHA256", "writerSourceSHA256", "head", "tree", "ref", "runID", "runAttempt",
+            "purpose", "selectionID", "role", "partitionID", "phase", "simulatorUDID", "executionScope",
+            "durableSinkPath", "durableSinkBindingSHA256"]
+        let purposes = ["phase1-candidate-functional-v1": "refs/heads/codex/v23-s10-integration-20260910",
+                        "phase1-exact-main-functional-v1": "refs/heads/main"]
+        func matches(_ value: String?, _ pattern: String) -> Bool {
+            guard let value, let range = value.range(of: pattern, options: .regularExpression) else { return false }
+            return range == (value.startIndex..<value.endIndex)
+        }
+        guard Set(context.keys) == contextKeys,
+              context["schema"] == "v23-phase1-emitted-original-context.v1",
+              context["role"] == "rui1", context["partitionID"] == "", context["phase"] == "ui",
+              context["selectionID"] == "v23-ui-batch-rui1", context["runAttempt"] == "1",
+              context["executionScope"] == "phase1-simulator-functional-gate-v1",
+              let purpose = context["purpose"], let ref = purposes[purpose], context["ref"] == ref,
+              matches(context["runID"], "^[1-9][0-9]*$"),
+              ["head", "tree"].allSatisfy({ matches(context[$0], "^[0-9a-f]{40}$") }),
+              ["originalEventSHA256", "eventBindingSHA256", "admissionSHA256", "planSHA256", "selectionSHA256",
+               "writerSourceSHA256", "durableSinkBindingSHA256"].allSatisfy({ matches(context[$0], "^[0-9A-F]{64}$") }),
+              let udid = context["simulatorUDID"], UUID(uuidString: udid)?.uuidString == udid,
+              environment["SIMULATOR_UDID"] == udid,
+              let path = context["durableSinkPath"], path.hasPrefix("/"), path.utf8.count <= 4_096,
+              !path.contains("\n"), !path.contains("\r"), !path.contains("\0"),
+              URL(fileURLWithPath: path).lastPathComponent == "phase1-emitted-durable-original-ui" else {
+            throw Phase1EmittedContextError.invalidOriginalContext
+        }
+        var canonical = try JSONSerialization.data(withJSONObject: context, options: [.sortedKeys, .withoutEscapingSlashes])
+        canonical.append(10)
+        guard canonical == raw else { throw Phase1EmittedContextError.invalidOriginalContext }
+        return supplied
+    }
+    #endif
 
     /// Seeds the isolated S10 store, then performs the real cold launch that
     /// finishes its validation, ending on the four-tab shell.

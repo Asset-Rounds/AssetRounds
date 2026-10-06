@@ -54,10 +54,10 @@ TAR_NAME = "FieldEvidencePayload.tar"
 DIGEST_NAME = TAR_NAME + ".sha256"
 METADATA = "v23-shared-payload.json"
 EXECUTABLE_SOURCES = {
-    "Scripts/v23-native-ci.py": "ab26a4d60553facb664a357934881de47467313534204394ffe85aebf6328e89",
-    "Scripts/v23-phase1-gates.py": "4652cd2eae172ed07ff29b6f33cf15650c46b5539cfbc07472730cd1bcd0f5ca",
+    "Scripts/v23-native-ci.py": "82b9d320ff17048a6b58e6f9b127fc510d5c239687b5302dcff2c95f3b58390a",
+    "Scripts/v23-phase1-gates.py": "d97b166eaf2bdeabb7929503014ca4237dac570561b198ee25cf178db4ab4b8e",
     "Scripts/s10-4-build-payload.py": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521",
-    "Scripts/v23-selection-generator.py": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
+    "Scripts/v23-selection-generator.py": "c9cca4ff93227290f9d867e9ab19e574dca26ce4cdbf6b12e748bf63325452e1",
 }
 PENDING = (
     "authenticated original API census, attempt/discovery and sole-collector authority",
@@ -1422,6 +1422,375 @@ def cold_worker_execution_facts_v2(root, artifact, record, selected, label, job)
             "simulator": simulator, "checkpointSHA256": sha256((artifact / "native-checkpoint.json").read_bytes()),
             "offlineNativeExecution": False}
 
+
+
+
+# Explicit Phase1 V2 DATA interfaces. The legacy V1 and cold bodies above are
+# unchanged; a V2 plan is never converted to either predecessor's schema.
+PHASE1_INPUT_SCHEMA_V2 = "v23-retained-payload-input.v2"
+PHASE1_FACT_SCHEMA_V2 = "v23-retained-payload-facts.v2"
+PHASE1_PENDING_V2 = (
+    "authenticated original API census, attempt/discovery and sole-collector authority",
+    "frozen Git head/tree and archived-source provenance authentication",
+    "complete authentic original-bound emitted diagnostic transport",
+    "actual live safe-extraction, no-rebuild and every-method execution proof",
+    "complete job/download/command/runtime facts and genuine independent review",
+    "versioned Phase1 candidate gates, owner review and exact-main lifecycle",
+)
+PHASE1_SCOPE_V2 = {
+    "dataOnly": True, "executionAuthority": False, "authentication": False,
+    "qualification": False, "functionalQualification": "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW",
+    "providerQualification": False, "acceptance": False, "releaseReady": False,
+    "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+    "physicalProtectionReleaseBlocker": True, "emittedTransport": "PENDING",
+    "totalPolicyCallCountProven": False, "exhaustiveKernelProcessCohortProven": False,
+    "perPIDDescriptorRetirementProven": False, "exactCheckpointRepeatProven": False,
+}
+PHASE1_UNPROVEN_V2 = (
+    "total policy-call counts", "exhaustive kernel process cohorts",
+    "per-PID descriptor retirement", "exact checkpoint repeat",
+)
+
+
+def phase1_envelope_facts_v2(value, root, ci, gate):
+    """Validate the actual closed V2 plan; supplied API facts remain DATA."""
+    require(type(value) is dict and set(value) == {"schema", "plan", "runID", "runAttempt", "payloadArtifact"}
+            and value["schema"] == PHASE1_INPUT_SCHEMA_V2, "closed Phase1 V2 factual envelope")
+    require("validate_plan_v2" in gate and "make_plan_v2" in gate,
+            "unsupported Phase1 retained gate V2 ABI")
+    plan = gate["validate_plan_v2"](value["plan"])
+    require(plan["selection"] == ci["SHARED_SELECTION_ID"], "shared Phase1 V2 payload plan only")
+    require(type(value["runID"]) is int and value["runID"] > 0
+            and type(value["runAttempt"]) is int and value["runAttempt"] == 1, "declared frozen original IDs")
+    sources = source_closure(root, gate)
+    require(sources == plan["sources"], "source closure differs from frozen plan DATA")
+    resolved = ci["shared_selection"](root)
+    rebuilt = gate["make_plan_v2"](purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
+        selection=plan["selection"], resolved_bytes=ci["canonical"](resolved), sources=sources,
+        requested_at=plan["requestedAtUTC"], cold_prerequisite=plan["coldPrerequisite"])
+    require(canonical(rebuilt) == canonical(plan), "source-resolved ordered selection differs")
+    artifact = value["payloadArtifact"]
+    require(type(artifact) is dict, "raw API artifact DATA object")
+    origin = artifact.get("workflow_run")
+    name = "v23-shared-payload-%d-1-%s" % (value["runID"], plan["head"])
+    require(type(artifact.get("id")) is int and artifact["id"] > 0 and artifact.get("expired") is False
+            and artifact.get("name") == name and type(artifact.get("size_in_bytes")) is int
+            and artifact["size_in_bytes"] > 0 and type(artifact.get("digest")) is str
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"]), "declared outer API artifact grammar")
+    require(type(origin) is dict and type(origin.get("id")) is int and origin["id"] == value["runID"]
+            and origin.get("head_sha") == plan["head"]
+            and origin.get("head_branch") == plan["ref"].removeprefix("refs/heads/"), "declared API original join")
+    return plan, resolved, sources
+
+
+def phase1_close_handles_v2(handles, primary):
+    """Attempt each owned close once; retain the genuine primary object."""
+    errors = []
+    for handle in reversed(handles):
+        try:
+            os.close(handle)
+        except BaseException as error:
+            errors.append(error)
+    if primary is not None:
+        for error in errors:
+            primary.add_note("secondary Phase1 V2 directory close: " + repr(error))
+    elif errors:
+        for error in errors[1:]:
+            errors[0].add_note("secondary Phase1 V2 directory close: " + repr(error))
+        raise errors[0]
+
+
+def phase1_worker_states_v2(artifact, producer, ci):
+    """Fence the actual V2 payload validator's inputs, without replaying a job."""
+    names = ["native-admission.json", "phase1-event-binding.json", "phase1-original-event.json",
+             "phase1-gate-plan.json", METADATA, "ci-selection.selected.json"]
+    stages = ("seal",) if producer else ("restore", "before", "after")
+    names += ["phase1-shared-live-v2-" + stage + ".json" for stage in stages]
+    names += ([ci["SHARED_PAYLOAD_RECEIPT"]] if producer else
+              [ci["SHARED_RESTORE_RECEIPT"], "v23-shared-fingerprint-before.json", "v23-shared-fingerprint-after.json",
+               ci["SHARED_DERIVED_DATA_DELTA"], "test-smoke.log"])
+    paths = [(artifact / name, ci["SHARED_MAX_TEST_LOG_BYTES"] if name == "test-smoke.log" else JSON_BYTES) for name in names]
+    if not producer:
+        directory = artifact / "phase1-activity-logs-v2"
+        handles, primary = directory_chain(directory), None
+        try:
+            names = bounded_names(handles[-1], TAR_MEMBERS)
+            paths += [(directory / name, ci["PHASE1_ACTIVITY_TOTAL_BYTES"]) for name in names]
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            phase1_close_handles_v2(handles, primary)
+    handles, primary = directory_chain(artifact), None
+    try:
+        states = {"directory": snapshot(os.fstat(handles[-1])),
+                  "memberNames": bounded_names(handles[-1], TAR_MEMBERS)}
+        require(states["directory"] == snapshot(artifact.lstat()), "Phase1 V2 worker held/name directory join")
+        if not producer:
+            forbidden = {}
+            for name in ("Build.xcresult", "build-smoke.log", ci["NO_INDEX_RECEIPT"]):
+                try:
+                    info = os.stat(name, dir_fd=handles[-1], follow_symlinks=False)
+                except FileNotFoundError:
+                    forbidden[name] = {"absent": True}
+                else:
+                    forbidden[name] = {"absent": False, "stat": snapshot(info)}
+            states["forbiddenConsumerLeaves"] = forbidden
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        phase1_close_handles_v2(handles, primary)
+    total = 0
+    for path, limit in paths:
+        # Reuse the incumbent bounded read and its nine-field endpoint guard;
+        # st_flags is not part of the inherited runtime snapshot.
+        raw = regular_bytes(path, limit)
+        if path.parent.name == "phase1-activity-logs-v2":
+            total += len(raw)
+            require(total <= ci["PHASE1_ACTIVITY_TOTAL_BYTES"], "Phase1 V2 retained activity byte bound")
+        states[str(path)] = {"stat": snapshot(path.lstat()), "bytes": len(raw), "sha256": sha(raw)}
+    return states
+
+
+def phase1_workers_states_v2(directory, labels, ci):
+    """Observe the complete retained worker interval, including named absences."""
+    if directory is None:
+        return None
+    directory = clean_absolute(directory)
+    handles, primary = directory_chain(directory), None
+    try:
+        state = {"directory": snapshot(os.fstat(handles[-1])), "labels": bounded_names(handles[-1], len(labels))}
+        require(state["directory"] == snapshot(directory.lstat()), "Phase1 V2 retained workers held/name directory join")
+        require(state["labels"] == sorted(labels), "complete producer/every-consumer directory census")
+        state["workers"] = {label: phase1_worker_states_v2(directory / label, label == "producer", ci) for label in labels}
+        return state
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        phase1_close_handles_v2(handles, primary)
+
+
+def phase1_workers_unchanged_v2(directory, labels, ci, before):
+    require(phase1_workers_states_v2(directory, labels, ci) == before,
+            "Phase1 V2 retained workers changed during complete recomputation interval")
+
+
+def phase1_event_data_join_v2(artifact, value, plan, binding, gate):
+    """Join authentic retained bytes as DATA; enclosing collector authenticates API."""
+    require("plan_from_event_v2" in gate and "validate_received_inputs_v2" in gate,
+            "unsupported Phase1 retained event V2 ABI")
+    event_raw = regular_bytes(artifact / "phase1-original-event.json", gate["MAX_EVENT_BYTES"])
+    event_plan, event = gate["plan_from_event_v2"](event_raw)
+    require(event_plan == plan, "Phase1 V2 retained original event DATA join")
+    received_shape = gate["validate_received_inputs_v2"](event.get("inputs"), plan)
+    require(type(received_shape) is str
+            and received_shape in ("COMPLETE_13", "OMITTED_EMPTY_DEFAULTS_10"),
+            "unsupported Phase1 received-input V2 result ABI")
+    require(event.get("ref") in (plan["ref"], plan["ref"].removeprefix("refs/heads/"))
+            and type(event.get("repository")) is dict
+            and event["repository"].get("full_name") == plan["route"]["repository"],
+            "Phase1 V2 retained original event DATA join")
+    expected = {
+        "schema": "v23-phase1-original-event-binding.v2", "plan": plan, "planSHA256": sha(canonical(plan)),
+        "originalEventSHA256": sha(event_raw), "repository": plan["route"]["repository"], "ref": plan["ref"],
+        "head": plan["head"], "tree": plan["tree"],
+        "workflowRef": plan["route"]["repository"] + "/" + plan["route"]["workflow"] + "@" + plan["ref"],
+        "workflowSHA": plan["head"], "runID": str(value["runID"]), "runAttempt": "1", "kind": "gate",
+        "selection": plan["selection"], "functionalQualification": gate["PENDING"],
+    }
+    require(canonical(binding) == canonical(expected), "closed Phase1 V2 retained binding DATA join")
+    require(regular_bytes(artifact / "phase1-gate-plan.json") == canonical(plan), "Phase1 V2 retained plan exact bytes")
+
+
+def phase1_worker_joins_v2(root, directory, value, plan, resolved, raw, products, archive, census, ci, gate, kernel, *, input_states):
+    """Join real V2 observations to independently extracted payload, DATA only."""
+    labels = ["producer"] + resolved[ci["SHARED_KEY"]]["partitionIDs"]
+    if directory is None:
+        return {"status": "PENDING_MISSING_RETAINED_WORKERS", "requiredLabels": labels}
+    require("phase1_retained_shared_facts_v2" in ci, "unsupported Phase1 retained native V2 ABI")
+    directory = clean_absolute(directory)
+    handles, primary = directory_chain(directory), None
+    try:
+        require(bounded_names(handles[-1], len(labels)) == sorted(labels), "complete producer/every-consumer directory census")
+        facts = {}
+        protocol = ci["source_binding"](root)
+        entries = kernel["inventory"](Path(archive["extractedRoot"]) / kernel["ROOT_LABEL"])
+        for label in labels:
+            artifact = directory / label
+            worker_handles, worker_error = directory_chain(artifact), None
+            try:
+                producer = label == "producer"
+                before = input_states["workers"][label]
+                require(phase1_worker_states_v2(artifact, producer, ci) == before,
+                        "Phase1 V2 retained worker changed before Native computation")
+                record = decode(regular_bytes(artifact / "native-admission.json"))
+                binding = decode(regular_bytes(artifact / "phase1-event-binding.json"))
+                phase1_event_data_join_v2(artifact, value, plan, binding, gate)
+                require(record.get("phase1Gate") == binding, "Phase1 V2 worker actual original binding")
+                require((record.get("repository"), record.get("head"), record.get("gitTree"), record.get("ref"),
+                         record.get("runID"), record.get("runAttempt"), record.get("selectionID"))
+                        == (plan["route"]["repository"], plan["head"], plan["tree"], plan["ref"],
+                            str(value["runID"]), "1", ci["SHARED_SELECTION_ID"]), "worker original DATA join")
+                require(all(record.get(key) == fact for key, fact in protocol.items()), "worker source protocol DATA join")
+                selected = resolved if producer else ci["shared_selection"](root, label)
+                selected_raw = ci["canonical"](selected)
+                require(regular_bytes(artifact / "ci-selection.selected.json") == selected_raw
+                        and record.get("selectionSHA256") == sha(selected_raw), "worker actual ordered selection DATA join")
+                require(record.get(ci["SHARED_KEY"]) == {
+                    "role": "producer" if producer else "consumer", "partitionID": None if producer else label,
+                    "payloadArtifactName": value["payloadArtifact"]["name"], "planSHA256": plan["selectionSHA256"],
+                    "partitionsSHA256": resolved[ci["SHARED_KEY"]]["partitionsSHA256"]},
+                    "worker role/partition/payload DATA join")
+                require(regular_bytes(artifact / METADATA) == raw, "worker exact retained metadata bytes")
+                computed = ci["phase1_retained_shared_facts_v2"](root, artifact, record, binding)
+                require(computed.get("schema") == "v23-phase1-retained-shared-facts.v2"
+                        and computed.get("status") == "COMPLETE_RETAINED_SHARED_OBSERVATIONS"
+                        and computed.get("functionalQualification") == gate["PENDING"]
+                        and all(computed.get(key) is False for key in
+                                ("acceptance", "providerQualification", "releaseReady", "payloadArchiveRetained",
+                                 "liveChecksIndependentlyReexecuted")), "Phase1 V2 retained facts remain unqualified DATA")
+                for stage in (("seal",) if producer else ("restore", "before", "after")):
+                    witness_path = artifact / ("phase1-shared-live-v2-" + stage + ".json")
+                    observation = decode(regular_bytes(witness_path))
+                    require(computed["liveObservationSHA256"].get(stage) == before[str(witness_path)]["sha256"],
+                            "Phase1 V2 actual retained witness digest join")
+                    require(observation["products"] == products and observation["productInventory"] == entries,
+                            "worker observation/recomputed product join")
+                    if stage in ("seal", "restore"):
+                        require(observation["archive"] == {key: archive[key] for key in ("name", "bytes", "sha256")}
+                                and observation["archiveMemberCensus"] == census, "worker observation/recomputed TAR join")
+                facts[label] = {"retainedFacts": computed, "admissionSHA256": sha(canonical(record)),
+                                "bindingSHA256": sha(canonical(binding))}
+                require(phase1_worker_states_v2(artifact, producer, ci) == before,
+                        "retained worker inputs changed during recomputation")
+            except BaseException as error:
+                worker_error = error
+                raise
+            finally:
+                phase1_close_handles_v2(worker_handles, worker_error)
+        return {"status": "RECOMPUTED_ALL_RETAINED_WORKER_JOINS_DATA", "workers": facts}
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        phase1_close_handles_v2(handles, primary)
+
+def recompute_phase1_retained_payload_v2(zip_path, envelope_path, source_root, destination, *, retained_workers=None):
+    """Materialize in a NEW private destination; retain failures, never clean up.
+
+    Caller must exclude concurrent writers to input/source/destination/retained
+    worker trees. No current runner paths named inside metadata are opened.
+    Return factual output, never authentication/authorization/qualification.
+    """
+    owned = Owned(destination)
+    receipts, stage, primary = {}, "raw-retention", None
+    try:
+        owned.copy(clean_absolute(envelope_path), "input-envelope.json", JSON_BYTES, receipts)
+        owned.copy(clean_absolute(zip_path), "payload.zip", ZIP_BYTES, receipts)
+        stage = "source-and-envelope"
+        root = clean_absolute(source_root)
+        ci, gate, kernel = source_modules(root)
+        value = decode(regular_bytes(owned.path / "input-envelope.json"))
+        plan, resolved, sources = phase1_envelope_facts_v2(value, root, ci, gate)
+        require(receipts["payload.zip"]["sha256"].lower() == value["payloadArtifact"]["digest"].removeprefix("sha256:"),
+                "outer ZIP digest differs from declared API DATA")
+        # API size remains a distinct reported fact, never equated to ZIP bytes.
+        stage = "zip-transport"
+        owned.check()
+        extract_transport(owned.path / "payload.zip", owned.path / "transport")
+        stage = "inner-digest"
+        tar = owned.path / "transport" / TAR_NAME
+        digest_raw = regular_bytes(owned.path / "transport" / DIGEST_NAME, 256)
+        match = re.fullmatch(rb"([0-9A-F]{64}) ([0-9]{1,20}) FieldEvidencePayload\.tar\n", digest_raw)
+        require(match is not None, "distinct uppercase inner TAR digest grammar")
+        require(int(match[2]) == tar.stat().st_size and 0 < int(match[2]) <= TAR_BYTES
+                and kernel["sha256_file"](tar) == match[1].decode("ascii"), "inner TAR digest or bytes differ")
+        archive = {"name": TAR_NAME, "bytes": int(match[2]), "sha256": match[1].decode("ascii")}
+        stage = "tar-preflight"
+        tar_preflight(tar, kernel)
+        census = ci["phase1_tar_census"](tar, kernel)
+        stage = "kernel-extraction"
+        owned.check()
+        extracted = owned.path / "extracted"
+        kernel["extract_tar"](tar, extracted)
+        require(sorted(p.name for p in extracted.iterdir()) == sorted(["FieldEvidenceDerivedData", METADATA]), "exact extracted root")
+        stage = "metadata-products"
+        raw, metadata, products = metadata_facts(extracted, value, plan, resolved, ci, kernel)
+        # Exact archive census must equal the actual safely materialized view.
+        expected_census = [{"path": e["path"], "type": e["type"], "size": e.get("size", 0), "mode": e["mode"]}
+                           for e in kernel["inventory"](extracted)]
+        require(census == expected_census, "actual extracted/census join")
+        product_entries = kernel["inventory"](extracted / kernel["ROOT_LABEL"])
+        allowed = {"FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"], METADATA}
+        allowed.update(kernel["ROOT_LABEL"] + "/" + entry["path"] for entry in product_entries)
+        require({entry["path"] for entry in census} == allowed, "closed payload member closure")
+        stage = "retained-worker-joins"
+        worker_labels = ["producer"] + resolved[ci["SHARED_KEY"]]["partitionIDs"]
+        worker_inputs = phase1_workers_states_v2(retained_workers, worker_labels, ci)
+        join_reader = phase1_worker_joins_v2
+        joins = join_reader(root, retained_workers, value, plan, resolved, raw, products,
+                            dict(archive, extractedRoot=str(extracted)), census, ci, gate, kernel,
+                            input_states=worker_inputs)
+        stage = "final-invariance"
+        phase1_workers_unchanged_v2(retained_workers, worker_labels, ci, worker_inputs)
+        require(source_closure(root, gate) == sources, "source closure changed during recomputation")
+        require(all(list(snapshot((owned.path / name).lstat())) == receipt["ownedStat"]
+                    for name, receipt in receipts.items()), "retained raw input copy changed")
+        require(ci["shared_selection"](root) == resolved, "ordered selection changed during recomputation")
+        require(kernel["sha256_file"](tar) == archive["sha256"]
+                and ci["shared_products_binding"](kernel, extracted) == products
+                and regular_bytes(extracted / METADATA) == raw, "owned TAR/metadata/products changed")
+        owned.check()
+        stage = "durable-publication"
+        durability = owned.sync_tree()
+        phase1_workers_unchanged_v2(retained_workers, worker_labels, ci, worker_inputs)
+        result = {"schema": PHASE1_FACT_SCHEMA_V2,
+                  "status": "RECOMPUTED_PHASE1_RETAINED_PAYLOAD_DATA_ONLY_UNQUALIFIED",
+                  "envelopeSHA256": receipts["input-envelope.json"]["sha256"],
+                  "outerZIP": {"bytes": receipts["payload.zip"]["bytes"], "sha256": receipts["payload.zip"]["sha256"].lower(),
+                               "declaredAPIArtifact": value["payloadArtifact"]},
+                  "archive": archive, "digestFileSHA256": sha(digest_raw), "metadataSHA256": sha(raw),
+                  "originalDATA": {"repository": plan["route"]["repository"], "ref": plan["ref"], "head": plan["head"],
+                                   "tree": plan["tree"], "runID": value["runID"], "runAttempt": value["runAttempt"],
+                                   "planSHA256": sha(canonical(plan))},
+                  "sourceSHA256": sources, "executableSourceSHA256": EXECUTABLE_SOURCES,
+                  "products": products, "archiveMemberCensus": census, "workerJoins": joins,
+                  "originalPayloadClassification": {"developmentOnly": metadata["developmentOnly"], "acceptance": metadata["acceptance"]},
+                  "declaredBuildDigests": {key: metadata[key] for key in ("buildCommandReceiptSHA256", "buildLogSHA256")},
+                  "pendingProof": list(PHASE1_PENDING_V2), "ownedCopies": receipts,
+                  "durability": durability}
+        result["scope"] = dict(PHASE1_SCOPE_V2)
+        result["unprovenClaims"] = list(PHASE1_UNPROVEN_V2)
+        owned.write("FACTS.json", canonical(result))
+        stage = "final-worker-invariance"
+        phase1_workers_unchanged_v2(retained_workers, worker_labels, ci, worker_inputs)
+        return result
+    except BaseException as error:
+        primary = error
+        try:
+            durability = owned.sync_tree()
+        except Exception as sync_error:
+            durability = {"status": "UNPROVEN", "errorType": type(sync_error).__name__}
+        failure = {"schema": "v23-phase1-retained-payload-failure.v2",
+                   "status": "REFUSED_PARTIAL_OWNED_DATA_RETAINED",
+                   "stage": stage, "errorType": type(error).__name__, "reason": str(error)[:1000],
+                   "ownedCopies": receipts, "pendingProof": list(PHASE1_PENDING_V2), "durability": durability}
+        try:
+            owned.write("FAILURE.json", canonical(failure))
+        except Exception as receipt_error:
+            raise Refused("%s; failure receipt unavailable: %s; owned destination retained at %s"
+                          % (error, receipt_error, owned.path)) from error
+        if not isinstance(error, Exception):
+            raise
+        raise Refused("%s; failure receipt: %s" % (error, owned.path / "FAILURE.json")) from error
+    finally:
+        # Detach before once-closing every acquired owned endpoint; a cleanup
+        # failure refuses success and cannot replace a genuine primary error.
+        handles = owned.parents + ([] if owned.fd is None else [owned.fd])
+        owned.parents, owned.fd = [], None
+        phase1_close_handles_v2(handles, primary)
 
 
 

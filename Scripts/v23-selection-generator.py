@@ -313,6 +313,7 @@ def _active_swift(masked: str) -> str:
     source condition from silently acquiring membership through this parser.
     """
     conditions = {"DEBUG": True, "SWIFT_PACKAGE": False,
+                  "V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1": True,
                   "DEBUG && os(iOS) && targetEnvironment(simulator)": True,
                   "true": True, "false": False}
     frames = []
