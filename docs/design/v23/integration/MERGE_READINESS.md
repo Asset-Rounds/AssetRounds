@@ -1,4 +1,14 @@
-## C16 DEVELOPMENT checkpoint — Phase1 gates remain OPEN, 2026-10-05
+## C18 current merge blockers — 2026-10-05
+
+Published C16 da4959fda1da44d91bba077684e26ee4feeae815 remains DEVELOPMENT only. Hosted37404385344 failed one Swift compiler error before all3716 methods/33partitions; all5 Phase1 gates OPEN0/5, main b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged, releaseReady=false.
+
+- Compiler correction C18 has genuine independent C9 Sol6.1/xhigh Source PASS; local27 full-module completed336.556s/0errors with original1988ctime-only metadata HOLD preserved. Genuine C9 Sol6.1/xhigh bounded actual/current applicability review PASS; pinned26.6 compatibility and affected4 remain due before freeze/main.
+- One separate functional family remains: cold Ready permanent64 request pool exhausts at65th top-level request; genuine after-save failure disables autosave. C17 retirement correction and same-session129/130 regression are UNVERIFIED. Existing cold tests/full sweep cannot replace this correction or close owning/backing debts.
+- Producer artifact transport completion is independently DATA reviewed with current ctime limit; overall failed-original collection remains INCOMPLETE. Native payload/per-method/no-rebuild/protocol qualification remains due.
+- After stabilization and successful applicable development tests: freeze candidate, qualify cold route, run every same-head full-unit/qualifiedUI/independent-candidate/genuine-owner gate, then main non-force fast-forward and pinned exact-main. DEVELOPMENT never supplies gate credit.
+- Prospective physical evidence-root scheduling does not alter original, identity, gate or owner predicates. Historical failed originals/HOLDs and all full V23/physical/minimum-runtime/privacy/Store release work remain preserved.
+
+## Historical C16 DEVELOPMENT checkpoint — Phase1 gates remain OPEN, 2026-10-05
 
 - Source3 correction imported into Primary after independent Source review, local27 compile and actual502 tooling method successes. Native/selection wrapper ctime-only HOLDs remain; genuine reviewed current raw applicability is separate from historical FULL10 conservation.
 - Prospective inference-only scheduling in AGENTS moves native4 to next NEW-HEAD pinned hosted DEVELOPMENT original; sharedS05/D50C includes all four. They must actually pass before candidate freeze/main.

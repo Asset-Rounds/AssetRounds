@@ -1,4 +1,14 @@
-## C16 current obligations — 2026-10-05
+## C18 current obligations and preserved C16 failure — 2026-10-05
+
+- Published C16 da4959fda1da44d91bba077684e26ee4feeae815/tree b22ec259bcf31e1cb7c72b47c4c306b0529b5c66. Actual cold37404385344 FAILED one64726 inference error; all3716 methods/33partitions UNRUN. Preserve complete failed original/sole collector exit1/INCOMPLETE, no unchanged retry.
+- C18 isolated typed-local compiler split has genuine C9 Sol6.1/xhigh Source PASS. Local27 full-module completed336.556s/0errors, outer1/HOLD1988ctime-only deltas. Fresh2819raw/FULL10 quiet binding and26Source/suite/census equality complete; genuine C9 actual/applicability review PASS and exact Primary one-source import complete; final checkpoint review/publication and new-head pinned execution remain due.
+- All4 completed-abort regressions remain PENDING in sharedS05/D50C; inference-only scheduling requires their actual execution/PASS before freeze/main. Pinned compatibility remains UNPROVEN.
+- C16 transport DATA-only completion is genuine; raw/API/receipt content joins. Current raw ctime differs from recorded receipt, so strict resume refuses. No original lifetime repair, full cold/qualification or historical HOLD closure.
+- Permanent64 request exhaustion remains genuine Phase1 functional HOLD. C17 exact three-owner retirement Source, conservative retained charges/real alias+loan+close guards, authentic same-session129/130 saves/reproofs and negatives need independent review/compile/affected native; no simple pool reset/capacity increase.
+- Prospective one-root future evidence lifecycle needs actual physical ownership/identity/capacity plus historical-ledger/consumed-attempt/remote-original continuity before first use. External233GiB APFS ownership enabled by owner and verified; concrete root mkdir failed EACCES at root-owned0755 volume top; owner-created0700 workspace folder then actual identity/durability/capacity admission remain due. No new original/ledger born. Source/coordination stay Dropbox; historical evidence remains in place.
+- All5 gates OPEN0/5; app-test failure total UNKNOWN; main unchanged; releaseReady=false. Full V23/physical/minruntime/privacy/C55/Store owner release obligations unchanged.
+
+## Historical C16 obligations — 2026-10-05
 
 - Primary imported reviewed Swift cd685767…, dispatcher c2efb568… and fixture ee982f84… once; explicit nine-path Source+records checkpoint review/publication pending at record time.
 - Actual local27 compile PASS0errors; affectedcollector63 and fullNative394/selection45 children0F/E/S. Fullpair OUTER exit1/HOLDs retain612/1682ctime-only deltas; current raw/quiet binding and genuine independent439 applicability PASS do not repair historical guards.
