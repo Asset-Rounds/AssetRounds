@@ -64723,8 +64723,9 @@ extension ColdEraseSchema2CompletedCanonicalNamespaceConsumerV1 {
             + 2 * MemoryLayout<Source.RawOutcome>.stride + 2 * MemoryLayout<Bool>.stride)
         let paths = try namespaceTimes(root,4)
         var bytes: UInt64 = 0
-        for value in [owners,returns,iterations,DeclaredNamespaceCallbackPositions.bytes,helperArrays,
-            paths,UInt64(4 * 512 + 2 * 255 + 6 * 64)] as [UInt64] { bytes = try namespacePlus(bytes,value) }
+        let operands: [UInt64] = [owners,returns,iterations,DeclaredNamespaceCallbackPositions.bytes,helperArrays,
+            paths,UInt64(4 * 512 + 2 * 255 + 6 * 64)]
+        for value in operands { bytes = try namespacePlus(bytes,value) }
         return bytes
     }
     // Separate mirrors tie positions to the named concrete new call families.

@@ -6812,5 +6812,321 @@ class LocalDevelopmentEventTests(unittest.TestCase):
 
 # END LOCAL DEVELOPMENT EVENT TESTS V1
 
+class Phase1PayloadBirthIdentityTests(unittest.TestCase):
+    """Disposable files plus explicit synthetic platform/flags/setter observations.
+
+    The real birth helper, raw writes/snapshot and immutable transport predicates
+    execute. No OS chflags, API request, hosted original or qualification occurs.
+    """
+    @contextlib.contextmanager
+    def synthetic_birth(self, *, platform="darwin", initial_flags=0x20):
+        gate = NEW.phase1_gates()
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve() / "owned"
+            target.mkdir(mode=0o700)
+            raw_path = target / "raw.zip"
+            with raw_path.open("xb", buffering=0) as stream:
+                original_identity = NEW.phase1_payload_identity
+                inode = os.fstat(stream.fileno()).st_ino
+                state = {"flags": initial_flags, "ctimeDelta": 0, "override": {},
+                         "identityCalls": 0, "setterCalls": [], "events": [], "onIdentity": None}
+                def identity(info):
+                    value = original_identity(info)
+                    if info.st_ino == inode and stat.S_ISREG(info.st_mode):
+                        state["identityCalls"] += 1
+                        if state["onIdentity"] is not None:
+                            state["onIdentity"](state["identityCalls"])
+                        value["flags"] = state["flags"]
+                        value["ctime_ns"] += state["ctimeDelta"]
+                        value.update(state["override"])
+                    return value
+                def setter(path, flags, *, follow_symlinks):
+                    self.assertEqual(path, raw_path)
+                    self.assertIs(follow_symlinks, False)
+                    self.assertEqual(stream.tell(), 0)
+                    self.assertEqual(os.fstat(stream.fileno()).st_size, 0)
+                    self.assertEqual(flags, initial_flags | 0x40)
+                    state["setterCalls"].append((path, flags, follow_symlinks))
+                    state["events"].append("setter")
+                    state["flags"] = flags
+                    state["ctimeDelta"] = 1  # Explicit synthetic allowed metadata effect.
+                    return None
+                synthetic_os = SimpleNamespace(**vars(NEW.os))
+                synthetic_os.chflags = setter
+                synthetic_os.supports_follow_symlinks = {setter}
+                synthetic_sys = SimpleNamespace(**vars(NEW.sys))
+                synthetic_sys.platform = platform
+                with mock.patch.object(NEW, "os", synthetic_os), mock.patch.object(NEW, "sys", synthetic_sys), \
+                        mock.patch.object(NEW, "phase1_payload_identity", side_effect=identity):
+                    yield {"gate": gate, "target": target, "raw": raw_path, "stream": stream, "state": state,
+                           "os": synthetic_os, "setter": setter, "identity": identity, "originalIdentity": original_identity}
+            self.assertTrue(stream.closed)
+
+    def test_darwin_owned_empty_creation_is_configured_before_first_request_or_chunk(self):
+        gate = NEW.phase1_gates()
+        payload = b"synthetic bounded outer payload"
+        artifact = {"id": 7, "digest": "sha256:" + hashlib.sha256(payload).hexdigest(), "size_in_bytes": 1}
+        claim = {"runID": "123", "planSHA256": "A" * 64}
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            state = {"flags": 0x20, "inode": None, "ctimeDelta": 0, "events": [], "setterCalls": []}
+            original_identity = NEW.phase1_payload_identity
+            original_write = gate.write_immutable
+            def identity(info):
+                value = original_identity(info)
+                if stat.S_ISREG(info.st_mode):
+                    if state["inode"] is None:
+                        state["inode"] = info.st_ino
+                    if info.st_ino == state["inode"]:
+                        value["flags"] = state["flags"]
+                        value["ctime_ns"] += state["ctimeDelta"]
+                return value
+            def setter(path, flags, *, follow_symlinks):
+                self.assertEqual(path.name, "raw.zip")
+                self.assertEqual(path.parent.name, "000000")
+                self.assertIs(follow_symlinks, False)
+                self.assertEqual(path.stat().st_size, 0)
+                self.assertEqual(flags, 0x60)
+                self.assertFalse((path.parent / "request.json").exists())
+                state["setterCalls"].append((path, flags, follow_symlinks))
+                state["flags"], state["ctimeDelta"] = flags, 1
+                state["events"].append("setter")
+                return None
+            def writer(path, raw):
+                if path.name == "request.json":
+                    self.assertEqual(state["events"], ["setter"])
+                    self.assertEqual(json.loads(raw)["initialRawIdentity"]["flags"], 0x60)
+                    self.assertEqual(json.loads(raw)["initialRawIdentity"]["size"], 0)
+                    state["events"].append("request")
+                elif path.name == "receipt.json":
+                    self.assertEqual(state["events"], ["setter", "request", "chunk"])
+                    state["events"].append("receipt")
+                return original_write(path, raw)
+            def chunks(identifier):
+                self.assertEqual(identifier, artifact["id"])
+                self.assertEqual(state["events"], ["setter", "request"])
+                request = directory / "phase1-payload-transports/7/000000/request.json"
+                self.assertEqual(json.loads(request.read_bytes())["initialRawIdentity"]["flags"], 0x60)
+                state["events"].append("chunk")
+                yield payload
+            synthetic_os = SimpleNamespace(**vars(NEW.os))
+            synthetic_os.chflags = setter
+            synthetic_os.supports_follow_symlinks = {setter}
+            synthetic_sys = SimpleNamespace(**vars(NEW.sys))
+            synthetic_sys.platform = "darwin"
+            with mock.patch.object(NEW, "os", synthetic_os), mock.patch.object(NEW, "sys", synthetic_sys), \
+                    mock.patch.object(NEW, "phase1_payload_identity", side_effect=identity), \
+                    mock.patch.object(gate, "write_immutable", side_effect=writer), \
+                    mock.patch.object(NEW, "phase1_payload_chunks", side_effect=chunks):
+                result = NEW.phase1_retain_payload(gate, directory, artifact, claim, False)
+            self.assertEqual(NEW.PHASE1_PAYLOAD_DARWIN_CREATION_FLAG, 0x40)
+            self.assertEqual(state["events"], ["setter", "request", "chunk", "receipt"])
+            self.assertEqual(len(state["setterCalls"]), 1)
+            self.assertEqual(result["transportStatus"], "COMPLETE")
+            self.assertEqual(result["rawZIP"]["SHA256"], sha(payload))
+            self.assertEqual((directory / result["rawZIP"]["path"]).read_bytes(), payload)
+            self.assertEqual(len(list((directory / "phase1-payload-transports/7").iterdir())), 1)
+
+    def test_non_darwin_preserves_all_ten_birth_fields_and_never_uses_setter(self):
+        with self.synthetic_birth(platform="linux") as f:
+            expected = f["identity"](os.fstat(f["stream"].fileno()))
+            f["state"]["identityCalls"] = 0
+            actual = NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+            self.assertEqual(actual, expected)
+            self.assertEqual(len(actual), 10)
+            self.assertEqual(f["state"]["setterCalls"], [])
+        for field in ("flags", "ctime_ns"):
+            with self.subTest(field=field), self.synthetic_birth(platform="linux") as f:
+                def drift(call):
+                    if call == 3:
+                        if field == "flags":
+                            f["state"]["flags"] ^= 0x40
+                        else:
+                            f["state"]["ctimeDelta"] = 1
+                f["state"]["onIdentity"] = drift
+                with self.assertRaisesRegex(f["gate"].Refused, "payload creation changed unexpected birth fields"):
+                    NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+                self.assertEqual(f["state"]["setterCalls"], [])
+
+    def test_missing_unsupported_throwing_and_non_none_setters_refuse_without_request(self):
+        for role in ("missing", "noncallable", "unsupported", "throwing", "false", "zero", "true", "list"):
+            with self.subTest(role=role), self.synthetic_birth() as f:
+                invoked = []
+                primary = OSError("synthetic setter failure")
+                def setter(path, flags, *, follow_symlinks):
+                    invoked.append((path, flags, follow_symlinks))
+                    if role == "throwing":
+                        raise primary
+                    return {"false": False, "zero": 0, "true": True, "list": []}.get(role)
+                if role == "missing":
+                    del f["os"].chflags
+                elif role == "noncallable":
+                    f["os"].chflags = 7
+                else:
+                    f["os"].chflags = setter
+                f["os"].supports_follow_symlinks = set() if role == "unsupported" else {setter}
+                if role == "throwing":
+                    with self.assertRaises(OSError) as caught:
+                        NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+                    self.assertIs(caught.exception, primary)
+                else:
+                    expected = "payload Darwin creation setter actual return" if role in ("false", "zero", "true", "list") else \
+                        "payload supported no-follow Darwin creation interface"
+                    with self.assertRaisesRegex(f["gate"].Refused, expected):
+                        NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+                self.assertEqual(len(invoked), 0 if role in ("missing", "noncallable", "unsupported") else 1)
+                self.assertFalse((f["target"] / "request.json").exists())
+                self.assertEqual(f["stream"].tell(), 0)
+
+    def test_foreign_nonempty_substituted_or_unowned_births_refuse_before_setter(self):
+        for role in ("foreign-path", "nonempty", "nonregular", "multiple-links", "dataless",
+                     "named-inode", "public-directory", "foreign-uid", "wrong-stream-mode"):
+            with self.subTest(role=role), self.synthetic_birth() as f:
+                raw_path, stream = f["raw"], f["stream"]
+                original_lstat = Path.lstat
+                def named(path):
+                    value = original_lstat(path)
+                    if role == "named-inode" and path == f["raw"]:
+                        fields = {name: getattr(value, name, 0) for name in
+                            ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+                             "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")}
+                        fields["st_ino"] += 1
+                        return SimpleNamespace(**fields)
+                    return value
+                if role == "foreign-path":
+                    raw_path = f["target"] / "other.zip"
+                elif role == "nonempty":
+                    f["stream"].write(b"owned test bytes")
+                elif role == "nonregular":
+                    f["state"]["override"]["mode"] = stat.S_IFDIR | 0o700
+                elif role == "multiple-links":
+                    f["state"]["override"]["nlink"] = 2
+                elif role == "dataless":
+                    f["state"]["flags"] |= 0x40000000
+                elif role == "public-directory":
+                    f["target"].chmod(0o755)
+                elif role == "foreign-uid":
+                    f["state"]["override"]["uid"] = os.geteuid() + 1
+                elif role == "wrong-stream-mode":
+                    stream = SimpleNamespace(mode="rb", name=str(raw_path))
+                with mock.patch.object(Path, "lstat", new=named), self.assertRaises(f["gate"].Refused):
+                    NEW.phase1_payload_birth_identity(f["gate"], f["target"], raw_path, stream)
+                self.assertEqual(f["state"]["setterCalls"], [])
+                self.assertFalse((f["target"] / "request.json").exists())
+
+    def test_configured_named_held_and_eight_preserved_fields_and_exact_flags_remain_strict(self):
+        fields = ("dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtime_ns")
+        for field in (*fields, "flags", "configured-named-inode"):
+            with self.subTest(field=field), self.synthetic_birth() as f:
+                birth = f["identity"](os.fstat(f["stream"].fileno()))
+                f["state"]["identityCalls"] = 0
+                original_setter = f["setter"]
+                original_lstat = Path.lstat
+                def setter(path, flags, *, follow_symlinks):
+                    result = original_setter(path, flags, follow_symlinks=follow_symlinks)
+                    if field == "flags":
+                        f["state"]["flags"] ^= 0x80
+                    elif field in fields:
+                        f["state"]["override"][field] = birth[field] + 1
+                    return result
+                def named(path):
+                    value = original_lstat(path)
+                    if field == "configured-named-inode" and f["state"]["setterCalls"] and path == f["raw"]:
+                        values = {name: getattr(value, name, 0) for name in
+                            ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+                             "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")}
+                        values["st_ino"] += 1
+                        return SimpleNamespace(**values)
+                    return value
+                f["os"].chflags = setter
+                f["os"].supports_follow_symlinks = {setter}
+                expected = ("payload named/held configured birth" if field == "configured-named-inode" else
+                            "payload exact configured creation flags" if field == "flags" else
+                            "payload creation changed unexpected birth fields")
+                with mock.patch.object(Path, "lstat", new=named), self.assertRaisesRegex(f["gate"].Refused, expected):
+                    NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+                self.assertEqual(len(f["state"]["setterCalls"]), 1)
+                self.assertEqual(f["stream"].tell(), 0)
+                self.assertFalse((f["target"] / "request.json").exists())
+
+    def test_every_ancestor_identity_field_stays_bound_after_configured_birth(self):
+        for field in ("dev", "ino", "mode", "uid", "gid"):
+            with self.subTest(field=field), self.synthetic_birth() as f:
+                original = NEW.phase1_payload_ancestors
+                calls = []
+                def ancestors(gate, path):
+                    value = original(gate, path)
+                    calls.append(value)
+                    if len(calls) == 2:
+                        value[str(path)][field] += 1
+                    return value
+                with mock.patch.object(NEW, "phase1_payload_ancestors", side_effect=ancestors), \
+                        self.assertRaisesRegex(f["gate"].Refused, "payload creation ancestor changed"):
+                    NEW.phase1_payload_birth_identity(f["gate"], f["target"], f["raw"], f["stream"])
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(len(f["state"]["setterCalls"]), 1)
+                self.assertEqual(f["stream"].tell(), 0)
+                self.assertFalse((f["target"] / "request.json").exists())
+
+    def test_late_flags_still_refuse_writing_and_resume_without_replacement_receipt(self):
+        gate = NEW.phase1_gates()
+        payload = b"first-second"
+        artifact = {"id": 9, "digest": "sha256:" + hashlib.sha256(payload).hexdigest(), "size_in_bytes": 1}
+        claim = {"runID": "123", "planSHA256": "A" * 64}
+        for when in ("writing", "resume"):
+            with self.subTest(when=when), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary).resolve()
+                state = {"flags": 0, "inode": None, "gets": 0}
+                original_identity = NEW.phase1_payload_identity
+                def identity(info):
+                    value = original_identity(info)
+                    if stat.S_ISREG(info.st_mode):
+                        if state["inode"] is None:
+                            state["inode"] = info.st_ino
+                        if info.st_ino == state["inode"]:
+                            value["flags"] = state["flags"]
+                    return value
+                def setter(path, flags, *, follow_symlinks):
+                    self.assertIs(follow_symlinks, False)
+                    self.assertEqual(path.name, "raw.zip")
+                    self.assertEqual(flags, 0x40)
+                    state["flags"] = flags
+                    return None
+                def chunks(identifier):
+                    self.assertEqual(identifier, 9)
+                    state["gets"] += 1
+                    yield payload[:5]
+                    if when == "writing":
+                        state["flags"] ^= 0x80
+                    yield payload[5:]
+                synthetic_os = SimpleNamespace(**vars(NEW.os))
+                synthetic_os.chflags = setter
+                synthetic_os.supports_follow_symlinks = {setter}
+                synthetic_sys = SimpleNamespace(**vars(NEW.sys))
+                synthetic_sys.platform = "darwin"
+                with mock.patch.object(NEW, "os", synthetic_os), mock.patch.object(NEW, "sys", synthetic_sys), \
+                        mock.patch.object(NEW, "phase1_payload_identity", side_effect=identity), \
+                        mock.patch.object(NEW, "phase1_payload_chunks", side_effect=chunks):
+                    if when == "writing":
+                        with self.assertRaisesRegex(gate.Refused, "payload raw inode changed while writing"):
+                            NEW.phase1_retain_payload(gate, directory, artifact, claim, False)
+                        target = directory / "phase1-payload-transports/9/000000"
+                        self.assertTrue((target / "request.json").is_file())
+                        self.assertFalse((target / "receipt.json").exists())
+                    else:
+                        result = NEW.phase1_retain_payload(gate, directory, artifact, claim, False)
+                        self.assertEqual(result["transportStatus"], "COMPLETE")
+                        target = directory / "phase1-payload-transports/9/000000"
+                        preserved = {name: (target / name).read_bytes() for name in ("raw.zip", "request.json", "receipt.json")}
+                        state["flags"] ^= 0x80
+                        with self.assertRaisesRegex(gate.Refused, "payload owned inode substituted"):
+                            NEW.phase1_retain_payload(gate, directory, artifact, claim, True)
+                        self.assertEqual({name: (target / name).read_bytes() for name in preserved}, preserved)
+                    self.assertEqual(state["gets"], 1)
+                    self.assertEqual(sorted(path.name for path in target.parent.iterdir()), ["000000"])
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

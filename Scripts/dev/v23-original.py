@@ -1763,6 +1763,48 @@ def phase1_payload_snapshot(gate, path):
     return {"identity": phase1_payload_identity(before), "bytes": count, "SHA256": digest.hexdigest().upper()}
 
 
+PHASE1_PAYLOAD_DARWIN_CREATION_FLAG = 0x00000040  # Darwin sys/stat.h: UF_TRACKED.
+
+
+def phase1_payload_birth_identity(gate, target, raw_path, stream):
+    """Configure only the freshly exclusive empty raw inode, before its request.
+
+    Darwin's supported creation flag is established before the initial identity;
+    later transport identity/flags checks and unresolved history stay unchanged.
+    """
+    gate.require(raw_path == target / "raw.zip" and raw_path.is_absolute()
+                 and str(raw_path) == os.path.normpath(str(raw_path))
+                 and stream.mode == "xb" and str(stream.name) == str(raw_path),
+                 "payload exclusive fixed raw creation path")
+    ancestors = phase1_payload_ancestors(gate, target)
+    birth = phase1_payload_identity(os.fstat(stream.fileno()))
+    gate.require(stat.S_ISREG(birth["mode"]) and birth["nlink"] == 1 and birth["size"] == 0
+                 and not birth["flags"] & 0x40000000, "payload empty materialized singleton birth")
+    gate.exact(phase1_payload_identity(raw_path.lstat()), birth, "payload named/held birth")
+    desired_flags = birth["flags"]
+    darwin_creation = sys.platform == "darwin"
+    if darwin_creation:
+        setter = getattr(os, "chflags", None)
+        gate.require(callable(setter) and setter in getattr(os, "supports_follow_symlinks", ()),
+                     "payload supported no-follow Darwin creation interface")
+        target_info = target.lstat()
+        gate.require(stat.S_IMODE(target_info.st_mode) == 0o700
+                     and target_info.st_uid == birth["uid"] == os.geteuid(),
+                     "payload private owned Darwin creation target")
+        desired_flags |= PHASE1_PAYLOAD_DARWIN_CREATION_FLAG
+        actual = setter(raw_path, desired_flags, follow_symlinks=False)
+        gate.require(actual is None, "payload Darwin creation setter actual return")
+    configured = phase1_payload_identity(os.fstat(stream.fileno()))
+    gate.exact(phase1_payload_identity(raw_path.lstat()), configured, "payload named/held configured birth")
+    metadata_effects = ("flags", "ctime_ns") if darwin_creation else ()
+    preserved = tuple(key for key in birth if key not in metadata_effects)
+    gate.exact({key: configured[key] for key in preserved}, {key: birth[key] for key in preserved},
+               "payload creation changed unexpected birth fields")
+    gate.require(configured["flags"] == desired_flags, "payload exact configured creation flags")
+    gate.exact(phase1_payload_ancestors(gate, target), ancestors, "payload creation ancestor changed")
+    return configured
+
+
 def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, prefix="phase1"):
     """Caller admits API/original/attempt/claim first; receipts grant no DATA or qualification.
 
@@ -1869,7 +1911,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     gate.durable_directory(target)
     raw_path = target / "raw.zip"
     with raw_path.open("xb", buffering=0) as stream:
-        initial = phase1_payload_identity(os.fstat(stream.fileno()))
+        initial = phase1_payload_birth_identity(gate, target, raw_path, stream)
         gate.require(stat.S_ISREG(initial["mode"]) and initial["nlink"] == 1, "payload exclusive raw inode")
         request = {"schema": "v23-" + prefix + "-payload-transport-request.v1", "atUTC": now(), **common,
                    "index": len(entries), "rawPath": raw_path.relative_to(directory).as_posix(),

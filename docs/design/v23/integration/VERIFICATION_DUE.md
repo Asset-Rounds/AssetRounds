@@ -1,4 +1,14 @@
-## C15 current obligations — 2026-10-05
+## C16 current obligations — 2026-10-05
+
+- Primary imported reviewed Swift cd685767…, dispatcher c2efb568… and fixture ee982f84… once; explicit nine-path Source+records checkpoint review/publication pending at record time.
+- Actual local27 compile PASS0errors; affectedcollector63 and fullNative394/selection45 children0F/E/S. Fullpair OUTER exit1/HOLDs retain612/1682ctime-only deltas; current raw/quiet binding and genuine independent439 applicability PASS do not repair historical guards.
+- Next NEW-HEAD pinned full cold DEVELOPMENT3716methods/33partitions must execute all4 S6_6 completed-abort selectors under prospective inference-only scheduling; PENDING before candidate freeze/main. Pinned26.6 compilation remains UNPROVEN.
+- Original37397138754 failed before unit execution, sole collectionINCOMPLETE/missingreceiptHOLD remains unchanged. Preserve raw/request/partial/API/logs/failure; no unchanged retry or fabricated receipt.
+- Fresh complete cold app/payload/emitted/no-rebuild/transport/per-method collection and reviewed protocol qualification remain due; all old V1PENDING/false/INCOMPLETE/HOLDs retained.
+- Allfive Phase1 gates OPEN0/5, releaseReady=false: frozen same-head fullunit/qualifiedUI/independentcandidate/genuineowner/mainFF+pinnedexactmain. FullV23/physical/minruntime/privacy/C55/Store owner release obligations unchanged.
+- Preserve owner untracked/drafts and unrelated581online-only Source leaves. Import preservation uses materialized raw/FULL10 and online-only metadata separately; no bulk hydration or qualification claim. Unused native4 private drafts preserved with UNRUN/UNAPPROVED/UNSEALED handoff.
+
+## Historical C15 current obligations — 2026-10-05 (superseded by C16)
 
 Current bounded tooling corrections are verified: Native394/DATA235/exactdispatcher32 all PASS, plus independently scoped unchanged predecessor reuse. Preserve every historical original/HOLD and Root invocation/assertion failure. Do not repeat these unchanged development suites merely for copy/bookkeeping.
 

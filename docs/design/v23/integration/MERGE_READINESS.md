@@ -1,4 +1,12 @@
-## C15 successor status — 2026-10-05
+## C16 DEVELOPMENT checkpoint — Phase1 gates remain OPEN, 2026-10-05
+
+- Source3 correction imported into Primary after independent Source review, local27 compile and actual502 tooling method successes. Native/selection wrapper ctime-only HOLDs remain; genuine reviewed current raw applicability is separate from historical FULL10 conservation.
+- Prospective inference-only scheduling in AGENTS moves native4 to next NEW-HEAD pinned hosted DEVELOPMENT original; sharedS05/D50C includes all four. They must actually pass before candidate freeze/main.
+- No gate evidence or runtime/SourceReady claim from this checkpoint. Allfive Phase1 gates OPEN0/5; main b1d04ae5 remains historical acceptedS10; releaseReady=false.
+- Cold3716/33 DEVELOPMENT, complete genuine transport/qualification, then frozen same-head full coverage/qualifiedUI/independentcandidate/genuineownercritical-state review/mainFF+pinnedexactmain remain required.
+- Full V23 scope and physical/minimum-runtime/privacy/C55/Store owner release obligations remain unchanged. Historical rows below retain their original scope.
+
+## Historical C15 successor status — 2026-10-05 (superseded by C16)
 
 Bounded current tooling defect count0: current Native394/DATA235/dispatcher32 pass;224 unchanged predecessor tooling methods retain exact DEVELOPMENT scope after independent applicability/reuse review. Fresh local27 compilation passes; no app/runtime or gate evidence is claimed.
 
