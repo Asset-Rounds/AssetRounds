@@ -749,6 +749,19 @@ final class S6_2BackupExportTests: XCTestCase {
             seconds: S6_2StallWatchdogV1.mixedExportDeadlineSeconds, stage: "fixture")
         defer { watchdog.finish() }
         var diagnosticStage = "fixture" { didSet { watchdog.enter(diagnosticStage) } }
+#if DEBUG
+        // Invocation-local fixed labels; diagnostics preserve the operation's
+        // errno and never replace its actual throwing result.
+        let reportLateStage: (StaticString) -> Void = { stage in
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            diagnosticStage = "\(stage)"
+            do {
+                try FileHandle.standardError.write(contentsOf: Data(
+                    "V23_S62_MIXED_LATE_STEP_V1 stage=\(stage)\n".utf8))
+            } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+        }
+#endif
         do {
             let harness = try await makeGoldenPhotoExportHarness("golden") {
                 diagnosticStage = "fixture/\($0)"
@@ -1435,7 +1448,24 @@ final class S6_2BackupExportTests: XCTestCase {
             let paths = Set(actual.map(\.path))
             let reports = try harness.context.fetch(FetchDescriptor<Report>())
             XCTAssertEqual(paths.filter { $0.hasPrefix("snapshots/") }.count, reports.count)
-            XCTAssertEqual(paths.filter { $0.hasPrefix("pdfs/") }.count, 1)
+            // Genuine startup renders the pending report once, while the
+            // original ready and failed reports retain their states.
+            let readyArchiveReports = validated.records.reports.filter {
+                $0.pdfState == ReportPDFState.ready.rawValue
+            }
+            XCTAssertEqual(readyArchiveReports.count, 2)
+            XCTAssertEqual(validated.records.reports.filter {
+                $0.pdfState == ReportPDFState.pending.rawValue
+            }.count, 0)
+            XCTAssertEqual(validated.records.reports.filter {
+                $0.pdfState == ReportPDFState.failed.rawValue
+            }.count, 1)
+            let expectedPDFPaths = Set(readyArchiveReports.map {
+                "pdfs/\($0.id.uuidString.lowercased()).pdf"
+            })
+            XCTAssertEqual(expectedPDFPaths.count, readyArchiveReports.count)
+            XCTAssertEqual(paths.filter { $0.hasPrefix("pdfs/") }.count, expectedPDFPaths.count)
+            XCTAssertEqual(Set(paths.filter { $0.hasPrefix("pdfs/") }), expectedPDFPaths)
             for report in reports {
                 let id = report.id.uuidString.lowercased()
                 XCTAssertTrue(paths.contains("snapshots/\(id).json"))
@@ -1451,25 +1481,55 @@ final class S6_2BackupExportTests: XCTestCase {
             // The replacement candidate carries the merged current history but only
             // the source canonical rows, so S, C and D are all populated and distinct.
             authorized.close()
+#if DEBUG
+            reportLateStage("current-only-state.append.enter")
+#endif
             let retainedMyDayDraftID = try await appendCompositionCurrentOnlyState(harness)
+#if DEBUG
+            reportLateStage("current-only-state.append.returned")
+#endif
+#if DEBUG
+            reportLateStage("current.authorization.enter")
+#endif
             let currentAuthorized = try await makeAuthorizedExportHarness(harness)
+#if DEBUG
+            reportLateStage("current.authorization.returned")
+#endif
             defer { currentAuthorized.close() }
             let currentDestination = harness.applicationSupportURL.appendingPathComponent(
                 "composition-current-export", isDirectory: true)
             try fileManager.createDirectory(at: currentDestination, withIntermediateDirectories: false)
             let currentExporter = makeService(currentAuthorized, capacity: .max)
+#if DEBUG
+            reportLateStage("current.preview.prepare.enter")
+#endif
             let currentPreview = try currentAuthorized.contentAccess.withRead {
                 try currentExporter.prepare()
             }
+#if DEBUG
+            reportLateStage("current.preview.prepare.returned")
+#endif
             XCTAssertEqual(currentPreview.photoCount, 8)
+#if DEBUG
+            reportLateStage("current.export.enter")
+#endif
             let currentPackage = try await currentExporter.export(previewID: currentPreview.id,
                 to: currentDestination, contentAccess: currentAuthorized.contentAccess)
+#if DEBUG
+            reportLateStage("current.export.returned")
+#endif
             let currentImporter = try BackupImportService(
                 generationRootURL: harness.session.generationRootURL,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
                 makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000097")! },
                 scopedAccess: .alreadyAuthorized)
+#if DEBUG
+            reportLateStage("current.import-validation.enter")
+#endif
             let currentValidated = try currentImporter.stageAndValidate(selectedPackageURL: currentPackage)
+#if DEBUG
+            reportLateStage("current.import-validation.returned")
+#endif
             defer { try? currentImporter.discard(currentValidated) }
             let currentRecords = currentValidated.records
             let sourceOriginals = try XCTUnwrap(decodedRecords.mutationHistory).receipts
@@ -1493,16 +1553,31 @@ final class S6_2BackupExportTests: XCTestCase {
             let currentOnlyPhotoIDs = Set(currentPhotoHistory.children.map { $0.payload.childDraftID })
                 .subtracting(sourcePhotoIDs)
             XCTAssertEqual(currentOnlyPhotoIDs.count, 2)
+#if DEBUG
+            reportLateStage("composition.current-plan.enter")
+#endif
             let currentRestorePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
                 history: currentPhotoHistory, entries: currentValidated.manifest.entries,
                 metadata: { try XCTUnwrap(currentValidated.members[$0]) })
+#if DEBUG
+            reportLateStage("composition.current-plan.returned")
+#endif
+#if DEBUG
+            reportLateStage("composition.replacement-records.enter")
+#endif
             let replacementFixture = try compositionReplacementRecords(
                 current: currentRecords, source: decodedRecords,
                 currentSource: currentValidated.manifest.source, sourceSource: validated.manifest.source,
                 currentIdentity: harness.session.workspaceIdentity, sourceIdentity: harness.session.workspaceIdentity)
+#if DEBUG
+            reportLateStage("composition.replacement-records.returned")
+#endif
             let replacementRecords = replacementFixture.records
             XCTAssertNotEqual(replacementRecords, decodedRecords)
             XCTAssertNotEqual(replacementFixture.withoutRetention, currentRecords)
+#if DEBUG
+            reportLateStage("composition.compose.enter")
+#endif
             let populatedComposition = try CheckRunnerPhotoRestoreCompositionV1.compose(
                 source: validated.manifest.source, sourceRecords: decodedRecords,
                 sourcePlan: restorePlan, currentSource: currentValidated.manifest.source,
@@ -1510,11 +1585,32 @@ final class S6_2BackupExportTests: XCTestCase {
                 replacementRecords: replacementRecords,
                 sourceIdentity: harness.session.workspaceIdentity,
                 currentIdentity: harness.session.workspaceIdentity)
+#if DEBUG
+            reportLateStage("composition.compose.returned")
+#endif
+#if DEBUG
+            reportLateStage("composition.explicit-deletion.enter")
+#endif
             try assertExplicitDeletionCannotResurrectRetainedFinalization(
                 replacementFixture, sourcePlan: restorePlan, currentPlan: currentRestorePlan)
+#if DEBUG
+            reportLateStage("composition.explicit-deletion.returned")
+#endif
+#if DEBUG
+            reportLateStage("composition.apply.enter")
+#endif
             let populatedDestination = try populatedComposition.applying(to: replacementRecords)
+#if DEBUG
+            reportLateStage("composition.apply.returned")
+#endif
             XCTAssertEqual(populatedDestination, currentRecords)
+#if DEBUG
+            reportLateStage("composition.require-destination.enter")
+#endif
             try populatedComposition.requireDestination(currentRecords)
+#if DEBUG
+            reportLateStage("composition.require-destination.returned")
+#endif
             let retainedDraftIDs = Set(populatedComposition.retainedCurrentDrafts.map(\.draftID))
             XCTAssertTrue(retainedDraftIDs.contains(retainedMyDayDraftID))
             XCTAssertTrue(currentOnlyPhotoIDs.isSubset(of: retainedDraftIDs))
