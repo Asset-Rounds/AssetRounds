@@ -127,17 +127,19 @@ private final class C36Harness {
     let subject: WorkResourceSubjectV1
 
     init(failure: MutationJournalFailureInjectionV1? = nil, name: String) throws {
-        let schema = Schema(PersistentSchemaV41.models, version: PersistentSchemaV41.versionIdentifier)
+        let schema = Schema(
+            PersistentSchemaReleaseRegistryV1.activeRelease.models,
+            version: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier
+        )
         container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
             ModelConfiguration(name, schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)
         ])
         context = container.mainContext
         context.autosaveEnabled = false
         actor = try C36Support.actor(workspaceID)
-        context.insert(try ActorSnapshotRow(actor))
         let item = try WorkPacketItemV1(
             itemID: "C36-WORK", kind: .inspection, expectedRevision: 1,
-            itemSHA256: C36Support.digest("i")
+            itemSHA256: try WorkspaceMutationCanonicalV1.sha256("C36-WORK")
         )
         let manifest = try WorkPacketManifestV1(
             manifestID: C36Support.id(20), packetID: C36Support.id(21), packetVersion: 1,
@@ -150,13 +152,32 @@ private final class C36Harness {
             subjectID: manifest.manifestID.uuidString,
             subjectRevision: manifest.revision, subjectSHA256: manifest.manifestSHA256
         )
-        context.insert(try WorkPacketManifestRow(manifest))
-        try context.save()
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: workspaceID, replicaID: ReplicaID(rawValue: C36Support.id(970))
         )
         let generationID = C36Support.id(971)
         let writerID = C36Support.id(972)
+        do {
+            let seedJournal = try MutationJournalStoreV1(
+                modelContext: context, identity: identity, generationID: generationID
+            )
+            let seedWriter = try WorkspaceWriterV1(
+                identity: identity, generationID: generationID,
+                initialRevision: seedJournal.currentRevision(writerInstanceID: writerID),
+                clock: C36Clock(), idSource: C36IDSource(), fileAuthority: C36FileAuthority(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: seedJournal
+            )
+            defer { seedWriter.invalidate() }
+            _ = try seedWriter.execute(
+                .applyPartyAccountability(.appendActorSnapshot(actor)),
+                mutationID: C36Support.mutation(12)
+            )
+            let packet = try WorkPacketMutationV1(
+                workspaceID: workspaceID, expectedRevision: 0,
+                mutationID: manifest.mutationID, postImage: .appendManifest(manifest)
+            )
+            _ = try seedWriter.execute(.applyWorkPacket(packet), mutationID: packet.mutationID)
+        }
         let journal = try MutationJournalStoreV1(
             modelContext: context, identity: identity, generationID: generationID,
             failureInjection: failure
@@ -342,14 +363,52 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetch(FetchDescriptor<StockMovementEventRowV1>()).count, baselineMovements)
         XCTAssertEqual(try harness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count, baselineWork)
 
-        let stale = try WorkResourceEntryV1(
-            entryID: C36Support.id(64), workspaceID: harness.workspaceID,
-            subject: harness.subject, actor: harness.actor,
-            duration: context.draftDuration, materials: context.draftMaterials,
-            directCost: context.draftDirectCost, recordedAt: C36Support.date,
-            expectedRevision: 1, revision: 2, mutationID: C36Support.mutation(65)
+        let staleHarness = try C36Harness(name: "C36-H-Stale")
+        let staleCoordinator = try staleHarness.coordinator(stock: .manualOnly)
+        let staleLine = try C36Support.material()
+        let initialContext = try staleHarness.workflowContext(materials: [staleLine])
+        let first = try C36Support.entry(
+            workspaceID: staleHarness.workspaceID, actor: staleHarness.actor,
+            subject: staleHarness.subject, mutation: 60, materials: [staleLine]
         )
-        XCTAssertThrowsError(try coordinator.execute(.saveManual(stale), context: context))
+        guard case .manualSaved = try staleCoordinator.execute(.saveManual(first), context: initialContext) else {
+            return XCTFail("Expected committed predecessor")
+        }
+        let staleContext = try staleHarness.workflowContext(materials: [staleLine], predecessor: first)
+        let currentEntry = try ManualWorkResourceSuccessorDraftV1(
+            entryID: C36Support.id(63), workspaceID: staleHarness.workspaceID,
+            subject: staleHarness.subject, actor: staleHarness.actor,
+            duration: staleContext.draftDuration, materials: staleContext.draftMaterials,
+            directCost: staleContext.draftDirectCost, disposition: .superseded,
+            recordedAt: C36Support.date, predecessor: first
+        ).entry(mutationID: C36Support.mutation(64))
+        guard case .manualSaved = try staleCoordinator.execute(.saveManual(currentEntry), context: staleContext) else {
+            return XCTFail("Expected committed successor")
+        }
+        let stale = try ManualWorkResourceSuccessorDraftV1(
+            entryID: C36Support.id(64), workspaceID: staleHarness.workspaceID,
+            subject: staleHarness.subject, actor: staleHarness.actor,
+            duration: staleContext.draftDuration, materials: staleContext.draftMaterials,
+            directCost: staleContext.draftDirectCost, disposition: .superseded,
+            recordedAt: C36Support.date, predecessor: first
+        ).entry(mutationID: C36Support.mutation(65))
+        let staleIdentity = try WorkspaceEntityIdentityV1(kind: .workResourceEntry, id: first.entryID)
+        let beforeStaleRows = try staleHarness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>())
+            .sorted { $0.entryID.uuidString < $1.entryID.uuidString }
+        let beforeStaleValues = try beforeStaleRows.map { try $0.value() }
+        let beforeStaleBytes = beforeStaleRows.map(\.canonicalData)
+        let beforeStaleRevision = try staleHarness.writer.currentRevision()
+        let beforeStaleMovements = try staleHarness.context.fetch(FetchDescriptor<StockMovementEventRowV1>()).count
+        XCTAssertEqual(Set(beforeStaleValues), Set([first, currentEntry]))
+        XCTAssertThrowsError(try staleCoordinator.execute(.saveManual(stale), context: staleContext)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleEntityRevision(staleIdentity))
+        }
+        let afterStaleRows = try staleHarness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>())
+            .sorted { $0.entryID.uuidString < $1.entryID.uuidString }
+        XCTAssertEqual(try afterStaleRows.map { try $0.value() }, beforeStaleValues)
+        XCTAssertEqual(afterStaleRows.map(\.canonicalData), beforeStaleBytes)
+        XCTAssertEqual(try staleHarness.writer.currentRevision(), beforeStaleRevision)
+        XCTAssertEqual(try staleHarness.context.fetch(FetchDescriptor<StockMovementEventRowV1>()).count, beforeStaleMovements)
         XCTAssertEqual(try harness.context.fetch(FetchDescriptor<StockMovementEventRowV1>()).count, baselineMovements)
         XCTAssertEqual(try harness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count, baselineWork)
 
@@ -357,10 +416,8 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
             workspaceID: harness.workspaceID, subject: harness.subject, actor: harness.actor,
             materials: [line], recordedAt: C36Support.date
         )
-        for invalidQuantity in [
-            try StockQuantityV1(mantissa: 0, scale: 0, unit: .each),
-            try StockQuantityV1(mantissa: 4, scale: 0, unit: .meter)
-        ] {
+        let beforeInvalidStockRevision = try harness.writer.currentRevision()
+        for invalidQuantity in [try StockQuantityV1(mantissa: 0, scale: 0, unit: .each)] {
             XCTAssertThrowsError(try coordinator.execute(.useFromStock(
                 ManualWorkResourceUseStockCommandV1(
                     mutationID: C36Support.mutation(97 + invalidQuantity.scale),
@@ -370,12 +427,40 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
                     quantity: invalidQuantity, sourceBalance: balance, actor: harness.actor,
                     occurredAt: C36Support.date, recordedAt: C36Support.date,
                     workResourceSuccessor: successor
-                )), context: context))
+                )), context: context)) {
+                XCTAssertEqual($0 as? ManualWorkResourceWorkflowFailureV1, .invalidStockUse)
+            }
+            XCTAssertEqual(try harness.writer.currentRevision(), beforeInvalidStockRevision)
         }
+        // StockQuantityV1 retains mantissa/scale; the material line carries the unit.
+        let invalidUnitLine = try C36Support.material(
+            part: part.frozenReference(), unit: StockUnitV1.meter.rawValue
+        )
+        let invalidUnitContext = try harness.workflowContext(materials: [invalidUnitLine])
+        let invalidUnitSuccessor = try ManualWorkResourceSuccessorDraftV1(
+            workspaceID: harness.workspaceID, subject: harness.subject, actor: harness.actor,
+            duration: invalidUnitContext.draftDuration, materials: invalidUnitContext.draftMaterials,
+            directCost: invalidUnitContext.draftDirectCost, recordedAt: C36Support.date
+        )
+        XCTAssertThrowsError(try coordinator.execute(.useFromStock(
+            ManualWorkResourceUseStockCommandV1(
+                mutationID: C36Support.mutation(103),
+                receiptID: C36Support.id(104), movementID: C36Support.id(105),
+                frozenMaterialLineID: invalidUnitLine.lineID, part: part, source: location,
+                quantity: StockQuantityV1(mantissa: 4, scale: 0, unit: .each),
+                sourceBalance: balance, actor: harness.actor,
+                occurredAt: C36Support.date, recordedAt: C36Support.date,
+                workResourceSuccessor: invalidUnitSuccessor
+            )), context: invalidUnitContext)) {
+            XCTAssertEqual($0 as? ManualWorkResourceWorkflowFailureV1, .invalidStockUse)
+        }
+        XCTAssertEqual(try harness.writer.currentRevision(), beforeInvalidStockRevision)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<StockMovementEventRowV1>()).count, baselineMovements)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count, baselineWork)
         let otherSubject = try WorkResourceSubjectV1(
             workspaceID: harness.workspaceID, kind: .workPacket,
             subjectID: C36Support.id(94).uuidString, subjectRevision: 1,
-            subjectSHA256: C36Support.digest("x")
+            subjectSHA256: try WorkspaceMutationCanonicalV1.sha256("C36-OTHER-WORK")
         )
         let wrongLineage = try ManualWorkResourceSuccessorDraftV1(
             workspaceID: harness.workspaceID, subject: otherSubject, actor: harness.actor,
@@ -411,7 +496,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         )
         let returnDraft = try ManualWorkResourceSuccessorDraftV1(
             workspaceID: harness.workspaceID, subject: harness.subject, actor: harness.actor,
-            materials: [line], recordedAt: C36Support.date, predecessor: use.workResourceSuccessor
+            materials: [line], disposition: .superseded, recordedAt: C36Support.date, predecessor: use.workResourceSuccessor
         )
         let returnContext = try harness.workflowContext(materials: [line], predecessor: use.workResourceSuccessor)
         XCTAssertThrowsError(try coordinator.execute(.returnToStock(
@@ -452,7 +537,9 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
             workspaceID: harness.workspaceID, actor: harness.actor, subject: harness.subject,
             mutation: 70, materials: [line]
         )
-        XCTAssertThrowsError(try coordinator.execute(.saveManual(entry), context: context))
+        XCTAssertThrowsError(try coordinator.execute(.saveManual(entry), context: context)) {
+            XCTAssertEqual($0 as? MutationJournalFailureV1, .injected(.afterEffectBeforeReceipt))
+        }
         let afterInterruption = try harness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count
         XCTAssertTrue([0, 1].contains(afterInterruption))
         guard case .manualSaved = try coordinator.execute(.saveManual(entry), context: context) else {
@@ -481,7 +568,9 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
                 occurredAt: C36Support.date, recordedAt: C36Support.date,
                 workResourceSuccessor: stockSuccessor
             )
-        XCTAssertThrowsError(try stockCoordinator.execute(.useFromStock(interruptedUse), context: stockContext))
+        XCTAssertThrowsError(try stockCoordinator.execute(.useFromStock(interruptedUse), context: stockContext)) {
+            XCTAssertEqual($0 as? MutationJournalFailureV1, .injected(.afterEffectBeforeReceipt))
+        }
         let stockUseCount = try stockHarness.context.fetch(FetchDescriptor<StockUseReceiptRowV1>()).count
         let stockWorkCount = try stockHarness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count
         XCTAssertEqual(stockUseCount, stockWorkCount, "C55 composite cannot tear stock from frozen work")
@@ -515,7 +604,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         )
         let returnSuccessor = try ManualWorkResourceSuccessorDraftV1(
             workspaceID: stockHarness.workspaceID, subject: stockHarness.subject,
-            actor: stockHarness.actor, materials: [remainingLine], recordedAt: C36Support.date,
+            actor: stockHarness.actor, materials: [remainingLine], disposition: .superseded, recordedAt: C36Support.date,
             predecessor: recoveredUse.workResourceSuccessor
         )
         let returnContext = try stockHarness.workflowContext(
@@ -532,7 +621,9 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         )
         XCTAssertThrowsError(try returnCoordinator.execute(
             .returnToStock(interruptedReturn), context: returnContext
-        ))
+        )) {
+            XCTAssertEqual($0 as? MutationJournalFailureV1, .injected(.afterEffectBeforeReceipt))
+        }
         XCTAssertEqual(
             try stockHarness.context.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).count,
             try stockHarness.context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count - 1
@@ -612,7 +703,7 @@ final class V9_99ManualWorkResourceWorkflowTests: XCTestCase {
         )
         let returnDraft = try ManualWorkResourceSuccessorDraftV1(
             entryID: C36Support.id(83), workspaceID: harness.workspaceID, subject: harness.subject,
-            actor: harness.actor, materials: [returnedLine], recordedAt: C36Support.date,
+            actor: harness.actor, materials: [returnedLine], disposition: .superseded, recordedAt: C36Support.date,
             predecessor: use.workResourceSuccessor
         )
         let returnContext = try harness.workflowContext(materials: [returnedLine], predecessor: use.workResourceSuccessor)

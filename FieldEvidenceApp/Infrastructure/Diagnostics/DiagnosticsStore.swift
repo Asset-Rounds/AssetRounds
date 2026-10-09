@@ -2535,6 +2535,42 @@ final class ColdDiagnosticsCompletedPolicyReceiptV1 {
     }
 }
 
+#if DEBUG
+/// Projects the retained primitive description without exposing its URL,
+/// resource identity or other associated values. This is diagnostic DATA
+/// only; it neither replaces the retained boundary nor authorizes an effect.
+enum ColdDiagnosticsBoundaryLabelV1 {
+    static func project(_ boundary: String) -> String {
+        switch boundary {
+        case "registered": return "registered"
+        case "openDirectory": return "openDirectory"
+        case "openCurrent": return "openCurrent"
+        case "openTemporary": return "openTemporary"
+        case "enumerateDirectory": return "enumerateDirectory"
+        case "createDirectory": return "createDirectory"
+        case "createTemporary": return "createTemporary"
+        case "requestDirectoryPolicy": return "requestDirectoryPolicy"
+        case "requestTemporaryPolicy": return "requestTemporaryPolicy"
+        case "requestPublishedPolicy": return "requestPublishedPolicy"
+        case "publishTemporary": return "publishTemporary"
+        case "syncDirectory": return "syncDirectory"
+        case "syncSupport": return "syncSupport"
+        case let value where value.hasPrefix("observePolicy(") && value.hasSuffix(")"):
+            return "observePolicy"
+        case let value where value.hasPrefix("read(") && value.hasSuffix(")"):
+            return "read"
+        case let value where value.hasPrefix("write(") && value.hasSuffix(")"):
+            return "write"
+        case let value where value.hasPrefix("syncFile(") && value.hasSuffix(")"):
+            return "syncFile"
+        case let value where value.hasPrefix("closeResource(") && value.hasSuffix(")"):
+            return "closeResource"
+        default: return "unclassified"
+        }
+    }
+}
+#endif
+
 @MainActor
 final class ColdDiagnosticsCheckedIOV1 {
     enum Mode: Equatable {
@@ -3651,7 +3687,7 @@ final class ColdDiagnosticsCheckedIOV1 {
         } catch {
             poison()
             #if DEBUG
-            print("Cold diagnostics boundary=\(lastBoundary) sequence=\(sequence) mode=\(mode)")
+            print("Cold diagnostics boundary=\(ColdDiagnosticsBoundaryLabelV1.project(lastBoundary)) sequence=\(sequence) mode=\(mode)")
             #endif
             // Actual unresolved owners/FDs/streams/policy attempts remain
             // retained. No ordinary recovery, unchecked close or retry occurs.

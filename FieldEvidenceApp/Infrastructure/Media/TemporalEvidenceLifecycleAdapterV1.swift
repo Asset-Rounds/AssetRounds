@@ -123,12 +123,14 @@ final class TemporalEvidencePromotionJournalV1: Sendable {
     init(generationRootURL: URL, workspaceID: WorkspaceID,
          fileManager: FileManager = .default,
          readBoundary: TemporalEvidenceOperationalJournalReadBoundaryHookV1? = nil,
-         publicationBoundary: TemporalEvidenceOperationalPublicationBoundaryHookV2? = nil) throws {
+         publicationBoundary: TemporalEvidenceOperationalPublicationBoundaryHookV2? = nil,
+         createsAncestors: Bool = true) throws {
         guard generationRootURL.isFileURL else { throw TemporalEvidenceContractFailureV1.invalidValue }
         _ = fileManager
         self.workspaceID = workspaceID
         storage = try .init(generationRootURL: generationRootURL,
-            readBoundary: readBoundary, publicationBoundary: publicationBoundary)
+            readBoundary: readBoundary, publicationBoundary: publicationBoundary,
+            createsAncestors: createsAncestors)
         manifestName = workspaceID.rawValue.uuidString.lowercased() + ".json"
     }
     func prepare(_ reservation:TemporalEvidencePromotionReservationV1)throws{guard reservation.workspaceID==workspaceID,reservation.state == .prepared else{throw TemporalEvidenceContractFailureV1.invalidTransition};try mutate { records in if let old=records.first(where:{$0.mutationID==reservation.mutationID.rawValue}){guard old==Record(reservation)else{throw TemporalEvidenceContractFailureV1.invalidTransition};return};records.append(Record(reservation));}}
@@ -167,11 +169,11 @@ actor TemporalEvidencePromotionRecoveryFileAdapterV1:TemporalEvidencePromotionRe
     private let verify:TemporalEvidencePromotedContentVerificationV1
     private let delete:TemporalEvidencePromotedContentRemovalV1
     private var cleanupFences:Set<UUID> = []
-    init(generationRootURL:URL,workspaceID:WorkspaceID,fileManager:FileManager = .default,readBoundary:TemporalEvidenceOperationalJournalReadBoundaryHookV1? = nil,publicationBoundary:TemporalEvidenceOperationalPublicationBoundaryHookV2? = nil,verify:@escaping TemporalEvidencePromotedContentVerificationV1,remove:@escaping TemporalEvidencePromotedContentRemovalV1)throws{
+    init(generationRootURL:URL,workspaceID:WorkspaceID,fileManager:FileManager = .default,readBoundary:TemporalEvidenceOperationalJournalReadBoundaryHookV1? = nil,publicationBoundary:TemporalEvidenceOperationalPublicationBoundaryHookV2? = nil,createsAncestors:Bool = true,verify:@escaping TemporalEvidencePromotedContentVerificationV1,remove:@escaping TemporalEvidencePromotedContentRemovalV1)throws{
         self.workspaceID = workspaceID
         journal = try TemporalEvidencePromotionJournalV1(generationRootURL: generationRootURL,
             workspaceID: workspaceID, fileManager: fileManager, readBoundary: readBoundary,
-            publicationBoundary: publicationBoundary)
+            publicationBoundary: publicationBoundary, createsAncestors: createsAncestors)
         self.verify = verify; delete = remove
     }
     func prepare(_ reservation:TemporalEvidencePromotionReservationV1)async throws{try journal.prepare(reservation)}

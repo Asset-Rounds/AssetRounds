@@ -930,7 +930,7 @@ enum C49WorkResourceAccountabilityBoundaryV1 {
 // MARK: - C50 incumbent file-exchange accountability boundary
 
 /// Accountability records only local actor/signoff provenance. It does not
-/// convert an adapter/profile/selection receipt into verified identity,
+/// convert an adapter/profile/selection receipt into identity verification,
 /// provider endorsement, legal authority, or a durable external-session fact.
 enum C50IncumbentFileExchangeAccountabilityBoundaryV1 {
     static let adapterContract: Any.Type = IncumbentFileAdapterV1.self

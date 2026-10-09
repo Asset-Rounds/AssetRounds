@@ -113,7 +113,7 @@ private enum C24AccessibleDocumentTestSupport {
             evidenceSHA256: digest("e"),
             mediaType: evidenceMediaType
         )
-        let longText = String(repeating: "Long accessible paragraph ", count: 60)
+        let longText = String(repeating: "Long accessible paragraph ", count: 60).trimmingCharacters(in: .whitespacesAndNewlines)
         let headingText = locale == "ar-XB" ? "عنوان التقرير" : "Report heading"
         let nodes = [
             try node(
@@ -723,7 +723,7 @@ final class V9_38AccessibleDocumentTests: XCTestCase {
             role: .paragraph,
             parentNodeID: "section",
             order: 0,
-            localizedText: String(repeating: "Long accessible paragraph ", count: 60)
+            localizedText: String(repeating: "Long accessible paragraph ", count: 60).trimmingCharacters(in: .whitespacesAndNewlines)
         )
         let internalOnlyFigure = try C24AccessibleDocumentTestSupport.node(
             nodeID: "figure",

@@ -140,6 +140,10 @@ final class V9_20KernelConformanceTests: XCTestCase {
         XCTAssertEqual(c06SchemaObject["$schema"] as? String, "https://json-schema.org/draft/2020-12/schema")
 
         let lock = try PortableContractToolLockReaderV1.read(at: KernelConformanceFixtureHarnessV1.toolLockURL())
+        let validatorImplementationFile = try XCTUnwrap(lock.files.first {
+            $0.path == "Scripts/v21-contracts/portable_contract_validator_v1.py"
+                && $0.role == "VALIDATOR_IMPLEMENTATION"
+        })
         let adapter = try PortableContractValidatorAdapterV1(toolLock: lock)
         let receipts = try corpus.cases.map { try adapter.validate($0) }
         XCTAssertEqual(receipts.map(\.caseID), corpus.cases.map(\.id))
@@ -166,7 +170,7 @@ final class V9_20KernelConformanceTests: XCTestCase {
             )
         )
         XCTAssertEqual(portableReceipt["toolID"] as? String, lock.tool.toolID)
-        XCTAssertEqual(portableReceipt["toolSourceSHA256"] as? String, lock.distributionSHA256)
+        XCTAssertEqual(portableReceipt["toolSourceSHA256"] as? String, validatorImplementationFile.sha256)
         XCTAssertEqual(portableReceipt["lockSHA256"] as? String, lockSHA256)
         XCTAssertEqual(portableReceipt["networkFetchCount"] as? Int, 0)
         XCTAssertEqual(portableReceipt["deterministicReplayMatched"] as? Bool, true)
@@ -183,7 +187,7 @@ final class V9_20KernelConformanceTests: XCTestCase {
             XCTAssertEqual(python["instancePath"] as? String, swift.instancePath)
             XCTAssertEqual(python["schemaPath"] as? String, swift.schemaPath)
             XCTAssertEqual(python["inputSHA256"] as? String, swift.inputSHA256)
-            XCTAssertEqual(python["toolSourceSHA256"] as? String, lock.distributionSHA256)
+            XCTAssertEqual(python["toolSourceSHA256"] as? String, validatorImplementationFile.sha256)
             XCTAssertEqual(python["lockSHA256"] as? String, lockSHA256)
             XCTAssertEqual(python["deterministicReplayMatched"] as? Bool, true)
         }
@@ -372,6 +376,8 @@ final class V9_20KernelConformanceTests: XCTestCase {
                 || $0.expectedDisposition.contains("EXACTLY_ONCE")
                 || $0.expectedDisposition.contains("REPLAY_TWICE")
                 || $0.expectedDisposition.contains("CHECKPOINT")
+                || ($0.boundary == "DELETE_COMMITTED_PHASE"
+                    && $0.expectedDisposition == "DELETE_RESUMES_WITHOUT_RESURRECTION")
         })
 
         let harness = try KernelConformanceProductionHarnessV1(label: "durable-relaunch-matrix")

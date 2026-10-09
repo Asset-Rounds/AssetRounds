@@ -1958,7 +1958,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, pre
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "7C656F86B1C7D227F54324536B79D30E6753F2FB6059FC9137AD37FEC8673A43"
+PHASE1_RETAINED_READER_SHA256 = "9D304BD77196B2CB8249E78B79C34582F2D0DC749BF1DCA7503790BD4D9AA931"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -5145,9 +5145,9 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
 
 # Additive cold DATA bridge. Original V1 records and ordinary routes stay exact.
 COLD_RETAINED_READER_V2_PATH = "Scripts/dev/v23-retained-payload.py"
-COLD_RETAINED_READER_V2_SHA256 = "7C656F86B1C7D227F54324536B79D30E6753F2FB6059FC9137AD37FEC8673A43"  # Exact candidate Source; genuine companion review/composition required.
+COLD_RETAINED_READER_V2_SHA256 = "9D304BD77196B2CB8249E78B79C34582F2D0DC749BF1DCA7503790BD4D9AA931"  # Exact candidate Source; genuine companion review/composition required.
 COLD_PAYLOAD_DATA_V2_PATH = "Scripts/dev/v23-cold-payload-data.py"
-COLD_PAYLOAD_DATA_V2_SHA256 = "B58FEB48EA5A142CA4A8333BB553A001C297F734DD48F695D1E5BEDA1AC0D16F"  # Transitive original-tree dependency; not a plan.sources key.
+COLD_PAYLOAD_DATA_V2_SHA256 = "C8654B355C6AEC3BC2F18431EB0B1CA1C0834D157689B34D7888A8C84252A584"  # Transitive original-tree dependency; not a plan.sources key.
 COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
 COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
 

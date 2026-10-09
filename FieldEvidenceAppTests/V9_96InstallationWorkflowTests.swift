@@ -69,7 +69,10 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
         XCTAssertEqual(projection.envelope.installationCloseout, closeout)
         XCTAssertEqual(projection.envelope.completedSnapshotReference, completedReference)
         XCTAssertEqual(projection.report.closeoutSHA256, closeout.closeoutSHA256)
-        XCTAssertEqual(projection.tasks.compactMap(\.currentResult), fixture.taskHistory.sorted())
+        let currentResults = projection.tasks.compactMap(\.currentResult)
+        XCTAssertEqual(currentResults.count, orderedTasks.count)
+        XCTAssertEqual(currentResults.map(\.taskID), orderedTaskIDs)
+        XCTAssertEqual(currentResults.sorted(), fixture.taskHistory.sorted())
         XCTAssertEqual(projection.reportReadiness, .readyForExistingRenderer)
         XCTAssertTrue(projection.reportReady)
         XCTAssertTrue(projection.closeoutRecorded)
@@ -93,7 +96,7 @@ final class V9_96InstallationWorkflowTests: XCTestCase {
     func testV23P04C33A01ManualNoPlanUnavailableOptionalCapabilitiesAndAlternateTruth() throws {
         let corpus = try loadCorpus(); assertScenario(corpus, "A01", "ALTERNATE")
         let fixture = try C33Fixture()
-        let fallback = try NoPlanFallbackV1(limitation: "Manual subject selection is required.")
+        let fallback = fixture.fallback
         let plan = try InstallationPlanCapabilityV1(disposition: .manualFallback, noPlanFallback: fallback)
         let scan = try InstallationScanCapabilityV1(
             disposition: .manualFallback,

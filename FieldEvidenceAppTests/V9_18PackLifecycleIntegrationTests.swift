@@ -278,8 +278,7 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             predecessorEventID: nil,
             revision: 1,
             mutationID: try MutationIDV1(rawValue: UUID()),
-            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
-            eventSHA256: String(repeating: "a", count: 64)
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600)
         )
         try event.validate()
         XCTAssertEqual(event.disposition, .ended)
@@ -1219,7 +1218,7 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             assetID: asset.id,
             timeZoneID: "America/New_York",
             isTimeZoneConfirmed: true,
-            afterDarkAccepted: false,
+            afterDarkAccepted: true,
             safePositionAccepted: true,
             observedAt: Date(timeIntervalSince1970: 1_768_800_000)
         )
@@ -1555,14 +1554,15 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? WorkspaceMutationContractFailureV1, .invalidPlan)
         }
-        let root = try ProductionCompositionRoot(
-            storeSession: harness.coordinator,
-            diagnosticsStore: DiagnosticsStore(applicationSupportURL: harness.root),
-            profileRegistry: alternateRegistry
-        )
         let before = try harness.coordinator.workspaceWriter.currentRevision()
 
-        XCTAssertThrowsError(try root.makeSignWorkflow(signPack: profile.package))
+        XCTAssertThrowsError(
+            try ProductionCompositionRoot(
+                storeSession: harness.coordinator,
+                diagnosticsStore: DiagnosticsStore(applicationSupportURL: harness.root),
+                profileRegistry: alternateRegistry
+            ).makeSignWorkflow(signPack: profile.package)
+        )
 
         XCTAssertEqual(try harness.coordinator.workspaceWriter.currentRevision(), before)
         XCTAssertEqual(

@@ -3452,6 +3452,7 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         # C9 raw-source successor preserves prior current724 as the twelfth historical pin.
         # Cold durable candidate retains the exact f06 current4F0E as the new first historical pin.
         # C15 Phase1 conserves actual prior-current1057 after the unchanged history tuple.
+        # C93 reviewed DEBUG diagnostics retain prior-current6125 as historical replay only.
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
                          ('4F0E5780EA2EA56E869F90E1C316011252164D0BD2E561C8834722CE0123685A',
                           '7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38',
@@ -3466,7 +3467,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                   '20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41',
                   'A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5',
                   '724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36',
-                  '1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0'))
+                  '1057BF50AAB298BF3527C9AAD5E69D780EB5085ADF40304822CE852DA7D961C0',
+                  '6125CB531675E3C73F7FD515477FE3F8D16A50D414178BE286B70B18F6F5C619'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))

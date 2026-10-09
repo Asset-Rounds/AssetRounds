@@ -2,6 +2,7 @@ import CryptoKit
 import Darwin
 import Foundation
 import SwiftData
+import UIKit
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -121,6 +122,119 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
     private let fileManager = FileManager.default
+
+    @MainActor
+    func testC63JournalRemovalColdRecoveryAcceptsAlreadyRemovedEvidenceBundle() async throws {
+        let fixture = try await makeC63JournalRemovalFixture()
+        await Task.yield()
+        let cold = try makeC63ColdRecovery(fixture)
+        try await assertC63RecoveredTwice(fixture, cold: cold)
+        try cold.coordinator.invalidateAndReleaseWriter()
+        fixture.cleanupEligibility.coldWriterReleased = true
+    }
+
+    @MainActor
+    func testC63JournalRemovalRecoveryRejectsHostileBundleAndLeafSubstitutions() async throws {
+        for kind in C63HostileNamespace.allCases {
+            let fixture = try await makeC63JournalRemovalFixture()
+            await Task.yield()
+            let cold = try makeC63ColdRecovery(fixture)
+            let foreign = fixture.support.appendingPathComponent("foreign-\(kind.rawValue)", isDirectory: true)
+            try fileManager.createDirectory(at: foreign, withIntermediateDirectories: false)
+            let foreignOriginal = foreign.appendingPathComponent("original.jpg")
+            let foreignThumbnail = foreign.appendingPathComponent("thumbnail.jpg")
+            let originalBytes = Data("foreign-original-\(kind.rawValue)".utf8)
+            let thumbnailBytes = Data("foreign-thumbnail-\(kind.rawValue)".utf8)
+            try originalBytes.write(to: foreignOriginal)
+            try thumbnailBytes.write(to: foreignThumbnail)
+            let originalIdentity = try c63Identity(foreignOriginal)
+            let thumbnailIdentity = try c63Identity(foreignThumbnail)
+            let bundle = fixture.bundle
+            var created: [(url: URL, identity: C63EntryIdentity, directory: Bool)] = []
+            var movedEvidence: (url: URL, identity: C63EntryIdentity)?
+            fixture.cleanupEligibility.namespaceRestored = false
+            switch kind {
+            case .bundleSymlink:
+                try fileManager.createSymbolicLink(at: bundle, withDestinationURL: foreign)
+                created.append((bundle, try c63Identity(bundle), false))
+            case .bundleFile:
+                try originalBytes.write(to: bundle)
+                created.append((bundle, try c63Identity(bundle), false))
+            case .bundleUnknownCanary, .leafSymlink, .leafHardlink:
+                try fileManager.createDirectory(at: bundle, withIntermediateDirectories: false)
+                created.append((bundle, try c63Identity(bundle), true))
+                let leaf: URL
+                switch kind {
+                case .bundleUnknownCanary:
+                    leaf = bundle.appendingPathComponent("unknown-canary")
+                    try originalBytes.write(to: leaf)
+                case .leafSymlink:
+                    leaf = bundle.appendingPathComponent("original.jpg")
+                    try fileManager.createSymbolicLink(at: leaf, withDestinationURL: foreignOriginal)
+                case .leafHardlink:
+                    leaf = bundle.appendingPathComponent("original.jpg")
+                    _ = try XCTUnwrap(Darwin.link(foreignOriginal.path, leaf.path) == 0 ? true : nil)
+                default:
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                created.append((leaf, try c63Identity(leaf), false))
+            case .missingEvidenceAncestor:
+                let evidence = bundle.deletingLastPathComponent()
+                let held = fixture.support.appendingPathComponent("held-evidence", isDirectory: true)
+                let identity = try c63Identity(evidence)
+                try fileManager.moveItem(at: evidence, to: held)
+                movedEvidence = (held, identity)
+            }
+            do {
+                _ = try await cold.service.reconcile()
+                XCTFail("Expected cleanup failure for \(kind.rawValue)")
+            } catch {
+                XCTAssertEqual(error as? WholeSignDeletionServiceError, .cleanupFailed, kind.rawValue)
+            }
+            XCTAssertEqual(try Data(contentsOf: fixture.journal), fixture.journalBytes, kind.rawValue)
+            XCTAssertEqual(try DeletionLedgerStore(context: cold.session.modelContext).snapshot(),
+                           fixture.ledger, kind.rawValue)
+            XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0, kind.rawValue)
+            XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()), 0, kind.rawValue)
+            XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0, kind.rawValue)
+            XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<Site>()), 1, kind.rawValue)
+            XCTAssertEqual(try cold.session.modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>())
+                .map { try $0.value() }, fixture.placements, kind.rawValue)
+            XCTAssertEqual(try Data(contentsOf: fixture.unrelated), fixture.unrelatedBytes, kind.rawValue)
+            XCTAssertEqual(try Data(contentsOf: foreignOriginal), originalBytes, kind.rawValue)
+            XCTAssertEqual(try Data(contentsOf: foreignThumbnail), thumbnailBytes, kind.rawValue)
+            try c63RequireIdentity(foreignOriginal, originalIdentity)
+            try c63RequireIdentity(foreignThumbnail, thumbnailIdentity)
+            for entry in created {
+                try c63RequireIdentity(entry.url, entry.identity)
+                if entry.url.lastPathComponent == "unknown-canary" || kind == .bundleFile {
+                    XCTAssertEqual(try Data(contentsOf: entry.url), originalBytes, kind.rawValue)
+                }
+            }
+            // Remove only this test's exact substitutions. Any mismatch leaves
+            // namespaceRestored false, retaining the whole fixture at teardown.
+            for entry in created.reversed() {
+                try c63RequireIdentity(entry.url, entry.identity)
+                let status = entry.directory
+                    ? Darwin.rmdir(entry.url.path) : Darwin.unlink(entry.url.path)
+                _ = try XCTUnwrap(status == 0 ? true : nil,
+                                  "Retaining C63 fixture: exact hostile entry removal failed")
+            }
+            if let movedEvidence {
+                let evidence = bundle.deletingLastPathComponent()
+                try c63RequireIdentity(movedEvidence.url, movedEvidence.identity)
+                try c63RequireAbsent(evidence)
+                _ = try XCTUnwrap(Darwin.rename(movedEvidence.url.path, evidence.path) == 0 ? true : nil)
+                try c63RequireIdentity(evidence, movedEvidence.identity)
+            }
+            fixture.cleanupEligibility.namespaceRestored = true
+            try await assertC63RecoveredTwice(fixture, cold: cold)
+            XCTAssertEqual(try Data(contentsOf: foreignOriginal), originalBytes, kind.rawValue)
+            XCTAssertEqual(try Data(contentsOf: foreignThumbnail), thumbnailBytes, kind.rawValue)
+            try cold.coordinator.invalidateAndReleaseWriter()
+            fixture.cleanupEligibility.coldWriterReleased = true
+        }
+    }
 
     @MainActor
     func testDeletesClosedGraphKeepsCountedTombstoneAndUnrelatedBytes() async throws {
@@ -990,6 +1104,291 @@ extension S6_1DeletionGraphTests {
 }
 
 private extension S6_1DeletionGraphTests {
+    enum C63HostileNamespace: String, CaseIterable {
+        case bundleSymlink, bundleFile, bundleUnknownCanary
+        case leafSymlink, leafHardlink, missingEvidenceAncestor
+    }
+
+    struct C63EntryIdentity: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let mode: mode_t
+    }
+
+    final class C63CleanupEligibility {
+        var namespaceRestored = true
+        var originalWriterReleased = false
+        var recoverySettled = false
+        var coldWriterReleased = false
+        var evidenceIdentity: C63EntryIdentity?
+        var coldOwnersDrained: (@MainActor () -> Bool)?
+    }
+
+    struct C63DeletionFixture {
+        let cleanupEligibility: C63CleanupEligibility
+        let originalOwnersDrained: @MainActor () -> Bool
+        let support: URL
+        let generationRoot: URL
+        let assetID: UUID
+        let bundle: URL
+        let journal: URL
+        let journalBytes: Data
+        let ledger: DeletionLedgerV2
+        let placements: [AssetPlacementEventV1]
+        let unrelated: URL
+        let unrelatedBytes: Data
+    }
+
+    struct C63ColdRecovery {
+        let session: StoreGenerationSession
+        let coordinator: StoreSessionCoordinator
+        let service: WholeSignDeletionService
+    }
+
+    func c63Identity(_ url: URL) throws -> C63EntryIdentity {
+        var value = stat()
+        _ = try XCTUnwrap(Darwin.lstat(url.path, &value) == 0 ? true : nil,
+                          "C63 namespace entry is missing: \(url.lastPathComponent)")
+        return C63EntryIdentity(device: value.st_dev, inode: value.st_ino, mode: value.st_mode)
+    }
+
+    func c63RequireIdentity(_ url: URL, _ expected: C63EntryIdentity) throws {
+        let actual = try c63Identity(url)
+        _ = try XCTUnwrap(actual == expected ? true : nil,
+                          "Retaining C63 fixture: namespace identity changed")
+    }
+
+    func c63RequireAbsent(_ url: URL) throws {
+        var value = stat()
+        let status = Darwin.lstat(url.path, &value)
+        let lookupError = errno
+        _ = try XCTUnwrap(status != 0 && lookupError == ENOENT ? true : nil,
+                          "C63 expected genuine ENOENT: \(url.lastPathComponent)")
+    }
+
+    @MainActor
+    func makeC63JournalRemovalFixture() async throws -> C63DeletionFixture {
+        let owned = try V906Integration.makeHarness("c63-journal-removal", withAsset: false)
+        let session = owned.session
+        let context = session.modelContext
+        let container = context.container
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let coordinator = try StoreSessionCoordinator(
+            validatingSession: session, lifecycleProfileRegistry: registry
+        )
+        let cleanupEligibility = C63CleanupEligibility()
+        let rootIdentity = try c63Identity(owned.root)
+        let supportIdentity = try c63Identity(owned.support)
+        let generationIdentity = try c63Identity(session.generationRootURL)
+        let evidenceRoot = session.generationRootURL.appendingPathComponent("evidence", isDirectory: true)
+        addTeardownBlock { @MainActor [weak session, weak context, weak container, weak coordinator,
+                                      cleanupEligibility, root = owned.root, support = owned.support,
+                                      generation = session.generationRootURL] in
+            _ = try XCTUnwrap(cleanupEligibility.namespaceRestored
+                && cleanupEligibility.originalWriterReleased
+                && cleanupEligibility.recoverySettled
+                && cleanupEligibility.coldWriterReleased ? true : nil,
+                "Retaining C63 fixture: restoration, recovery or writer release incomplete")
+            _ = try XCTUnwrap(
+                session == nil && context == nil && container == nil && coordinator == nil ? true : nil,
+                "Retaining C63 fixture: original store owners have not drained"
+            )
+            _ = try XCTUnwrap(cleanupEligibility.coldOwnersDrained?() == true ? true : nil,
+                              "Retaining C63 fixture: cold store owners have not drained")
+            let leases = try StoreGenerationFactory(applicationSupportURL: support)
+                .makeGenerationLeaseRegistry()
+            _ = try XCTUnwrap(try leases.activeEpochs().isEmpty ? true : nil,
+                              "Retaining C63 fixture: durable leases have not drained")
+            try self.c63RequireIdentity(root, rootIdentity)
+            try self.c63RequireIdentity(support, supportIdentity)
+            try self.c63RequireIdentity(generation, generationIdentity)
+            try self.c63RequireIdentity(evidenceRoot, try XCTUnwrap(cleanupEligibility.evidenceIdentity))
+            try FileManager.default.removeItem(at: root)
+        }
+        let siteID = UUID(), assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try coordinator.workspaceWriter.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "C63 Site", address: nil,
+                               timeZoneID: "America/New_York"),
+                assetID: assetID, assetLabel: "C63 Sign",
+                packID: profile.package.packID,
+                packSchemaVersion: profile.package.schemaVersion,
+                packContentVersion: profile.package.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_700_040_000),
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: placementMutationID
+        )
+        try await coordinator.awaitSearchIndexLifecycle()
+        let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
+        let runner = try CheckRunnerCoordinator(
+            modelContext: context, packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile
+        )
+        runner.configureCapture(generationRootURL: session.generationRootURL)
+        let observedAt = Date(timeIntervalSince1970: 1_700_041_000)
+        _ = try runner.beginCheck(
+            assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+            afterDarkAccepted: true, safePositionAccepted: true, observedAt: observedAt
+        )
+        let png = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 48)).pngData { renderer in
+            UIColor(red: 0.2, green: 0.4, blue: 0.7, alpha: 1).setFill()
+            renderer.fill(CGRect(x: 0, y: 0, width: 64, height: 48))
+        }
+        let candidate = try await runner.importCandidate(
+            assetID: assetID, sourceData: png, createdAt: observedAt.addingTimeInterval(1)
+        )
+        let photo = try await runner.accept(candidate: candidate, assetID: assetID)
+        let evidenceID = photo.id
+        cleanupEligibility.evidenceIdentity = try c63Identity(evidenceRoot)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<EvidenceFile>()), 1)
+        let expectedPaths = [photo.relativePath, photo.thumbnailRelativePath]
+        let bundle = session.generationRootURL.appendingPathComponent(
+            "evidence/\(evidenceID.uuidString.lowercased())", isDirectory: true
+        )
+        XCTAssertEqual(Set(expectedPaths), Set([
+            "evidence/\(evidenceID.uuidString.lowercased())/original.jpg",
+            "evidence/\(evidenceID.uuidString.lowercased())/thumbnail.jpg"
+        ]))
+        for path in expectedPaths {
+            let bytes = try Data(contentsOf: session.generationRootURL.appendingPathComponent(path))
+            XCTAssertFalse(bytes.isEmpty)
+        }
+        let placements = try context.fetch(FetchDescriptor<AssetPlacementEventRow>()).map { try $0.value() }
+        XCTAssertEqual(placements.count, 1)
+        // Keep the unrelated canary inside the closed generation grammar and
+        // outside evidence, which the missing-ancestor hostile case moves.
+        let unrelatedRoot = session.generationRootURL.appendingPathComponent("snapshots", isDirectory: true)
+        try fileManager.createDirectory(at: unrelatedRoot, withIntermediateDirectories: true)
+        let unrelated = unrelatedRoot.appendingPathComponent("\(UUID().uuidString.lowercased()).json")
+        let unrelatedBytes = Data("retained-c63".utf8)
+        try unrelatedBytes.write(to: unrelated)
+        let service = WholeSignDeletionService(
+            modelContext: context, lifecycleDependencies: dependencies,
+            failureInjection: WholeSignDeletionFailureInjection(failOnceAt: .journalRemoval)
+        )
+        await assertThrows(.injectedFailure) { try await service.delete(assetID: assetID) }
+        let journalRoot = owned.support.appendingPathComponent("FieldEvidenceOperations/deletion")
+        let journalNames = try fileManager.contentsOfDirectory(atPath: journalRoot.path)
+        _ = try XCTUnwrap(journalNames.count == 1 ? true : nil)
+        let journal = journalRoot.appendingPathComponent(try XCTUnwrap(journalNames.first))
+        let journalBytes = try Data(contentsOf: journal)
+        let intent = try DeletionIntentDecoderV1().decode(journalBytes)
+        XCTAssertEqual(intent.phase, .databaseCommitted)
+        XCTAssertEqual(intent.assetID, assetID)
+        XCTAssertEqual(intent.generationID, session.generationID)
+        XCTAssertEqual(Set(intent.relativePaths), Set(expectedPaths))
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkflowRecord>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Site>()), 1)
+        let ledger = try DeletionLedgerStore(context: context).snapshot()
+        XCTAssertTrue(ledger.entries.contains { $0.identity.kind == .asset && $0.identity.id == assetID })
+        XCTAssertTrue(ledger.entries.contains { $0.identity.kind == .evidenceFile && $0.identity.id == evidenceID })
+        XCTAssertTrue(intent.ledgerEntries.allSatisfy { ledger.entries.contains($0) })
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AssetPlacementEventRow>()).map { try $0.value() },
+                       placements)
+        try c63RequireAbsent(bundle)
+        XCTAssertEqual(try Data(contentsOf: unrelated), unrelatedBytes)
+#if DEBUG
+        print("C70_C63_FIXTURE_STAGE_V1 stage=original-writer-close.enter")
+#endif
+        try coordinator.invalidateAndReleaseWriter()
+        cleanupEligibility.originalWriterReleased = true
+#if DEBUG
+        print("C70_C63_FIXTURE_STAGE_V1 stage=original-writer-close.complete")
+#endif
+        // Return values only: the writer, runner, context, rows and original
+        // session all leave this scope before the caller opens cold recovery.
+        return C63DeletionFixture(
+            cleanupEligibility: cleanupEligibility,
+            originalOwnersDrained: { [weak session, weak context, weak container,
+                                     weak coordinator, weak runner, weak photo] in
+                session == nil && context == nil && container == nil
+                    && coordinator == nil && runner == nil && photo == nil
+            }, support: owned.support,
+            generationRoot: session.generationRootURL, assetID: assetID, bundle: bundle,
+            journal: journal, journalBytes: journalBytes, ledger: ledger,
+            placements: placements, unrelated: unrelated, unrelatedBytes: unrelatedBytes
+        )
+    }
+
+    @MainActor
+    func makeC63ColdRecovery(_ fixture: C63DeletionFixture) throws -> C63ColdRecovery {
+#if DEBUG
+        print("C70_C63_FIXTURE_STAGE_V1 stage=cold-owner-drain.enter")
+#endif
+        _ = try XCTUnwrap(fixture.originalOwnersDrained() ? true : nil,
+                          "C63 cold recovery requires actual original-owner deallocation")
+        let leases = try StoreGenerationFactory(applicationSupportURL: fixture.support)
+            .makeGenerationLeaseRegistry()
+        _ = try XCTUnwrap(try leases.activeEpochs().isEmpty ? true : nil,
+                          "C63 cold recovery requires original durable leases to drain")
+#if DEBUG
+        print("C70_C63_FIXTURE_STAGE_V1 stage=cold-owner-drain.complete")
+#endif
+        var coldFactory = StoreGenerationFactory(applicationSupportURL: fixture.support)
+#if DEBUG
+        coldFactory.coldOpenFixedDiagnosticsForTesting = true
+        print("C70_C63_FIXTURE_STAGE_V1 stage=cold-open.enter")
+#endif
+        let session = try coldFactory.openOrBootstrapCurrent()
+#if DEBUG
+        print("C70_C63_FIXTURE_STAGE_V1 stage=cold-open.complete")
+#endif
+        let context = session.modelContext
+        let container = context.container
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let coordinator = try StoreSessionCoordinator(
+            validatingSession: session, lifecycleProfileRegistry: registry
+        )
+        fixture.cleanupEligibility.coldOwnersDrained = {
+            [weak session, weak context, weak container, weak coordinator] in
+            session == nil && context == nil && container == nil && coordinator == nil
+        }
+        addTeardownBlock { @MainActor [weak session, weak context, weak container, weak coordinator,
+                                      eligibility = fixture.cleanupEligibility] in
+            let drained = session == nil && context == nil && container == nil && coordinator == nil
+            if !drained { eligibility.namespaceRestored = false }
+            _ = try XCTUnwrap(drained ? true : nil, "Retaining C63 fixture: cold owners have not drained")
+        }
+        let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
+        return C63ColdRecovery(
+            session: session, coordinator: coordinator,
+            service: WholeSignDeletionService(modelContext: context, lifecycleDependencies: dependencies)
+        )
+    }
+
+    @MainActor
+    func assertC63RecoveredTwice(_ fixture: C63DeletionFixture, cold: C63ColdRecovery) async throws {
+        XCTAssertEqual(cold.session.generationRootURL, fixture.generationRoot)
+        XCTAssertEqual(try Data(contentsOf: fixture.journal), fixture.journalBytes)
+        XCTAssertEqual(try DeletionLedgerStore(context: cold.session.modelContext).snapshot(), fixture.ledger)
+        try c63RequireAbsent(fixture.bundle)
+        let first = try await cold.service.reconcile()
+        XCTAssertEqual(first.completedCommittedCount, 1)
+        XCTAssertEqual(first.cancelledPreparedCount, 0)
+        let second = try await cold.service.reconcile()
+        XCTAssertEqual(second.completedCommittedCount, 0)
+        XCTAssertEqual(second.cancelledPreparedCount, 0)
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: fixture.journal.deletingLastPathComponent().path), [])
+        try c63RequireAbsent(fixture.bundle)
+        XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()), 0)
+        XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+        XCTAssertEqual(try cold.session.modelContext.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try DeletionLedgerStore(context: cold.session.modelContext).snapshot(), fixture.ledger)
+        XCTAssertEqual(try cold.session.modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }, fixture.placements)
+        XCTAssertEqual(try Data(contentsOf: fixture.unrelated), fixture.unrelatedBytes)
+        fixture.cleanupEligibility.recoverySettled = true
+    }
+
     enum ReportFixture {
         case pending(snapshot: Data)
         case ready(snapshot: Data, pdf: Data)

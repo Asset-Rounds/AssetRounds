@@ -86,9 +86,10 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
                 discardSource: true, staleExtraDiscardReceipt: true)
         ] {
             defer { fixture.removePackages() }
-            let package = try fixture.validatedPackage()
-            XCTAssertThrowsError(
-                try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package))
+            XCTAssertThrowsError(try {
+                let package = try fixture.validatedPackage()
+                _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package)
+            }())
         }
     }
 
@@ -203,9 +204,10 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
 
         let active = try RepetitiveCaptureSourcePackageFixture(secondSameScopeGraph: true)
         defer { active.removePackages() }
-        let package = try active.validatedPackage()
-        XCTAssertThrowsError(
-            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package))
+        XCTAssertThrowsError(try {
+            let package = try active.validatedPackage()
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package)
+        }())
     }
 
     func testBranchOrphanAndCheckpointAfterPendingEffectAreRejected() throws {
@@ -217,9 +219,10 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         defer { fixtures.forEach { $0.removePackages() } }
 
         for fixture in fixtures {
-            let package = try fixture.validatedPackage()
-            XCTAssertThrowsError(
-                try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package))
+            XCTAssertThrowsError(try {
+                let package = try fixture.validatedPackage()
+                _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package)
+            }())
         }
     }
 
@@ -247,10 +250,11 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
         defer { requiredFixture.removePackages() }
         let requiredEnvelope = try MutationEnvelopeV1.decodeCanonical(
             from: requiredFixture.history.receipts[0].envelopeData)
-        let requiredPackage = try package(
-            requiredFixture, quarantining: requiredEnvelope, domain: .mutationEnvelope)
-        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: requiredPackage))
+        XCTAssertThrowsError(try {
+            let requiredPackage = try package(
+                requiredFixture, quarantining: requiredEnvelope, domain: .mutationEnvelope)
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: requiredPackage)
+        }())
 
         let unrelatedFixture = try RepetitiveCaptureSourcePackageFixture(
             includeUnrelatedHistory: true)
@@ -298,11 +302,12 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
             return envelope.semanticReversalReplayIdentitySHA256 == nil ? nil : envelope
         }.first)
-        let quarantined = try package(
-            fixture, quarantining: semanticEnvelope,
-            domain: .semanticReversalReplayIdentity)
-        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: quarantined))
+        XCTAssertThrowsError(try {
+            let quarantined = try package(
+                fixture, quarantining: semanticEnvelope,
+                domain: .semanticReversalReplayIdentity)
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: quarantined)
+        }())
 
         let unrelatedFixture = try RepetitiveCaptureSourcePackageFixture(
             includeUnrelatedHistory: true)
@@ -378,21 +383,23 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
 
         for (name, removeCount) in [("one-progress", 1),
                                     ("whole-source", fixture.checkpoints.count)] {
-            let package = try fixture.validatedPackage { object in
-                var rows = try XCTUnwrap(object["fieldDrafts"] as? [[String: Any]])
-                rows.removeLast(removeCount)
-                object["fieldDrafts"] = rows
-            }
-            XCTAssertThrowsError(
-                try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package), name)
+            XCTAssertThrowsError(try {
+                let package = try fixture.validatedPackage { object in
+                    var rows = try XCTUnwrap(object["fieldDrafts"] as? [[String: Any]])
+                    rows.removeLast(removeCount)
+                    object["fieldDrafts"] = rows
+                }
+                _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package)
+            }(), name)
         }
 
 
         let extra = try RepetitiveCaptureSourcePackageFixture(extraCurrentV2Row: true)
         defer { extra.removePackages() }
-        let extraPackage = try extra.validatedPackage()
-        XCTAssertThrowsError(
-            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: extraPackage))
+        XCTAssertThrowsError(try {
+            let extraPackage = try extra.validatedPackage()
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: extraPackage)
+        }())
     }
 
     func testRehashedPackageCannotOmitAuthenticatedRoundTail() throws {
@@ -403,13 +410,14 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             sourcePackage: fixture.validatedPackage())
         XCTAssertEqual(control.graphs.first?.packageCurrentRound, fixture.rounds.last)
 
-        let package = try fixture.validatedPackage { object in
-            var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
-            rows.removeAll { ($0["revision"] as? NSNumber)?.uint64Value == 3 }
-            object["roundSessions"] = rows
-        }
-        XCTAssertThrowsError(
-            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package))
+        XCTAssertThrowsError(try {
+            let package = try fixture.validatedPackage { object in
+                var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
+                rows.removeAll { ($0["revision"] as? NSNumber)?.uint64Value == 3 }
+                object["roundSessions"] = rows
+            }
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: package)
+        }())
 
         let addedFixture = try RepetitiveCaptureSourcePackageFixture()
         defer { addedFixture.removePackages() }
@@ -421,13 +429,14 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             state: .paused, transition: .pause, items: prior.items,
             recordedBy: prior.recordedBy,
             recordedAt: prior.recordedAt.addingTimeInterval(1))
-        let addedPackage = try addedFixture.validatedPackage { object in
-            var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
-            rows.append(try addedFixture.roundJSONObject(added))
-            object["roundSessions"] = rows
-        }
-        XCTAssertThrowsError(
-            try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: addedPackage))
+        XCTAssertThrowsError(try {
+            let addedPackage = try addedFixture.validatedPackage { object in
+                var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
+                rows.append(try addedFixture.roundJSONObject(added))
+                object["roundSessions"] = rows
+            }
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(sourcePackage: addedPackage)
+        }())
 
         let duplicateFixture = try RepetitiveCaptureSourcePackageFixture()
         defer { duplicateFixture.removePackages() }
@@ -479,23 +488,25 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             resultingRevision: originalReceipt.resultingRevision,
             postImages: [try changedMutation.mutationPostImage],
             committedAt: originalReceipt.committedAt)
-        let changedPostimagePackage = try prelaunchFixture.validatedPackage { object in
-            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
-            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
-            let index = try XCTUnwrap(receipts.firstIndex { row in
-                guard let encoded = row["envelopeData"] as? String,
-                      let data = Data(base64Encoded: encoded),
-                      let envelope = try? MutationEnvelopeV1.decodeCanonical(from: data)
-                else { return false }
-                return envelope.mutationID == originalDraft.mutationID
-            })
-            receipts[index]["receiptData"] = try changedPostimageReceipt.canonicalData()
-                .base64EncodedString()
-            history["receipts"] = receipts
-            object["mutationHistory"] = history
-        }
-        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: changedPostimagePackage))
+        XCTAssertThrowsError(try {
+            let changedPostimagePackage = try prelaunchFixture.validatedPackage { object in
+                var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+                var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+                let index = try XCTUnwrap(receipts.firstIndex { row in
+                    guard let encoded = row["envelopeData"] as? String,
+                          let data = Data(base64Encoded: encoded),
+                          let envelope = try? MutationEnvelopeV1.decodeCanonical(from: data)
+                    else { return false }
+                    return envelope.mutationID == originalDraft.mutationID
+                })
+                receipts[index]["receiptData"] = try changedPostimageReceipt.canonicalData()
+                    .base64EncodedString()
+                history["receipts"] = receipts
+                object["mutationHistory"] = history
+            }
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(
+                sourcePackage: changedPostimagePackage)
+        }())
 
         let disposedFixture = try RepetitiveCaptureSourcePackageFixture(
             discardSource: true, laterRoundAfterDisposition: true)
@@ -508,16 +519,18 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             state: .paused, transition: .pause, items: frontier.items,
             recordedBy: frontier.recordedBy,
             recordedAt: frontier.recordedAt.addingTimeInterval(18))
-        let changedTailPackage = try disposedFixture.validatedPackage { object in
-            var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
-            let index = try XCTUnwrap(rows.firstIndex {
-                ($0["revision"] as? NSNumber)?.uint64Value == 4
-            })
-            rows[index] = try disposedFixture.roundJSONObject(changedTail)
-            object["roundSessions"] = rows
-        }
-        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: changedTailPackage))
+        XCTAssertThrowsError(try {
+            let changedTailPackage = try disposedFixture.validatedPackage { object in
+                var rows = try XCTUnwrap(object["roundSessions"] as? [[String: Any]])
+                let index = try XCTUnwrap(rows.firstIndex {
+                    ($0["revision"] as? NSNumber)?.uint64Value == 4
+                })
+                rows[index] = try disposedFixture.roundJSONObject(changedTail)
+                object["roundSessions"] = rows
+            }
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(
+                sourcePackage: changedTailPackage)
+        }())
 
         let originalTail = disposedFixture.rounds[3]
         let tailRecord = try XCTUnwrap(disposedFixture.history.receipts.first { record in
@@ -534,23 +547,25 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             resultingRevision: tailReceipt.resultingRevision,
             postImages: [try changedTailMutation.mutationPostImage],
             committedAt: tailReceipt.committedAt)
-        let changedTailPostimagePackage = try disposedFixture.validatedPackage { object in
-            var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
-            var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
-            let index = try XCTUnwrap(receipts.firstIndex { row in
-                guard let encoded = row["envelopeData"] as? String,
-                      let data = Data(base64Encoded: encoded),
-                      let envelope = try? MutationEnvelopeV1.decodeCanonical(from: data)
-                else { return false }
-                return envelope.mutationID == originalTail.mutationID
-            })
-            receipts[index]["receiptData"] = try changedTailPostimageReceipt.canonicalData()
-                .base64EncodedString()
-            history["receipts"] = receipts
-            object["mutationHistory"] = history
-        }
-        XCTAssertThrowsError(try RepetitiveCaptureSourceGraphReviewV2.review(
-            sourcePackage: changedTailPostimagePackage))
+        XCTAssertThrowsError(try {
+            let changedTailPostimagePackage = try disposedFixture.validatedPackage { object in
+                var history = try XCTUnwrap(object["mutationHistory"] as? [String: Any])
+                var receipts = try XCTUnwrap(history["receipts"] as? [[String: Any]])
+                let index = try XCTUnwrap(receipts.firstIndex { row in
+                    guard let encoded = row["envelopeData"] as? String,
+                          let data = Data(base64Encoded: encoded),
+                          let envelope = try? MutationEnvelopeV1.decodeCanonical(from: data)
+                    else { return false }
+                    return envelope.mutationID == originalTail.mutationID
+                })
+                receipts[index]["receiptData"] = try changedTailPostimageReceipt.canonicalData()
+                    .base64EncodedString()
+                history["receipts"] = receipts
+                object["mutationHistory"] = history
+            }
+            _ = try RepetitiveCaptureSourceGraphReviewV2.review(
+                sourcePackage: changedTailPostimagePackage)
+        }())
     }
 
     func testRehashedPackageCannotDropCheckpointHistoryTailOrAlterCurrentCanonicalRow() throws {

@@ -4184,6 +4184,11 @@ extension PortableExchangeSessionStoreV2: PortableReviewSessionReconciliationV1 
             guard current.acceptedResponseSHA256 == responseDigest else {
                 throw PortableExchangePersistenceFailureV2.duplicateSession
             }
+            // Exact completed replay preserves the retained session and capability state.
+            // The canonical writer still checks the exact mutation.
+            if try hasStoredReconciliationReceipt(matching: receipt, in: current) {
+                return
+            }
             current.pendingMutationID = plan.mutationID
             current.pendingEffectSHA256 = effectDigest
             current.pendingImportReceiptSHA256 = importReceiptDigest
@@ -4465,6 +4470,36 @@ extension PortableExchangeSessionStoreV2: PortableReviewSessionReconciliationV1 
             }
         }
         return false
+    }
+
+    private func hasStoredReconciliationReceipt(
+        matching importReceipt: ExternalReviewImportReceiptV1,
+        in record: PortableExchangeSessionRecordV2
+    ) throws -> Bool {
+        guard let reference = record.immutableBytes.first(where: {
+            $0.role == .reconciliationReceipt
+        }) else {
+            return false
+        }
+        let bytes = try readPayload(reference.relativePath)
+        guard UInt64(bytes.count) == reference.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        let canonicalReceipt = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            PortableReviewMutationReceiptV1.self,
+            from: bytes
+        )
+        try canonicalReceipt.mutationReceipt.validate()
+        try canonicalReceipt.importReceipt.validate()
+        return StoreMigrationCanonicalJSONV1.isLowercaseSHA256(canonicalReceipt.mutationSHA256)
+            && canonicalReceipt.importReceipt == importReceipt
+            && canonicalReceipt.mutationReceipt.mutationID == importReceipt.mutationID
+            && canonicalReceipt.mutationReceipt.identity.workspaceID == importReceipt.workspaceID
+            && canonicalReceipt.mutationReceipt.expectedRevision.workspaceRevision
+                == importReceipt.basisWorkspaceRevision
+            && canonicalReceipt.mutationReceipt.resultingRevision.workspaceRevision
+                == importReceipt.appliedWorkspaceRevision
     }
 
     private func responseID(

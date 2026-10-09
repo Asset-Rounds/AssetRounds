@@ -2177,7 +2177,11 @@ struct AdvancedScheduleDiagnosticMetadataV1: Codable, Equatable, Sendable {
         schemaVersion = Self.schemaVersion
         calendarReleaseCount = calendars.count
         overrideEventCount = overrideEvents.count
-        activeOverrideCount = (try? ScheduleOverridePrecedenceV1.activeEvents(overrideEvents).count) ?? 0
+        do {
+            activeOverrideCount = try ScheduleOverridePrecedenceV1.activeEvents(overrideEvents).count
+        } catch {
+            throw DiagnosticExportError.invalidValue
+        }
         occurrenceBasisCount = occurrences.count
         previewCount = previews.count; receiptCount = receipts.count
         manualResolutionCount = occurrences.filter {

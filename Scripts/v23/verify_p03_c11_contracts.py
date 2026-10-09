@@ -384,6 +384,65 @@ def source_and_test_checks(root: Path) -> dict[str, Any]:
     return source_parity
 
 
+def current_source_and_test_checks(root: Path) -> dict[str, Any]:
+    """Check the current shared Source without changing the C11 card-time check.
+
+    C17 already added one declaration under C11's shared naming prefix before
+    the current C64 checkpoint tests.  Keep that named declaration separate
+    from C11's ordered five evidence methods and account for C64 explicitly.
+    Historical verify() continues to use source_and_test_checks().
+    """
+    source_parity = source_codable_parity(root)
+    local = (root / "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift").read_text(encoding="utf-8")
+    required_local_tokens = (
+        "WorkspaceSnapshotManifestV1", "ChangeBatchV1", "ChangeCursorV1",
+        "ChangeJournalFailureV1", "checkpoint", "replay", "compaction",
+        "replayReceipts", "alreadyApplied", "workspaceID", "ReplicaID",
+    )
+    for token in required_local_tokens:
+        require(token.lower() in local.lower(), f"local journal source lacks required seam: {token}")
+    for token in ("URL" + "Session", "Cloud" + "Kit", "Provider" + "Outbox",
+                  "Network" + "Transport", "Cloud" + "Attachment", "signed" + "URL"):
+        require(token not in local, f"forbidden external scope symbol in local journal: {token}")
+    test = (root / contracts.TEST_PATH).read_text(encoding="utf-8")
+    methods = re.findall(r"\bfunc\s+(testV9_ChangeJournalCheckpointReplay[A-Za-z0-9_]*)\s*\(",
+                         test)
+    c17_method = "testV9_ChangeJournalCheckpointReplayC17IntegrationEventsRemainDerivedAndRebuildable"
+    require(len(contracts.TEST_METHODS) == 5 and len(set(contracts.TEST_METHODS)) == 5,
+            "C11 evidence method cardinality differs")
+    require(methods[:5] == contracts.TEST_METHODS,
+            f"ordered five C11 evidence methods differ: {methods[:5]}")
+    require(methods == [*contracts.TEST_METHODS, c17_method],
+            f"current C11/C17 shared-prefix declarations differ: {methods}")
+    for token in ("V21P03C11ChangeJournalCheckpointReplayCorpusV1",
+                  "ReplicaConvergenceScenarioV1", "ReplicaDeliveryScheduleV1",
+                  "ReplicaConvergenceReceiptV1", "Bundle", "JSONDecoder",
+                  "assertSHA256"):
+        require(token in test, f"test source lacks required static evidence seam: {token}")
+    require(test.count("func testV9_ChangeJournalCheckpointReplay") == 6,
+            "current C11/C17 shared-prefix test count differs")
+    c64_methods = [
+        "testCurrentCheckpoint53And52RoundTripsThroughPreparationReplicaAndJournalReopen",
+        "testCurrentCheckpointRecordSchemaCovers77FieldsIndependentOfOptionalValues",
+        "testCurrentCheckpointRejectsRehashedInnerSchemaAndPayloadChangesWithoutEffects",
+    ]
+    current_checkpoint_methods = re.findall(
+        r"\bfunc\s+(testCurrentCheckpoint[A-Za-z0-9_]*)\s*\(", test
+    )
+    require(current_checkpoint_methods == c64_methods,
+            f"ordered current C64 checkpoint declarations differ: {current_checkpoint_methods}")
+    require(test.count("func testCurrentCheckpoint") == 3,
+            "current C64 checkpoint test count differs")
+    ordered_current_methods = re.findall(
+        r"\bfunc\s+((?:testV9_ChangeJournalCheckpointReplay|testCurrentCheckpoint)[A-Za-z0-9_]*)\s*\(",
+        test,
+    )
+    require(ordered_current_methods == [*contracts.TEST_METHODS, c17_method, *c64_methods],
+            f"ordered current C11/C17/C64 declaration closure differs: {ordered_current_methods}")
+    return {**source_parity, "c11EvidenceTestCount": 5,
+            "laterC17TestCount": 1, "currentC64TestCount": 3}
+
+
 def forbidden_scope_scan(root: Path) -> None:
     # Build symbols by concatenation so this verifier does not trip over its own
     # scanner literals.  The fixture intentionally contains the three production

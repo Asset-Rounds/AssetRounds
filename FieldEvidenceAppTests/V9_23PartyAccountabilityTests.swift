@@ -251,11 +251,13 @@ final class V9_23PartyAccountabilityTests: XCTestCase {
         )
         XCTAssertNoThrow(try retiredParty.validateSuccessor(of: values.party))
         try partyRow.replace(with: retiredParty, expectedRevision: values.party.revision)
-        XCTAssertEqual(try partyRow.value(), retiredParty)
+        let currentParty = try partyRow.value()
+        XCTAssertEqual(currentParty, retiredParty)
         XCTAssertEqual(values.party.displayName, "Jordan Lee")
-        XCTAssertThrowsError(try partyRow.replace(with: values.party, expectedRevision: 1)) {
+        XCTAssertThrowsError(try partyRow.replace(with: values.party, expectedRevision: currentParty.revision)) {
             XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .immutableHistory)
         }
+        XCTAssertEqual(try partyRow.value(), currentParty)
 
         let signoffSuccessor = try SignoffSnapshotV1(
             snapshotID: uuid(51), workspaceID: values.workspace,
@@ -481,10 +483,20 @@ final class V9_23PartyAccountabilityTests: XCTestCase {
                 revision: $0.2, canonicalData: $0.3
             )
         }
+        let emptyHistory = MutationHistorySnapshotV1(
+            workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: []
+        )
+        let site = V4BackupSiteDTO(
+            id: values.role.siteID, schemaVersion: 1,
+            label: "C38 fixture site", address: nil, timeZoneID: nil,
+            createdAt: baseDate, updatedAt: baseDate
+        )
         let backup = V4BackupRecordsV1(
-            assets: [], evidenceFiles: [], issues: [], packets: [],
+            assets: [], deletionLedger: .empty, evidenceFiles: [], issues: [],
+            mutationHistory: emptyHistory, packets: [],
             partyAccountability: records, recordsSchemaVersion: 8,
-            reports: [], sites: [], workflowRecords: []
+            reports: [], sites: [site], workflowRecords: []
         )
         let encoded = try BackupCanonicalEncoderV1().encodeRecords(backup).data
         let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)

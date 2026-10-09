@@ -472,7 +472,10 @@ def swift_checks(root: Path) -> None:
     require_swift_function(harness, "exercisePackageLifecycle", (
         "CheckRunnerCoordinator(", "beginCheck(", "prepareReview(",
         "StoreGenerationFactory(applicationSupportURL: activeApplicationSupportURL)",
-        "coordinator = try StoreSessionCoordinator(validatingSession: session)",
+        ("coordinator = try StoreSessionCoordinator(\n"
+         "            validatingSession: session,\n"
+         "            lifecycleProfileRegistry: registry\n"
+         "        )"),
         "beginOrResumeDraft(",
         "resumedDraft.id == persistedDraftID", "resumedEvidenceCount == 2",
         'actions.append("RESUME")', 'requireValue(runner, "check-runner").finalize(',
@@ -526,13 +529,182 @@ def swift_checks(root: Path) -> None:
         "WorkspacePackageLifecycleCompatibilityV1.shippingProfile()",
         'snapshotID: "snapshot-old-profile"', "oldProfileRendered",
     ), "full inherited C06 renderer and compatibility reconciliation")
-    require_swift_function(harness, "exercisePostConvergenceLifecycle", (
+    post_convergence = require_swift_function(harness, "exercisePostConvergenceLifecycle", (
         "BackupExportService(", "BackupRestoreService(",
         "rebuildSearchProjectionIfNeeded()", "WholeSignDeletionService(",
-        "EraseAllService(", "reopenedAfterErase", "StoreSessionCoordinator(validatingSession:",
+        ("KernelConformanceEraseOwnerV1(support: restoreSupport,\n"
+         "                cachesDirectoryURL: cleanupOwners.cachesDirectoryURL,\n"
+         "                temporaryDirectoryURL: cleanupOwners.temporaryDirectoryURL,\n"
+         "                registry: registry)"),
+        "cleanupOwners.retain(eraseOwner, support: restoreSupport)",
+        ("try eraseOwner.releasePriorSource(session: restored,\n"
+         "                coordinator: restoredCoordinator)"),
+        "deletion.assetID == assetID,\n                eraseOwner\n            )\n        }()",
+        "try await prepared.eraseOwner.prepare()",
+        "try await prepared.eraseOwner.finishAndReleaseFreshOwner()",
+        "reopenedAfterErase", "StoreSessionCoordinator(validatingSession:",
         "DeletionLedgerStore(context: reopenedContext).snapshot() == .empty",
         "recoveryCompleted: recoveryCompleted",
     ), "post-convergence durable recovery")
+    require("try await eraseOwner.prepare(" not in post_convergence,
+            "post-convergence erase admission must follow prior reader frame exit")
+    post_erase_order = (
+        "cleanupOwners.retain(eraseOwner, support: restoreSupport)",
+        "try eraseOwner.releasePriorSource(session: restored,",
+        "deletion.assetID == assetID,\n                eraseOwner\n            )\n        }()",
+        "try await prepared.eraseOwner.prepare()",
+        "try await prepared.eraseOwner.finishAndReleaseFreshOwner()",
+        "let reopenedAfterErase =", "let recoveryCompleted =",
+        "recoveryCompleted: recoveryCompleted",
+    )
+    require(all(post_convergence.count(token) == 1 for token in post_erase_order) and
+            [post_convergence.index(token) for token in post_erase_order] ==
+            sorted(post_convergence.index(token) for token in post_erase_order),
+            "post-convergence erase preparation/completion/recovery order differs")
+
+    # C73 closes the restored writer before its frame exits, then the retained
+    # owner drains its real aliases and opens the Router's own READY source.
+    erase_owners = re.findall(
+        r"(?ms)^private final class KernelConformanceEraseOwnerV1 \{\n.*?^\}", harness,
+    )
+    require(len(erase_owners) == 1, "post-convergence erase owner identity differs")
+    erase_owner = erase_owners[0]
+    require("self.support = support" in erase_owner and
+            "private let cachesDirectoryURL: URL" in erase_owner and
+            "private let temporaryDirectoryURL: URL" in erase_owner and
+            ("init(support: URL, cachesDirectoryURL: URL, temporaryDirectoryURL: URL,\n"
+             "        registry: WorkspacePackageLifecycleProfileRegistryV1) {") in erase_owner and
+            "self.cachesDirectoryURL = cachesDirectoryURL" in erase_owner and
+            "self.temporaryDirectoryURL = temporaryDirectoryURL" in erase_owner and
+            "self.registry = registry" in erase_owner and
+            "router = StartupRouter(applicationSupportURL: support," in erase_owner and
+            "lifecycleProfileRegistry: registry)" in erase_owner,
+            "post-convergence erase owner root/registry binding differs")
+    require(all(f"private weak var {name}: {kind}?" in erase_owner for name, kind in (
+        ("priorSession", "StoreGenerationSession"),
+        ("priorCoordinator", "StoreSessionCoordinator"),
+        ("priorWriter", "WorkspaceWriterV1"),
+        ("priorContext", "ModelContext"),
+        ("priorContainer", "ModelContainer"),
+    )), "post-convergence prior reader observations must remain weak")
+    prior_release = require_swift_function(erase_owner, "releasePriorSource", (
+        "guard !priorWriterClosed, priorGenerationID == nil, retainedPriorSource == nil else",
+        "retainedPriorSource = (session, coordinator)",
+        "guard coordinator.modelContext === session.modelContext,",
+        "coordinator.generationID == session.generationID else",
+        "priorSession = session", "priorCoordinator = coordinator",
+        "priorWriter = coordinator.workspaceWriter", "priorContext = session.modelContext",
+        "priorContainer = session.modelContext.container",
+        "priorGenerationID = session.generationID", "priorWorkspaceID = session.workspaceID",
+        "priorGenerationRootURL = session.generationRootURL.standardizedFileURL",
+        "try coordinator.invalidateAndReleaseWriter()", "priorWriterClosed = true",
+        "retainedPriorSource = nil", "throw RetainedFailure(owner: self, underlying: error)",
+    ), "post-convergence prior source association and checked close")
+    prior_release_order = (
+        "retainedPriorSource = (session, coordinator)",
+        "guard coordinator.modelContext === session.modelContext,",
+        "priorSession = session", "priorCoordinator = coordinator",
+        "priorWriter = coordinator.workspaceWriter", "priorContext = session.modelContext",
+        "priorContainer = session.modelContext.container",
+        "priorGenerationID = session.generationID", "priorWorkspaceID = session.workspaceID",
+        "priorGenerationRootURL = session.generationRootURL.standardizedFileURL",
+        "try coordinator.invalidateAndReleaseWriter()", "priorWriterClosed = true",
+        "retainedPriorSource = nil",
+    )
+    require(all(prior_release.count(token) == 1 for token in prior_release_order) and
+            [prior_release.index(token) for token in prior_release_order] ==
+            sorted(prior_release.index(token) for token in prior_release_order),
+            "post-convergence prior source association/close/release order differs")
+    prepare = require_swift_function(erase_owner, "prepare", (
+        "func prepare() async throws {",
+        "guard priorWriterClosed, !priorReleaseObserved else",
+        "for _ in 0..<1_500 {",
+        ("if priorSession == nil, priorCoordinator == nil, priorWriter == nil,\n"
+         "                   priorContext == nil, priorContainer == nil {"),
+        "priorReleaseObserved = true", "try await Task.sleep(nanoseconds: 20_000_000)",
+        "guard priorReleaseObserved else",
+        'incompleteCoverage("erase-prior-owner-release-pending")',
+        "guard await gate.authenticate(trigger: .unlock) == .authenticated",
+        "try router.bindStartupAccessGate(gate)",
+        "try await router.startIfNeeded(accessGate: gate)",
+        "guard case let .ready(coordinator, diagnostics, _) = router.route,",
+        "coordinator.generationID == priorGenerationID,",
+        "coordinator.workspaceID == priorWorkspaceID,",
+        "coordinator.generationRootURL.standardizedFileURL == priorGenerationRootURL else",
+        'incompleteCoverage("erase-original-router-ready")',
+        "let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)",
+        "guard dependencies.workspaceID == priorWorkspaceID,",
+        "dependencies.generationID == priorGenerationID,",
+        "dependencies.generationRootURL.standardizedFileURL == priorGenerationRootURL,",
+        "dependencies.writer === coordinator.workspaceWriter,",
+        "dependencies.profileRegistry == registry else",
+        'incompleteCoverage("erase-original-router-dependencies")',
+        "try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)",
+        "let actualOperation = try router.eraseRetirementOperation(for: ticket)",
+        "operation = actualOperation",
+        ("router.configureEraseService(EraseAllService(\n"
+         "                applicationSupportURL: support,\n"
+         "                cachesDirectoryURL: cachesDirectoryURL,\n"
+         "                temporaryDirectoryURL: temporaryDirectoryURL,"),
+        "router.eraseAdmissionAuthorization(ticket, subject: subject)",
+        "gate.reserveEraseAdoption(subject: subject, authorization: authorization)",
+        "router.recordEraseReservation(ticket, reservation: token)", "reservation = token",
+        "serviceOutcome = try await service.erase(confirmation: EraseAllService.requiredConfirmation,",
+        "coordinator: coordinator, diagnosticsStore: diagnostics,",
+        "operation: actualOperation",
+        ("router.activateErasePreparationSession(replacement,\n"
+         "                            coordinator: coordinator, operation: actualOperation)"),
+        "lifecycleDependencies: dependencies", "if let activationFailure { throw activationFailure }",
+        "throw RetainedFailure(owner: self, underlying: error)",
+    ), "post-convergence retained erase service")
+    prepare_order = (
+        "guard priorWriterClosed, !priorReleaseObserved else",
+        "for _ in 0..<1_500 {",
+        ("if priorSession == nil, priorCoordinator == nil, priorWriter == nil,\n"
+         "                   priorContext == nil, priorContainer == nil {"),
+        "priorReleaseObserved = true", "guard priorReleaseObserved else",
+        "guard await gate.authenticate(trigger: .unlock) == .authenticated",
+        "try router.bindStartupAccessGate(gate)",
+        "try await router.startIfNeeded(accessGate: gate)",
+        "guard case let .ready(coordinator, diagnostics, _) = router.route,",
+        "let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)",
+        "guard dependencies.workspaceID == priorWorkspaceID,",
+        "try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)",
+        "let actualOperation = try router.eraseRetirementOperation(for: ticket)",
+        "router.configureEraseService(EraseAllService(",
+        "serviceOutcome = try await service.erase(confirmation: EraseAllService.requiredConfirmation,",
+        "if let activationFailure { throw activationFailure }",
+    )
+    require(all(prepare.count(token) == 1 for token in prepare_order) and
+            [prepare.index(token) for token in prepare_order] ==
+            sorted(prepare.index(token) for token in prepare_order),
+            "post-convergence prior drain/router ready/admission/service order differs")
+    finish = require_swift_function(erase_owner, "finishAndReleaseFreshOwner", (
+        "guard let operation, let reservation,", "try await operation.advanceCleanup() else",
+        'incompleteCoverage("erase-actual-reader-drain-pending")',
+        "let (_, _, completed) = try operation.completedRetirement()", "guard let completed else",
+        'incompleteCoverage("erase-completed-receipt")',
+        "try await gate.adoptCompletedErase(completed, token: reservation)",
+        "try await router.finishRetiredEraseActivation(operation, accessGate: gate)",
+        "try releaseFreshPublishedOwner()", "guard freshContext == nil, freshContainer == nil else",
+        "throw RetainedFailure(owner: self, underlying: error)",
+    ), "post-convergence retained erase completion")
+    finish_order = (
+        "operation.advanceCleanup()", "operation.completedRetirement()",
+        "gate.adoptCompletedErase(completed, token: reservation)",
+        "router.finishRetiredEraseActivation(operation, accessGate: gate)",
+        "releaseFreshPublishedOwner()", "guard freshContext == nil, freshContainer == nil else",
+    )
+    require(all(finish.count(token) == 1 for token in finish_order) and
+            [finish.index(token) for token in finish_order] ==
+            sorted(finish.index(token) for token in finish_order),
+            "post-convergence erase drain/adoption/release order differs")
+    require_swift_function(erase_owner, "releaseFreshPublishedOwner", (
+        "guard case let .ready(coordinator, _, _) = router.route,",
+        "try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0 else",
+        "freshContext = coordinator.modelContext", "freshContainer = coordinator.modelContext.container",
+        "try coordinator.invalidateAndReleaseWriter()", "router.failClosedPDFRecovery()",
+    ), "post-convergence fresh erase owner release")
 
     forbidden = (
         "consumeFaultInjection", "consumeFaultBoundary", "exerciseDeclaredFaultBoundary",

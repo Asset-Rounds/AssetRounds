@@ -349,8 +349,40 @@ enum SurveySessionBackupGraphClosureV1 {
                 let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
                 let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
                 receiptCensuses.append(receipt)
-                guard case let .applySurveySession(mutation) = envelope.command else { continue }
-                _ = try SurveySessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+                let mutation: SurveySessionMutationV1
+                switch envelope.command {
+                case let .applySurveySession(value):
+                    _ = try SurveySessionMutationReceiptV1(mutation: value, mutationReceipt: receipt)
+                    mutation = value
+                case let .applyAssistanceAcceptance(request):
+                    // Retain the real outer receipt and reviewed acceptance
+                    // provenance while deriving its closed survey target.
+                    _ = try AssistanceAcceptanceReceiptV1(
+                        request: request, canonicalMutationReceipt: receipt)
+                    switch request.targetMutation {
+                    case let .surveySession(value): mutation = value
+                    }
+                    let images = try mutation.mutationPostImages
+                    let affected = try mutation.affectedIdentities
+                    let concurrency = try mutation.concurrencyIdentities
+                    guard receipt.postImages == images,
+                          try concurrency.allSatisfy({ identity in
+                              let required = try mutation.expectedRevision(for: identity)
+                              return receipt.expectedRevision.entityRevisions.first(where: {
+                                  $0.identity == identity
+                              })?.revision == required
+                          }),
+                          try images.allSatisfy({ image in
+                              let identity = try image.identity
+                              return receipt.resultingRevision.entityRevisions.first(where: {
+                                  $0.identity == identity
+                              })?.revision == image.revision
+                          }),
+                          affected == images.compactMap({ try? $0.identity }) else {
+                        throw Failure.invalid
+                    }
+                default: continue
+                }
                 guard envelope.workspaceID == mutation.workspaceID, envelope.mutationID == mutation.mutationID,
                       mutationKeys.insert("\(mutation.workspaceID.rawValue)|\(mutation.mutationID.rawValue)").inserted else {
                     throw Failure.invalid
@@ -991,7 +1023,117 @@ struct BackupCanonicalDecoderV1: Sendable {
         } catch {
 #if DEBUG
             let diagnosticError = error as NSError
-            FileHandle.standardError.write(Data(("Backup records decode failure phase=\(recordsDecodePhase) type=\(String(reflecting: type(of: error))) domain=\(diagnosticError.domain) code=\(diagnosticError.code)\n").utf8))
+            var decodingKind = "non-DecodingError"
+            var codingPath = [String]()
+            var expectedType = "none"
+            // Only the closed public records-field vocabulary may be printed.
+            // Nested/dynamic keys and integer values remain undisclosed.
+            let diagnosticRecordFields: Set<String> = [
+                "acceptedLabelGenerationSnapshots",
+                "accessibleDocumentAssessments",
+                "activityContracts",
+                "assetCompositionEdges",
+                "assetCompositionEvents",
+                "assetLocators",
+                "assetPlacementEvents",
+                "assetSemantics",
+                "assets",
+                "assistanceAcceptanceReceipts",
+                "authorityCriterion",
+                "bulkCommitReceipts",
+                "bulkSessions",
+                "clientCapabilities",
+                "deletionLedger",
+                "entityIdentityResolution",
+                "evidenceAssociationEvents",
+                "evidenceAssurance",
+                "evidenceContexts",
+                "evidenceFiles",
+                "evidenceQuality",
+                "evidenceSequenceRevisions",
+                "fastSurveyInbox",
+                "fieldDrafts",
+                "fieldReferences",
+                "functionalRelationships",
+                "guidedSurveys",
+                "importMappingProfiles",
+                "inspectionReview",
+                "issues",
+                "lighting",
+                "lightingDayInventoryWorkflows",
+                "lightingNightWorkflows",
+                "locationHierarchyEvents",
+                "locationMigrationReceipts",
+                "locationNodes",
+                "measurementIntegrity",
+                "mutationHistory",
+                "myDayCarryoverReceipts",
+                "myDayPlans",
+                "nonactivePlanReferences",
+                "operationalContacts",
+                "packageEvolution",
+                "packets",
+                "pairedObservationLinks",
+                "partsStockSnapshot",
+                "partyAccountability",
+                "placementPoses",
+                "plans",
+                "practiceWorkspaceProvenance",
+                "privacyTransforms",
+                "qualifiedServiceExposures",
+                "recordsSchemaVersion",
+                "recoverabilityReceipts",
+                "reinspectionExceptionQueue",
+                "reports",
+                "requirementAssurance",
+                "roundSessions",
+                "savedSmartViews",
+                "schedules",
+                "serviceCauseAssertions",
+                "serviceImpactSegments",
+                "serviceReliabilityIncidents",
+                "serviceReliabilityReceipts",
+                "serviceRemedyAssertions",
+                "serviceRepairIntervals",
+                "serviceRequestDispositionEvents",
+                "serviceRequestWorkLinkEvents",
+                "serviceRequests",
+                "serviceRestorationAssertions",
+                "shopReportProfiles",
+                "sites",
+                "surveyDefinitions",
+                "temporalEvidence",
+                "workPackets",
+                "workResources",
+                "workflowRecords",
+            ]
+            func diagnosticCodingKey(_ key: CodingKey) -> String {
+                if key.intValue != nil { return "integer-key" }
+                let value = key.stringValue
+                return diagnosticRecordFields.contains(value) ? value : "unlisted-key"
+            }
+            func recordCodingPath(_ context: DecodingError.Context) {
+                codingPath = context.codingPath.map(diagnosticCodingKey)
+            }
+            switch error {
+            case let DecodingError.keyNotFound(key, context):
+                decodingKind = "keyNotFound"
+                recordCodingPath(context)
+                codingPath.append(diagnosticCodingKey(key))
+            case let DecodingError.typeMismatch(type, context):
+                decodingKind = "typeMismatch"
+                expectedType = String(reflecting: type)
+                recordCodingPath(context)
+            case let DecodingError.valueNotFound(type, context):
+                decodingKind = "valueNotFound"
+                expectedType = String(reflecting: type)
+                recordCodingPath(context)
+            case let DecodingError.dataCorrupted(context):
+                decodingKind = "dataCorrupted"
+                recordCodingPath(context)
+            default: break
+            }
+            FileHandle.standardError.write(Data(("Backup records decode failure phase=\(recordsDecodePhase) type=\(String(reflecting: type(of: error))) domain=\(diagnosticError.domain) code=\(diagnosticError.code) decodingKind=\(decodingKind) codingPath=\(codingPath.joined(separator: ".")) expectedType=\(expectedType)\n").utf8))
 #endif
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -2017,7 +2159,9 @@ private extension BackupCanonicalDecoderV1 {
             // enclosing backup still requires exact canonical reencoding.
             if let root = decoder.codingPath.first?.stringValue,
                root == "partsStockSnapshot" || root == "roundSessions"
-                || root == "evidenceQuality" || root == "fastSurveyInbox" {
+                || root == "evidenceQuality" || root == "fastSurveyInbox"
+                || root == "practiceWorkspaceProvenance"
+                || root == "entityIdentityResolution" {
                 let milliseconds = try container.decode(Double.self)
                 guard milliseconds.isFinite else {
                     throw DecodingError.dataCorruptedError(

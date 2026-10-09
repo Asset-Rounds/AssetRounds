@@ -27,6 +27,131 @@ private enum C53AssetServiceReliabilityBoundary_S6_2BackupExportTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
+#if DEBUG
+private enum S6_2BackupPostPublicationStepV1: String {
+    case publicationWaitReturned = "publication-wait.returned"
+    case routeReproofEnter = "route-reproof.enter"
+    case routeReproofPassed = "route-reproof.passed"
+    case generationIDReproofEnter = "generation-id-reproof.enter"
+    case generationIDReproofPassed = "generation-id-reproof.passed"
+    case generationRootReproofEnter = "generation-root-reproof.enter"
+    case generationRootReproofPassed = "generation-root-reproof.passed"
+    case authorizedHarnessReturnEnter = "authorized-harness-return.enter"
+    case authorizationFailureObserved = "authorization-failure.observed"
+    case failedOwnerDrainEnter = "failure-owner-drain.enter"
+    case failedOwnerDrainReturned = "failure-owner-drain.returned"
+    case failedDefaultsRemovalEnter = "failure-defaults-removal.enter"
+    case failedDefaultsRemovalReturned = "failure-defaults-removal.returned"
+    case authorizedHarnessReturned = "authorized-harness.returned"
+    case destinationCreationEnter = "destination-creation.enter"
+    case destinationCreationReturned = "destination-creation.returned"
+    case serviceConstructionEnter = "service-construction.enter"
+    case serviceConstructionReturned = "service-construction.returned"
+    case prepareReadEnter = "prepare-read.enter"
+    case prepareReadReturned = "prepare-read.returned"
+    case exportEnter = "export.enter"
+    case exportReturned = "export.returned"
+    case cleanupWriterReleaseEnter = "cleanup-writer-release.enter"
+    case cleanupWriterReleaseReturned = "cleanup-writer-release.returned"
+    case cleanupDefaultsRemovalEnter = "cleanup-defaults-removal.enter"
+    case cleanupDefaultsRemovalReturned = "cleanup-defaults-removal.returned"
+
+    func report() {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(
+                "V23_S62_BACKUP_POST_PUBLICATION_STEP_V1 stage=\(rawValue)\n".utf8))
+        } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+    }
+}
+
+private enum S6_2PhotoInstallerBoundaryV1: String {
+    case support = "support"
+    case bootstrap = "bootstrap"
+    case importerConstruction = "importer-construction"
+    case stageAndValidate = "stage-and-validate"
+    case restoreConstructionAndEmptyInstall = "restore-construction-and-empty-install"
+
+    enum Event: String {
+        case enter = "enter"
+        case returned = "returned"
+        case failed = "failed"
+    }
+
+    private enum Failure: String {
+        case packageValidationInvalidPackage = "package-validation.invalid-package"
+        case restoreContextHasChanges = "restore.context-has-changes"
+        case restoreCurrentGenerationInvalid = "restore.current-generation-invalid"
+        case restoreCurrentGenerationEmpty = "restore.current-generation-empty"
+        case restoreCurrentGenerationNotEmpty = "restore.current-generation-not-empty"
+        case restoreInvalidPackage = "restore.invalid-package"
+        case restoreInvalidAuthority = "restore.invalid-authority"
+        case restoreMaterializationFailed = "restore.materialization-failed"
+        case restoreRecoveryRequired = "restore.recovery-required"
+        case restoreInjectedFailure = "restore.injected-failure"
+        case importInvalidGeneration = "import.invalid-generation"
+        case importSecurityScopeDenied = "import.security-scope-denied"
+        case importCoordinationFailed = "import.coordination-failed"
+        case importInvalidSource = "import.invalid-source"
+        case importCopyFailed = "import.copy-failed"
+        case importCleanupFailed = "import.cleanup-failed"
+        case other = "other"
+
+        static func classify(_ error: Error) -> Self {
+            if let failure = error as? BackupPackageValidationErrorV1 {
+                switch failure {
+                case .invalidPackage: return .packageValidationInvalidPackage
+                }
+            }
+            if let failure = error as? BackupRestoreServiceError {
+                switch failure {
+                case .contextHasChanges: return .restoreContextHasChanges
+                case .currentGenerationInvalid: return .restoreCurrentGenerationInvalid
+                case .currentGenerationEmpty: return .restoreCurrentGenerationEmpty
+                case .currentGenerationNotEmpty: return .restoreCurrentGenerationNotEmpty
+                case .invalidPackage: return .restoreInvalidPackage
+                case .invalidRestoreAuthority: return .restoreInvalidAuthority
+                case .materializationFailed: return .restoreMaterializationFailed
+                case .recoveryRequired: return .restoreRecoveryRequired
+                case .injectedFailure: return .restoreInjectedFailure
+                }
+            }
+            if let failure = error as? BackupImportServiceError {
+                switch failure {
+                case .invalidGeneration: return .importInvalidGeneration
+                case .securityScopeDenied: return .importSecurityScopeDenied
+                case .coordinationFailed: return .importCoordinationFailed
+                case .invalidSource: return .importInvalidSource
+                case .copyFailed: return .importCopyFailed
+                case .cleanupFailed: return .importCleanupFailed
+                }
+            }
+            return .other
+        }
+    }
+
+    func report(_ event: Event) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(
+                "V23_S62_PHOTO_INSTALLER_BOUNDARY_V1 stage=\(rawValue) event=\(event.rawValue)\n".utf8))
+        } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+    }
+
+    func reportFailure(_ error: Error) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let failure = Failure.classify(error)
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(
+                "V23_S62_PHOTO_INSTALLER_BOUNDARY_V1 stage=\(rawValue) event=failed error=\(failure.rawValue)\n".utf8))
+        } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+    }
+}
+
+#endif
 final class C45BackupExportCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityExportsAcceptedSnapshotNotScratchPlans() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
@@ -47,6 +172,39 @@ final class C30EvidenceContextAnchorS6_2BackupExport: XCTestCase {
 }
 
 final class S6_2BackupExportTests: XCTestCase {
+#if DEBUG
+    func testPhotoRestoreCompiledValueLayoutDiagnostics() {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        enum LayoutLabel: String {
+            case child = "child"
+            case childPhaseEvidence = "child.phase-evidence"
+            case discardHistory = "discard-history"
+            case terminalDiscardEvidence = "terminal-discard-evidence"
+            case optionalChild = "optional.child"
+            case optionalDiscardHistory = "optional.discard-history"
+            case optionalTerminalDiscardEvidence = "optional.terminal-discard-evidence"
+        }
+        func reportLayout<T>(_ type: T.Type, label: LayoutLabel) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            let size = MemoryLayout<T>.size
+            let stride = MemoryLayout<T>.stride
+            let alignment = MemoryLayout<T>.alignment
+            do {
+                try FileHandle.standardOutput.write(contentsOf: Data(
+                    "V23_S62_PHOTO_RESTORE_VALUE_LAYOUT_V1 label=\(label.rawValue) size=\(size) stride=\(stride) alignment=\(alignment)\n".utf8))
+            } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+        }
+        reportLayout(CheckRunnerPhotoBackupHistoryChildV1.self, label: .child)
+        reportLayout(CheckRunnerPhotoBackupHistoryChildV1.PhaseEvidence.self, label: .childPhaseEvidence)
+        reportLayout(CheckRunnerPhotoDiscardHistoryV1.self, label: .discardHistory)
+        reportLayout(CheckRunnerPhotoTerminalDiscardEvidenceV1.self, label: .terminalDiscardEvidence)
+        reportLayout(Optional<CheckRunnerPhotoBackupHistoryChildV1>.self, label: .optionalChild)
+        reportLayout(Optional<CheckRunnerPhotoDiscardHistoryV1>.self, label: .optionalDiscardHistory)
+        reportLayout(Optional<CheckRunnerPhotoTerminalDiscardEvidenceV1>.self, label: .optionalTerminalDiscardEvidence)
+    }
+#endif
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
@@ -400,9 +558,9 @@ final class S6_2BackupExportTests: XCTestCase {
                     currentGenerationRootURL: harness.session.generationRootURL, mode: mode)
                 XCTFail("Populated immutable quality/inbox facts cannot be rebound by clone/fork")
             } catch {
-                // The immutable C10/C11 refusal occurs inside materialization;
-                // its public failure is returned after owned staging cleanup.
-                XCTAssertEqual(error as? BackupRestoreServiceError, .materializationFailed)
+                // The immutable C10/C11 refusal keeps its typed authority error
+                // only after owned staging cleanup succeeds.
+                XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
             }
             XCTAssertEqual(try factory.currentGenerationID(), harness.session.generationID)
             XCTAssertEqual(try currentJournal.exportSnapshot(), originalHistory)
@@ -798,8 +956,29 @@ final class S6_2BackupExportTests: XCTestCase {
             try composition.requireDestination(decodedRecords)
             let compositionSourceSelection = try composition.sourceBinding.selectSource(in: decodedRecords)
             XCTAssertEqual(compositionSourceSelection, composition.sourceSelection)
+            // History plans retain parent/capture order; a bound selection
+            // resolves complete original children in canonical UUID order.
+            let selectedChildrenByUUID: [(index: Int, key: String)] =
+                restorePlan.children.indices.map { index in
+                    (index: index, key: restorePlan.children[index].childDraftID.uuidString)
+                }.sorted { $0.key < $1.key }
+            let expectedSelectionRestorePlan = CheckRunnerPhotoBackupRestorePlanV1(
+                source: restorePlan.source,
+                children: selectedChildrenByUUID.map { restorePlan.children[$0.index] },
+                rawPublications: restorePlan.rawPublications,
+                generationMembers: restorePlan.generationMembers,
+                metadata: restorePlan.metadata)
+            XCTAssertEqual(expectedSelectionRestorePlan.children.count, restorePlan.children.count)
+            let expectedSelectionChildKeys = expectedSelectionRestorePlan.children.map {
+                $0.childDraftID.uuidString
+            }
+            XCTAssertGreaterThan(expectedSelectionChildKeys.count, 1,
+                "This complete fixture must exercise adjacent child ordering")
+            XCTAssertTrue(zip(expectedSelectionChildKeys, expectedSelectionChildKeys.dropFirst()).allSatisfy {
+                $0.0 < $0.1
+            }, "Selected photo children retain strict UUID order")
             XCTAssertEqual(try CheckRunnerPhotoRestoreMemberBindingV1(plan: restorePlan)
-                .resolve(sourceSelection: compositionSourceSelection), restorePlan)
+                .resolve(sourceSelection: compositionSourceSelection), expectedSelectionRestorePlan)
             let compositionBindingBytes = try WorkspaceMutationCanonicalV1.data(composition.sourceBinding)
             let compositionBindingDecoder = JSONDecoder()
             compositionBindingDecoder.dateDecodingStrategy = .millisecondsSince1970
@@ -1345,7 +1524,7 @@ final class S6_2BackupExportTests: XCTestCase {
             let selectedSource = try populatedComposition.sourceBinding.selectSource(in: currentRecords)
             XCTAssertEqual(selectedSource, populatedComposition.sourceSelection)
             XCTAssertEqual(try CheckRunnerPhotoRestoreMemberBindingV1(plan: restorePlan)
-                .resolve(sourceSelection: selectedSource), restorePlan)
+                .resolve(sourceSelection: selectedSource), expectedSelectionRestorePlan)
             let retainedBinding = try XCTUnwrap(populatedComposition.retainedCurrentBinding)
             let selectedRetained = try retainedBinding.selectSource(in: currentRecords)
             XCTAssertEqual(Set(selectedRetained.children.map { $0.payload.childDraftID }),
@@ -2352,8 +2531,20 @@ private extension S6_2BackupExportTests {
         }
 
         func close() {
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.cleanupWriterReleaseEnter.report()
+#endif
             try? coordinator.invalidateAndReleaseWriter()
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.cleanupWriterReleaseReturned.report()
+#endif
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.cleanupDefaultsRemovalEnter.report()
+#endif
             defaults.removePersistentDomain(forName: defaultsSuiteName)
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.cleanupDefaultsRemovalReturned.report()
+#endif
         }
     }
     struct PayloadFact: Equatable {
@@ -3352,8 +3543,14 @@ private extension S6_2BackupExportTests {
             defer { publication.cancel() }
             await presentation.bootstrapIfNeeded()
             await fulfillment(of: [published], timeout: 30)
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.publicationWaitReturned.report()
+#endif
             let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
             let diagnostic = "backup access caller=\(caller) context=\(context) phase=\(phase)"
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.routeReproofEnter.report()
+#endif
             guard case .ready(let coordinator, _, _) = router.route else {
                 let route: String
                 switch router.route {
@@ -3366,26 +3563,59 @@ private extension S6_2BackupExportTests {
                 XCTFail("\(diagnostic) route=\(route)", file: file, line: line)
                 throw FixtureError.invalid
             }
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.routeReproofPassed.report()
+#endif
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.generationIDReproofEnter.report()
+#endif
             guard coordinator.generationID == source.session.generationID else {
                 XCTFail("\(diagnostic) generationID mismatch", file: file, line: line)
                 throw FixtureError.invalid
             }
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.generationIDReproofPassed.report()
+#endif
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.generationRootReproofEnter.report()
+#endif
             guard coordinator.generationRootURL == source.session.generationRootURL else {
                 XCTFail("\(diagnostic) generationRootURL mismatch", file: file, line: line)
                 throw FixtureError.invalid
             }
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.generationRootReproofPassed.report()
+#endif
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.authorizedHarnessReturnEnter.report()
+#endif
             return AuthorizedExportHarness(defaultsSuiteName: suite, defaults: defaults,
                 presentation: presentation, coordinator: coordinator,
                 contentAccess: try XCTUnwrap(presentation.backupPreviewAccess))
         } catch {
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.authorizationFailureObserved.report()
+#endif
             if let ownedPresentation {
+#if DEBUG
+                S6_2BackupPostPublicationStepV1.failedOwnerDrainEnter.report()
+#endif
                 let drained = await ownedPresentation.terminateAndDrainForTesting()
+#if DEBUG
+                S6_2BackupPostPublicationStepV1.failedOwnerDrainReturned.report()
+#endif
                 if !drained {
                     startupFixtureCleanup.retain(source.applicationSupportURL.deletingLastPathComponent())
                     XCTFail("backup access owner did not drain; fixture retained", file: file, line: line)
                 }
             }
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.failedDefaultsRemovalEnter.report()
+#endif
             defaults.removePersistentDomain(forName: suite)
+#if DEBUG
+            S6_2BackupPostPublicationStepV1.failedDefaultsRemovalReturned.report()
+#endif
             throw error
         }
     }
@@ -3393,14 +3623,43 @@ private extension S6_2BackupExportTests {
     @MainActor
     func exportLivePackage(_ harness: Harness, directoryName: String) async throws -> URL {
         let authorized = try await makeAuthorizedExportHarness(harness, context: directoryName)
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.authorizedHarnessReturned.report()
+#endif
         defer { authorized.close() }
         let destination = harness.applicationSupportURL.appendingPathComponent(
             directoryName, isDirectory: true)
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.destinationCreationEnter.report()
+#endif
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.destinationCreationReturned.report()
+#endif
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.serviceConstructionEnter.report()
+#endif
         let exporter = makeService(authorized, capacity: .max)
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.serviceConstructionReturned.report()
+#endif
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.prepareReadEnter.report()
+#endif
         let preview = try authorized.contentAccess.withRead { try exporter.prepare() }
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.prepareReadReturned.report()
+#endif
+#if DEBUG
+        S6_2BackupPostPublicationStepV1.exportEnter.report()
+        let archive = try await exporter.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
+        S6_2BackupPostPublicationStepV1.exportReturned.report()
+        return archive
+#else
         return try await exporter.export(previewID: preview.id, to: destination,
             contentAccess: authorized.contentAccess)
+#endif
     }
 
     func makeArchiveCleanupFixtureRoot(_ label: String) throws -> URL {
@@ -3683,6 +3942,8 @@ private extension S6_2BackupExportTests {
         }
         for name in cases {
             let support = fileManager.temporaryDirectory.appendingPathComponent("photo-raw-restore-\(name)-\(UUID())")
+            try fileManager.createDirectory(at: support, withIntermediateDirectories: false,
+                attributes: [.posixPermissions: 0o700])
             do { try await run(name, at: support) }
             catch { XCTFail("photo raw restore \(name): \(String(reflecting: error))"); throw error }
             // The case's actors and file owners have left scope before teardown.
@@ -4163,23 +4424,55 @@ private extension S6_2BackupExportTests {
     @MainActor
     func installCompositionBranchBase(_ archive: URL, label: String,
         countedRoots: [String]) async throws -> Harness {
+#if DEBUG
+        var diagnosticStage = S6_2PhotoInstallerBoundaryV1.support
+        diagnosticStage.report(.enter)
+#endif
         let support = try makeStartupFixtureSupport(label)
+#if DEBUG
+        diagnosticStage.report(.returned)
+#endif
         do {
+#if DEBUG
+            diagnosticStage = .bootstrap
+            diagnosticStage.report(.enter)
+#endif
             let initial = try StoreGenerationFactory(applicationSupportURL: support)
                 .openOrBootstrapCurrent()
+#if DEBUG
+            diagnosticStage.report(.returned)
+            diagnosticStage = .importerConstruction
+            diagnosticStage.report(.enter)
+#endif
             let importer = try BackupImportService(
                 generationRootURL: initial.generationRootURL,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
                 makeUUID: { UUID() }, scopedAccess: .alreadyAuthorized)
+#if DEBUG
+            diagnosticStage.report(.returned)
+            diagnosticStage = .stageAndValidate
+            diagnosticStage.report(.enter)
+#endif
             let package = try importer.stageAndValidate(selectedPackageURL: archive)
+#if DEBUG
+            diagnosticStage.report(.returned)
+            diagnosticStage = .restoreConstructionAndEmptyInstall
+            diagnosticStage.report(.enter)
+#endif
             let restored = try await BackupRestoreService(applicationSupportURL: support,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
                 .restore(validatedPackage: package, currentModelContext: initial.modelContext,
                     currentGenerationID: initial.generationID,
                     currentGenerationRootURL: initial.generationRootURL, mode: .emptyInstall)
+#if DEBUG
+            diagnosticStage.report(.returned)
+#endif
             return Harness(applicationSupportURL: support, session: restored,
                 context: restored.modelContext, countedRoots: countedRoots)
         } catch {
+#if DEBUG
+            diagnosticStage.reportFailure(error)
+#endif
             throw error
         }
     }
@@ -6240,7 +6533,32 @@ extension S6_2BackupExportTests {
             XCTAssertEqual(terminal.externalProjectionSHA256, expected[terminal.identity])
         }
         XCTAssertEqual(Set(expected.keys.map(\.kind)), kinds)
-        XCTAssertEqual(planned.receipts, original.receipts)
+        // Archive identities sort lexically; materialized journal identities
+        // sort by workspace, replica and numeric sequence. Keep complete bytes.
+        typealias ReceiptOrderKey = (String, String, UInt64)
+        func receiptOrderKey(_ identity: MutationReceiptIdentityV1) -> ReceiptOrderKey {
+            (identity.workspaceID.rawValue.uuidString, identity.replicaID.rawValue.uuidString,
+                identity.localSequence)
+        }
+        let originalReceiptIdentities: [(record: MutationHistoryReceiptRecordV1,
+            identity: MutationReceiptIdentityV1)] = try original.receipts.map { record in
+                (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity)
+            }
+        let expectedReceipts = originalReceiptIdentities.sorted {
+            receiptOrderKey($0.identity) < receiptOrderKey($1.identity)
+        }.map { $0.record }
+        XCTAssertEqual(planned.receipts.count, original.receipts.count)
+        XCTAssertEqual(planned.receipts, expectedReceipts)
+        let plannedReceiptKeys: [ReceiptOrderKey] = try planned.receipts.map {
+            receiptOrderKey(try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity)
+        }
+        XCTAssertTrue(zip(plannedReceiptKeys, plannedReceiptKeys.dropFirst()).allSatisfy {
+            $0.0 < $0.1
+        }, "Materialized receipts retain strict composite numeric order")
+        XCTAssertNotEqual(expectedReceipts, original.receipts,
+            "This complete fixture must witness lexical versus numeric receipt order")
+        XCTAssertEqual(try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(planned).receipts,
+            original.receipts)
         XCTAssertEqual(planned.quarantines, original.quarantines)
         XCTAssertEqual(sourcePlan.workspaceRevision, original.workspaceRevision)
         XCTAssertEqual(sourcePlan.lastLocalSequence, original.lastLocalSequence)
@@ -7857,7 +8175,32 @@ private extension S6_2BackupExportTests {
             XCTAssertEqual(row.revision, image.revision)
             XCTAssertEqual(row.revision, sourceRows.first { $0.identity == row.identity }?.revision)
         }
-        XCTAssertEqual(planned.receipts, original.receipts)
+        // Archive identities sort lexically; materialized journal identities
+        // sort by workspace, replica and numeric sequence. Keep complete bytes.
+        typealias ReceiptOrderKey = (String, String, UInt64)
+        func receiptOrderKey(_ identity: MutationReceiptIdentityV1) -> ReceiptOrderKey {
+            (identity.workspaceID.rawValue.uuidString, identity.replicaID.rawValue.uuidString,
+                identity.localSequence)
+        }
+        let originalReceiptIdentities: [(record: MutationHistoryReceiptRecordV1,
+            identity: MutationReceiptIdentityV1)] = try original.receipts.map { record in
+                (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity)
+            }
+        let expectedReceipts = originalReceiptIdentities.sorted {
+            receiptOrderKey($0.identity) < receiptOrderKey($1.identity)
+        }.map { $0.record }
+        XCTAssertEqual(planned.receipts.count, original.receipts.count)
+        XCTAssertEqual(planned.receipts, expectedReceipts)
+        let plannedReceiptKeys: [ReceiptOrderKey] = try planned.receipts.map {
+            receiptOrderKey(try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity)
+        }
+        XCTAssertTrue(zip(plannedReceiptKeys, plannedReceiptKeys.dropFirst()).allSatisfy {
+            $0.0 < $0.1
+        }, "Materialized receipts retain strict composite numeric order")
+        XCTAssertNotEqual(expectedReceipts, original.receipts,
+            "This complete fixture must witness lexical versus numeric receipt order")
+        XCTAssertEqual(try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(planned).receipts,
+            original.receipts)
         XCTAssertEqual(planned.quarantines, original.quarantines)
         XCTAssertEqual(planned.workspaceRevision, 0)
         XCTAssertEqual(planned.lastLocalSequence, 0)

@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import Darwin
+#endif
 import SwiftData
 import XCTest
 
@@ -12,6 +15,59 @@ private enum C53AssetServiceReliabilityBoundary_V9_05RestoreIdentityTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
+#if DEBUG
+private enum V905QuarantinePrecisionDiagnosticV1 {
+    enum Context: String {
+        case activeReplacement = "active-replacement"
+        case goldenMatrix = "golden-matrix"
+    }
+
+    // Borrow the exact value inside XCTest's original throwing operand. Never
+    // reread a journal, move its error outside XCTest, or change the returned array.
+    static func observing(
+        _ restored: [MutationHistoryQuarantineRecordV1],
+        source: [MutationHistoryQuarantineRecordV1],
+        archive: [MutationHistoryQuarantineRecordV1],
+        context: Context
+    ) -> [MutationHistoryQuarantineRecordV1] {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        func nonDateFieldsEqual(
+            _ lhs: [MutationHistoryQuarantineRecordV1],
+            _ rhs: [MutationHistoryQuarantineRecordV1]
+        ) -> Bool {
+            lhs.count == rhs.count && zip(lhs, rhs).allSatisfy {
+                $0.0.workspaceID == $0.1.workspaceID
+                    && $0.0.mutationID == $0.1.mutationID
+                    && $0.0.identityDomain == $0.1.identityDomain
+                    && $0.0.acceptedIdentitySHA256 == $0.1.acceptedIdentitySHA256
+                    && $0.0.conflictingIdentitySHA256 == $0.1.conflictingIdentitySHA256
+            }
+        }
+        let sourceArchiveDateEqual = source.map(\.detectedAt) == archive.map(\.detectedAt)
+        let archiveRestoredDateEqual = archive.map(\.detectedAt) == restored.map(\.detectedAt)
+        let sourceRestoredDateEqual = source.map(\.detectedAt) == restored.map(\.detectedAt)
+        let sourceArchiveNonDateEqual = nonDateFieldsEqual(source, archive)
+        let archiveRestoredNonDateEqual = nonDateFieldsEqual(archive, restored)
+        let sourceRestoredNonDateEqual = nonDateFieldsEqual(source, restored)
+        let sourceFinite = source.allSatisfy { $0.detectedAt.timeIntervalSinceReferenceDate.isFinite }
+        let archiveFinite = archive.allSatisfy { $0.detectedAt.timeIntervalSinceReferenceDate.isFinite }
+        let restoredFinite = restored.allSatisfy { $0.detectedAt.timeIntervalSinceReferenceDate.isFinite }
+        let line = "V23_V905_QUARANTINE_PRECISION_V1 context=\(context.rawValue)"
+            + " sourceArchiveDateEqual=\(sourceArchiveDateEqual)"
+            + " archiveRestoredDateEqual=\(archiveRestoredDateEqual)"
+            + " sourceRestoredDateEqual=\(sourceRestoredDateEqual)"
+            + " sourceArchiveNonDateEqual=\(sourceArchiveNonDateEqual)"
+            + " archiveRestoredNonDateEqual=\(archiveRestoredNonDateEqual)"
+            + " sourceRestoredNonDateEqual=\(sourceRestoredNonDateEqual)"
+            + " sourceFinite=\(sourceFinite) archiveFinite=\(archiveFinite) restoredFinite=\(restoredFinite)\n"
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(line.utf8))
+        } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+        return restored
+    }
+}
+#endif
 final class C50RestoreIdentityTests: XCTestCase {
     func testV23P03C50ReplaceCloneAndForkNeverActivateOrReinterpretAdapterState() {
         for mode in BackupRestoreMode.allCases {
@@ -101,10 +157,18 @@ final class V9_05RestoreIdentityTests: XCTestCase {
         let scenario = try makeScenario("active-replace", targetIsNonempty: true)
         defer { try? fileManager.removeItem(at: scenario.root) }
         let identity = scenario.target.session.workspaceIdentity
-        let restored = try await restore(
-            scenario,
-            mode: .replaceExisting,
-            uuidValues: restoreUUIDs(mode: .replaceExisting, newGeneration: id(920), restoreID: id(921), workspace: id(922), replica: id(923))
+        let uuidValues = restoreUUIDs(mode: .replaceExisting, newGeneration: id(920),
+            restoreID: id(921), workspace: id(922), replica: id(923))
+        let validated = try importArchive(scenario.archiveURL, into: scenario.target.session)
+        let originalHistory = try XCTUnwrap(validated.records.mutationHistory)
+        let restored = try await BackupRestoreService(applicationSupportURL: scenario.target.support,
+            storagePreflight: unlimitedStorage,
+            makeUUID: sequence(uuidValues)).restore(
+            validatedPackage: validated,
+            currentModelContext: scenario.target.session.modelContext,
+            currentGenerationID: scenario.target.session.generationID,
+            currentGenerationRootURL: scenario.target.session.generationRootURL,
+            mode: .replaceExisting
         )
         let pointer = try scenario.target.factory.currentGenerationPointerV3(expectedGenerationID: restored.generationID)
         let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: scenario.target.support)
@@ -123,8 +187,21 @@ final class V9_05RestoreIdentityTests: XCTestCase {
         XCTAssertEqual(reopened.workspaceIdentity, identity)
         XCTAssertEqual(try recordIDs(in: reopened), scenario.sourceRecordIDs)
         let journal = try MutationJournalStoreV1(modelContext: reopened.modelContext, identity: reopened.workspaceIdentity, generationID: reopened.generationID)
-        XCTAssertEqual(try XCTUnwrap(journal.receipt(mutationID: scenario.sourceMutationID)).identity.replicaID.rawValue, scenario.sourceReplicaID)
+        let historicReceipt = try assertImportedOriginalReceiptRecords(journal.exportSnapshot(),
+            matching: originalHistory, workspaceID: WorkspaceID(rawValue: scenario.sourceWorkspaceID),
+            mutationID: scenario.sourceMutationID)
+        XCTAssertEqual(historicReceipt.identity.replicaID.rawValue, scenario.sourceReplicaID)
+        if reopened.workspaceID.rawValue == scenario.sourceWorkspaceID {
+            XCTAssertEqual(try XCTUnwrap(journal.receipt(mutationID: scenario.sourceMutationID)).identity.replicaID.rawValue, scenario.sourceReplicaID)
+        }
+#if DEBUG
+        XCTAssertEqual(V905QuarantinePrecisionDiagnosticV1.observing(
+            try journal.exportSnapshot().quarantines,
+            source: [scenario.sourceQuarantine], archive: originalHistory.quarantines,
+            context: .activeReplacement), [scenario.sourceQuarantine])
+#else
         XCTAssertEqual(try journal.exportSnapshot().quarantines, [scenario.sourceQuarantine])
+#endif
     }
 
     @MainActor
@@ -143,10 +220,18 @@ final class V9_05RestoreIdentityTests: XCTestCase {
             let oldReplica = scenario.target.session.replicaID
             let freshWorkspace = id(300 + offset * 10)
             let freshReplica = id(301 + offset * 10)
-            let restored = try await restore(
-                scenario,
-                mode: mode,
-                uuidValues: restoreUUIDs(mode: mode, newGeneration: id(200 + offset * 10), restoreID: id(201 + offset * 10), workspace: freshWorkspace, replica: freshReplica)
+            let uuidValues = restoreUUIDs(mode: mode, newGeneration: id(200 + offset * 10),
+                restoreID: id(201 + offset * 10), workspace: freshWorkspace, replica: freshReplica)
+            let validated = try importArchive(scenario.archiveURL, into: scenario.target.session)
+            let originalHistory = try XCTUnwrap(validated.records.mutationHistory)
+            let restored = try await BackupRestoreService(applicationSupportURL: scenario.target.support,
+                storagePreflight: unlimitedStorage,
+                makeUUID: sequence(uuidValues)).restore(
+                validatedPackage: validated,
+                currentModelContext: scenario.target.session.modelContext,
+                currentGenerationID: scenario.target.session.generationID,
+                currentGenerationRootURL: scenario.target.session.generationRootURL,
+                mode: mode
             )
             let pointer = try scenario.target.factory.currentGenerationPointerV3(expectedGenerationID: restored.generationID)
             XCTAssertEqual(pointer.workspaceID, canonical(restored.workspaceID.rawValue), mode.rawValue)
@@ -169,20 +254,37 @@ final class V9_05RestoreIdentityTests: XCTestCase {
                 identity: restored.workspaceIdentity,
                 generationID: restored.generationID
             )
-            let historicReceipt = try XCTUnwrap(
-                restoredJournal.receipt(mutationID: scenario.sourceMutationID),
-                mode.rawValue
-            )
+            let historicReceipt = try assertImportedOriginalReceiptRecords(restoredJournal.exportSnapshot(),
+                matching: originalHistory, workspaceID: WorkspaceID(rawValue: scenario.sourceWorkspaceID),
+                mutationID: scenario.sourceMutationID)
+            if restored.workspaceID.rawValue == scenario.sourceWorkspaceID {
+                let localReceipt = try XCTUnwrap(
+                    restoredJournal.receipt(mutationID: scenario.sourceMutationID),
+                    mode.rawValue
+                )
+                XCTAssertEqual(localReceipt, historicReceipt, mode.rawValue)
+            }
             XCTAssertEqual(
                 historicReceipt.identity.replicaID.rawValue,
                 scenario.sourceReplicaID,
                 mode.rawValue
             )
+#if DEBUG
+            XCTAssertEqual(
+                V905QuarantinePrecisionDiagnosticV1.observing(
+                    try restoredJournal.exportSnapshot().quarantines,
+                    source: [scenario.sourceQuarantine], archive: originalHistory.quarantines,
+                    context: .goldenMatrix),
+                [scenario.sourceQuarantine],
+                mode.rawValue
+            )
+#else
             XCTAssertEqual(
                 try restoredJournal.exportSnapshot().quarantines,
                 [scenario.sourceQuarantine],
                 mode.rawValue
             )
+#endif
             XCTAssertNil(try RestoreIntentStore(applicationSupportURL: scenario.target.support).load())
         }
     }
@@ -824,6 +926,60 @@ enum C40BackupLifecycleTestValues {
 }
 
 private extension V9_05RestoreIdentityTests {
+    @MainActor
+    func assertImportedOriginalReceiptRecords(
+        _ actual: MutationHistorySnapshotV1,
+        matching original: MutationHistorySnapshotV1,
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> MutationReceiptV1 {
+        typealias OriginalReceipt = (record: MutationHistoryReceiptRecordV1, receipt: MutationReceiptV1)
+        typealias ReceiptOrderKey = (String, String, UInt64)
+        func orderKey(_ value: MutationReceiptV1) -> ReceiptOrderKey {
+            (value.identity.workspaceID.rawValue.uuidString,
+             value.identity.replicaID.rawValue.uuidString, value.identity.localSequence)
+        }
+        func decode(_ records: [MutationHistoryReceiptRecordV1]) throws -> [OriginalReceipt] {
+            try records.map { record in
+                _ = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+                _ = try record.reversalBasisData.map { try ReversalBasisV1.decodeCanonical(from: $0) }
+                _ = try record.semanticReversalData.map { try SemanticReversalReceiptV1.decodeCanonical(from: $0) }
+                return (record, receipt)
+            }
+        }
+        let originals = try decode(original.receipts)
+        XCTAssertFalse(originals.isEmpty, file: file, line: line)
+        let originalWorkspaces = Set(originals.map { $0.receipt.identity.workspaceID })
+        XCTAssertTrue(originalWorkspaces.contains(workspaceID), file: file, line: line)
+        let expected = originals.sorted { orderKey($0.receipt) < orderKey($1.receipt) }
+        // Inspect every restored original namespace, including any unexpected
+        // extra receipt there. Destination-local history is a distinct namespace.
+        let restoredOriginals = try decode(actual.receipts).filter {
+            originalWorkspaces.contains($0.receipt.identity.workspaceID)
+        }
+        XCTAssertEqual(restoredOriginals.count, originals.count, file: file, line: line)
+        XCTAssertEqual(restoredOriginals.map { $0.record }, expected.map { $0.record },
+            file: file, line: line)
+        let restoredKeys = restoredOriginals.map { orderKey($0.receipt) }
+        XCTAssertTrue(zip(restoredKeys, restoredKeys.dropFirst()).allSatisfy { $0.0 < $0.1 },
+            file: file, line: line)
+        let matchingOriginals = originals.filter {
+            $0.receipt.identity.workspaceID == workspaceID && $0.receipt.mutationID == mutationID
+        }
+        let matchingRestored = restoredOriginals.filter {
+            $0.receipt.identity.workspaceID == workspaceID && $0.receipt.mutationID == mutationID
+        }
+        XCTAssertEqual(matchingOriginals.count, 1, file: file, line: line)
+        XCTAssertEqual(matchingRestored.count, 1, file: file, line: line)
+        let originalReceipt = try XCTUnwrap(matchingOriginals.first?.receipt, file: file, line: line)
+        let restoredReceipt = try XCTUnwrap(matchingRestored.first?.receipt, file: file, line: line)
+        XCTAssertEqual(restoredReceipt, originalReceipt, file: file, line: line)
+        return restoredReceipt
+    }
+
     struct Harness { let support: URL; let factory: StoreGenerationFactory; let session: StoreGenerationSession }
     struct Scenario {
         let root: URL

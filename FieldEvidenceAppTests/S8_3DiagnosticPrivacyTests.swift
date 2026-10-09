@@ -41,6 +41,156 @@ final class C30EvidenceContextAnchorS8_3DiagnosticPrivacy: XCTestCase {
 }
 
 final class S8_3DiagnosticPrivacyTests: XCTestCase {
+
+    func testAdvancedScheduleDiagnosticsRejectInvalidOverrideGraphsAndRetainValidCounts() throws {
+        func id(_ slot: Int) throws -> UUID {
+            try XCTUnwrap(UUID(uuidString: String(format: "c8500000-0000-4000-8000-%012x", slot)))
+        }
+        let workspace = WorkspaceID(rawValue: try id(1))
+        let actor = try C26SurveySessionTestSupport.actor(workspaceID: workspace)
+        let definition = try C26SurveySessionTestSupport.release(workspaceID: workspace)
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let instant = Date(timeIntervalSince1970: 1_800_046_800)
+        let timeBasis = try FrozenScheduleTimeBasisV1(
+            ianaTimeZoneIdentifier: "UTC", timeZoneRuleSetVersion: "c85-frozen-v1",
+            timeZoneRuleSetSHA256: String(repeating: "a", count: 64),
+            ambiguousTimePolicy: .earlierOffset, nonexistentTimePolicy: .shiftForwardByGap,
+            calendarBasisSHA256: String(repeating: "b", count: 64)
+        )
+        let schedule = try ScheduleDefinitionReleaseV1(
+            scheduleDefinitionID: id(2), releaseID: id(3), workspaceID: workspace,
+            occurrenceIdentityNamespaceID: id(4), action: .create, lifecycleState: .active,
+            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1,
+                anchor: .init(year: nil, month: nil, day: nil, weekday: nil,
+                    weekdayOrdinal: nil, hour: 21, minute: 0, second: 0))),
+            timeBasis: timeBasis, startsAtUTC: instant, generationHorizonDays: 30,
+            maximumGeneratedOccurrences: 8, readyLeadSeconds: 0, overdueGraceSeconds: 0,
+            subject: .init(kind: .asset, subjectID: id(5), revision: 1, ownerAssetID: nil),
+            workDefinition: ScheduledWorkDefinitionReferenceV1(
+                kind: .roundSession, definition: definition, packageRelease: package
+            ),
+            revision: 1, mutationID: MutationIDV1(rawValue: id(6)),
+            authoredBy: actor, authoredAt: instant
+        )
+        let reference = try ScheduleDefinitionReleaseReferenceV1(schedule)
+        let nominalDate = try ScheduleLocalDateV1("2027-01-15")
+        let range = ScheduleLocalDateRangeV1(startsOn: nominalDate, endsOn: nominalDate)
+        func event(_ slot: Int, revision: UInt64 = 1,
+                   predecessor: ScheduleOverrideEventV1? = nil,
+                   predecessorDigest: String? = nil) throws -> ScheduleOverrideEventV1 {
+            try ScheduleOverrideEventV1(
+                eventID: id(slot), workspaceID: workspace, scheduleRelease: reference,
+                target: .nominalDate(nominalDate), scope: .entireSeries, kind: .skip,
+                effectiveRange: range, reasonCode: "C85_DIAGNOSTIC_GRAPH",
+                expectedScheduleRevision: reference.revision,
+                expectedOverrideFrontierSHA256: String(repeating: "c", count: 64),
+                supersedesEventID: predecessor?.eventID,
+                predecessorEventSHA256: predecessorDigest ?? predecessor?.eventSHA256,
+                revision: revision, mutationID: MutationIDV1(rawValue: id(slot + 100)),
+                recordedBy: actor, recordedAt: instant
+            )
+        }
+        let original = try event(10)
+        let successor = try event(11, revision: 2, predecessor: original)
+        let independent = try event(12)
+        let invalidSuccessor = try event(13, revision: 2, predecessor: original,
+            predecessorDigest: String(repeating: "e", count: 64))
+        let hostileGraphs: [(String, [ScheduleOverrideEventV1], ScheduleFailureV1)] = [
+            ("duplicate individually valid IDs", [original, original], .divergentReplay),
+            ("missing predecessor", [successor], .staleBasis),
+            ("invalid successor digest", [original, invalidSuccessor], .invalidSuccessor),
+        ]
+        for (label, events, graphFailure) in hostileGraphs {
+            // Each record is genuinely valid; only the cross-record closure
+            // is hostile. An incidental record-decoding error cannot qualify.
+            for value in events { try value.validate() }
+            XCTAssertThrowsError(try ScheduleOverridePrecedenceV1.activeEvents(events), label) {
+                XCTAssertEqual($0 as? ScheduleFailureV1, graphFailure, label)
+            }
+            XCTAssertThrowsError(try AdvancedScheduleDiagnosticMetadataV1(overrideEvents: events), label) {
+                XCTAssertEqual($0 as? DiagnosticExportError, .invalidValue, label)
+            }
+            XCTAssertThrowsError(try DiagnosticExportV1.advancedScheduleDiagnosticMetadata(
+                overrideEvents: events), label) {
+                XCTAssertEqual($0 as? DiagnosticExportError, .invalidValue, label)
+            }
+        }
+        let validGraphs: [([ScheduleOverrideEventV1], Int)] = [
+            ([], 0), ([original], 1), ([original, independent], 2),
+            ([original, successor], 1), ([successor, original], 1),
+            ([successor, independent, original], 2),
+        ]
+        for (events, expectedActiveCount) in validGraphs {
+            let value = try DiagnosticExportV1.advancedScheduleDiagnosticMetadata(overrideEvents: events)
+            XCTAssertTrue(value.isValid)
+            XCTAssertEqual(value.overrideEventCount, events.count)
+            XCTAssertEqual(value.activeOverrideCount, expectedActiveCount)
+            XCTAssertTrue(value.namesDatesZonesReasonsIDsAndCalendarBytesExcluded)
+            XCTAssertTrue(value.digestsExcluded)
+        }
+    }
+    #if DEBUG
+    @MainActor
+    func testColdDiagnosticsBoundaryLabelsExcludeAssociatedValuesAndFailClosed() throws {
+        let identities = [
+            try XCTUnwrap(UUID(uuidString: "c8500000-0000-4000-8000-000000000201")),
+            try XCTUnwrap(UUID(uuidString: "c8500000-0000-4000-8000-000000000202")),
+        ]
+        let urls = [
+            try XCTUnwrap(URL(string: "file:///private/customer-note/secret-token/counters.json")),
+            try XCTUnwrap(URL(string: "file:///private/other-workspace/credential/.counters.json.next")),
+        ]
+        typealias Kind = ColdDiagnosticsPrimitiveIntentV1.Kind
+        let fixedCases: [(Kind, String)] = [
+            (.openDirectory, "openDirectory"), (.openCurrent, "openCurrent"),
+            (.openTemporary, "openTemporary"), (.enumerateDirectory, "enumerateDirectory"),
+            (.createDirectory, "createDirectory"), (.createTemporary, "createTemporary"),
+            (.requestDirectoryPolicy, "requestDirectoryPolicy"),
+            (.requestTemporaryPolicy, "requestTemporaryPolicy"),
+            (.requestPublishedPolicy, "requestPublishedPolicy"),
+            (.publishTemporary, "publishTemporary"), (.syncDirectory, "syncDirectory"),
+            (.syncSupport, "syncSupport"),
+        ]
+        var cases = fixedCases
+        let policyKinds: [OwnedFileKindV1] = [.diagnostics, .temporaryFile, .stagingDirectory]
+        for index in identities.indices {
+            for kind in policyKinds {
+                cases.append((.observePolicy(kind: kind, at: urls[index]), "observePolicy"))
+            }
+            cases.append((.read(resourceID: identities[index], offset: index == 0 ? 0 : .max,
+                maximumCount: index == 0 ? 1 : .max), "read"))
+            cases.append((.write(resourceID: identities[index], offset: index == 0 ? 0 : .max,
+                count: index == 0 ? 1 : .max), "write"))
+            cases.append((.syncFile(resourceID: identities[index]), "syncFile"))
+            cases.append((.closeResource(resourceID: identities[index]), "closeResource"))
+        }
+        let expectedLabels = Set(fixedCases.map { $0.1 }).union([
+            "observePolicy", "read", "write", "syncFile", "closeResource",
+        ])
+        var observedLabels = Set<String>()
+        for (kind, expected) in cases {
+            // Match the actual retained description at begin(), then project
+            // through the same function used by execute()'s real DEBUG print.
+            let retainedBoundary = String(describing: kind)
+            let projected = ColdDiagnosticsBoundaryLabelV1.project(retainedBoundary)
+            XCTAssertEqual(projected, expected)
+            observedLabels.insert(projected)
+            for forbidden in ["customer-note", "secret-token", "other-workspace", "credential",
+                              "file:", "resourceID", "offset", "maximumCount"]
+                + identities.map({ $0.uuidString }) + urls.map({ $0.absoluteString }) {
+                XCTAssertFalse(projected.contains(forbidden), forbidden)
+            }
+        }
+        XCTAssertEqual(observedLabels, expectedLabels)
+        XCTAssertEqual(ColdDiagnosticsBoundaryLabelV1.project("registered"), "registered")
+        for unknown in ["", "unrecognized(secret-token)", "read", "read(",
+                        "openDirectory(secret-token)", "file:///private/credential",
+                        identities[0].uuidString] {
+            XCTAssertEqual(ColdDiagnosticsBoundaryLabelV1.project(unknown), "unclassified")
+        }
+    }
+    #endif
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

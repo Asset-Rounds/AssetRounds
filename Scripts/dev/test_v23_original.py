@@ -2545,7 +2545,7 @@ class Phase1RegistrationTests(unittest.TestCase):
             plan_file = Path(temporary) / "synthetic-main-plan.json"
             plan_file.write_bytes(gate.canonical(value))
             with mock.patch.object(NEW, "run") as run:
-                with self.assertRaisesRegex(SystemExit, "prerequisites are not implemented"):
+                with self.assertRaisesRegex(SystemExit, "Phase1 gate: explicit V2 plan; old exact-main remains inactive"):
                     NEW.preregister_phase1(plan_file)
                 run.assert_not_called()
 

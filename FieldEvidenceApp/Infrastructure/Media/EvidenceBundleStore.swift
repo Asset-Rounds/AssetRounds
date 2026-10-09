@@ -2843,9 +2843,12 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 values.append(value)
             }
 
-            for child in children.sorted(by: {
-                $0.payload.childDraftID.uuidString < $1.payload.childDraftID.uuidString
-            }) {
+            // Sort lightweight keys while retaining the original photo-history values.
+            let keyedChildIndices: [(index: Int, key: String)] = children.indices.map { index in
+                (index: index, key: children[index].payload.childDraftID.uuidString)
+            }
+            for keyedChild in keyedChildIndices.sorted(by: { $0.key < $1.key }) {
+                let child = children[keyedChild.index]
                 try Task.checkCancellation()
                 let payload = child.payload, intent = payload.phase.intent
                 let childID = payload.childDraftID, stageID = intent.stageID

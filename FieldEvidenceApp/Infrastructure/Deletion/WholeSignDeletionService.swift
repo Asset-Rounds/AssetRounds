@@ -3881,12 +3881,15 @@ private final class DeletionGenerationFiles {
     func removeIfPresent(relativePath: String) throws {
         return try withCheckedOperation {
         try startupDescriptorOwner?.requireOpen()
-        try withParent(relativePath) { parent, leaf in
+        try withRemovalParent(relativePath) { parent, leaf, reprove in
             var before = stat()
-            if Darwin.fstatat(parent, leaf, &before, AT_SYMLINK_NOFOLLOW) != 0 {
-                guard errno == ENOENT else {
+            let lookup = Darwin.fstatat(parent, leaf, &before, AT_SYMLINK_NOFOLLOW)
+            let lookupError = errno
+            if lookup != 0 {
+                guard lookupError == ENOENT else {
                     throw WholeSignDeletionServiceError.cleanupFailed
                 }
+                try reprove()
                 return
             }
             guard (before.st_mode & S_IFMT) == S_IFREG, before.st_nlink == 1 else {
@@ -3899,11 +3902,20 @@ private final class DeletionGenerationFiles {
             startupDescriptorOwner?.retain(descriptor)
             defer { closeTransient(descriptor) }
             let opened = try Self.identity(descriptor, directory: false)
+            var linked = stat()
             guard opened == Identity(device: before.st_dev, inode: before.st_ino),
-                  Darwin.unlinkat(parent, leaf, 0) == 0,
+                  Darwin.fstatat(parent, leaf, &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                  (linked.st_mode & S_IFMT) == S_IFREG, linked.st_nlink == 1,
+                  opened == Identity(device: linked.st_dev, inode: linked.st_ino) else {
+                throw WholeSignDeletionServiceError.cleanupFailed
+            }
+            try reprove()
+            try startupDescriptorOwner?.requireOpen()
+            guard Darwin.unlinkat(parent, leaf, 0) == 0,
                   Darwin.fsync(parent) == 0 else {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
+            try reprove()
         }
             }
     }
@@ -4159,6 +4171,87 @@ private final class DeletionGenerationFiles {
             descriptor = next
         }
         return try body(descriptor, leaf)
+    }
+
+    /// Committed cleanup can resume after its earlier pass removed an empty
+    /// evidence bundle. Only that canonical UUID directory may already be gone;
+    /// generation and top-level evidence/snapshots/pdfs ancestors stay required.
+    private func withRemovalParent(
+        _ relativePath: String,
+        _ body: (Int32, String, () throws -> Void) throws -> Void
+    ) throws {
+        guard DeletionIntentEncoderV1.validRelativePath(relativePath),
+              let rootURL, let identity else {
+            throw WholeSignDeletionServiceError.fileInvalid
+        }
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard let leaf = components.last else {
+            throw WholeSignDeletionServiceError.fileInvalid
+        }
+        let isEvidenceLeaf = components.count == 3 && components[0] == "evidence"
+            && UUID(uuidString: components[1])?.uuidString.lowercased() == components[1]
+            && (leaf == "original.jpg" || leaf == "thumbnail.jpg")
+        let root = try openRoot(rootURL)
+        var descriptors = [root]
+        defer { for descriptor in descriptors.reversed() { closeTransient(descriptor) } }
+
+        func reprove() throws {
+            try startupDescriptorOwner?.requireOpen()
+            guard try Self.identity(root, directory: true) == identity else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+            let currentRoot = try openRoot(rootURL)
+            var needsClose = true
+            defer { if needsClose { closeTransient(currentRoot) } }
+            guard try Self.identity(currentRoot, directory: true) == identity else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+            // A checked close is attempted once; an uncertain close must not
+            // be retried by defer or allow the caller to unlink a leaf.
+            needsClose = false
+            try closeChecked(currentRoot)
+            for index in 1..<descriptors.count {
+                var linked = stat()
+                guard Darwin.fstatat(descriptors[index - 1], components[index - 1],
+                                    &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                      (linked.st_mode & S_IFMT) == S_IFDIR,
+                      try Self.identity(descriptors[index], directory: true)
+                        == Identity(device: linked.st_dev, inode: linked.st_ino) else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+            }
+            try startupDescriptorOwner?.requireOpen()
+        }
+
+        for (index, component) in components.dropLast().enumerated() {
+            let parent = descriptors.last!
+            let next = Darwin.openat(parent, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            let openError = errno
+            if next < 0 {
+                guard openError == ENOENT, isEvidenceLeaf, index == 1 else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                try reprove()
+                var absent = stat()
+                let lookup = Darwin.fstatat(parent, component, &absent, AT_SYMLINK_NOFOLLOW)
+                let lookupError = errno
+                guard lookup != 0, lookupError == ENOENT else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                // Settle the absent bundle in its retained evidence parent
+                // before recovery is allowed to retire the committed intent.
+                guard Darwin.fsync(parent) == 0 else {
+                    throw WholeSignDeletionServiceError.cleanupFailed
+                }
+                try reprove()
+                return
+            }
+            startupDescriptorOwner?.retain(next)
+            descriptors.append(next)
+        }
+        try reprove()
+        try body(descriptors.last!, leaf, reprove)
+        try reprove()
     }
 
     /// A deferred close can mark the retained owner uncertain. Do not let a

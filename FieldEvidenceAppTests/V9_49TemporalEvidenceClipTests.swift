@@ -2304,14 +2304,27 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             Self.retainedC33InterruptedServices.append((prepared.root, recovery))
             var phases: [String] = []
             #if DEBUG
-            recovery.erasePhaseDiagnosticForTesting = { phase in
-                if !phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") { phases.append(phase) }
+            let reportColdRetainedStage: @MainActor (String) -> Void = { stage in
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                let line = "V23_C33_COLD_RETAINED_STAGE_DIAG_V1 stage=\(stage)\n"
+                do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+                catch { /* Diagnostic transport never replaces the actual refusal. */ }
             }
+            recovery.schema2ColdFixedStageForTesting = { stage in
+                phases.append(stage)
+                reportColdRetainedStage(stage)
+            }
+            reportColdRetainedStage("retry.enter")
             #endif
             try await fresh.router.retryColdEraseForTesting(
                 service: recovery, accessGate: fresh.accessGate)
             #if DEBUG
-            XCTAssertTrue(phases.contains("recovery.presence.retained-source"))
+            reportColdRetainedStage("retry.returned")
+            // Schema-2 emits this closed stage only after the actual retained
+            // original-source validation completes. The legacy recovery label
+            // is unreachable from the schema-2 forward-recovery branch.
+            XCTAssertTrue(phases.contains("recovery.schema2.old-valid"))
             #endif
             readyRouter = fresh.router
         } else {
@@ -3001,6 +3014,7 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                 let recovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
                     generationRootURL: session.generationRootURL,
                     workspaceID: session.workspaceID,
+                    createsAncestors: false,
                     verify: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition },
                     remove: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition })
                 let references = try await C33TemporalEvidenceTestSupport.cleanupReferences(

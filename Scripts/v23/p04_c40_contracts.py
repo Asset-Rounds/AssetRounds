@@ -79,7 +79,12 @@ EXISTING_PATHS = (
     "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
     "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
 )
-PRODUCT = (*EXISTING_PATHS, *ALL_PATHS[3:9])
+# Current integration keeps the contained no-launch test in the unit target.
+# ALL_PATHS and PATH_FENCE retain the historical card allocation.
+PRODUCT = (
+    *EXISTING_PATHS, *ALL_PATHS[3:8],
+    "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests.swift",
+)
 ALLOCATION_PATHS = ALL_PATHS[:-1]
 ALLOCATION_EXISTING_PATHS = ALLOCATION_PATHS[:3]
 ALLOCATION_NEW_PATHS = ALLOCATION_PATHS[3:]

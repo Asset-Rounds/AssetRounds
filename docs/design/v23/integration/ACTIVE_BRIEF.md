@@ -1,34 +1,41 @@
-# Active integration brief — 2026-10-06
+# Active integration brief — C103 checkpoint reviewed; publication due
 
-## Current state
-
-- Goal: verified V23 incorporating accepted S10; full V23 scope remains required for release.
-- C28 development checkpoint imports seven reviewed endpoints on baseline21c2f99ab3efdd206a773cae6423275a897d7c92; current Git refs identify its head.
-- Branch codex/v23-s10-integration-20260910; mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged; Phase1 gates0/5 OPEN; releaseReady=false.
-- Current local V6 affected35:14PASS21FAIL0skip/missing/extra/unknown; native65/controller1,positivewait1096.927s,no timeout/TERM/KILL/secondary.
-- EarlierV5:6PASS29FAIL2556.806s; its failed original/HOLD and unproved Origin interval remain preserved, not retroactively cleared.
-- V6 full-module compile PASS0/0/344.840s; genuine NONAUTHOR Sol6.1/xhigh DATA/checkpoint coupling PASS; no-rebuild/2819Origin+snapshot/418dirs/DD/Products conservation supported.
-- FailedV6 canonically recorded and ledger-appended once; original HOLD ACTIVE/no universal retirement. SourceReady=false; development evidence never gates.
-- Root imported only seven reviewed Source paths, preserving Primary identities/ownership/modes and owner untracked work; exact receipts in CURRENT_INTEGRATION.
-- All35 ColdErase declarations/498 assertions preserved; census3738methods/37partitions, onlyS37 grows49/2940s; existing budgets/coverage retained.
-- HistoricalM5 tooling440 and C27affected96 retain only approved exact dependency-bound scopes; no new-candidate execution claim.
-- C27 hosted37477772418/attempt1/H21 TERMINAL:producerPASS,37failed V23 consumers; Root sole collection active, complete structured retention/qualification due.
-- Authenticated all37 rawlogs:394 completed failed methods; historical union406 across differing contexts. Current global failure count UNKNOWN.
-- S35all22appPASS but finalization-budget refusal; first-pass1175hash-process overhead measured, separateC40 correction/review/CI pending.
-- C29–C39 fourteen isolated Source-reviewed packets/fifteen paths:complete292 affected roster; composed Source/full compile/all affected native still DUE.
-- C39wholeErase151behavioral closure included in292; cold35 is sufficient only for bounded currentC28 checkpoint, never exhaustive erase correctness.
-- Source-only execution plan:one fresh compile plus14serial current-capture/native groups, unchanged1800/5400/15+15; actual bindings/review/execution pending.
-- Owner stale-voice-reason choice PENDING; manualentrycomplete; no product/scope amendment enacted.
-- Source/coordination remainDropbox .codex-temp/resume-20261002; Products/scratch/new evidence:/Volumes/EXTERNAL/AssetRounds-resume-20261002.
-- Fixed evidenceRoot:/Volumes/EXTERNAL/AssetRounds-resume-20261002/evidence; drafts/history/auxiliarypatch/originals/HOLDs preserved.
-- Local DEVELOPMENT27.0/27A266a,SDK27.0/24A430,iOS26.2/23C54; official GitHub26.6/17F113,SDK26.5/23F81a,iOS26.2/23C54.
-- RootaloneGit/native/collection/ledger; useful helpers actualGPT-6.1Sol/xhigh, disjoint/read-only. No credentials stored.
-
-## Next steps
-
-1. Finish linear C28 checkpoint publication with explicit owned staging and fresh refs; no main advancement.
-2. Complete C27 terminal sole collection and structured method/coverage/budget qualification assessment; never rerun unchanged originals.
-3. Compose reviewed C29–C39 on the actual new checkpoint; compile once, verify complete292 in bounded groups and fix proven families.
-4. Complete separate C40 hashing correction with exact formatter/first-error compatibility, independent review/full affected CI.
-5. Freeze one candidate for all same-head fullcoverage/UI/integration/genuineowner gates, then main fast-forward and pinned exact-main verification.
-6. FullV23/physicalprotection/minimum-runtime/C55/privacy/App Store owner requirements remain release-blocking. No signing/distribution.
+- Goal: verified V23 incorporating accepted S10; Phase 1 is intermediate and full V23 remains required for release.
+- Primary: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds, branch codex/v23-s10-integration-20260910.
+- C103 checkpoint base97c01bc1f9290ae76b8f17919467d1d39121a379; publication pending; main b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged.
+- Phase 1 gates 0/5; SourceReady=false; releaseReady=false; no signing/distribution.
+- Primary exact owned68 Source+six Root records have independent Sol6.1/xhigh CHECKPOINT_ONLY_PASS; five prior untracked preserved/excluded.
+- Frozen W13: .codex-temp/resume-20261002/c103-photo-history-value-storage-source-v1; 2,821 inputs, 68 owned paths.
+- C103 Child immutable storage has genuine independent Source review; heap/lifetime/runtime safety is not proved by that review.
+- Fresh app/all-test-module build passed: 331.931s, zero Swift errors; compiled Products and original evidence stay frozen.
+- Layout diagnostic passed once: Child size/stride/alignment 8/8/8; completed record and sole append independently reviewed.
+- Photo4 original finished FAILED: exact four selectors, 3 PASS / 1 FAIL / 0 skipped; XCTest exit65, Controller1.
+- True Root terminal c8fd88 exit1 closed session36081; final caller confirms owned settlement complete, no caller/operator error.
+- RESULT17838/44f942c3, manifest17258/19d3ca52, stdout558441/f9170ba6 and failure1340/f22ddc3e are retained.
+- Combined failed-native transport23294/67958aba has SAME Restore independent integrity DATA PASS3484/994c8ed9; native remains FAILED.
+- Witness binding remains false/inner1; native failure, active HOLD and immutable false-at-birth outer record remain preserved.
+- Failed completion544f41 exit0 appended exact11109/ded7534e event once:1193210324/ff156cba; SAME DATA1745/c380ffe9 PASS. Never replay.
+- Prepared success-only and current118-copy recipes remain unexecuted; the sole failed completion is consumed, old tuples retain their scope.
+- Never replay common build, registration, native, ledger events or failing unchanged inputs; never rebuild frozen Products.
+- Collected affected results: 4 PASS / 1 FAIL across five executed selectors; 305 unexecuted. Current global defect count UNKNOWN.
+- Current global defect count UNKNOWN; historical broad112 =87 PASS/25 FAIL/0skip keeps its original scope.
+- Immediate assertion: mixed-export expected one PDF but saw two; read-only diagnosis ties this to legitimate startup pending-report rendering.
+- C104 test-only successor is isolated in W14:549427/e2d64f69, legitimate2ready/0pending/1failed/exactPDFset and22 fixedDEBUG late-call labels.
+- SAME C89 independent Source review PASS; current readers/discovery/generator checks, full-module compile and changed Mixed original remain due.
+- Watchdog1200s is whole-test; restore-plan label is stale. Actual expensive late substep/cause UNKNOWN; add bounded diagnostics without rearming it.
+- Child required minimum10/conservative58/broader310 remain due; six minimum methods are unexecuted (Frontier4, Metadata1, SixPhoto1).
+- All310 LOCAL/green is not an integration-checkpoint rule. AGENTS permits reviewed compiled checkpoints retaining exact failures/pending work.
+- Required next: factual record refresh/final explicit74 checks, linear integration checkpoint and fresh-ref/non-force publication.
+- C104 correction remains isolated; current full395+45 tooling runs once because old351 applicability proof was not retained. Its compile/Mixed native remain due.
+- Next hosted DEVELOPMENT uses existing pushed-head dispatcher/committed selections; D50 has33 tests and cannot close310.
+- Full3757/38 coverage, cold qualification, qualified UI, independent candidate review and genuine owner review remain mandatory before main.
+- Minimum/physical runtime, Card135, privacy, C13/C55 and App Store debts retain their exact deferred/owner/release-blocking scope.
+- Local DEVELOPMENT: Xcode27.0/27A266a, Swift6.4, SDK27.0/24A430, iOS26.2/23C54; fresh admission per execution.
+- Official gates/exact-main: GitHub Xcode26.6/17F113, iOS26.2/23C54. Local development supplies no acceptance.
+- Source/coordination stay Dropbox. Fixed evidence lifecycle: /Volumes/EXTERNAL/AssetRounds-resume-20261002/evidence.
+- Root alone integrates/Git/dispatches/native/ledger effects; helpers gpt-6.1-sol/xhigh with separate nonauthor reviews.
+- Workflow audit:81.63min build-to-first-test interval includes necessary preparation/reviews/overlap; per-cause allocation UNKNOWN.
+- Combine compatible Source and outcome/settlement reviews, prepare known operands during runs, bind the real ledger once after prerequisite append.
+- Reuse exact kernels/Products/evidence; fresh source, identity, ownership, durability, holder and original checks remain binding.
+- Recent admission showed63% memory free and44GiB external free; no RAM bottleneck demonstrated. Do not fill RAM for its own sake.
+- Detailed receipts/history: CURRENT_INTEGRATION; obligations: VERIFICATION_DUE; phases: MERGE_READINESS; lanes: PERFORMANCE_WORKFLOW.

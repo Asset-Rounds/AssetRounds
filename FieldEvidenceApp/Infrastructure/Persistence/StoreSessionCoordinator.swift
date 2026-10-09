@@ -7401,12 +7401,27 @@ final class OriginalEraseAuxiliarySearchWriterV1 {
             }
             return disposition
         } else {
+#if DEBUG
+            let disposition: ProtectedFileVerificationDispositionV1
+            do {
+                disposition = try ProtectedFilePolicyV1
+                    .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                        .stagingDirectory, at: rootURL,
+                        retainUncertainDescriptor: { value in
+                            self.policyUncertainDescriptors.append(value)
+                        }, unchangedWitness: check)
+            } catch {
+                ProtectedFilePolicyV1.emitOriginalExistingSearchRootPolicyRefusalForTesting(error)
+                throw error
+            }
+#else
             let disposition = try ProtectedFilePolicyV1
                 .verifyEraseColdTemporalPolicyWithCheckedRequest(
                     .stagingDirectory, at: rootURL,
                     retainUncertainDescriptor: { value in
                         self.policyUncertainDescriptors.append(value)
                     }, unchangedWitness: check)
+#endif
             guard policyUncertainDescriptors.isEmpty else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }

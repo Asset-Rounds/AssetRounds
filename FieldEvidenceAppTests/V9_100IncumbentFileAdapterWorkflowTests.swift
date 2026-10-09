@@ -120,7 +120,7 @@ private enum C37 {
         )
         let identity = try ImportRowIdentityV1(
             workspaceID: workspaceID, sourceSHA256: sourceSHA256, sourceOrdinal: 1,
-            canonicalRowSHA256: digest("r"), stableExternalKey: rowKey,
+            canonicalRowSHA256: digest("a"), stableExternalKey: rowKey,
             schemaReleaseID: schema.releaseID, schemaRelease: schema.release
         )
         let fields = [try ImportMappedFieldV1(key: "asset_key", value: rowKey)]
@@ -137,7 +137,7 @@ private enum C37 {
             identity: identity, disposition: .create, reasons: [.exactStableKeyCreate],
             mappedFields: fields, commands: [command], expectedTargetRevision: nil
         )
-        let revisionSHA = digest("w")
+        let revisionSHA = digest("b")
         let planID = try ImportPlanV1.deterministicPlanID(
             workspaceID: workspaceID, source: source, schemaRelease: schema,
             mappingProfileSHA256: mappingProfileSHA256, workspaceRevisionSHA256: revisionSHA, rows: [row]
@@ -256,7 +256,13 @@ private struct C37RejectingMaterializer: ImportWorkspaceCommandMaterializingV1 {
         )
         lifecycle = try ImportBulkLifecycleAdapterV1(registrations: [registration], modelContext: context)
         let materializers = try ImportCommandKindV1.allCases.map { kind in
-            try ImportBulkMaterializerRegistrationV1(
+            if kind == .applyAtomicWorkspaceBundle {
+                return try ImportBulkMaterializerRegistrationV1(
+                    kind: kind, materializer: C37RejectingMaterializer(),
+                    allowedWorkspaceCommandKinds: [.applyAssetSemantics]
+                )
+            }
+            return try ImportBulkMaterializerRegistrationV1(
                 kind: kind, materializer: kind == .createAsset ? C37Materializer() : C37RejectingMaterializer()
             )
         }
@@ -344,7 +350,7 @@ final class V9_100IncumbentFileAdapterWorkflowTests: XCTestCase {
             )))
         }
         let (wrongPlan, wrongBulk) = try C37.bulkPlan(
-            workspaceID: valid.1.workspaceID, sourceSHA256: C37.digest("z")
+            workspaceID: valid.1.workspaceID, sourceSHA256: C37.digest("c")
         )
         XCTAssertThrowsError(try workflow.execute(.previewCanonicalImport(
             IncumbentFileAdapterC08PreviewCommandV1(
@@ -470,7 +476,7 @@ final class V9_100IncumbentFileAdapterWorkflowTests: XCTestCase {
             canonicalMutation: nil, cleanup: nil
         )), case let .recovered(divergent) = try workflow.execute(.recover(
             scope: scope, at: C37.date,
-            plan: plan, observedSourceSHA256: C37.digest("q"),
+            plan: plan, observedSourceSHA256: C37.digest("d"),
             canonicalMutation: nil, cleanup: nil
         )) else { return XCTFail("Expected recovery outcomes") }
         XCTAssertEqual(first, replayed)

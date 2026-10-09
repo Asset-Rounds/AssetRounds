@@ -111,6 +111,7 @@ struct SearchCoordinatorV1: Sendable {
         let projection = try await index.projection(for: source, registry: registry)
         try Task.checkCancellation()
 
+        var normalizedQueryForInvocation: String? = nil
         var bestByCanonicalIdentity: [String: Candidate] = [:]
         var inspected = 0
         for record in projection.records {
@@ -118,7 +119,10 @@ struct SearchCoordinatorV1: Sendable {
             if inspected.isMultiple(of: 128) { try Task.checkCancellation() }
             guard plan.scope.contains(record.sourceKind),
                   Self.passes(plan.filters, record: record),
-                  let tier = Self.matchTier(plan: plan, record: record) else { continue }
+                  let tier = Self.matchTier(
+                    plan: plan, record: record,
+                    normalizedQueryForInvocation: &normalizedQueryForInvocation
+                  ) else { continue }
 
             let identity = record.sourceKind.rawValue + ":" + record.sourceStableID
             let candidate = Candidate(record: record, tier: tier)
@@ -209,6 +213,7 @@ struct SearchCoordinatorV1: Sendable {
         try await accessGate.validateContentRead(token, for: .search)
         try Task.checkCancellation()
 
+        var normalizedQueryForInvocation: String? = nil
         var bestByCanonicalIdentity: [String: Candidate] = [:]
         var inspected = 0
         for record in projection.records {
@@ -216,7 +221,10 @@ struct SearchCoordinatorV1: Sendable {
             if inspected.isMultiple(of: 128) { try Task.checkCancellation() }
             guard plan.scope.contains(record.sourceKind),
                   Self.passes(plan.filters, record: record),
-                  let tier = Self.matchTier(plan: plan, record: record) else { continue }
+                  let tier = Self.matchTier(
+                    plan: plan, record: record,
+                    normalizedQueryForInvocation: &normalizedQueryForInvocation
+                  ) else { continue }
 
             let identity = record.sourceKind.rawValue + ":" + record.sourceStableID
             let candidate = Candidate(record: record, tier: tier)
@@ -329,12 +337,19 @@ extension SearchCoordinatorV1 {
 private extension SearchCoordinatorV1 {
     static func matchTier(
         plan: SearchQueryPlanV1,
-        record: SearchIndexProjectionRecordV1
+        record: SearchIndexProjectionRecordV1,
+        normalizedQueryForInvocation: inout String?
     ) -> SearchMatchTierV1? {
         if plan.normalizedTokens.isEmpty { return .normalizedExactToken }
         let stableIdentity = normalize(record.sourceStableID)
         let displayIdentity = normalize(record.displayIdentity)
-        let normalizedQuery = normalize(plan.query).trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery: String
+        if let retainedQuery = normalizedQueryForInvocation {
+            normalizedQuery = retainedQuery
+        } else {
+            normalizedQuery = normalize(plan.query).trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedQueryForInvocation = normalizedQuery
+        }
         if normalizedQuery == stableIdentity || normalizedQuery == displayIdentity {
             return .exactStableOrDisplayIdentity
         }

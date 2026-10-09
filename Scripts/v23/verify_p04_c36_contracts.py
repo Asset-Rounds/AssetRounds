@@ -162,6 +162,131 @@ def _method_bodies(test_text: str) -> dict[str, str]:
     return methods
 
 
+def _swift_fixture_tokens(source: str) -> list[str]:
+    """Read fixture code tokens; comments and complete string literals are not proof."""
+    literal = re.compile(r'(#+)?("""|")')
+    token = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[^\s]")
+
+    def noncode(index: int) -> int | None:
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            return len(source) if end < 0 else end
+        if source.startswith("/*", index):
+            cursor, depth = index + 2, 1
+            while cursor < len(source) and depth:
+                if source.startswith("/*", cursor):
+                    depth += 1
+                    cursor += 2
+                elif source.startswith("*/", cursor):
+                    depth -= 1
+                    cursor += 2
+                else:
+                    cursor += 1
+            _require(depth == 0, "C36 fixture has an unterminated comment")
+            return cursor
+        opening = literal.match(source, index)
+        if opening is None:
+            return None
+        hashes, quotes = opening.group(1) or "", opening.group(2)
+        closing, escape = quotes + hashes, "\\" + hashes
+        cursor = opening.end()
+        while cursor < len(source):
+            if source.startswith(closing, cursor):
+                return cursor + len(closing)
+            if source.startswith(escape, cursor):
+                cursor += len(escape)
+                if source.startswith("(", cursor):
+                    cursor, depth = cursor + 1, 1
+                    while cursor < len(source) and depth:
+                        skipped = noncode(cursor)
+                        if skipped is not None:
+                            cursor = skipped
+                        else:
+                            if source[cursor] == "(":
+                                depth += 1
+                            elif source[cursor] == ")":
+                                depth -= 1
+                            cursor += 1
+                    _require(depth == 0, "C36 fixture has an unterminated interpolation")
+                else:
+                    cursor += 1
+            else:
+                cursor += 1
+        raise ValueError("C36 fixture has an unterminated string")
+
+    result: list[str] = []
+    index = 0
+    while index < len(source):
+        skipped = noncode(index)
+        if skipped is not None:
+            if literal.match(source, index) is not None:
+                result.append("<string>")
+            index = skipped
+        elif source[index].isspace():
+            index += 1
+        else:
+            match = token.match(source, index)
+            _require(match is not None, "C36 fixture has an unreadable token")
+            result.append(match.group(0))
+            index = match.end()
+    return result
+
+
+def _validate_fixture_schema_binding(tests: str) -> None:
+    tokens = _swift_fixture_tokens(tests)
+    _require(not any(tokens[index] == "#" and tokens[index + 1] in
+                     {"if", "elseif", "else", "endif"}
+                     for index in range(len(tokens) - 1)),
+             "C36 fixture schema binding must not be conditional")
+
+    def body(scope: list[str], declaration: str) -> list[str]:
+        prefix = declaration.split()
+        matches: list[list[str]] = []
+        depth, index = 0, 0
+        while index < len(scope):
+            if depth == 0 and scope[index:index + len(prefix)] == prefix:
+                start = cursor = index + len(prefix)
+                nested = 1
+                while cursor < len(scope) and nested:
+                    if scope[cursor] == "{":
+                        nested += 1
+                    elif scope[cursor] == "}":
+                        nested -= 1
+                    cursor += 1
+                _require(nested == 0, "C36 fixture declaration is unclosed")
+                matches.append(scope[start:cursor - 1])
+                index = cursor
+                continue
+            if scope[index] == "{":
+                depth += 1
+            elif scope[index] == "}":
+                depth -= 1
+                _require(depth >= 0, "C36 fixture declaration is unbalanced")
+            index += 1
+        _require(depth == 0 and len(matches) == 1,
+                 f"C36 fixture must have one code declaration: {declaration}")
+        return matches[0]
+
+    harness = body(tokens, "private final class C36Harness {")
+    initializer = body(harness,
+        "init ( failure : MutationJournalFailureInjectionV1 ? = nil , name : String ) throws {")
+    schema = (
+        "let schema = Schema ( PersistentSchemaReleaseRegistryV1 . activeRelease . models , "
+        "version : PersistentSchemaReleaseRegistryV1 . activeVersionIdentifier ) "
+        "container = try ModelContainer ( for : schema ,"
+    ).split()
+    _require(initializer[:len(schema)] == schema,
+             "C36 harness must construct and use the active registry models and version")
+    support = body(tokens, "private enum C36Support {")
+    fixture = body(support, "static func fixture ( ) throws - > C36Corpus {")
+    decoder = (
+        "return try JSONDecoder ( ) . decode ( C36Corpus . self , "
+        "from : Data ( contentsOf : url ) )"
+    ).split()
+    _require(fixture[-len(decoder):] == decoder,
+             "C36 fixture must decode C36Corpus with JSONDecoder")
+
+
 def _validate_source_semantics() -> None:
     coordinator = _read_text(contracts.PRODUCT[0])
     view = _read_text(contracts.PRODUCT[1])
@@ -253,7 +378,7 @@ def _validate_source_semantics() -> None:
     _require("XCTAssertEqual(recoveredUse.mutationID, interruptedUse.mutationID)" in interruption, "I01 must prove caller-stable use mutation ID")
     _require("XCTAssertEqual(recoveredReceipt.mutationID, interruptedUse.mutationID)" in interruption, "I01 must prove stock receipt mutation ID")
     _require("XCTAssertEqual(replayedReturn, recoveredReturn)" in interruption and "XCTAssertEqual(replayedReturnReceipt, recoveredReturnReceipt)" in interruption, "I01 return replay must be exact")
-    _require("PersistentSchemaV41" in tests and "JSONDecoder" in tests, "C36 tests must bind the existing V41 schema and fixture")
+    _validate_fixture_schema_binding(tests)
     _require(fixture.get("schema") == contracts.CORPUS_SCHEMA, "C36 source fixture parse differs")
 
     for forbidden in ("@Model", "URLSession", "Telemetry", "StoreKit"):

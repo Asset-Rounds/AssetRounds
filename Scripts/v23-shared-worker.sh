@@ -223,9 +223,34 @@ write_checksums() {
   local checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
   (
     cd "$CI_ARTIFACT_DIR"
-    find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
-      shasum -a 256 "$file"
-    done
+    # Reuse shasum's reader and format in one process, with a fresh digest per file.
+    # Refuse the first read failure before publishing or verifying the manifest.
+    find . -type f -print | LC_ALL=C sort | /usr/bin/perl -e '
+      BEGIN { pop @INC if $INC[-1] eq "." }
+      use strict;
+      use warnings;
+      use Digest::SHA qw($errmsg);
+      select((select(STDOUT), $| = 1)[0]);
+      select((select(STDERR), $| = 1)[0]);
+      binmode(STDIN);
+      local $/ = "\n";
+      my $isDOSish = ($^O =~ /^(MSWin\d\d|os2|dos|mint|cygwin)$/);
+      my $mode = $isDOSish ? "b" : "";
+      my $modesym = $isDOSish ? "*" : " ";
+      while (defined(my $file = <STDIN>)) {
+        last unless substr($file, -1) eq "\n";
+        chomp $file;
+        my $digest = eval { Digest::SHA->new(256)->addfile($file, $mode) };
+        if ($@) { warn "shasum: $file: $errmsg\n"; exit 1 }
+        my $sum = $digest->hexdigest;
+        exit 1 unless $sum;
+        if ($file =~ /[\n\\]/) {
+          $file =~ s/\\/\\\\/g; $file =~ s/\n/\\n/g;
+          print "\\";
+        }
+        print "$sum $modesym$file\n";
+      }
+    '
   ) > "$checksum_file"
   mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
   (cd "$CI_ARTIFACT_DIR" && shasum -a 256 -c SHA256SUMS.txt)

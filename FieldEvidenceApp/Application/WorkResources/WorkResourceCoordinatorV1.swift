@@ -21,9 +21,6 @@ final class WorkResourceCoordinatorV1 {
             throw WorkResourceContractFailureV1.crossWorkspace
         }
         let concurrency = try mutation.concurrencyIdentity
-        let currentEntityRevision = current.entityRevisions.first(where: {
-            $0.identity == concurrency
-        })?.revision ?? 0
         let expected = try WorkspaceExpectedRevisionV1(
             workspaceID: current.workspaceID,
             generationID: current.generationID,
@@ -32,7 +29,7 @@ final class WorkResourceCoordinatorV1 {
             entityRevisions: [
                 WorkspaceEntityRevisionV1(
                     identity: concurrency,
-                    revision: currentEntityRevision
+                    revision: mutation.postImage.expectedRevision
                 )
             ]
         )

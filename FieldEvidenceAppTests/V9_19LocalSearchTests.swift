@@ -589,6 +589,13 @@ final class V9_19LocalSearchTests: XCTestCase {
         defer { harness.cleanup() }
         let registry = try makeRegistry()
         let revision = try source(revision: 42)
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)),
+            authentication: V919H01LocalAuthentication(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource()
+        )
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
         let values = try [
             record(id: "asset-b", text: "PUMP A-01", status: "Complete", revision: 42, timestamp: 4),
             record(id: "asset-a", text: "Pump Á-01", status: "Incomplete", revision: 42, timestamp: 5),
@@ -596,21 +603,76 @@ final class V9_19LocalSearchTests: XCTestCase {
             record(id: "work-a", kind: .work, fieldID: "work_summary", text: "Seal replacement",
                    status: "Recheck due", revision: 42, timestamp: 2),
         ]
-        try await harness.store.replaceProjection(source: revision, records: values, registry: registry)
+        let publicationToken = await harness.store.publicationToken()
+        let rebuildToken = try await gate.beginContentRead(for: .searchRebuild)
+        try await harness.store.replaceProjection(
+            source: revision, records: values, registry: registry,
+            publicationToken: publicationToken, contentReadToken: rebuildToken
+        )
         let coordinator = SearchCoordinatorV1(index: harness.store)
         XCTAssertEqual(SearchCoordinatorV1.normalize("cafe\u{301}"), SearchCoordinatorV1.normalize("Café"))
         XCTAssertEqual(SearchCoordinatorV1.normalize("\u{200F}مضخة\u{202C}"), "مضخة")
+        let indexURL = harness.root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
+            .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
+        let initialEnvelopeBeforeSearches = try Data(contentsOf: indexURL)
 
         let pumpPlan = try coordinator.makePlan(query: "pump a", scope: SearchScopeV1.assets, sourceRevision: 42)
         let pumps = try await coordinator.search(pumpPlan, source: revision, registry: registry)
         XCTAssertEqual(pumps.results.map(\.stableID), ["asset-a", "asset-b"])
+        let gatedPumps = try await coordinator.search(
+            pumpPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedPumps.results, pumps.results)
+        XCTAssertEqual(gatedPumps.suggestions, pumps.suggestions)
         let filter = try SearchFilterV1(kind: .recheckDue)
         let workPlan = try coordinator.makePlan(query: "seal", scope: SearchScopeV1.work, filters: [filter], sourceRevision: 42)
         let workResponse = try await coordinator.search(workPlan, source: revision, registry: registry)
         XCTAssertEqual(workResponse.results.map(\.stableID), ["work-a"])
+        let gatedWork = try await coordinator.search(
+            workPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedWork.results, workResponse.results)
+        XCTAssertEqual(gatedWork.suggestions, workResponse.suggestions)
         XCTAssertThrowsError(try searchableField(id: "raw_ocr", kind: .asset))
         XCTAssertThrowsError(try searchableField(id: "uncommitted_c36", kind: .asset))
         XCTAssertThrowsError(try searchableField(id: "asset_label", kind: .work))
+
+        let exactPlan = try coordinator.makePlan(
+            query: "PUMP A-01", scope: SearchScopeV1.assets, sourceRevision: 42
+        )
+        let exactResponse = try await coordinator.search(exactPlan, source: revision, registry: registry)
+        let gatedExact = try await coordinator.search(
+            exactPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedExact.results, exactResponse.results)
+        XCTAssertEqual(gatedExact.suggestions, exactResponse.suggestions)
+        XCTAssertEqual(gatedExact.results.map(\.stableID), ["asset-a", "asset-b"])
+        XCTAssertEqual(gatedExact.results.map(\.rankingKey.tier), [
+            .exactStableOrDisplayIdentity, .exactStableOrDisplayIdentity,
+        ])
+        let foldedPlan = try coordinator.makePlan(
+            query: " PU\u{0301}MP A-01 ", scope: SearchScopeV1.assets, sourceRevision: 42
+        )
+        let foldedResponse = try await coordinator.search(foldedPlan, source: revision, registry: registry)
+        let gatedFolded = try await coordinator.search(
+            foldedPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedFolded.results, foldedResponse.results)
+        XCTAssertEqual(gatedFolded.suggestions, foldedResponse.suggestions)
+        XCTAssertEqual(gatedFolded.results, gatedExact.results)
+        XCTAssertEqual(gatedFolded.suggestions, gatedExact.suggestions)
+        let arabicPlan = try coordinator.makePlan(
+            query: "مضخة 12", scope: SearchScopeV1.assets, sourceRevision: 42
+        )
+        let arabicResponse = try await coordinator.search(arabicPlan, source: revision, registry: registry)
+        let gatedArabic = try await coordinator.search(
+            arabicPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedArabic.results, arabicResponse.results)
+        XCTAssertEqual(gatedArabic.suggestions, arabicResponse.suggestions)
+        XCTAssertEqual(gatedArabic.results.map(\.stableID), ["asset-rtl"])
+        XCTAssertEqual(try XCTUnwrap(gatedArabic.results.first).rankingKey.tier, .exactStableOrDisplayIdentity)
+        XCTAssertEqual(try Data(contentsOf: indexURL), initialEnvelopeBeforeSearches)
 
         let fieldMappings = registry.fields.map { "\($0.fieldID):\($0.sourceKind.rawValue)" }
         XCTAssertEqual(fieldMappings, expectedFieldMappings)
@@ -638,6 +700,7 @@ final class V9_19LocalSearchTests: XCTestCase {
                    status: "RECHECK_DUE", revision: 42, timestamp: 4),
         ]
         try await harness.store.replaceProjection(source: revision, records: sortValues, registry: registry)
+        let sortEnvelopeBeforeSearches = try Data(contentsOf: indexURL)
         let incomplete = try SearchFilterV1(kind: .incomplete)
         let statusPlan = try coordinator.makePlan(
             query: "shared", filters: [incomplete], sort: .statusThenStableID, sourceRevision: 42
@@ -651,6 +714,15 @@ final class V9_19LocalSearchTests: XCTestCase {
             statusResponse.results.first(where: { $0.sourceKind == .asset })?.displayIdentity,
             "Shared",
             "the exact display match wins for the shared query"
+        )
+        let gatedStatus = try await coordinator.search(
+            statusPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedStatus.results, statusResponse.results)
+        XCTAssertEqual(gatedStatus.suggestions, statusResponse.suggestions)
+        XCTAssertEqual(
+            try XCTUnwrap(gatedStatus.results.first(where: { $0.sourceKind == .asset })).rankingKey.tier,
+            .exactStableOrDisplayIdentity
         )
         let equalTierPlan = try coordinator.makePlan(
             query: "sha", filters: [incomplete],
@@ -668,6 +740,12 @@ final class V9_19LocalSearchTests: XCTestCase {
             "Shared",
             "equal-tier duplicates choose asset_identifier before the newer asset_label candidate"
         )
+        let gatedEqualTier = try await coordinator.search(
+            equalTierPlan, source: revision, registry: registry, accessGate: gate
+        )
+        XCTAssertEqual(gatedEqualTier.results, equalTierResponse.results)
+        XCTAssertEqual(gatedEqualTier.suggestions, equalTierResponse.suggestions)
+        XCTAssertEqual(try Data(contentsOf: indexURL), sortEnvelopeBeforeSearches)
         try await harness.store.replaceProjection(
             source: revision, records: [newerAlternate], registry: registry
         )
@@ -862,7 +940,9 @@ final class V9_19LocalSearchTests: XCTestCase {
             modelContext: productionContext,
             workspaceID: revision.workspaceID,
             generationID: revision.generationID,
-            revisionProvider: { productionRevisionBox.value }
+            revisionProvider: { productionRevisionBox.value },
+            includeAssetSemantics: false,
+            includeAuthorityCriterion: false
         )
         XCTAssertEqual(productionServices.registry.fields, productionSource.registry.fields)
         let serviceRevision = try await productionServices.source.currentSearchSourceRevision()
@@ -1041,6 +1121,20 @@ extension V9_19LocalSearchTests {
     }
 }
 
+/// Supplies only the local-authentication result; the production gate mints
+/// every content-read token used by H01.
+private actor V919H01LocalAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+
 private extension V9_19LocalSearchTests {
     struct Harness {
         let root: URL
@@ -1062,7 +1156,9 @@ private extension V9_19LocalSearchTests {
     }
 
     func searchableField(id: String, kind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {
-        let frozen = try XCTUnwrap(FrozenSearchableFieldV1(rawValue: id))
+        guard let frozen = FrozenSearchableFieldV1(rawValue: id) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
         let identity = frozen.isIdentifier
         let operational = frozen == .status
         return try SearchableFieldDescriptorV1(
@@ -1395,15 +1491,25 @@ extension V9_19LocalSearchTests {
         let revision = try source(revision: 42)
 
         let records = try scenarios.map { scenario in
-            let searchableState = ([scenario.archetypeID]
+            let searchableComponents = [scenario.archetypeID]
                 + scenario.capabilities.map(\.rawValue)
-                + scenario.operations.map { $0.kind.rawValue })
-                .joined(separator: " ")
-            return try record(
-                id: scenario.archetypeID,
+                + scenario.operations.map { $0.kind.rawValue }
+                + ["Incomplete"]
+            let tokens = Array(Set(searchableComponents.flatMap {
+                SearchCoordinatorV1.normalizedTokens($0)
+            })).sorted()
+            return try SearchIndexProjectionRecordV1(
+                workspaceID: revision.workspaceID,
+                sourceKind: .asset,
+                sourceStableID: scenario.archetypeID,
+                sourceRevision: revision.commitRevision,
                 fieldID: "asset_label",
-                text: searchableState,
-                revision: revision.commitRevision
+                normalizedTokens: tokens,
+                displayIdentity: scenario.archetypeID,
+                locationBreadcrumb: ["Fixture"],
+                status: "Incomplete",
+                permittedSnippet: scenario.archetypeID,
+                sourceTimestamp: Date(timeIntervalSince1970: 1)
             )
         }
         try await harness.store.replaceProjection(

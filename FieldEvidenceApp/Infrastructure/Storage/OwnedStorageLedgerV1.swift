@@ -1419,6 +1419,122 @@ struct EraseOriginalNotificationPhysicalSnapshotV1: Equatable {
     let unchangedLeavesDigest: String?
     let eraseBytes: Data?
     let eraseIdentity: String?
+    // Exact inputs of the existing digest walk; diagnostic data only.
+    // These values never participate in snapshot acceptance or equality.
+    let diagnosticNodes: [String: EraseOriginalNotificationNodeDiagnosticV1]
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.rootDevice == rhs.rootDevice
+            && lhs.rootInode == rhs.rootInode
+            && lhs.rootMetadata == rhs.rootMetadata
+            && lhs.names == rhs.names
+            && lhs.unchangedLeavesDigest == rhs.unchangedLeavesDigest
+            && lhs.eraseBytes == rhs.eraseBytes
+            && lhs.eraseIdentity == rhs.eraseIdentity
+    }
+
+    /// Observed differences of the actual retained pair. A plus-one label
+    /// is not an authenticated effect and never projects either digest.
+    static func reportExistingLeavesForTesting(
+        before: Self, after: Self
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        func parts(_ value: String?, count: Int) -> [Substring]? {
+            guard let value else { return nil }
+            let result = value.split(separator: "|", omittingEmptySubsequences: false)
+            return result.count == count ? result : nil
+        }
+        func relation(_ lhs: [Substring]?, _ rhs: [Substring]?) -> String {
+            guard let lhs, let rhs else { return "unavailable" }
+            return lhs == rhs ? "same" : "different"
+        }
+        func merge(_ current: String, _ next: String) -> String {
+            if current == "different" || next == "different" { return "different" }
+            if current == "unavailable" || next == "unavailable" { return "unavailable" }
+            return "same"
+        }
+        let oldRoot = parts(before.diagnosticNodes[""]?.fact, count: 4)
+        let newRoot = parts(after.diagnosticNodes[""]?.fact, count: 4)
+        let rootLinks: String
+        if let oldRoot, let newRoot,
+           let oldLinks = UInt64(oldRoot[3]), let newLinks = UInt64(newRoot[3]) {
+            if oldLinks == newLinks { rootLinks = "same" }
+            else if oldLinks < UInt64.max, newLinks == oldLinks + 1 {
+                rootLinks = "plus-one"
+            } else { rootLinks = "unexpected" }
+        } else { rootLinks = "unavailable" }
+        let oldMetadata = parts(before.rootMetadata, count: 9)
+        let newMetadata = parts(after.rootMetadata, count: 9)
+        let rootMode = relation(oldRoot.map { [$0[2]] }, newRoot.map { [$0[2]] })
+        let rootIgnoredMetadata = relation(
+            oldMetadata.map { Array($0[4...8]) }, newMetadata.map { Array($0[4...8]) })
+        let oldLeaves = Set(before.diagnosticNodes.keys).subtracting([""])
+        let newLeaves = Set(after.diagnosticNodes.keys).subtracting([""])
+        let commonLeaves = oldLeaves.intersection(newLeaves)
+        var commonKind = "no-common-node", commonIdentity = "no-common-node"
+        var commonMetadata = "no-common-node", commonContent = "no-common-node"
+        var commonMembers = "no-common-node"
+        for key in commonLeaves.sorted() {
+            guard let old = before.diagnosticNodes[key],
+                  let new = after.diagnosticNodes[key] else { continue }
+            commonKind = merge(commonKind, old.kind == new.kind ? "same" : "different")
+            let oldFact = parts(old.fact, count: 9), newFact = parts(new.fact, count: 9)
+            commonIdentity = merge(commonIdentity, relation(
+                oldFact.map { Array($0[0...1]) }, newFact.map { Array($0[0...1]) }))
+            commonMetadata = merge(commonMetadata, relation(
+                oldFact.map { Array($0[2...8]) }, newFact.map { Array($0[2...8]) }))
+            if old.kind == "file", new.kind == "file" {
+                let result: String
+                if let oldSHA = old.contentSHA256, let newSHA = new.contentSHA256 {
+                    result = oldSHA == newSHA ? "same" : "different"
+                } else { result = "unavailable" }
+                commonContent = merge(commonContent, result)
+            }
+            if old.kind == "directory", new.kind == "directory" {
+                let result: String
+                if let oldNames = old.members, let newNames = new.members {
+                    result = oldNames == newNames ? "same" : "different"
+                } else { result = "unavailable" }
+                commonMembers = merge(commonMembers, result)
+            }
+        }
+        let rootPresence: String
+        if before.rootDevice == nil, after.rootDevice == nil { rootPresence = "same-absent" }
+        else if before.rootDevice != nil, after.rootDevice != nil { rootPresence = "same-present" }
+        else { rootPresence = before.rootDevice == nil ? "appeared" : "disappeared" }
+        let rootIdentity = before.rootDevice == after.rootDevice
+            && before.rootInode == after.rootInode ? "same" : "different"
+        let allNames: String
+        if before.names == after.names { allNames = "same" }
+        else if after.names == (before.names + [AppLockNotificationControlStoreV1.eraseName]).sorted() {
+            allNames = "plus-marker"
+        } else { allNames = "unexpected" }
+        let visibleNames = before.diagnosticNodes[""]?.members
+            == after.diagnosticNodes[""]?.members ? "same" : "different"
+        let leafKeys = oldLeaves == newLeaves ? "same" : "different"
+        let capturedTokens = before.diagnosticNodes == after.diagnosticNodes ? "same" : "different"
+        let digest = before.unchangedLeavesDigest == after.unchangedLeavesDigest ? "same" : "different"
+        let line = "V23_ORIGINAL_NOTIFICATION_EXISTING_LEAVES_DIAG_V1"
+            + " rootPresence=" + rootPresence + " rootIdentity=" + rootIdentity
+            + " rootMode=" + rootMode + " rootLinks=" + rootLinks
+            + " rootIgnoredMetadata=" + rootIgnoredMetadata + " allNames=" + allNames
+            + " visibleNames=" + visibleNames + " leafKeys=" + leafKeys
+            + " commonKind=" + commonKind + " commonIdentity=" + commonIdentity
+            + " commonMetadata=" + commonMetadata + " commonContent=" + commonContent
+            + " commonMembers=" + commonMembers + " capturedTokens=" + capturedTokens
+            + " digest=" + digest + "\n"
+        try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+    }
+}
+
+/// Raw values remain private diagnostic inputs. Only closed relationships
+/// are emitted; no path, member, stat value, hash or content is logged.
+struct EraseOriginalNotificationNodeDiagnosticV1: Equatable {
+    let kind: String
+    let fact: String
+    let members: [String]?
+    let contentSHA256: String?
 }
 #endif
 
@@ -1810,7 +1926,7 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                 rootDevice: nil, rootInode: nil, rootMetadata: nil,
                 names: [],
                 unchangedLeavesDigest: nil, eraseBytes: nil,
-                eraseIdentity: nil)
+                eraseIdentity: nil, diagnosticNodes: [:])
         }
         guard found == 0, named.st_mode & S_IFMT == S_IFDIR else {
             throw AppAccessContractFailureV1.configurationUnknown
@@ -1836,10 +1952,18 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             }
             let erase = names.contains(Self.eraseName)
                 ? try io.control(parent: root, name: Self.eraseName) : nil
+            var diagnosticNodes: [String: EraseOriginalNotificationNodeDiagnosticV1] = [:]
             let unchanged = try io.postRetiredTree(
                 parent: operationsDescriptor, name: Self.rootName,
                 excluding: [Self.eraseName],
-                ignoringDirectoryMetadata: [""])
+                ignoringDirectoryMetadata: [""],
+                observeNode: { path, kind, fact, members, contentSHA256 in
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    diagnosticNodes[path] = EraseOriginalNotificationNodeDiagnosticV1(
+                        kind: kind, fact: fact, members: members,
+                        contentSHA256: contentSHA256)
+                })
             guard try io.names(in: root) == names,
                   Darwin.fstat(root, &after) == 0,
                   Darwin.fstatat(operationsDescriptor, Self.rootName,
@@ -1865,7 +1989,8 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                 names: names,
                 unchangedLeavesDigest: unchanged,
                 eraseBytes: erase?.0,
-                eraseIdentity: erase?.1)
+                eraseIdentity: erase?.1,
+                diagnosticNodes: diagnosticNodes)
         }
     }
 
@@ -8166,7 +8291,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     throw AppAccessContractFailureV1.effectMismatch
                 }
             } else {
-                guard try !ingressControlFileExists(receiptFile) else {
+                guard !(try ingressControlFileExists(receiptFile)) else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
                 prepare = try makeProtectedIngressPrepare(
@@ -8911,8 +9036,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
             let terminalFile = try ingressControlURL(request.intentID, ".terminal.json")
             let abortedFile = try ingressControlURL(request.intentID, ".aborted.json")
-            guard try !ingressControlFileExists(terminalFile),
-                  try !ingressControlFileExists(abortedFile) else { throw AppAccessContractFailureV1.invalidTransition }
+            guard !(try ingressControlFileExists(terminalFile)),
+                  !(try ingressControlFileExists(abortedFile)) else { throw AppAccessContractFailureV1.invalidTransition }
             let prepareFile = try ingressControlURL(request.intentID, ".prepare.json")
             if let existing = try readIngressControl(C16IngressPreparedStageV1.self, at: prepareFile) {
                 guard existing == preparation else { throw AppAccessContractFailureV1.effectMismatch }
@@ -9108,7 +9233,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let id = preparation.intent.intentID
         try validateIngressPreparation(preparation, intentID: id)
         for suffix in [".published.json", ".pending.json", ".terminal.json", ".aborted.json"] {
-            guard try !ingressControlFileExists(ingressControlURL(id, suffix)) else {
+            guard !(try ingressControlFileExists(ingressControlURL(id, suffix))) else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
         }
@@ -9189,7 +9314,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let claim = try readIngressControl(C16IngressDirectoryClaimV1.self, at: ingressControlURL(id, ".claim.json"))
         guard claim == target.claim else { throw AppAccessContractFailureV1.configurationUnknown }
         for suffix in [".published.json", ".pending.json", ".terminal.json"] {
-            guard try !ingressControlFileExists(ingressControlURL(id, suffix)) else {
+            guard !(try ingressControlFileExists(ingressControlURL(id, suffix))) else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
         }
@@ -9248,7 +9373,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 erase = existing
                 resumedErase = existing
             } else {
-                guard try !ingressControlFileExists(complete) else { throw AppAccessContractFailureV1.configurationUnknown }
+                guard !(try ingressControlFileExists(complete)) else { throw AppAccessContractFailureV1.configurationUnknown }
                 _ = try validatedIngressSnapshot(applyingRecoveryEffects: false)
                 let entry = try validatedIngressSnapshot()
                 let published = entry.pending
@@ -9547,7 +9672,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let id = try ingressControlIdentifier(name, prefix: "erase-", suffixes: [".prepare.json"])
             let complete = try protectedIngressReceiptDirectory().appendingPathComponent("erase-" + id.uuidString.lowercased() + ".complete.json")
             if try hasColdCleanupAttempt() { try eraseProtectedIngress(operationID: id) }
-            else if try !ingressControlFileExists(complete) { try eraseProtectedIngress(operationID: id) }
+            else if !(try ingressControlFileExists(complete)) { try eraseProtectedIngress(operationID: id) }
         }
         _ = try pendingIngressPublications()
     }
@@ -15611,6 +15736,102 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
         (@MainActor (EraseSchema2ColdNotificationMutationStageV1,
             EraseSchema2ColdNotificationTemporaryFaultCutV1)
             throws -> Void)?
+
+    /// Fixed DEBUG boundaries only. The context is confined to one genuine
+    /// reserve call and cannot authorize a root, mutation, read or OS effect.
+    private enum ColdOwnedIDsReserveDiagnosticStageV1: String {
+        case reserveEntry = "reserve.enter"
+        case ensureRootEntry = "ensure-root.enter"
+        case ensureRootComplete = "ensure-root.complete"
+        case rootCheckedSettlement = "root.checked-settlement.enter"
+        case rootFinalSettlement = "root.final-settlement.enter"
+        case rootFirstAbsenceCreate = "root.first-absence-create.enter"
+        case rootFirstAbsenceCreateComplete = "root.first-absence-create.complete"
+        case rootCreationReplay = "root.creation-replay.enter"
+        case rootCreationReplayComplete = "root.creation-replay.complete"
+        case rootPolicyAuthority = "root.policy-authority.enter"
+        case rootCurrentReproof = "root.current-reproof.enter"
+        case rootCurrentReproofComplete = "root.current-reproof.complete"
+        case rootPolicyRequest = "root.policy-request.enter"
+        case rootPolicyRequestComplete = "root.policy-request.complete"
+        case rootPolicyObservation = "root.policy-observation.enter"
+        case rootPolicyObservationComplete = "root.policy-observation.complete"
+        case firstCut = "first-cut.enter"
+        case firstCutComplete = "first-cut.complete"
+        case snapshotValidation = "snapshot-validation.enter"
+        case existingProvenance = "existing-provenance.enter"
+        case existingProvenanceComplete = "existing-provenance.complete"
+        case provenanceConstruction = "provenance-construction.enter"
+        case ownedIDsPublication = "owned-ids-publication.enter"
+        case ownedIDsPublicationComplete = "owned-ids-publication.complete"
+        case provenanceReadback = "provenance-readback.enter"
+        case provenanceReadbackComplete = "provenance-readback.complete"
+    }
+
+    @MainActor private final class ColdOwnedIDsReserveDiagnosticContextV1 {
+        private let controlIdentity: ObjectIdentifier
+        private let operationIdentity: ObjectIdentifier
+        private let operationID: UUID
+        var stage: ColdOwnedIDsReserveDiagnosticStageV1 = .reserveEntry
+
+        init(control: EraseSchema2ColdNotificationControlV1,
+             operation: EraseColdPreparationOperationV1,
+             operationID: UUID) {
+            controlIdentity = ObjectIdentifier(control)
+            operationIdentity = ObjectIdentifier(operation)
+            self.operationID = operationID
+        }
+
+        func isBound(control: EraseSchema2ColdNotificationControlV1,
+                     operation: EraseColdPreparationOperationV1,
+                     operationID: UUID) -> Bool {
+            controlIdentity == ObjectIdentifier(control)
+                && operationIdentity == ObjectIdentifier(operation)
+                && self.operationID == operationID
+        }
+
+        func report(_ error: Error) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            // This is the last entered Source boundary, not a passed predicate
+            // or identification of an error hidden inside a callee postproof.
+            let line = "V23_C39_COLD_OWNED_IDS_RESERVE_FIRST_REFUSAL_DIAG_V1 route=schema2-cold"
+                + " stage=" + stage.rawValue
+                + " type=" + String(reflecting: type(of: error)) + "\n"
+            try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+        }
+    }
+
+    private var coldOwnedIDsReserveDiagnostic:
+        ColdOwnedIDsReserveDiagnosticContextV1?
+
+    private func advanceColdOwnedIDsReserveDiagnostic(
+        _ stage: ColdOwnedIDsReserveDiagnosticStageV1
+    ) {
+        guard let current = coldOwnedIDsReserveDiagnostic,
+              current.isBound(control: self, operation: operation,
+                operationID: source.eraseID) else { return }
+        current.stage = stage
+    }
+
+    private func withColdOwnedIDsReserveDiagnostic<Value>(
+        operationID: UUID, _ body: () throws -> Value
+    ) throws -> Value {
+        let previous = coldOwnedIDsReserveDiagnostic
+        let current = ColdOwnedIDsReserveDiagnosticContextV1(
+            control: self, operation: operation, operationID: operationID)
+        coldOwnedIDsReserveDiagnostic = current
+        defer { coldOwnedIDsReserveDiagnostic = previous }
+        do {
+            return try body()
+        } catch {
+            if current.isBound(control: self, operation: operation,
+                operationID: source.eraseID) {
+                current.report(error)
+            }
+            throw error
+        }
+    }
     #endif
 
     init(source: EraseSchema2ColdNotificationSourceV1,
@@ -15633,8 +15854,14 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
     }
 
     private func ensureRoot() throws {
+        #if DEBUG
+        advanceColdOwnedIDsReserveDiagnostic(.rootCheckedSettlement)
+        #endif
         try requireCheckedSettled()
         if source.rootIdentity == nil && rootIdentityValue.isEmpty {
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootFirstAbsenceCreate)
+            #endif
             let created = try source.createRootFromFirstAbsence()
             guard created.source === source,
                   created.checkedSettled else {
@@ -15642,11 +15869,17 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
             }
             rootIdentityValue = created.rootIdentity
             rootPolicyDisposition = created.policyDisposition
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootFirstAbsenceCreateComplete)
+            #endif
         }
         if source.rootIdentity != nil,
            source.hasAuthenticatedCreationRecord,
            source.names.isEmpty,
            !canonicalCreationSettled {
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootCreationReplay)
+            #endif
             let settled = try source.settleCanonicalCreationAfterReplay()
             guard settled.source === source,
                   settled.rootIdentity == rootIdentityValue,
@@ -15655,20 +15888,35 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
             }
             rootPolicyDisposition = settled.policyDisposition
             canonicalCreationSettled = true
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootCreationReplayComplete)
+            #endif
         }
         // A raw first-present canonical root has no proof that this Erase
         // created it. It remains data-only until a separate creation-record
         // replay proves provenance; ordinary policy repair is not authority.
+        #if DEBUG
+        advanceColdOwnedIDsReserveDiagnostic(.rootPolicyAuthority)
+        #endif
         if source.rootIdentity != nil, source.rootPolicy == nil,
            !canonicalCreationSettled {
             throw AppAccessContractFailureV1.configurationUnknown
         }
+        #if DEBUG
+        advanceColdOwnedIDsReserveDiagnostic(.rootCurrentReproof)
+        #endif
         guard !rootIdentityValue.isEmpty,
               try source.requireCurrentRootIdentity()
                 == rootIdentityValue else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
+        #if DEBUG
+        advanceColdOwnedIDsReserveDiagnostic(.rootCurrentReproofComplete)
+        #endif
         if rootPolicyDisposition == nil {
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootPolicyRequest)
+            #endif
             let url = try source.withHeldRoot { _, rootURL in rootURL }
             rootPolicyDisposition = try ProtectedFilePolicyV1
                 .verifyEraseColdTemporalPolicyWithCheckedRequest(
@@ -15678,7 +15926,13 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
                     }, unchangedWitness: {
                         try self.checkedRead.cut()
                     })
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootPolicyRequestComplete)
+            #endif
         } else {
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootPolicyObservation)
+            #endif
             let cut = try checkedRead.cut()
             let url = try source.withHeldRoot { _, rootURL in rootURL }
             let observed = try ProtectedFilePolicyV1
@@ -15696,7 +15950,13 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
                   try checkedRead.cut() == cut else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
+            #if DEBUG
+            advanceColdOwnedIDsReserveDiagnostic(.rootPolicyObservationComplete)
+            #endif
         }
+        #if DEBUG
+        advanceColdOwnedIDsReserveDiagnostic(.rootFinalSettlement)
+        #endif
         try requireCheckedSettled()
     }
 
@@ -15958,6 +16218,234 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
     func reserveSchema2ColdOwnedIDs(
         operationID: UUID
     ) throws -> NotificationEraseOwnedIDsProvenanceV1 {
+#if DEBUG
+        guard operationID == source.eraseID else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        return try withColdOwnedIDsReserveDiagnostic(operationID: operationID) {
+            advanceColdOwnedIDsReserveDiagnostic(.ensureRootEntry)
+            try ensureRoot()
+            advanceColdOwnedIDsReserveDiagnostic(.ensureRootComplete)
+            advanceColdOwnedIDsReserveDiagnostic(.firstCut)
+            let cut = try checkedRead.cut()
+            advanceColdOwnedIDsReserveDiagnostic(.firstCutComplete)
+            let ownedName = EraseSchema2ColdNotificationSourceV1
+                .ownedIDsName
+            let ownedTemporary = EraseSchema2ColdNotificationSourceV1
+                .ownedIDsTemporaryName
+            let markerName = AppLockNotificationControlStoreV1.eraseName
+            let markerTemporary =
+                AppLockNotificationControlStoreV1.erasePendingName
+            let drainName = EraseSchema2ColdNotificationSourceV1.drainName
+            let drainTemporary = EraseSchema2ColdNotificationSourceV1
+                .drainTemporaryName
+            advanceColdOwnedIDsReserveDiagnostic(.snapshotValidation)
+            for pending in [AppLockNotificationControlStoreV1.pendingName,
+                AppLockNotificationControlStoreV1.mappingPendingName,
+                markerTemporary, ownedTemporary, drainTemporary]
+                where cut.leafBytes[pending] != nil {
+                // Only a temp in the exact next stage is data-only admissible.
+                // Its canonical prefix is checked below before any OS effect;
+                // publishCanonical later makes the checked policy request before
+                // unlink/adoption. Unknown and crossed stages still refuse.
+                if pending == ownedTemporary {
+                    guard cut.leafBytes[ownedName] == nil,
+                          cut.leafBytes[markerName] == nil,
+                          cut.leafBytes[markerTemporary] == nil,
+                          cut.leafBytes[drainName] == nil,
+                          cut.leafBytes[drainTemporary] == nil else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                } else if pending == markerTemporary {
+                    guard cut.leafBytes[ownedName] != nil,
+                          cut.leafBytes[ownedTemporary] == nil,
+                          cut.leafBytes[markerName] == nil,
+                          cut.leafBytes[drainName] == nil,
+                          cut.leafBytes[drainTemporary] == nil else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                } else if pending == drainTemporary {
+                    guard cut.leafBytes[ownedName] != nil,
+                          cut.leafBytes[ownedTemporary] == nil,
+                          cut.leafBytes[markerName] != nil,
+                          cut.leafBytes[markerTemporary] == nil,
+                          cut.leafBytes[drainName] == nil else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                } else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            }
+            let mappingBytes = cut.leafBytes[
+                AppLockNotificationControlStoreV1.mappingName]
+            let controlBytes = cut.leafBytes[
+                AppLockNotificationControlStoreV1.recordName]
+            if mappingBytes != nil {
+                try requireLeafPolicy(
+                    AppLockNotificationControlStoreV1.mappingName,
+                    kind: .journal)
+            }
+            if controlBytes != nil {
+                try requireLeafPolicy(
+                    AppLockNotificationControlStoreV1.recordName,
+                    kind: .journal)
+            }
+            guard try checkedRead.cut() == cut else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let mapping: NotificationPrivateMappingV1? = try mappingBytes
+                .map { try decodeCanonical(
+                    NotificationPrivateMappingV1.self, bytes: $0) }
+            try mapping?.validate()
+            guard mapping?.entries.allSatisfy({ $0.admissionID == nil })
+                    ?? true else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+            let control: AppLockNotificationControlV1? = try controlBytes
+                .map { try decodeCanonicalControl($0) }
+            let owned = Set((mapping?.ownedRequestIDs ?? []) +
+                (control?.journal.projections.map(\.requestID) ?? []))
+            if let bytes = cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName] {
+                advanceColdOwnedIDsReserveDiagnostic(.existingProvenance)
+                guard cut.leafBytes[
+                    EraseSchema2ColdNotificationSourceV1
+                        .ownedIDsTemporaryName] == nil else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                try requireLeafPolicy(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                    kind: .journal)
+                let current = try decodeCanonical(
+                    NotificationEraseOwnedIDsProvenanceV1.self,
+                    bytes: bytes)
+                try current.validate()
+                var completedDrain: NotificationEraseDrainRecordV1?
+                if let drainBytes = cut.leafBytes[
+                    EraseSchema2ColdNotificationSourceV1.drainName] {
+                    let revocation = NotificationEraseRevocationV1(
+                        schemaVersion: 1, operationID: operationID,
+                        rootIdentity: rootIdentityValue)
+                    guard cut.leafBytes[
+                        AppLockNotificationControlStoreV1.eraseName]
+                        == (try CompatibilityCanonicalV1.encode(revocation))
+                        else {
+                        throw AppAccessContractFailureV1.effectMismatch
+                    }
+                    try requireLeafPolicy(
+                        EraseSchema2ColdNotificationSourceV1.drainName,
+                        kind: .journal)
+                    let parsed = try decodeCanonical(
+                        NotificationEraseDrainRecordV1.self,
+                        bytes: drainBytes)
+                    try parsed.validate(revocation: revocation)
+                    completedDrain = parsed
+                }
+                let mappingSHA = try mappingBytes.map {
+                    try CompatibilityCanonicalV1.sha256($0)
+                }
+                let controlSHA = try controlBytes.map {
+                    try CompatibilityCanonicalV1.sha256($0)
+                }
+                guard current.operationID == operationID,
+                      current.rootIdentity == rootIdentityValue,
+                      (completedDrain != nil ||
+                        ((mappingBytes != nil)
+                            == (current.mappingSHA256 != nil)
+                         && (controlBytes != nil)
+                            == (current.controlSHA256 != nil))),
+                      (mappingBytes == nil ||
+                        current.mappingSHA256 == mappingSHA),
+                      (mappingBytes == nil || current.mappingFact ==
+                        cut.leafFacts[
+                            AppLockNotificationControlStoreV1.mappingName]
+                            .map(NotificationEraseOwnedLeafFactV1.init)),
+                      (controlBytes == nil ||
+                        current.controlSHA256 == controlSHA),
+                      (controlBytes == nil || current.controlFact ==
+                        cut.leafFacts[
+                            AppLockNotificationControlStoreV1.recordName]
+                            .map(NotificationEraseOwnedLeafFactV1.init)),
+                      (completedDrain == nil
+                        ? owned == Set(current.ownedRequestIDs)
+                        : completedDrain?.ownedRequestIDs
+                            == current.ownedRequestIDs),
+                      try checkedRead.cut() == cut else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+                if let prefix = cut.leafBytes[markerTemporary] {
+                    let revocation = NotificationEraseRevocationV1(
+                        schemaVersion: 1, operationID: operationID,
+                        rootIdentity: rootIdentityValue)
+                    let expected = try CompatibilityCanonicalV1
+                        .encode(revocation)
+                    guard prefix.count <= expected.count,
+                          expected.starts(with: prefix) else {
+                        throw AppAccessContractFailureV1.effectMismatch
+                    }
+                }
+                if let prefix = cut.leafBytes[drainTemporary] {
+                    let revocation = NotificationEraseRevocationV1(
+                        schemaVersion: 1, operationID: operationID,
+                        rootIdentity: rootIdentityValue)
+                    let expected = try CompatibilityCanonicalV1.encode(
+                        NotificationEraseDrainRecordV1(
+                            revocation: revocation,
+                            ownedRequestIDs: Set(current.ownedRequestIDs)))
+                    guard prefix.count <= expected.count,
+                          expected.starts(with: prefix) else {
+                        throw AppAccessContractFailureV1.effectMismatch
+                    }
+                }
+                guard try checkedRead.cut() == cut else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                advanceColdOwnedIDsReserveDiagnostic(.existingProvenanceComplete)
+                reservedProvenance = current
+                return current
+            }
+            // A first-captured marker without durable ID provenance may be an
+            // older partial cleanup. One surviving predecessor proves only a
+            // subset of the IDs that could have been removed with the other.
+            guard !(source.names.contains(
+                    AppLockNotificationControlStoreV1.eraseName)
+                && (mappingBytes == nil || controlBytes == nil)) else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+            advanceColdOwnedIDsReserveDiagnostic(.provenanceConstruction)
+            let provenance = try NotificationEraseOwnedIDsProvenanceV1(
+                operationID: operationID,
+                rootIdentity: rootIdentityValue,
+                mappingBytes: mappingBytes,
+                mappingFact: cut.leafFacts[
+                    AppLockNotificationControlStoreV1.mappingName],
+                controlBytes: controlBytes,
+                controlFact: cut.leafFacts[
+                    AppLockNotificationControlStoreV1.recordName],
+                ownedRequestIDs: owned)
+            advanceColdOwnedIDsReserveDiagnostic(.ownedIDsPublication)
+            try publishCanonical(
+                try CompatibilityCanonicalV1.encode(provenance),
+                name: EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                temporary:
+                    EraseSchema2ColdNotificationSourceV1
+                        .ownedIDsTemporaryName,
+                stage: .publishOwnedIDs)
+            advanceColdOwnedIDsReserveDiagnostic(.ownedIDsPublicationComplete)
+            advanceColdOwnedIDsReserveDiagnostic(.provenanceReadback)
+            try requireSchema2ColdOwnedIDs(provenance)
+            advanceColdOwnedIDsReserveDiagnostic(.provenanceReadbackComplete)
+            reservedProvenance = provenance
+            return provenance
+        }
+#else
         guard operationID == source.eraseID else {
             throw AppAccessContractFailureV1.effectMismatch
         }
@@ -16170,6 +16658,7 @@ enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
         try requireSchema2ColdOwnedIDs(provenance)
         reservedProvenance = provenance
         return provenance
+#endif
     }
 
     func requireSchema2ColdOwnedIDs(

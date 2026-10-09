@@ -376,10 +376,18 @@ final class LocalChangeJournalV1 {
               checkpoint.manifest.manifestSHA256 == export.manifestSHA256 else {
             throw ChangeJournalFailureV1.tamperedBatch
         }
+        try Self.validateCurrentCheckpointSchema(
+            persistent: checkpoint.manifest.persistentSchemaVersion,
+            records: checkpoint.manifest.recordSchemaVersion
+        )
         let verification = try verifiedContentDisposition(
             checkpoint.contentEntries.map(\.reference)
         )
         let destination = try backupExport.canonicalCheckpointBasis()
+        try Self.validateCurrentCheckpointSchema(
+            persistent: destination.persistentSchemaVersion,
+            records: destination.recordsSchemaVersion
+        )
         let history = try writer.sourceMutationHistorySnapshot()
         let destinationPackages = try packageDigests(destination.packageReleases)
         let destinationFrontier = try frontier(history)
@@ -809,10 +817,10 @@ final class LocalChangeJournalV1 {
         guard basis.workspaceIdentity == identity, basis.generationID == generationID else {
             throw ChangeJournalFailureV1.wrongGeneration
         }
-        guard basis.persistentSchemaVersion == 16,
-              basis.recordsSchemaVersion == 15 else {
-            throw ChangeJournalFailureV1.incompatibleVersion
-        }
+        try Self.validateCurrentCheckpointSchema(
+            persistent: basis.persistentSchemaVersion,
+            records: basis.recordsSchemaVersion
+        )
         guard basis.memberInventory.map(\.path) == basis.memberInventory.map(\.path).sorted(),
               Set(basis.memberInventory.map(\.path)).count == basis.memberInventory.count,
               let recordsEntry = basis.memberInventory.first(where: { $0.path == "records.json" }),
@@ -1280,6 +1288,17 @@ final class LocalChangeJournalV1 {
         return entries.sorted { $0.stableKey < $1.stableKey }
     }
 
+    /// Checkpoint installation requires the destination's exact current schema.
+    /// Historical content still decodes unchanged; archive migration remains
+    /// owned by restore rather than being inferred from version arithmetic here.
+    private static func validateCurrentCheckpointSchema(persistent: Int, records: Int) throws {
+        guard persistent == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+              records == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+              BackupSchemaAdmissionV1.supports(backup: 4, persistent: persistent, records: records) else {
+            throw ChangeJournalFailureV1.incompatibleVersion
+        }
+    }
+
     private func persistentCompatibilityID(_ version: Int) throws -> String {
         switch version {
         case 1: return PersistentSchemaReleaseV1.v1.compatibilityID
@@ -1298,6 +1317,7 @@ final class LocalChangeJournalV1 {
         case 14: return PersistentSchemaReleaseV1.v14.compatibilityID
         case 15: return PersistentSchemaReleaseV1.v15.compatibilityID
         case 16: return PersistentSchemaReleaseV1.v16.compatibilityID
+        case 53: return PersistentSchemaReleaseV1.v53.compatibilityID
         default: throw ChangeJournalFailureV1.incompatibleVersion
         }
     }
@@ -1554,7 +1574,38 @@ final class LocalChangeJournalV1 {
         "sites", "workflowRecords",
     ]
 
-    private static func backupRecordFields(for version: Int) -> [String] {
+    /// Complete records-52 vocabulary, including optional families even when
+    /// absent from a particular workspace. This binds the record schema, while
+    /// normalizedRecordData remains the encoder's history-free semantic value.
+    private static let v52BackupRecordFields = [
+        "acceptedLabelGenerationSnapshots", "accessibleDocumentAssessments", "activityContracts",
+        "assetCompositionEdges", "assetCompositionEvents", "assetLocators", "assetPlacementEvents",
+        "assetSemantics", "assets", "assistanceAcceptanceReceipts", "authorityCriterion",
+        "bulkCommitReceipts", "bulkSessions", "clientCapabilities", "deletionLedger",
+        "entityIdentityResolution", "evidenceAssociationEvents", "evidenceAssurance",
+        "evidenceContexts", "evidenceFiles", "evidenceQuality", "evidenceSequenceRevisions",
+        "fastSurveyInbox", "fieldDrafts", "fieldReferences", "functionalRelationships",
+        "guidedSurveys", "importMappingProfiles", "inspectionReview", "issues", "lighting",
+        "lightingDayInventoryWorkflows", "lightingNightWorkflows", "locationHierarchyEvents",
+        "locationMigrationReceipts", "locationNodes", "measurementIntegrity", "mutationHistory",
+        "myDayCarryoverReceipts", "myDayPlans", "nonactivePlanReferences", "operationalContacts",
+        "packageEvolution", "packets", "pairedObservationLinks", "partsStockSnapshot",
+        "partyAccountability", "placementPoses", "plans", "practiceWorkspaceProvenance",
+        "privacyTransforms", "qualifiedServiceExposures", "recordsSchemaVersion",
+        "recoverabilityReceipts", "reinspectionExceptionQueue", "reports", "requirementAssurance",
+        "roundSessions", "savedSmartViews", "schedules", "serviceCauseAssertions",
+        "serviceImpactSegments", "serviceReliabilityIncidents", "serviceReliabilityReceipts",
+        "serviceRemedyAssertions", "serviceRepairIntervals", "serviceRequestDispositionEvents",
+        "serviceRequestWorkLinkEvents", "serviceRequests", "serviceRestorationAssertions",
+        "shopReportProfiles", "sites", "surveyDefinitions", "temporalEvidence", "workPackets",
+        "workResources", "workflowRecords",
+    ].sorted()
+
+    private static func backupRecordFields(for version: Int) throws -> [String] {
+        if version == 52 { return v52BackupRecordFields }
+        guard (1...15).contains(version) else {
+            throw ChangeJournalFailureV1.incompatibleVersion
+        }
         if version <= 4 { return v4BackupRecordFields }
         if version == 5 { return v5BackupRecordFields }
         if version == 6 { return v6BackupRecordFields }

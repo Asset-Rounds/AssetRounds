@@ -3353,7 +3353,6 @@ private enum C45AssetLabelTestSupport {
                 let fixtureJobOwner = try coordinator.originalAssetLabelFixtureJobOwnerForTesting(
                     expectedWriter: writer
                 )
-                let registry = fixtureJobOwner.registry
                 let epoch = fixtureJobOwner.epoch
                 let contractFixture = try fixture(itemCount: 1, workspaceID: coordinator.workspaceID)
                 let journal = try MutationJournalStoreV1(
@@ -3459,80 +3458,25 @@ private enum C45AssetLabelTestSupport {
                 )
                 let projection = try DeterministicPDFRendererV1.renderAssetLabels(plan)
                 let contentStore = EvidenceBundleStore(generationRootURL: coordinator.generationRootURL)
-                let stagingRoot = coordinator.generationRootURL
-                    .appendingPathComponent("operational", isDirectory: true)
-                    .appendingPathComponent("local-job-staging-v1", isDirectory: true)
-                let artifactOperations = try AssetLabelArtifactOperationsV1.production(
-                    jobStagingRootURL: stagingRoot,
-                    contentStore: contentStore
-                )
                 XCTAssertEqual(epoch.generationID, coordinator.generationID)
-                let publicationAdapter = GenerationLocalJobPublicationAdapterV1(
-                    currentGenerationEpoch: { epoch },
-                    withAuthorizedCommit: { expected, effect in
-                        guard expected == epoch else {
-                            throw GenerationLocalJobPublicationFailureV1.staleGeneration
-                        }
-                        return try effect()
-                    }
+                // Build C05 through the source coordinator's canonical retained owner.
+                // The later Erase capture borrows this same retained runner.
+                let production = try ProductionCompositionRoot(
+                    storeSession: coordinator,
+                    diagnosticsStore: diagnostics,
+                    profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
                 )
-                let runner = try ResumableLocalJobRunnerV1(
-                    store: LocalJobStoreV1(applicationSupportURL: support),
-                    stagingRootURL: stagingRoot,
-                    generationLeaseRegistry: registry,
-                    generationPublicationAdapter: publicationAdapter,
-                    maximumConcurrency: 1
+                let workflow = try await production.makeAssetLabelWorkflow(
+                    generationEpoch: epoch,
+                    accessGate: owner.accessGate
                 )
+                let runnerValue = try coordinator.originalC05RunnerForErase()
+                let runner = try XCTUnwrap(runnerValue,
+                    "Canonical C05 workflow must retain the original coordinator-owned runner")
                 let query = AcceptedLabelGenerationSnapshotQueryV1(
                     modelContext: coordinator.modelContext
                 )
-                let lifecycle = await AssetLabelLifecycleAdapterV1(
-                    authority: AssetLabelAuthoritativePlanAdapterV1 { candidate in
-                        try candidate.validate()
-                        guard candidate.workspaceID == coordinator.workspaceID else {
-                            throw WorkspaceMutationFailureV1.wrongWorkspace
-                        }
-                        for item in candidate.items {
-                            let candidateAssetID = item.assetID
-                            let assets = try coordinator.modelContext.fetch(
-                                FetchDescriptor<Asset>(
-                                    predicate: #Predicate { $0.id == candidateAssetID }
-                                )
-                            )
-                            let identity = try WorkspaceEntityIdentityV1(
-                                kind: .asset, id: candidateAssetID
-                            )
-                            let stableKey = identity.stableKey
-                            let revisions = try coordinator.modelContext.fetch(
-                                FetchDescriptor<EntityMutationRevisionRow>(
-                                    predicate: #Predicate { $0.stableIdentity == stableKey }
-                                )
-                            )
-                            let locator = try await locatorQuery.locator(
-                                id: item.locator.locatorID, workspaceID: candidate.workspaceID
-                            )
-                            let receipt = try await locatorQuery.bindingReceipt(
-                                id: item.bindingReceiptID, workspaceID: candidate.workspaceID
-                            )
-                            guard let locator, let receipt,
-                                  assets.count == 1, revisions.count == 1,
-                                  let revision = revisions.first?.revision, revision > 0,
-                                  UInt64(revision) == item.assetRevision,
-                                  locator.assetID == item.assetID,
-                                  locator.state == item.locatorState,
-                                  try locator.reference == item.locator,
-                                  receipt.after == item.locator,
-                                  receipt.revision == item.bindingReceiptRevision,
-                                  receipt.receiptSHA256 == item.bindingReceiptSHA256 else {
-                                throw WorkspaceMutationFailureV1.invalidCommand
-                            }
-                        }
-                    },
-                    writer: writer,
-                    query: query,
-                    jobs: runner,
-                    artifacts: artifactOperations
-                )
+                let lifecycle = workflow.lifecycle
                 let job = try await lifecycle.enqueueValidatedPlan(
                     plan,
                     generationEpoch: epoch,

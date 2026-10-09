@@ -1945,7 +1945,7 @@ final class KernelConformanceProductionHarnessV1 {
     private var lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
     // Root-owned retention is established before Erase can acquire resources.
     // Error lifetimes and caller defer ordering cannot bypass this inventory.
-    private let eraseCleanupOwners = KernelConformanceEraseCleanupOwnersV1()
+    private let eraseCleanupOwners: KernelConformanceEraseCleanupOwnersV1
     private final class FaultEraseLifetime {
         let root: URL
         let originalRouter: StartupRouter
@@ -1989,6 +1989,10 @@ final class KernelConformanceProductionHarnessV1 {
         )
         root = harnessRoot
         activeApplicationSupportURL = harnessRoot
+        // Prepare this harness's real device-local auxiliary directories before
+        // any Factory opens a source owner. Erase must not borrow process TMP
+        // or a cache directory belonging to another harness.
+        eraseCleanupOwners = try KernelConformanceEraseCleanupOwnersV1(root: harnessRoot)
         session = try StoreGenerationFactory(
             applicationSupportURL: activeApplicationSupportURL
         ).openOrBootstrapCurrent()
@@ -2031,10 +2035,19 @@ final class KernelConformanceProductionHarnessV1 {
         actions.append("PROJECT")
         _ = try prepareProductionArchive()
         actions.append("ARCHIVE")
-        let restored = try await exerciseArchiveRestoreRoundTrip()
-        actions.append("RESTORE")
-        let restoredAssetCount = try restored.modelContext.fetchCount(FetchDescriptor<Asset>())
-        let restoredReportCount = try restored.modelContext.fetchCount(FetchDescriptor<Report>())
+        // Return only scalar observations. The restored reader must not remain
+        // in this caller's async frame when the genuine Router admits Erase.
+        let restoredCounts: (assets: Int, reports: Int) = try await {
+            () async throws -> (assets: Int, reports: Int) in
+            let restored = try await exerciseArchiveRestoreRoundTrip()
+            actions.append("RESTORE")
+            return (
+                try restored.modelContext.fetchCount(FetchDescriptor<Asset>()),
+                try restored.modelContext.fetchCount(FetchDescriptor<Report>())
+            )
+        }()
+        let restoredAssetCount = restoredCounts.assets
+        let restoredReportCount = restoredCounts.reports
         let search = try await coordinator.rebuildSearchProjectionIfNeeded()
         actions.append("SEARCH")
         let deletion = try await deleteFirstAssetThroughProductionService(
@@ -2042,30 +2055,34 @@ final class KernelConformanceProductionHarnessV1 {
         )
         actions.append("DELETE")
         if shape == .measurementRepeat {
-            try relaunchCanonicalSession()
-            let registry = try WorkspacePackageLifecycleProfileRegistryV1(
-                profiles: [validationProfile]
-            )
-            let dependencies = try coordinator.packageLifecycleDependencies(
-                profileRegistry: registry
-            )
-            let deletionRecovery = WholeSignDeletionService(
-                modelContext: coordinator.modelContext,
-                lifecycleDependencies: dependencies
-            )
-            let firstRecovery = try await deletionRecovery.reconcile()
-            let secondRecovery = try await deletionRecovery.reconcile()
-            let ledger = try DeletionLedgerStore(context: coordinator.modelContext).snapshot()
-            guard firstRecovery.cancelledPreparedCount == 0,
-                  firstRecovery.completedCommittedCount == 0,
-                  secondRecovery.cancelledPreparedCount == 0,
-                  secondRecovery.completedCommittedCount == 0,
-                  try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0,
-                  ledger.entries.contains(where: {
-                      $0.identity.kind == .asset && $0.identity.id == deletion.assetID
-                  }) else {
-                throw KernelConformanceFixtureFailureV1.incompleteCoverage("delete-recovery")
-            }
+            // End this genuine recovery/dependency frame before Erase; its
+            // service retains the model context and dependencies retain the writer.
+            try await { () async throws -> Void in
+                try relaunchCanonicalSession()
+                let registry = try WorkspacePackageLifecycleProfileRegistryV1(
+                    profiles: [validationProfile]
+                )
+                let dependencies = try coordinator.packageLifecycleDependencies(
+                    profileRegistry: registry
+                )
+                let deletionRecovery = WholeSignDeletionService(
+                    modelContext: coordinator.modelContext,
+                    lifecycleDependencies: dependencies
+                )
+                let firstRecovery = try await deletionRecovery.reconcile()
+                let secondRecovery = try await deletionRecovery.reconcile()
+                let ledger = try DeletionLedgerStore(context: coordinator.modelContext).snapshot()
+                guard firstRecovery.cancelledPreparedCount == 0,
+                      firstRecovery.completedCommittedCount == 0,
+                      secondRecovery.cancelledPreparedCount == 0,
+                      secondRecovery.completedCommittedCount == 0,
+                      try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0,
+                      ledger.entries.contains(where: {
+                          $0.identity.kind == .asset && $0.identity.id == deletion.assetID
+                      }) else {
+                    throw KernelConformanceFixtureFailureV1.incompleteCoverage("delete-recovery")
+                }
+            }()
             actions.append("RECOVER")
             _ = try await eraseWorkspaceThroughProductionService(profile: validationProfile)
             actions.append("ERASE")
@@ -2286,6 +2303,7 @@ final class KernelConformanceProductionHarnessV1 {
             identity: identity, limits: limits, profile: profile
         )
         let siteID = Self.fixedUUID(label: "K", slot: 602)
+        let firstSignMutationID = try MutationIDV1(rawValue: Self.fixedUUID(label: "K", slot: 607))
         _ = try node.coordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
@@ -2295,15 +2313,13 @@ final class KernelConformanceProductionHarnessV1 {
                 packSchemaVersion: profile.package.schemaVersion,
                 packContentVersion: profile.package.contentVersion,
                 createdAt: Date(timeIntervalSince1970: 1_700_060_000),
-                initialPlacementMutationID: try MutationIDV1(
-                    rawValue: Self.fixedUUID(label: "K", slot: 604)
-                ),
+                initialPlacementMutationID: firstSignMutationID,
                 initialPlacementEventID: Self.fixedUUID(label: "K", slot: 605),
                 initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
                     rawValue: Self.fixedUUID(label: "K", slot: 606)
                 )
             )),
-            mutationID: try MutationIDV1(rawValue: Self.fixedUUID(label: "K", slot: 607))
+            mutationID: firstSignMutationID
         )
         let checkpoint = try node.journal.prepareCheckpoint(
             supplement: .init(contentEntries: [], reversalEligibility: [])
@@ -4219,6 +4235,7 @@ final class KernelConformanceProductionHarnessV1 {
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
             )
             let siteID = Self.fixedUUID(label: "J", slot: 410)
+            let firstSignMutationID = try MutationIDV1(rawValue: Self.fixedUUID(label: "J", slot: 415))
             _ = try active.workspaceWriter.execute(
                 .createFirstSign(.init(
                     siteID: siteID,
@@ -4228,15 +4245,13 @@ final class KernelConformanceProductionHarnessV1 {
                     packSchemaVersion: profile.package.schemaVersion,
                     packContentVersion: profile.package.contentVersion,
                     createdAt: Date(timeIntervalSince1970: 1_700_030_000),
-                    initialPlacementMutationID: try MutationIDV1(
-                        rawValue: Self.fixedUUID(label: "J", slot: 412)
-                    ),
+                    initialPlacementMutationID: firstSignMutationID,
                     initialPlacementEventID: Self.fixedUUID(label: "J", slot: 413),
                     initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
                         rawValue: Self.fixedUUID(label: "J", slot: 414)
                     )
                 )),
-                mutationID: try MutationIDV1(rawValue: Self.fixedUUID(label: "J", slot: 415))
+                mutationID: firstSignMutationID
             )
             let journal = try active.localChangeJournal(
                 backupExport: backup, limits: limits,
@@ -4376,6 +4391,7 @@ final class KernelConformanceProductionHarnessV1 {
             export: transported.export, packageData: transported.packageData
         )
         let siteID = Self.fixedUUID(label: "A", slot: 510)
+        let firstSignMutationID = try MutationIDV1(rawValue: Self.fixedUUID(label: "A", slot: 515))
         let outcome = try source.coordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
@@ -4385,15 +4401,13 @@ final class KernelConformanceProductionHarnessV1 {
                 packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
                 packContentVersion: SignPack.illuminatedSignV1.contentVersion,
                 createdAt: Date(timeIntervalSince1970: 1_700_031_000),
-                initialPlacementMutationID: try MutationIDV1(
-                    rawValue: Self.fixedUUID(label: "A", slot: 512)
-                ),
+                initialPlacementMutationID: firstSignMutationID,
                 initialPlacementEventID: Self.fixedUUID(label: "A", slot: 513),
                 initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
                     rawValue: Self.fixedUUID(label: "A", slot: 514)
                 )
             )),
-            mutationID: try MutationIDV1(rawValue: Self.fixedUUID(label: "A", slot: 515))
+            mutationID: firstSignMutationID
         )
         let cursor = try source.journal.initialCursor(
             consumerReplicaID: destinationIdentity.replicaID,
@@ -4450,7 +4464,8 @@ final class KernelConformanceProductionHarnessV1 {
         label: String
     ) async throws -> UUID {
         let siteID = UUID(), assetID = UUID()
-        _ = try await coordinator.executeAndSynchronizeSearchIndex(
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try coordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
                 newSite: .init(
@@ -4462,11 +4477,13 @@ final class KernelConformanceProductionHarnessV1 {
                 packSchemaVersion: profile.package.schemaVersion,
                 packContentVersion: profile.package.contentVersion,
                 createdAt: Date(timeIntervalSince1970: 1_700_040_000),
-                initialPlacementMutationID: try MutationIDV1(rawValue: UUID()),
+                initialPlacementMutationID: placementMutationID,
                 initialPlacementEventID: UUID(),
                 initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
-            ))
+            )),
+            mutationID: placementMutationID
         )
+        try await coordinator.awaitSearchIndexLifecycle()
         return assetID
     }
 
@@ -4584,6 +4601,7 @@ final class KernelConformanceProductionHarnessV1 {
             }
             if maximum >= 1 {
                 let siteID = Self.fixedUUID(label: label, slot: 10)
+                let firstSignMutationID = try MutationIDV1(rawValue: Self.fixedUUID(label: label, slot: 101))
                 let command = WorkspaceCommandV1.createFirstSign(FirstSignMutationV1(
                     siteID: siteID,
                     newSite: .init(
@@ -4596,9 +4614,7 @@ final class KernelConformanceProductionHarnessV1 {
                     packSchemaVersion: profile.package.schemaVersion,
                     packContentVersion: profile.package.contentVersion,
                     createdAt: Date(timeIntervalSince1970: 1_700_001_000),
-                    initialPlacementMutationID: try MutationIDV1(
-                        rawValue: Self.fixedUUID(label: label, slot: 12)
-                    ),
+                    initialPlacementMutationID: firstSignMutationID,
                     initialPlacementEventID: Self.fixedUUID(label: label, slot: 13),
                     initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
                         rawValue: Self.fixedUUID(label: label, slot: 14)
@@ -4606,9 +4622,7 @@ final class KernelConformanceProductionHarnessV1 {
                 ))
                 outcomes["\(label)1"] = try node.coordinator.workspaceWriter.execute(
                     command,
-                    mutationID: try MutationIDV1(
-                        rawValue: Self.fixedUUID(label: label, slot: 101)
-                    )
+                    mutationID: firstSignMutationID
                 )
             }
             if maximum >= 2 {
@@ -4850,10 +4864,13 @@ final class KernelConformanceProductionHarnessV1 {
                 modelContext: restored.modelContext,
                 lifecycleDependencies: restoredDependencies
             ).delete(assetID: assetID)
-            let eraseOwner = KernelConformanceEraseOwnerV1(support: restoreSupport, registry: registry)
+            let eraseOwner = KernelConformanceEraseOwnerV1(support: restoreSupport,
+                cachesDirectoryURL: cleanupOwners.cachesDirectoryURL,
+                temporaryDirectoryURL: cleanupOwners.temporaryDirectoryURL,
+                registry: registry)
             cleanupOwners.retain(eraseOwner, support: restoreSupport)
-            try await eraseOwner.prepare(coordinator: restoredCoordinator,
-                dependencies: restoredDependencies)
+            try eraseOwner.releasePriorSource(session: restored,
+                coordinator: restoredCoordinator)
             return (
                 restoreActivated,
                 search.indexedRecordCount > 0,
@@ -4862,7 +4879,9 @@ final class KernelConformanceProductionHarnessV1 {
             )
         }()
         // All restored session/coordinator/dependency aliases above have exited.
-        // The operation's real drain witness, not the end of this scope, decides.
+        // Observe their actual weak release before starting another provider;
+        // the Router operation still supplies the real retirement drain proof.
+        try await prepared.eraseOwner.prepare()
         try await prepared.eraseOwner.finishAndReleaseFreshOwner()
         let chain = (restoreActivated: prepared.restoreActivated,
             searchRebuilt: prepared.searchRebuilt, deletionCommitted: prepared.deletionCommitted,
@@ -5030,14 +5049,18 @@ final class KernelConformanceProductionHarnessV1 {
                 "production-profile-registry"
             )
         }
-        let owner = KernelConformanceEraseOwnerV1(support: activeApplicationSupportURL, registry: registry)
+        let owner = KernelConformanceEraseOwnerV1(support: activeApplicationSupportURL,
+            cachesDirectoryURL: eraseCleanupOwners.cachesDirectoryURL,
+            temporaryDirectoryURL: eraseCleanupOwners.temporaryDirectoryURL,
+            registry: registry)
         eraseCleanupOwners.retain(owner, support: activeApplicationSupportURL)
-        try await owner.prepare(coordinator: coordinator,
-            dependencies: coordinator.packageLifecycleDependencies(profileRegistry: registry))
+        try owner.releasePriorSource(session: session, coordinator: coordinator)
         coordinator = nil
         session = nil
-        // Clearing our aliases is necessary, but only the actual owner witness
-        // in advanceCleanup proves that every captured reader has drained.
+        // Prior aliases must actually drain before Router opens its own READY
+        // source. Nil assignments cannot substitute for either weak witness
+        // or the operation's genuine retirement proof in advanceCleanup.
+        try await owner.prepare()
         try await owner.finishAndReleaseFreshOwner()
         let reopened = try StoreGenerationFactory(applicationSupportURL: activeApplicationSupportURL)
             .openOrBootstrapCurrent()
@@ -5067,7 +5090,8 @@ final class KernelConformanceProductionHarnessV1 {
             initialPlacementEventID: UUID(),
             initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
         ))
-        _ = try await coordinator.executeAndSynchronizeSearchIndex(command)
+        _ = try coordinator.workspaceWriter.execute(command, mutationID: placementMutationID)
+        try await coordinator.awaitSearchIndexLifecycle()
     }
 
     func exercisePackageLifecycle(
@@ -5225,7 +5249,25 @@ final class KernelConformanceProductionHarnessV1 {
                     checkRunnerCoordinator: activeRunner,
                     lifecycleDependencies: activeDependencies
                 )
+                // Keep the genuine work draft on the fixture's fixed lifecycle timeline.
+                let workStartedAt = observedAt.addingTimeInterval(20)
+                let preparedWorkDraft = try activeRunner.beginOrResumeDraft(BeginDraftSubmission(
+                    assetID: assetID,
+                    requestedStage: .work,
+                    issueID: finalizedIssueID,
+                    observedAtUTC: workStartedAt,
+                    confirmedTimeZoneID: nil,
+                    afterDarkAccepted: false,
+                    safePositionAccepted: false
+                ))
+                let preparedWorkDraftID = preparedWorkDraft.id
+                let preparedWorkStartedAt = preparedWorkDraft.startedAt
                 let workDraft = try work.beginWork(issueID: finalizedIssueID)
+                guard preparedWorkStartedAt == workStartedAt,
+                      workDraft.recordID == preparedWorkDraftID,
+                      workDraft.startedAt == workStartedAt else {
+                    throw KernelConformanceFixtureFailureV1.incompleteCoverage("work-draft-resume")
+                }
                 let workMutationID = UUID()
                 let saved = try await work.saveWork(
                     draftID: workDraft.recordID,
@@ -7421,6 +7463,9 @@ extension KernelConformanceFixtureHarnessV1 {
 @MainActor
 private final class KernelConformanceEraseOwnerV1 {
     private let support: URL
+    private let cachesDirectoryURL: URL
+    private let temporaryDirectoryURL: URL
+    private let registry: WorkspacePackageLifecycleProfileRegistryV1
     private let router: StartupRouter
     private let gate: AppAccessGateV1
     private var operation: EraseRouterOperationV1?
@@ -7429,9 +7474,36 @@ private final class KernelConformanceEraseOwnerV1 {
     private var activationFailure: Error?
     private weak var freshContext: ModelContext?
     private weak var freshContainer: ModelContainer?
+    private weak var priorSession: StoreGenerationSession?
+    private weak var priorCoordinator: StoreSessionCoordinator?
+    private weak var priorWriter: WorkspaceWriterV1?
+    private weak var priorContext: ModelContext?
+    private weak var priorContainer: ModelContainer?
+    private var retainedPriorSource: (
+        session: StoreGenerationSession, coordinator: StoreSessionCoordinator
+    )?
+    private var priorWriterClosed = false
+    private var priorReleaseObserved = false
+    private var priorGenerationID: UUID?
+    private var priorWorkspaceID: WorkspaceID?
+    private var priorGenerationRootURL: URL?
+#if DEBUG
+    private var lastServiceStage = "before-service-entry"
+#endif
 
-    init(support: URL, registry: WorkspacePackageLifecycleProfileRegistryV1) {
+    private enum Stage: String {
+        case priorSourceAssociation, priorWriterClose, priorSourceDrain
+        case authentication, startupBind, startup, readySource, lifecycleDependencies
+        case admission, retirementOperation, serviceConfiguration, service, activation
+        case retirementDrain, completedReceipt, adoption, freshStartup, freshOwnerRelease
+    }
+
+    init(support: URL, cachesDirectoryURL: URL, temporaryDirectoryURL: URL,
+        registry: WorkspacePackageLifecycleProfileRegistryV1) {
         self.support = support
+        self.cachesDirectoryURL = cachesDirectoryURL
+        self.temporaryDirectoryURL = temporaryDirectoryURL
+        self.registry = registry
         gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
             authentication: KernelConformanceEraseAuthenticationV1(),
             clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
@@ -7442,18 +7514,97 @@ private final class KernelConformanceEraseOwnerV1 {
             lifecycleProfileRegistry: registry)
     }
 
-    func prepare(coordinator: StoreSessionCoordinator,
-        dependencies: WorkspacePackageLifecycleDependenciesV1) async throws {
+    /// The checked writer close precedes every alias drop. These weak
+    /// observations are fixture lifetime checks, never retirement authority.
+    /// The caller must end its dependency/session scopes before prepare.
+    func releasePriorSource(session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator) throws {
+        var stage = Stage.priorSourceAssociation
         do {
+            guard !priorWriterClosed, priorGenerationID == nil, retainedPriorSource == nil else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-prior-source-association")
+            }
+            // Retain before the first checked close. A failed close cannot
+            // disappear when the post-convergence caller's local frame exits.
+            retainedPriorSource = (session, coordinator)
+            guard coordinator.modelContext === session.modelContext,
+                  coordinator.generationID == session.generationID else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-prior-source-association")
+            }
+            priorSession = session
+            priorCoordinator = coordinator
+            priorWriter = coordinator.workspaceWriter
+            priorContext = session.modelContext
+            priorContainer = session.modelContext.container
+            priorGenerationID = session.generationID
+            priorWorkspaceID = session.workspaceID
+            priorGenerationRootURL = session.generationRootURL.standardizedFileURL
+            stage = .priorWriterClose
+            try coordinator.invalidateAndReleaseWriter()
+            priorWriterClosed = true
+            retainedPriorSource = nil
+        } catch {
+            recordFailure(error, stage: stage)
+            throw RetainedFailure(owner: self, underlying: error)
+        }
+    }
+
+    func prepare() async throws {
+        var stage = Stage.priorSourceDrain
+        do {
+            guard priorWriterClosed, !priorReleaseObserved else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-prior-writer-close")
+            }
+            // Use the existing bounded fault-fixture drainage interval. A
+            // surviving reader or dependency's writer refuses fresh startup.
+            for _ in 0..<1_500 {
+                if priorSession == nil, priorCoordinator == nil, priorWriter == nil,
+                   priorContext == nil, priorContainer == nil {
+                    priorReleaseObserved = true
+                    break
+                }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            guard priorReleaseObserved else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-prior-owner-release-pending")
+            }
+            stage = .authentication
             guard await gate.authenticate(trigger: .unlock) == .authenticated else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-authentication")
             }
+            stage = .startupBind
             try router.bindStartupAccessGate(gate)
+            stage = .startup
+            try await router.startIfNeeded(accessGate: gate)
+            stage = .readySource
+            guard case let .ready(coordinator, diagnostics, _) = router.route,
+                  coordinator.generationID == priorGenerationID,
+                  coordinator.workspaceID == priorWorkspaceID,
+                  coordinator.generationRootURL.standardizedFileURL == priorGenerationRootURL else {
+                if case let .maintenance(reason) = router.route {
+                    recordFailure(reason, stage: .readySource)
+                }
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-original-router-ready")
+            }
+            stage = .lifecycleDependencies
+            let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
+            guard dependencies.workspaceID == priorWorkspaceID,
+                  dependencies.generationID == priorGenerationID,
+                  dependencies.generationRootURL.standardizedFileURL == priorGenerationRootURL,
+                  dependencies.writer === coordinator.workspaceWriter,
+                  dependencies.profileRegistry == registry else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-original-router-dependencies")
+            }
+            stage = .admission
             let ticket = try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)
+            stage = .retirementOperation
             let actualOperation = try router.eraseRetirementOperation(for: ticket)
             operation = actualOperation
+            stage = .serviceConfiguration
             let service = try router.configureEraseService(EraseAllService(
                 applicationSupportURL: support,
+                cachesDirectoryURL: cachesDirectoryURL,
+                temporaryDirectoryURL: temporaryDirectoryURL,
                 admitErase: { [self] subject in
                     if let authorization = try await router.eraseAdmissionAuthorization(ticket, subject: subject) {
                         let token = try await gate.reserveEraseAdoption(subject: subject, authorization: authorization)
@@ -7466,8 +7617,16 @@ private final class KernelConformanceEraseOwnerV1 {
                     }
                     return reservation
                 }), operation: actualOperation)
+#if DEBUG
+            // This callback supplies only the service's closed fixed labels;
+            // it never enables the verbose Factory diagnostic path.
+            service.schema2ColdFixedStageForTesting = { [weak self] phase in
+                self?.lastServiceStage = phase
+            }
+#endif
+            stage = .service
             serviceOutcome = try await service.erase(confirmation: EraseAllService.requiredConfirmation,
-                coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: support),
+                coordinator: coordinator, diagnosticsStore: diagnostics,
                 operation: actualOperation,
                 activate: { [self, weak coordinator] replacement in
                     do {
@@ -7476,30 +7635,45 @@ private final class KernelConformanceEraseOwnerV1 {
                         }
                         try router.activateErasePreparationSession(replacement,
                             coordinator: coordinator, operation: actualOperation)
-                    } catch { activationFailure = error }
+                    } catch {
+                        recordFailure(error, stage: .activation)
+                        activationFailure = error
+                    }
                 }, lifecycleDependencies: dependencies)
+            stage = .activation
             if let activationFailure { throw activationFailure }
-        } catch { throw RetainedFailure(owner: self, underlying: error) }
+        } catch {
+            recordFailure(error, stage: stage)
+            throw RetainedFailure(owner: self, underlying: error)
+        }
     }
 
     /// Must run only after every caller source reader scope has ended.
     func finishAndReleaseFreshOwner() async throws {
+        var stage = Stage.retirementDrain
         do {
             guard let operation, let reservation,
                   try await operation.advanceCleanup() else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-actual-reader-drain-pending")
             }
+            stage = .completedReceipt
             let (_, _, completed) = try operation.completedRetirement()
             guard let completed else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-completed-receipt")
             }
+            stage = .adoption
             try await gate.adoptCompletedErase(completed, token: reservation)
+            stage = .freshStartup
             try await router.finishRetiredEraseActivation(operation, accessGate: gate)
+            stage = .freshOwnerRelease
             try releaseFreshPublishedOwner()
             guard freshContext == nil, freshContainer == nil else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-fresh-owner-release-pending")
             }
-        } catch { throw RetainedFailure(owner: self, underlying: error) }
+        } catch {
+            recordFailure(error, stage: stage)
+            throw RetainedFailure(owner: self, underlying: error)
+        }
     }
 
     private func releaseFreshPublishedOwner() throws {
@@ -7518,6 +7692,101 @@ private final class KernelConformanceEraseOwnerV1 {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-service-outcome")
         }
         return serviceOutcome
+    }
+
+    /// Only closed typed metadata and fixed stages reach DEBUG output. Keep
+    /// arbitrary descriptions, associated values, paths and identities out.
+    private func recordFailure(_ error: Error, stage: Stage) {
+#if DEBUG
+        let metadata: (type: String, code: String)
+        switch error {
+        case let failure as GenerationLeaseRegistryFailureV1:
+            let code: String
+            switch failure {
+            case .invalidContract: code = "invalid-contract"
+            case .invalidPath: code = "invalid-path"
+            case .invalidIdentity: code = "invalid-identity"
+            case .corruptRegistry: code = "corrupt-registry"
+            case .registryLimitExceeded: code = "registry-limit-exceeded"
+            case .duplicateLease: code = "duplicate-lease"
+            case .leaseNotActive: code = "lease-not-active"
+            case .wrongLeaseRole: code = "wrong-lease-role"
+            case .staleGeneration: code = "stale-generation"
+            case .uncertainOwner: code = "uncertain-owner"
+            case .protectedDataUnavailable: code = "protected-data-unavailable"
+            }
+            metadata = ("generation-lease", code)
+        case let failure as AppAccessContractFailureV1:
+            let code: String
+            switch failure {
+            case .invalidValue: code = "invalid-value"
+            case .invalidTransition: code = "invalid-transition"
+            case .staleAttempt: code = "stale-attempt"
+            case .accessDenied: code = "access-denied"
+            case .configurationUnknown: code = "configuration-unknown"
+            case .ingressLimitExceeded: code = "ingress-limit-exceeded"
+            case .ingressNotFound: code = "ingress-not-found"
+            case .ingressAlreadyTerminal: code = "ingress-already-terminal"
+            case .notificationReconciliationRequired: code = "notification-reconciliation-required"
+            case .effectMismatch: code = "effect-mismatch"
+            }
+            metadata = ("app-access", code)
+        case let failure as EraseAllServiceError:
+            let code: String
+            switch failure {
+            case .contextHasChanges: code = "context-has-changes"
+            case .invalidAuthority: code = "invalid-authority"
+            case .invalidConfirmation: code = "invalid-confirmation"
+            case .recoveryRequired: code = "recovery-required"
+            case .injectedFailure: code = "injected-failure"
+            }
+            metadata = ("erase-service", code)
+        case let failure as StoreGenerationFailure:
+            switch failure {
+            case .dataPointerInvalid: metadata = ("store-generation", "data-pointer-invalid")
+            case .dataGenerationMissing: metadata = ("store-generation", "data-generation-missing")
+            }
+        case let failure as StartupMaintenanceReason:
+            // This enum is a closed, payload-free Source vocabulary.
+            metadata = ("startup-maintenance", failure.rawValue)
+        case let failure as KernelConformanceFixtureFailureV1:
+            let code: String
+            switch failure {
+            case .missingArtifact: code = "missing-artifact"
+            case .invalidArtifact: code = "invalid-artifact"
+            case .incompleteCoverage(let boundary):
+                switch boundary {
+                case "erase-prior-source-association": code = "prior-source-association"
+                case "erase-prior-writer-close": code = "prior-writer-close"
+                case "erase-prior-owner-release-pending": code = "prior-owner-release-pending"
+                case "erase-authentication": code = "authentication"
+                case "erase-original-router-ready": code = "original-router-ready"
+                case "erase-original-router-dependencies": code = "original-router-dependencies"
+                case "erase-reservation": code = "reservation"
+                case "erase-preparation-owner": code = "preparation-owner"
+                case "erase-actual-reader-drain-pending": code = "actual-reader-drain-pending"
+                case "erase-completed-receipt": code = "completed-receipt"
+                case "erase-fresh-owner-release-pending": code = "fresh-owner-release-pending"
+                case "erase-fresh-publication": code = "fresh-publication"
+                case "erase-service-outcome": code = "service-outcome"
+                default: code = "other-incomplete-coverage"
+                }
+            }
+            metadata = ("kernel-fixture", code)
+        case let failure as WorkspaceMutationFailureV1:
+            switch failure {
+            case .invalidReversal: metadata = ("workspace-mutation", "invalid-reversal")
+            case .writerInvalidated: metadata = ("workspace-mutation", "writer-invalidated")
+            case .wrongWriterInstance: metadata = ("workspace-mutation", "wrong-writer-instance")
+            case .wrongWorkspace: metadata = ("workspace-mutation", "wrong-workspace")
+            case .wrongGeneration: metadata = ("workspace-mutation", "wrong-generation")
+            default: metadata = ("workspace-mutation", "other-workspace-mutation")
+            }
+        default:
+            metadata = ("other", "unclassified")
+        }
+        print("KERNEL_ERASE_FIXTURE_FAILURE_V1 stage=\(stage.rawValue) serviceStage=\(lastServiceStage) errorType=\(metadata.type) errorCode=\(metadata.code)")
+#endif
     }
 
     /// Keep the real pending owner reachable with its failure; never reopen a
@@ -7544,7 +7813,35 @@ private actor KernelConformanceEraseAuthenticationV1: LocalAuthenticationClient 
 /// primary root and nested restore-proof owner are retained before prepare.
 @MainActor
 private final class KernelConformanceEraseCleanupOwnersV1 {
+    let cachesDirectoryURL: URL
+    let temporaryDirectoryURL: URL
     private var owners: [(support: URL, owner: KernelConformanceEraseOwnerV1)] = []
+
+    private enum SetupStage: String {
+        case cachesDirectory, temporaryDirectory
+    }
+
+    init(root: URL) throws {
+        let auxiliaryRoot = root.appendingPathComponent("erase-auxiliary", isDirectory: true)
+        cachesDirectoryURL = auxiliaryRoot.appendingPathComponent("Caches", isDirectory: true)
+            .standardizedFileURL
+        temporaryDirectoryURL = auxiliaryRoot.appendingPathComponent("tmp", isDirectory: true)
+            .standardizedFileURL
+        var stage = SetupStage.cachesDirectory
+        do {
+            try FileManager.default.createDirectory(at: cachesDirectoryURL,
+                withIntermediateDirectories: true)
+            stage = .temporaryDirectory
+            try FileManager.default.createDirectory(at: temporaryDirectoryURL,
+                withIntermediateDirectories: true)
+        } catch {
+#if DEBUG
+            print("KERNEL_ERASE_FIXTURE_SETUP_FAILURE_V1 stage=\(stage.rawValue) errorType=filesystem errorCode=directory-create")
+#endif
+            throw error
+        }
+    }
+
     func retain(_ owner: KernelConformanceEraseOwnerV1, support: URL) {
         owners.append((support, owner))
     }

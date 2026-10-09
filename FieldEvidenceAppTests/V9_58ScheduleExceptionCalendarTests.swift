@@ -659,14 +659,14 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
         let frontier = try ScheduleChangeFrontierV1(
             workspaceID: C51ScheduleTestSupport.workspace(), scheduleRelease: schedule,
             calendarRelease: calendar.reference, overrideEvents: [],
-            occurrenceClosureSHA256: C51ScheduleTestSupport.digest("g"),
+            occurrenceClosureSHA256: try ScheduleCanonicalCodecV1.sha256([ScheduleChangeOccurrenceInputV1]()),
             evaluatedRange: evaluatedRange, budget: budget
         )
         XCTAssertNoThrow(try frontier.validate())
         XCTAssertThrowsError(try ScheduleChangeFrontierV1(
             workspaceID: C51ScheduleTestSupport.workspace(2), scheduleRelease: schedule,
             calendarRelease: calendar.reference, overrideEvents: [],
-            occurrenceClosureSHA256: C51ScheduleTestSupport.digest("g"),
+            occurrenceClosureSHA256: frontier.occurrenceClosureSHA256,
             evaluatedRange: evaluatedRange, budget: budget
         ))
 
@@ -675,10 +675,17 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
             identityNamespaceID: schedule.occurrenceIdentityNamespaceID,
             nominalKey: "2025-01-01T09:00:00"
         )
+        let staleOverrideFrontier = try ScheduleOverridePrecedenceV1.closureSHA256([
+            try C51ScheduleTestSupport.override(
+                schedule: schedule, targetDate: "2025-01-01", occurrenceID: exactOccurrence,
+                scope: .thisOccurrence, kind: .skip, effectiveRange: evaluatedRange,
+                slot: 302, expectedFrontier: try ScheduleOverridePrecedenceV1.closureSHA256([])
+            )
+        ])
         let staleOverride = try C51ScheduleTestSupport.override(
             schedule: schedule, targetDate: "2025-01-01", occurrenceID: exactOccurrence,
             scope: .thisOccurrence, kind: .skip, effectiveRange: evaluatedRange,
-            slot: 301, expectedFrontier: C51ScheduleTestSupport.digest("s")
+            slot: 301, expectedFrontier: staleOverrideFrontier
         )
         XCTAssertThrowsError(try ScheduleOverridePrecedenceV1.validateExpectedFrontier(
             staleOverride, against: []
@@ -804,9 +811,16 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
             schedule: schedule, occurrenceID: historyID, basis: resolvedA,
             action: .generated, slot: 420
         )
+        // Synthetic external bytes for this typed reference fixture.
+        let sessionFixtureBytes = try ScheduleCanonicalCodecV1.data([
+            "fixtureKind": "C51_SYNTHETIC_SESSION_BYTES_V1",
+            "workspaceID": schedule.workspaceID.rawValue.uuidString.lowercased(),
+            "sessionID": C51ScheduleTestSupport.id(421).uuidString.lowercased(),
+            "revision": "1"
+        ])
         let work = ScheduledWorkInstanceReferenceV1.roundSession(
             sessionID: C51ScheduleTestSupport.id(421), revision: 1,
-            sessionSHA256: C51ScheduleTestSupport.digest("w")
+            sessionSHA256: KernelCanonicalHashV1.sha256(sessionFixtureBytes)
         )
         let started = try C51ScheduleTestSupport.historyEvent(
             schedule: schedule, occurrenceID: historyID, basis: resolvedA,
@@ -859,7 +873,9 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
         let frontier = try ScheduleChangeFrontierV1(
             workspaceID: schedule.workspaceID, scheduleRelease: scheduleReference,
             calendarRelease: calendar.reference, overrideEvents: [proposed],
-            occurrenceClosureSHA256: C51ScheduleTestSupport.digest("h"),
+            occurrenceClosureSHA256: try ScheduleCanonicalCodecV1.sha256([
+                ScheduleChangeOccurrenceInputV1(occurrenceID: occurrenceID, state: .upcoming, basis: basis)
+            ]),
             evaluatedRange: effectiveRange, budget: try .init()
         )
         let effect = ScheduleChangeEffectV1(
@@ -871,10 +887,18 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
             frontier: frontier, proposedOverride: proposed, effects: [effect]
         )
         XCTAssertNoThrow(try preview.validate())
+        // Synthetic external bytes for this typed receipt-reference fixture.
+        let mutationReceiptFixtureBytes = try ScheduleCanonicalCodecV1.data([
+            "fixtureKind": "C51_SYNTHETIC_MUTATION_RECEIPT_BYTES_V1",
+            "workspaceID": schedule.workspaceID.rawValue.uuidString.lowercased(),
+            "mutationID": C51ScheduleTestSupport.id(512).uuidString.lowercased(),
+            "previewSHA256": preview.previewSHA256,
+            "committedOverrideSHA256": proposed.eventSHA256
+        ])
         let receipt = try ScheduleChangeReceiptV1(
             preview: preview, mutationID: try C51ScheduleTestSupport.mutation(512),
             committedOverride: proposed.reference,
-            canonicalMutationReceiptSHA256: C51ScheduleTestSupport.digest("i"),
+            canonicalMutationReceiptSHA256: KernelCanonicalHashV1.sha256(mutationReceiptFixtureBytes),
             committedAt: C51ScheduleTestSupport.base
         )
         XCTAssertNoThrow(try receipt.validate(preview: preview))

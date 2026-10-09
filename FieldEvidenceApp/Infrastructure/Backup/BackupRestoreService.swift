@@ -2133,6 +2133,9 @@ final class BackupRestoreService {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
         try Task.checkCancellation()
+        // An identifier callback can pause the original Restore. Revalidate
+        // its ticket before allocating destination identity or creating a target.
+        try await validateRestoreAccess(validateAccess)
         traceRestorePhase("destination-identity")
         let preliminaryIdentityDecision = try makeIdentityDecision(
             package: validatedPackage,
@@ -2342,8 +2345,9 @@ final class BackupRestoreService {
             let photoProof = try photo?.proof
             // Bind retirement and materialization to the same projected history.
             if mode == .clone, let history = expectedRecords.mutationHistory {
+                let projectedHistory = try ConfigurationCloneOperationalFamilyV1.projectingDroppedRevisions(history)
                 expectedRecords = replacingPhotoRestoreHistory(in: expectedRecords,
-                    with: try ConfigurationCloneOperationalFamilyV1.projectingDroppedRevisions(history))
+                    with: try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(projectedHistory))
             }
             let clone = mode == .clone ? try await prepareConfigurationClone(package: validatedPackage,
                 currentRecords: frozenCurrentRecords, destinationRecords: expectedRecords,
@@ -3172,6 +3176,14 @@ final class BackupRestoreService {
             authority: generationAuthority
         )
         let liveImportNames = try generationAuthority.importStagingNames()
+        var expectedInstalledNames = Set(retiredIDs.map(canonical))
+        expectedInstalledNames.insert(canonical(intent.oldGenerationID))
+        if presence.installed {
+            expectedInstalledNames.insert(canonical(intent.newGenerationID))
+        }
+        let expectedStagingNames: Set<String> = presence.staging
+            ? [canonical(intent.newGenerationID)]
+            : []
         if intent.phase == .prepared, !liveImportNames.isEmpty {
             guard liveImportNames.count == 1, presence.staging,
                   let stagedRecords = try validStagingGenerationRecords(
@@ -3192,6 +3204,14 @@ final class BackupRestoreService {
             let bindingURL = draftPublicationBindingURL(
                 restoreID: intent.restoreID
             )
+            // Prepared import recovery can publish draft bytes or discard the
+            // package. Prove membership first, then reprove it after those effects.
+            guard Set(try generationAuthority.installedGenerationNames())
+                    == expectedInstalledNames,
+                  Set(try generationAuthority.restoreGenerationNames())
+                    == expectedStagingNames else {
+                throw attributedRestoreAuthorityFailureV1(line: #line)
+            }
             if !fileManager.fileExists(atPath: bindingURL.path),
                let receipt = try publishRestoredDraftStaging(
                     package: package,
@@ -3212,14 +3232,6 @@ final class BackupRestoreService {
                 )
             )
         }
-        var expectedInstalledNames = Set(retiredIDs.map(canonical))
-        expectedInstalledNames.insert(canonical(intent.oldGenerationID))
-        if presence.installed {
-            expectedInstalledNames.insert(canonical(intent.newGenerationID))
-        }
-        let expectedStagingNames: Set<String> = presence.staging
-            ? [canonical(intent.newGenerationID)]
-            : []
         guard Set(try generationAuthority.installedGenerationNames())
                 == expectedInstalledNames,
               Set(try generationAuthority.restoreGenerationNames())
@@ -11912,6 +11924,11 @@ private extension BackupRestoreService {
             }
             if let failure = originalError as? ProtectedFilePolicyError,
                failure == .protectedDataUnavailable {
+                throw failure
+            }
+            if cleanupError == nil,
+               let failure = originalError as? BackupRestoreServiceError,
+               failure == .invalidRestoreAuthority {
                 throw failure
             }
             throw BackupRestoreServiceError.materializationFailed

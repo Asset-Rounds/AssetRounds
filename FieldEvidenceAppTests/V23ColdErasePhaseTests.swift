@@ -219,6 +219,7 @@ final class V23ColdErasePhaseTests: XCTestCase {
         let completion: CompletionBox
         let preexistingRetiredIDs: [UUID]
         let notificationSeed: NotificationSeed?
+        let operation: EraseRouterOperationV1
         var pointerURL: URL { support.appendingPathComponent("FieldEvidenceData/current.json") }
         var intentURL: URL { support.appendingPathComponent("FieldEvidenceErase/erase.json") }
     }
@@ -464,7 +465,7 @@ final class V23ColdErasePhaseTests: XCTestCase {
             temporary: temporary, defaults: defaults, defaultsName: defaultsName,
             intent: intent, pointerBefore: pointerBefore, completion: completion,
             preexistingRetiredIDs: preexistingRetiredIDs,
-            notificationSeed: notificationSeed)
+            notificationSeed: notificationSeed, operation: operation)
     }
 
     /// The real ordinary P publisher emits aux and no recovery record pair.
@@ -829,6 +830,136 @@ final class V23ColdErasePhaseTests: XCTestCase {
         XCTAssertEqual(fixture.completion.count, 0)
         XCTAssertEqual(coldCompletionCount, 0)
     }
+
+#if DEBUG
+    /// Borrow the real creator after its checked complete temporary write.
+    /// Its own regular entry must admit the owner; an additional foreign
+    /// regular sibling must refuse before policy, root creation or cleanup.
+    @MainActor
+    func testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect() async throws {
+        typealias Manifest = EraseSchema2ColdManifestOwnerV1
+        guard Manifest.notificationCreationTemporaryForTesting == nil else {
+            throw FixtureFailure.activation
+        }
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer {
+            Manifest.notificationCreationTemporaryForTesting = nil
+            fixture.defaults.removePersistentDomain(forName: fixture.defaultsName)
+        }
+        XCTAssertEqual(fixture.intent.phase, .sessionActivated)
+        let operations = fixture.support.appendingPathComponent(
+            "FieldEvidenceOperations", isDirectory: true)
+        let temporary = operations.appendingPathComponent(
+            EraseSchema2ColdNotificationSourceV1.creationTemporaryName)
+        let foreign = operations.appendingPathComponent("foreign-creator-sibling.bin")
+        try requireAbsentWithoutFollowing(temporary)
+        try requireAbsentWithoutFollowing(foreign)
+        let oldPrefix = "FieldEvidenceData/generations/"
+            + fixture.intent.oldGenerationID.uuidString.lowercased()
+        let oldBefore = try protectedFacts(in: fixture.support).filter {
+            $0.key == oldPrefix || $0.key.hasPrefix(oldPrefix + "/")
+        }
+        XCTAssertFalse(oldBefore.isEmpty)
+        let fileFact: (URL) throws -> PhysicalFact = { url in
+            var value = stat()
+            guard lstat(url.path, &value) == 0,
+                  value.st_mode & S_IFMT == S_IFREG,
+                  value.st_nlink == 1 else { throw FixtureFailure.activation }
+            return PhysicalFact(device: UInt64(value.st_dev), inode: UInt64(value.st_ino),
+                mode: UInt32(value.st_mode), links: UInt64(value.st_nlink),
+                size: Int64(value.st_size), modifiedSeconds: Int(value.st_mtimespec.tv_sec),
+                modifiedNanoseconds: Int(value.st_mtimespec.tv_nsec),
+                changedSeconds: Int(value.st_ctimespec.tv_sec),
+                changedNanoseconds: Int(value.st_ctimespec.tv_nsec),
+                bytes: try Data(contentsOf: url))
+        }
+        var temporaryBefore: PhysicalFact?
+        var foreignBefore: PhysicalFact?
+        var creatorCuts = 0, ownAdmissions = 0, hostileRefusals = 0
+        Manifest.notificationCreationTemporaryForTesting = { manifest, operation, source, actualTemporary in
+            guard source.eraseID == fixture.intent.eraseID,
+                  actualTemporary.standardizedFileURL == temporary.standardizedFileURL,
+                  creatorCuts == 0 else { throw FixtureFailure.activation }
+            creatorCuts += 1
+            try operation.requireSchema2ColdManifestOwner(manifest)
+            temporaryBefore = try fileFact(actualTemporary)
+            XCTAssertFalse(try XCTUnwrap(temporaryBefore?.bytes).isEmpty)
+            try operation.requireSchema2ColdNotificationMutationOwner(
+                source: source, stage: .createRoot)
+            ownAdmissions += 1
+            let foreignBytes = Data("foreign creator sibling".utf8)
+            try foreignBytes.write(to: foreign, options: .withoutOverwriting)
+            foreignBefore = try fileFact(foreign)
+            do {
+                try operation.requireSchema2ColdNotificationMutationOwner(
+                    source: source, stage: .createRoot)
+                XCTFail("A foreign regular sibling cannot join the creator's owned entry count")
+            } catch let error as StoreMigrationFailure {
+                guard case .invalidIdentity = error else { throw error }
+                hostileRefusals += 1
+            }
+            XCTAssertEqual(try fileFact(actualTemporary), try XCTUnwrap(temporaryBefore))
+        }
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authentication = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let notification = NotificationProbe(observed: [])
+        var completionCount = 0, preUnlinkCount = 0
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches, temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults, bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName, notificationSystem: notification,
+            didCompleteErase: { _ in completionCount += 1 })
+        recovery.schema2ColdAfterNotificationDrainBeforeFirstUnlinkForTesting = {
+            preUnlinkCount += 1
+            throw FixtureFailure.activation
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        var firstFailure: Error?
+        var firstFailureLoans = 0
+        try await cold.retryColdEraseForTesting(service: recovery, accessGate: gate,
+            firstColdEraseFailureForTesting: { error in
+                firstFailureLoans += 1
+                firstFailure = error
+            })
+        XCTAssertEqual(creatorCuts, 1)
+        XCTAssertEqual(ownAdmissions, 1)
+        XCTAssertEqual(hostileRefusals, 1)
+        XCTAssertEqual(firstFailureLoans, 1)
+        let firstError = try XCTUnwrap(firstFailure as? StoreMigrationFailure)
+        guard case .invalidIdentity = firstError else { throw firstError }
+        if case .ready = cold.route { XCTFail("Foreign creator sibling published ready") }
+        XCTAssertEqual(preUnlinkCount, 0)
+        XCTAssertEqual(notification.observationCount, 0)
+        XCTAssertTrue(notification.removedIDs.isEmpty)
+        XCTAssertEqual(try fileFact(temporary), try XCTUnwrap(temporaryBefore))
+        XCTAssertEqual(try fileFact(foreign), try XCTUnwrap(foreignBefore))
+        for name in [AppLockNotificationControlStoreV1.rootName,
+                     EraseSchema2ColdNotificationSourceV1.creationStageName,
+                     EraseSchema2ColdNotificationSourceV1.creationRecordName] {
+            try requireAbsentWithoutFollowing(operations.appendingPathComponent(name))
+        }
+        XCTAssertEqual(try EraseIntentCodecV1.decode(Data(contentsOf: fixture.intentURL)),
+            fixture.intent)
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), fixture.pointerBefore)
+        try requireTargetPointerBinding(support: fixture.support, intent: fixture.intent,
+            pointerBytes: fixture.pointerBefore)
+        XCTAssertEqual(try protectedFacts(in: fixture.support).filter {
+            $0.key == oldPrefix || $0.key.hasPrefix(oldPrefix + "/")
+        }, oldBefore)
+        XCTAssertEqual(fixture.completion.count, 0)
+        XCTAssertEqual(completionCount, 0)
+    }
+#endif
 
     /// The original operation writes sessionActivated before this fault. Its
     /// checked shutdown, rather than a fabricated cold intent or session,
@@ -2002,9 +2133,11 @@ final class V23ColdErasePhaseTests: XCTestCase {
         var stopped: Error?
         do {
             try await cold.retryColdEraseForTesting(service: recovery,
-                accessGate: gate)
+                accessGate: gate, firstColdEraseFailureForTesting: { error in
+                    stopped = error
+                })
         } catch {
-            stopped = error
+            if stopped == nil { stopped = error }
         }
         if matchedFaultCount == 0 {
             let category: String
@@ -2888,6 +3021,16 @@ final class V23ColdErasePhaseTests: XCTestCase {
     @MainActor
     func testSchema2OwnPCASNotificationAdmissionRejectsChangedPublishedPointer() async throws {
         try await requireChangedPublishedNotificationControlRefusal(.currentPointer)
+    }
+
+    @MainActor
+    func testDrainedSourceProjectionRefusesLateLoanFromGenuineSettledShutdown() async throws {
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        XCTAssertThrowsError(try fixture.operation.loanOriginalEraseDrainedSourceProjectionForTesting())
+        try requireTargetPointerBinding(support: fixture.support, intent: fixture.intent,
+            pointerBytes: fixture.pointerBefore)
+        XCTAssertEqual(fixture.completion.count, 0)
     }
 
     @MainActor

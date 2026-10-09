@@ -1247,6 +1247,7 @@ private extension LocalSearchIndexStoreV1 {
                     withIntermediateDirectories: true,
                     attributes: [.posixPermissions: 0o700]
                 )
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: rootURL)
                 if fileManager.fileExists(atPath: fileURL.path) {
                     do {
                         try fileManager.removeItem(at: fileURL)
@@ -1254,10 +1255,6 @@ private extension LocalSearchIndexStoreV1 {
                         guard !fileManager.fileExists(atPath: fileURL.path) else { throw error }
                     }
                 }
-                var values = URLResourceValues()
-                values.isExcludedFromBackup = true
-                var mutableRoot = rootURL
-                try mutableRoot.setResourceValues(values)
                 envelope = nil
                 try persistWithoutLoading(expected)
                 envelope = expected
@@ -1280,10 +1277,7 @@ private extension LocalSearchIndexStoreV1 {
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700]
             )
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            var mutableRoot = rootURL
-            try mutableRoot.setResourceValues(values)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: rootURL)
 
             guard fileManager.fileExists(atPath: fileURL.path) else {
                 let empty = Envelope()

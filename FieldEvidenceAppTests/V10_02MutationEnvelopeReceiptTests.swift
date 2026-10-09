@@ -254,12 +254,41 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     @MainActor
     func testQueryExistingUsesEvidenceAssociationStreamIdentity() throws {
         let fixture = try C05WriterMutationFixtureV1.make()
+        let source = fixture.association
+        let association = try EvidenceAssociationV1(
+            associationEventID: UUID().uuidString.lowercased(),
+            workspaceID: source.workspaceID, evidenceID: source.evidenceID,
+            expectedEvidenceRevision: source.expectedEvidenceRevision,
+            resultingEvidenceRevision: source.resultingEvidenceRevision,
+            mutationID: source.mutationID, action: source.action,
+            contentID: source.contentID, target: source.target,
+            previousContentID: source.previousContentID, previousTarget: source.previousTarget,
+            supersedesAssociationEventID: source.supersedesAssociationEventID,
+            actorID: source.actorID, reason: source.reason, effectiveAt: source.effectiveAt
+        )
+        let item = try EvidenceSequenceItemV1(
+            evidenceID: fixture.item.evidenceID, contentID: fixture.item.contentID,
+            role: fixture.item.role, caption: fixture.item.caption,
+            accessibilityDescription: fixture.item.accessibilityDescription,
+            ordinal: fixture.item.ordinal, target: fixture.item.target, association: association
+        )
+        let sequence = try EvidenceSequenceV1(
+            sequenceID: fixture.sequence.sequenceID, workspaceID: fixture.sequence.workspaceID,
+            target: fixture.sequence.target, policy: fixture.sequence.policy,
+            orderedItems: [item], predecessor: fixture.sequence.predecessor,
+            revision: fixture.sequence.revision, mutationID: fixture.sequence.mutationID
+        )
+        let mutation = try EvidenceMetadataMutationV1(
+            workspaceID: fixture.mutation.workspaceID, mutationID: fixture.mutation.mutationID,
+            expectedSequenceRevision: fixture.mutation.expectedSequenceRevision,
+            associationEvent: association, sequenceSuccessor: sequence
+        )
         let harness = try CompilerWriterAdmissionHarnessV1(workspaceID: fixture.workspaceID)
-        _ = try harness.writer.commitEvidenceMetadata(fixture.mutation)
+        _ = try harness.writer.commitEvidenceMetadata(mutation)
         let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
-        let affected = try fixture.mutation.affectedIdentities
+        let affected = try mutation.affectedIdentities
         XCTAssertEqual(try adapter.queryExisting(identities: affected).identities, affected)
-        let eventUUID = try XCTUnwrap(UUID(uuidString: fixture.association.associationEventID))
+        let eventUUID = try XCTUnwrap(UUID(uuidString: association.associationEventID))
         let physicalEventIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceAssociationEvent, id: eventUUID)
         XCTAssertFalse(affected.contains(physicalEventIdentity))
         XCTAssertTrue(try adapter.queryExisting(identities: [physicalEventIdentity]).identities.isEmpty)
@@ -1832,9 +1861,10 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             "V10_02-held-pdf-\(UUID().uuidString.lowercased())",
             isDirectory: true
         )
-        let generationRoot = temporaryRoot.appendingPathComponent(
-            generationID.uuidString.lowercased(), isDirectory: true
-        )
+        let generationRoot = temporaryRoot
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("generations", isDirectory: true)
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
         try FileManager.default.createDirectory(
             at: generationRoot, withIntermediateDirectories: true
         )
@@ -2977,17 +3007,18 @@ extension V10_02MutationEnvelopeReceiptTests {
 
     func testV23P03C19ReceiptBindsBundleAndJournalDigest() throws {
         let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let journalReceiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(fixture.bundle)
         let receipt = try MeasurementIntegrityWriteReceiptV1(
             workspaceID: fixture.workspace, mutationID: fixture.mutationID,
             bundleSHA256: fixture.bundle.bundleSHA256,
-            journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("j")
+            journalReceiptSHA256: journalReceiptSHA256
         )
         try MeasurementIntegrityCoordinatorV1.validate(receipt, for: fixture.bundle)
         XCTAssertEqual(receipt.bundleSHA256, fixture.bundle.bundleSHA256)
         XCTAssertThrowsError(try MeasurementIntegrityWriteReceiptV1(
             workspaceID: fixture.workspace, mutationID: fixture.mutationID,
             bundleSHA256: "not-a-digest",
-            journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("j")
+            journalReceiptSHA256: journalReceiptSHA256
         ))
     }
 
@@ -3448,7 +3479,8 @@ extension V10_02MutationEnvelopeReceiptTests {
             envelope: fixture.legacyFinalizationEnvelope(), receipt: receipt))
         let receiptObject = try XCTUnwrap(JSONSerialization.jsonObject(with: row.receiptData) as? [String: Any])
         let foreignID = try MutationIDV1(rawValue: fixture.id(98))
-        let foreignMutation = try JSONSerialization.jsonObject(with: WorkspaceMutationCanonicalV1.data(foreignID))
+        let foreignMutation = try JSONSerialization.jsonObject(
+            with: WorkspaceMutationCanonicalV1.data(foreignID), options: .fragmentsAllowed)
         let metadataChanges: [(String, Any)] = [
             ("causationMutationID", foreignMutation),
             ("correlationID", fixture.id(98).uuidString),

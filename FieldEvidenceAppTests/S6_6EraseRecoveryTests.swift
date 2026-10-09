@@ -251,9 +251,17 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         Self.retainedS6ColdOwners.append((root, router, gate))
         Self.retainedS6EraseServices.append((root, service))
         try router.bindStartupAccessGate(gate)
-        try await router.retryColdEraseForTesting(service: service, accessGate: gate)
+        var firstColdEraseFailure: Error?
+        do {
+            try await router.retryColdEraseForTesting(service: service,
+                accessGate: gate, firstColdEraseFailureForTesting: { error in
+                    firstColdEraseFailure = error
+                })
+        } catch {
+            throw firstColdEraseFailure ?? error
+        }
         guard case let .ready(coordinator, _, _) = router.route else {
-            throw FixtureError.invalid
+            throw firstColdEraseFailure ?? FixtureError.invalid
         }
         return coordinator
     }
@@ -282,6 +290,216 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertThrowsError(try journal.validateAll()) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
         }
+    }
+
+    private enum OriginalProjectionControlFailure: Error, Equatable { case interrupted }
+
+    /// Every control receives a real loan from the admitted original operation.
+    /// No standalone receipt, parent fact or replacement owner is constructed.
+    @MainActor
+    private func runOriginalProjectionControl(
+        _ label: String,
+        source: (@MainActor (EraseAllService,
+            StoreRestoreGenerationAuthority.OriginalEraseDebugSourceProjectionV1,
+            EraseRouterOperationV1, URL) throws -> Void)? = nil,
+        notification: (@MainActor (EraseAllService,
+            OriginalEraseNotificationParentProjectionForTestingV1,
+            EraseRouterOperationV1, URL) throws -> Void)? = nil
+    ) async throws -> Error {
+        let harness = try await makeHarness("projection-control-" + label)
+        // Keep the authentic root/operation retained on every refusal.
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        let oldID = coordinator.generationID
+        harness.defaults.set("retain-projection-control", forKey: "projection-control-sentinel")
+        let service = try owner.configure(EraseAllService(applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults, bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            admitErase: { try await owner.admitSubject($0) }))
+        service.enableOriginalColdExitWitnessForTesting = true
+        Self.retainedS6EraseServices.append((harness.root, service))
+        service.originalSourceProjectionControlForTesting = { projection, actual in
+            try source?(service, projection, actual, harness.support)
+        }
+        service.originalNotificationParentProjectionControlForTesting = { projection, actual in
+            try notification?(service, projection, actual, harness.support)
+        }
+        defer {
+            service.originalSourceProjectionControlForTesting = nil
+            service.originalNotificationParentProjectionControlForTesting = nil
+        }
+        var activationFailure: Error?
+        let failure: Error
+        do {
+            _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics, operation: operation,
+                activate: { [weak coordinator, weak router = owner.router] session in
+                    do {
+                        guard let coordinator, let router else { throw FixtureError.invalid }
+                        try router.activateErasePreparationSession(session, coordinator: coordinator,
+                            operation: operation)
+                    } catch { activationFailure = error }
+                })
+            XCTFail("A hostile actual projection completed Erase")
+            throw FixtureError.invalid
+        } catch { failure = error }
+        XCTAssertNil(activationFailure)
+        XCTAssertTrue(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
+        XCTAssertEqual(harness.defaults.string(forKey: "projection-control-sentinel"), "retain-projection-control")
+        XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+        return failure
+    }
+
+    @MainActor
+    func testLiveSourceProjectionRejectsGenuineForeignOperationBeforeConsumption() async throws {
+        let foreign = try await makeHarness("projection-foreign-owner")
+        let coordinator = try XCTUnwrap(foreign.coordinator)
+        try await foreign.originalOwner.admit(coordinator: coordinator)
+        let foreignOperation = try foreign.originalOwner.originalOperationForInterruption()
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("foreign-source", source: { service, projection, actual, _ in
+            calls += 1
+            XCTAssertFalse(actual === foreignOperation)
+            XCTAssertThrowsError(try service.consumeOriginalSourceProjectionForTesting(projection,
+                operation: foreignOperation))
+            throw OriginalProjectionControlFailure.interrupted
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+    }
+
+    @MainActor
+    func testLiveSourceProjectionRejectsReplayOfActualConsumedLoan() async throws {
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("replayed-source", source: { service, projection, actual, _ in
+            calls += 1
+            service.originalSourceProjectionControlForTesting = nil
+            try service.consumeOriginalSourceProjectionForTesting(projection, operation: actual)
+            // The original caller immediately attempts the same exact loan.
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? EraseAllServiceError, .invalidAuthority)
+    }
+
+    @MainActor
+    func testLiveSourceProjectionRetainsFirstErrorAndRefusesUncertainLoan() async throws {
+        var retained: (EraseAllService, StoreRestoreGenerationAuthority.OriginalEraseDebugSourceProjectionV1,
+            EraseRouterOperationV1)?
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("uncertain-source", source: { service, projection, actual, _ in
+            calls += 1; retained = (service, projection, actual)
+            throw OriginalProjectionControlFailure.interrupted
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+        let actual = try XCTUnwrap(retained)
+        actual.0.originalSourceProjectionControlForTesting = nil
+        XCTAssertThrowsError(try actual.0.consumeOriginalSourceProjectionForTesting(actual.1,
+            operation: actual.2))
+    }
+
+    @MainActor
+    func testNotificationParentProjectionRejectsReplayOfActualCreationLoan() async throws {
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("replayed-notification", notification: { service, projection, actual, _ in
+            calls += 1
+            service.originalNotificationParentProjectionControlForTesting = nil
+            try service.consumeOriginalNotificationParentProjectionForTesting(projection, operation: actual)
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? EraseAllServiceError, .invalidAuthority)
+    }
+
+    @MainActor
+    func testNotificationParentProjectionRejectsUnownedParentLinkAndNamespaceTransition() async throws {
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("notification-parent-drift", notification: { _, _, _, support in
+            calls += 1
+            let operations = support.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+            // Both foreign directories remain retained. On filesystems with
+            // directory link increments this is also an unauthorized +2 edge.
+            try FileManager.default.createDirectory(at: operations.appendingPathComponent("foreign-one"),
+                withIntermediateDirectories: false)
+            try FileManager.default.createDirectory(at: operations.appendingPathComponent("foreign-two"),
+                withIntermediateDirectories: false)
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? EraseAllServiceError, .invalidAuthority)
+    }
+
+    @MainActor
+    func testNotificationParentProjectionRejectsGenuineForeignOperation() async throws {
+        let foreign = try await makeHarness("notification-projection-foreign-owner")
+        let coordinator = try XCTUnwrap(foreign.coordinator)
+        try await foreign.originalOwner.admit(coordinator: coordinator)
+        let foreignOperation = try foreign.originalOwner.originalOperationForInterruption()
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("foreign-notification", notification: { service, projection, actual, _ in
+            calls += 1
+            XCTAssertFalse(actual === foreignOperation)
+            XCTAssertThrowsError(try service.consumeOriginalNotificationParentProjectionForTesting(projection,
+                operation: foreignOperation))
+            throw OriginalProjectionControlFailure.interrupted
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+    }
+
+    @MainActor
+    func testNotificationParentProjectionRefusesUncertainActualLoan() async throws {
+        var retained: (EraseAllService, OriginalEraseNotificationParentProjectionForTestingV1,
+            EraseRouterOperationV1)?
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("uncertain-notification", notification: { service, projection, actual, _ in
+            calls += 1; retained = (service, projection, actual)
+            throw OriginalProjectionControlFailure.interrupted
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+        let actual = try XCTUnwrap(retained)
+        actual.0.originalNotificationParentProjectionControlForTesting = nil
+        XCTAssertThrowsError(try actual.0.consumeOriginalNotificationParentProjectionForTesting(actual.1,
+            operation: actual.2))
+    }
+
+    @MainActor
+    func testNotificationParentProjectionRejectsMutationInsideExistingOutsideChild() async throws {
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("notification-outside-child", notification: { _, _, _, support in
+            calls += 1
+            let operations = support.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+            let excluded: Set<String> = ["generation-leases", "AppLockNotificationControlV1", "ScratchDataV1", "schema-migration"]
+            let children = try FileManager.default.contentsOfDirectory(at: operations,
+                includingPropertiesForKeys: nil).sorted { $0.lastPathComponent < $1.lastPathComponent }
+            let directory = try XCTUnwrap(children.first(where: { child in
+                var fact = stat()
+                return !excluded.contains(child.lastPathComponent)
+                    && Darwin.lstat(child.path, &fact) == 0 && fact.st_mode & S_IFMT == S_IFDIR
+            }))
+            // Mutate inside a genuine preexisting outside branch. Operations'
+            // own direct namespace and parent-link fact stay unchanged.
+            try Data("outside-child-mutation".utf8).write(to: directory.appendingPathComponent("c91-hostile-leaf"))
+        })
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(failure as? EraseAllServiceError, .invalidAuthority)
+    }
+
+    @MainActor
+    func testLiveSourceProjectionRejectsMutationAfterActualLoanBeforeSearchEffect() async throws {
+        var calls = 0
+        let failure = try await runOriginalProjectionControl("source-after-loan-drift", source: { _, projection, _, support in
+            calls += 1
+            let source = support.appendingPathComponent("FieldEvidenceData/generations", isDirectory: true)
+                .appendingPathComponent(projection.generationID.uuidString.lowercased(), isDirectory: true)
+            try Data("foreign-source-byte".utf8).write(to: source.appendingPathComponent("c91-hostile-leaf"))
+        })
+        XCTAssertEqual(calls, 1)
+        // The closed generation classifier rejects the unrecognized leaf first.
+        // Preserve that original migration error instead of requiring a wrapper.
+        XCTAssertEqual(failure as? StoreMigrationFailure, .invalidPath)
     }
 
     @MainActor
@@ -1357,7 +1575,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             XCTAssertTrue(outcome.operation.hasPreparedCleanup)
             XCTAssertEqual(try XCTUnwrap(coordinator).generationID, newID)
             let preparedContext = try XCTUnwrap(coordinator).modelContext
-            XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
+            // Observe current.json and retired.json through the prepared
+            // cleanup's held authority after the target context has opened.
+            XCTAssertEqual(try eraseOperation
+                .requirePublishedTargetForV949Fixture(), newID)
             XCTAssertTrue(fileManager.fileExists(atPath:
                 harness.factory.installedGenerationURL(id: oldID).path
             ))
@@ -2387,7 +2608,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 ]
                 let frozenAuxiliaryPayloads = [
                     harness.support.appendingPathComponent("FieldEvidenceRestore/owned.bin"),
-                    harness.support.appendingPathComponent("FieldEvidenceOperations/owned.bin"),
+                    manifestURL(harness, generationID: oldID),
                     harness.support.appendingPathComponent("FieldEvidenceCommerce/entitlement.json"),
                     harness.caches.appendingPathComponent("FieldEvidenceApp/owned.bin"),
                     harness.temporary.appendingPathComponent("FieldEvidenceApp/owned.bin"),
@@ -2618,7 +2839,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             let cleanupAdvancedWhileHeld = try await operation.advanceCleanup()
             XCTAssertFalse(cleanupAdvancedWhileHeld)
             XCTAssertEqual(completedReceipts.count, 0)
-            XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
+            // Observe current.json and retired.json through the prepared
+            // cleanup's held authority after the target context has opened.
+            XCTAssertEqual(try operation
+                .requirePublishedTargetForV949Fixture(), newID)
             XCTAssertTrue(fileManager.fileExists(
                 atPath: harness.factory.installedGenerationURL(id: oldID).path
             ))
@@ -2644,6 +2868,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             }
             diagnosticPhase = "post-cleanup-assertions"
             XCTAssertEqual(reopened.generationID, newID)
+            XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
             XCTAssertFalse(fileManager.fileExists(
                 atPath: harness.factory.installedGenerationURL(id: oldID).path
             ))
@@ -3374,9 +3599,42 @@ private extension S6_6EraseRecoveryTests {
         XCTAssertEqual(try deletionLedger.snapshot().entries, [packetTombstone])
 
         observePhase?("harness.auxiliary-seed")
+        // Bootstrap already published this nonempty canonical Operations
+        // payload through StoreMigrationJournalStoreV1.writeManifest. Bind the
+        // fixture to those actual bytes; do not invent an unowned root leaf.
+        // An activation manifest describes activation, not later seeded rows.
+#if DEBUG
+        observePhase?("harness.operations-owner-payload.enter")
+#endif
+        let sourceManifestURL = support.appendingPathComponent(
+            "FieldEvidenceOperations/schema-migration/manifest-"
+                + coordinator.generationID.uuidString.lowercased() + ".json"
+        )
+        let sourceManifestIdentity = try regularFileIdentity(sourceManifestURL)
+        let sourceManifestBytes = try Data(contentsOf: sourceManifestURL)
+        let sourcePointerURL = support.appendingPathComponent("FieldEvidenceData/current.json")
+        let sourcePointerBytes = try Data(contentsOf: sourcePointerURL)
+        let sourcePointer = try CurrentGenerationPointerV3.decodeCanonical(from: sourcePointerBytes)
+        let sourceManifest = try StoreGenerationManifestV1.decodeCanonical(from: sourceManifestBytes)
+        guard !sourceManifestBytes.isEmpty,
+              sourcePointer.generationID == coordinator.generationID.uuidString.lowercased(),
+              sourcePointer.workspaceID == coordinator.workspaceIdentity.workspaceID.rawValue.uuidString.lowercased(),
+              sourcePointer.replicaID == coordinator.workspaceIdentity.replicaID.rawValue.uuidString.lowercased(),
+              sourcePointer.storeSchemaVersion == PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+              sourceManifest.generationID == coordinator.generationID,
+              sourceManifest.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              StoreMigrationCanonicalJSONV1.sha256(sourceManifestBytes)
+                == sourcePointer.generationManifestSHA256,
+              try regularFileIdentity(sourceManifestURL) == sourceManifestIdentity,
+              try Data(contentsOf: sourceManifestURL) == sourceManifestBytes,
+              try Data(contentsOf: sourcePointerURL) == sourcePointerBytes else {
+            throw FixtureError.invalid
+        }
+#if DEBUG
+        observePhase?("harness.operations-owner-payload.complete")
+#endif
         for relative in [
             "FieldEvidenceRestore/owned.bin",
-            "FieldEvidenceOperations/owned.bin",
             "FieldEvidenceCommerce/entitlement.json",
         ] {
             let url = support.appendingPathComponent(relative)
@@ -3687,6 +3945,10 @@ extension S6_6EraseRecoveryTests {
             XCTAssertTrue(scenario.operations.contains { $0.kind == .deleteErase })
             let harness = try await makeHarness("c42-\(index)")
             defer { cleanup(harness) }
+            guard let sourceGenerationID = harness.coordinator?.generationID else {
+                throw FixtureError.invalid
+            }
+            let sourceOperationsPayload = manifestURL(harness, generationID: sourceGenerationID)
             let owner = harness.originalOwner
             let replacementID = UUID(
                 uuidString: String(format: "42000000-0000-4000-8000-%012x", index + 1)
@@ -3719,7 +3981,12 @@ extension S6_6EraseRecoveryTests {
                         ))!,
                     ]),
                     admitErase: { try await owner.admitSubject($0) },
-                    didCompleteErase: { completedReceipts.append($0) }
+                    didCompleteErase: { receipt in
+                        // Completed cleanup has removed every frozen root;
+                        // ordinary startup may recreate new control directories.
+                        self.assertAuxiliaryRootsCleared(harness)
+                        completedReceipts.append(receipt)
+                    }
                 ))
                 Self.retainedS6EraseServices.append((harness.root, service))
                 try await owner.prepareCompatibility(service: service,
@@ -3738,7 +4005,16 @@ extension S6_6EraseRecoveryTests {
             }
             XCTAssertEqual(reopened.generationID, replacementID)
             XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
-            assertAuxiliaryRootsCleared(harness)
+            for payload in [
+                harness.support.appendingPathComponent("FieldEvidenceRestore/owned.bin"),
+                sourceOperationsPayload,
+                harness.support.appendingPathComponent("FieldEvidenceCommerce/entitlement.json"),
+                harness.caches.appendingPathComponent("FieldEvidenceApp/owned.bin"),
+                harness.temporary.appendingPathComponent("FieldEvidenceApp/owned.bin"),
+            ] {
+                XCTAssertFalse(fileManager.fileExists(atPath: payload.path),
+                    "seeded auxiliary payload survived Erase: \(payload.path)")
+            }
         }
     }
 }
@@ -3757,45 +4033,170 @@ extension S6_6EraseRecoveryTests {
                 workspaceID: coordinator.workspaceIdentity.workspaceID,
                 reportProjection: .typedLinkOnly
             )
-            let current = try coordinator.workspaceWriter.currentRevision()
-            let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
-                for: fixture.clip,
-                generationID: current.generationID,
-                writerInstanceID: current.writerInstanceID,
-                workspaceRevision: current.revision
+            let writer = coordinator.workspaceWriter
+            let workspaceID = coordinator.workspaceIdentity.workspaceID
+            let journal = try MutationJournalStoreV1(
+                modelContext: coordinator.modelContext,
+                identity: coordinator.workspaceIdentity,
+                generationID: coordinator.generationID,
+                allowStateBootstrap: false
             )
-            let digest = try XCTUnwrap(fixture.clip.original.digests.digest(for: .sha256))
+            let allPackagesBefore = try C33TemporalEvidenceTestSupport.packageClosure(
+                in: coordinator.modelContext)
+            let packages = PackageEvolutionLifecycleAdapterV1(
+                writer: writer, journal: journal, modelContext: coordinator.modelContext)
+            let candidatePackage = try C26SurveySessionTestSupport.packageRelease()
+            let pointerBefore = try packages.activePointer(
+                workspaceID: workspaceID, packageID: candidatePackage.packageID)
+            let promotionBefore: PackageEvolutionLifecycleClosureV1?
+            let package: InspectionPackageReleaseV1
+            if let pointer = pointerBefore {
+                let closure = try XCTUnwrap(
+                    packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+                try closure.validate()
+                let promoted = try XCTUnwrap(closure.promotedReleases.first)
+                guard closure.promotedReleases.count == 1,
+                      promoted.workspaceID == workspaceID,
+                      promoted.releaseRecordID == pointer.activeReleaseRecordID,
+                      promoted.releaseRecordSHA256 == pointer.activeReleaseRecordSHA256,
+                      promoted.packageRelease.packageID == candidatePackage.packageID,
+                      promoted.packageRelease.packageReleaseID == pointer.activePackageReleaseID,
+                      closure.activePointers.contains(pointer),
+                      closure.promotionReceipts.count == 1,
+                      closure.promotionReceipts[0].receiptID == pointer.promotionReceiptID,
+                      closure.promotionReceipts[0].mutationID == pointer.mutationID,
+                      allPackagesBefore.promotedReleases.filter({
+                          $0.packageRelease.packageReleaseID == pointer.activePackageReleaseID
+                      }) == [promoted] else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = closure
+                package = promoted.packageRelease
+            } else {
+                guard !allPackagesBefore.promotedReleases.contains(where: {
+                    $0.workspaceID == workspaceID && $0.packageRelease.packageID == candidatePackage.packageID
+                }), !allPackagesBefore.activePointers.contains(where: {
+                    $0.workspaceID == workspaceID && $0.packageID == candidatePackage.packageID
+                }) else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = nil
+                package = candidatePackage
+            }
+            let definition = try C26SurveySessionTestSupport.release(
+                releaseSlot: 330, workspaceID: workspaceID)
+            let basis = fixture.profile
+            let profile = try TemporalEvidenceLimitProfileV1(
+                profileID: basis.profileID, revision: basis.revision,
+                packageRelease: SurveyPackageReleaseReferenceV1(package),
+                definitionRelease: SurveyDefinitionReleaseReferenceV1(definition),
+                audio: basis.audio, video: basis.video,
+                maximumClipsPerRequirement: basis.maximumClipsPerRequirement,
+                maximumClipsPerSession: basis.maximumClipsPerSession,
+                minimumFreeByteCount: basis.minimumFreeByteCount,
+                reportProjection: basis.reportProjection,
+                requiresAccessibleDescription: basis.requiresAccessibleDescription,
+                requiresManualTranscript: basis.requiresManualTranscript)
+            let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: workspaceID)
+            let survey = try C26SurveySessionTestSupport.session(
+                authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+                workspaceID: workspaceID, subject: .provisional(provisional.reference),
+                state: .draft, transition: .create, revision: 1, actorSlot: 601)
+            let fact = try XCTUnwrap(definition.sections.flatMap(\.facts).first)
+            let original = fixture.clip
+            // The contract-only clip has placeholder survey authority. Bind this
+            // new fixture value to the real canonical session and accepted package.
+            let clip = try TemporalEvidenceClipV1(
+                clipID: original.clipID, workspaceID: workspaceID,
+                target: .init(workspaceID: workspaceID, sessionID: survey.sessionID,
+                    sessionRevision: survey.revision, sessionSHA256: survey.sessionSHA256,
+                    definitionRelease: survey.authority.definitionRelease, factID: fact.factID,
+                    repeatCoordinates: []),
+                original: original.original, originalProvenance: original.originalProvenance,
+                locator: original.locator, facts: original.facts, profile: profile,
+                accessibleDescription: original.accessibleDescription,
+                manualTranscript: original.manualTranscript,
+                recordedBy: original.recordedBy, capturedAt: original.capturedAt,
+                acceptedAt: original.acceptedAt, revision: original.revision,
+                mutationID: original.mutationID)
+            let review = try C33TemporalEvidenceTestSupport.review(for: clip)
+            if promotionBefore == nil {
+                try await CanonicalWriterSeedingV1.seedSurveySession(
+                    definition: definition, package: package, provisional: provisional, session: survey,
+                    promotionActor: C26SurveySessionTestSupport.actor(workspaceID: workspaceID, slot: 8_002),
+                    writer: writer, journal: journal, context: coordinator.modelContext,
+                    promotedAt: clip.acceptedAt)
+            } else {
+                // Preserve an existing accepted package and its exact receipt.
+                try CanonicalWriterSeedingV1.appendActors(
+                    [definition.authoredBy, provisional.createdBy, survey.startedBy, survey.lastTransitionBy],
+                    writer: writer)
+                try CanonicalWriterSeedingV1.commitSurveyDefinitionDraft(definition, writer: writer)
+                _ = try writer.commitSurveySession(.init(workspaceID: workspaceID,
+                    mutationID: provisional.mutationID, payload: .applyProvisionalSubject(provisional)))
+                _ = try writer.commitSurveySession(.init(workspaceID: workspaceID,
+                    mutationID: survey.mutationID,
+                    payload: .applySession(survey, definition: definition, publication: nil)))
+            }
+            try CanonicalWriterSeedingV1.appendActors([clip.recordedBy, review.reviewer], writer: writer)
+            let surveys = try coordinator.modelContext.fetch(FetchDescriptor<SurveySessionRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(surveys.filter { $0.sessionID == survey.sessionID }, [survey])
+            let definitions = try coordinator.modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(definitions.filter { $0.releaseID == definition.releaseID }, [definition])
+            let pointer = try XCTUnwrap(packages.activePointer(
+                workspaceID: workspaceID, packageID: package.packageID))
+            let promotion = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+            try promotion.validate()
+            if let promotionBefore {
+                XCTAssertEqual(pointer, pointerBefore)
+                XCTAssertEqual(promotion, promotionBefore)
+                XCTAssertEqual(try C33TemporalEvidenceTestSupport.packageClosure(in: coordinator.modelContext),
+                    allPackagesBefore)
+            } else {
+                XCTAssertEqual(promotion.activePointers, [pointer])
+            }
+            XCTAssertEqual(promotion.promotedReleases.map(\.packageRelease), [package])
+            XCTAssertEqual(profile.packageRelease, survey.authority.packageRelease)
+            XCTAssertEqual(profile.definitionRelease, survey.authority.definitionRelease)
+            let digest = try XCTUnwrap(clip.original.digests.digest(for: .sha256))
             let contentRequest = try DraftImmutableContentWriteRequestV1(
-                workspaceID: fixture.clip.workspaceID,
-                contentID: fixture.clip.original.contentID,
+                workspaceID: clip.workspaceID,
+                contentID: clip.original.contentID,
                 digest: digest,
-                byteLength: fixture.clip.original.byteLength,
-                mediaType: fixture.clip.original.mediaType,
-                mutationID: fixture.clip.mutationID,
-                createdAt: fixture.clip.original.createdAt
+                byteLength: clip.original.byteLength,
+                mediaType: clip.original.mediaType,
+                mutationID: clip.mutationID,
+                createdAt: clip.original.createdAt
             )
             _ = try await EvidenceBundleStore(
                 generationRootURL: coordinator.generationRootURL
             ).persistImmutableOriginal(
-                bytes: C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind),
+                bytes: C33TemporalEvidenceTestSupport.bytes(for: clip.facts.kind),
                 request: contentRequest
             )
-            _ = try coordinator.workspaceWriter.commitTemporalEvidence(TemporalEvidenceMutationV1(
-                workspaceID: fixture.clip.workspaceID,
+            // Canonical setup appends receipts and content persistence suspends.
+            // Capture the real current revision only after both have completed.
+            let current = try writer.currentRevision()
+            let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: clip,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision
+            )
+            _ = try writer.commitTemporalEvidence(TemporalEvidenceMutationV1(
+                workspaceID: clip.workspaceID,
                 expectedRevision: expected,
-                mutationID: fixture.clip.mutationID,
-                payload: .acceptClip(
-                    fixture.clip,
-                    review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
-                    predecessor: nil
-                )
+                mutationID: clip.mutationID,
+                payload: .acceptClip(clip, review: review, predecessor: nil)
             ))
             XCTAssertEqual(
                 try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
                 1
             )
             let originalURL = coordinator.generationRootURL.appendingPathComponent(
-                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+                try TemporalEvidenceBackupMemberV1.original(for: clip)
             )
             XCTAssertTrue(fileManager.fileExists(atPath: originalURL.path))
             try await owner.admit(coordinator: coordinator)

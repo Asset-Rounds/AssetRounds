@@ -554,6 +554,29 @@ enum ProtectedFilePolicyV1 {
     fileprivate static func emitResourceValueMismatchSource(_ source: StaticString) {
         diagnosticWriter.write("ProtectedFilePolicy resource-value-mismatch-source=\(source)\n")
     }
+
+    /// DEBUG prose only: the actual existing-root caller supplies its original
+    /// error. No associated value, path or description reaches the transport.
+    static func emitOriginalExistingSearchRootPolicyRefusalForTesting(_ error: Error) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let category: String
+        switch error as? ProtectedFilePolicyError {
+        case .resourceValueMismatch: category = "resourceValueMismatch"
+        case .identityChanged: category = "identityChanged"
+        case .invalidURL: category = "invalidURL"
+        case .invalidRelativePath: category = "invalidRelativePath"
+        case .missing: category = "missing"
+        case .symbolicLink: category = "symbolicLink"
+        case .invalidType: category = "invalidType"
+        case .hardLink: category = "hardLink"
+        case .attributeWriteFailed: category = "attributeWriteFailed"
+        case .protectedDataUnavailable: category = "protectedDataUnavailable"
+        case nil: category = "other"
+        }
+        diagnosticWriter.write("V23_ORIGINAL_SEARCH_ROOT_POLICY_REFUSAL_V1"
+            + " site=original-existing-search-root category=\(category)\n")
+    }
     #endif
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
@@ -3106,7 +3129,88 @@ extension ProtectedFilePolicyV1 {
         case nil: managerProtection = "unknown"
         default: managerProtection = "other"
         }
+#if DEBUG
+        enum RefusalBranch: String { case resourceIdentity, simulatorFallback, completeRequired }
+        enum RefusalPredicate: String {
+            case namedObservation, namedDevice, namedInode, namedLinks, namedType
+            case managerType, resourceDirectory, resourceBackup
+            case fallbackCapability, fallbackProtection, fallbackBackup, fallbackDirectory
+            case requiredCompleteProtection
+        }
+        enum BooleanObservation: String {
+            case presentTrue = "true", presentFalse = "false", unknown, notObserved
+        }
+        var evaluatedPredicates: UInt16 = 0
+        var passedPredicates: UInt16 = 0
+        var firstRefusedPredicate: RefusalPredicate?
+        var observedDirectory: BooleanObservation = .notObserved
+        var observedBackup: BooleanObservation = .notObserved
+        func booleanObservation(_ value: Bool?) -> BooleanObservation {
+            switch value {
+            case .some(true): return .presentTrue
+            case .some(false): return .presentFalse
+            case nil: return .unknown
+            }
+        }
+        func rememberDirectory(_ value: Bool?) -> Bool? {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            observedDirectory = booleanObservation(value)
+            return value
+        }
+        func rememberBackup(_ value: Bool?) -> Bool? {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            observedBackup = booleanObservation(value)
+            return value
+        }
+        func checked(_ predicate: RefusalPredicate, bit: UInt16, _ matches: Bool) -> Bool {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            evaluatedPredicates |= bit
+            if matches { passedPredicates |= bit }
+            else if firstRefusedPredicate == nil { firstRefusedPredicate = predicate }
+            return matches
+        }
+        func protectionLabel(_ value: String) -> String {
+            switch value {
+            case "complete", "completeUnlessOpen", "completeUntilFirstUserAuthentication",
+                 "none", "unknown", "notObserved": return value
+            default: return "other"
+            }
+        }
+        func emitRefusal(_ branch: RefusalBranch, predicate: RefusalPredicate,
+            urlProtection: String = "notObserved",
+            backup: BooleanObservation, directory: BooleanObservation,
+            capability: BooleanObservation = .notObserved) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            diagnosticWriter.write("V23_TEMPORAL_POLICY_RETAINED_REFUSAL_V1"
+                + " kind=\(kind.rawValue) branch=\(branch.rawValue) predicate=\(predicate.rawValue)"
+                + " evaluatedMask=\(evaluatedPredicates) passedMask=\(passedPredicates)"
+                + " urlProtection=\(protectionLabel(urlProtection))"
+                + " managerProtection=\(protectionLabel(managerProtection))"
+                + " backupExcluded=\(backup.rawValue) isDirectory=\(directory.rawValue)"
+                + " volumeSupportsProtection=\(capability.rawValue)\n")
+        }
+#endif
         var named = stat()
+#if DEBUG
+        guard checked(.namedObservation, bit: 1, Darwin.lstat(url.path, &named) == 0),
+              checked(.namedDevice, bit: 2, UInt64(named.st_dev) == expectedDevice),
+              checked(.namedInode, bit: 4, UInt64(named.st_ino) == expectedInode),
+              checked(.namedLinks, bit: 8, UInt64(named.st_nlink) == expectedLinkCount),
+              checked(.namedType, bit: 16, (named.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG)),
+              checked(.managerType, bit: 32, attributes[.type] as? FileAttributeType == (expected.expectsDirectory ? .typeDirectory : .typeRegular)),
+              checked(.resourceDirectory, bit: 64, rememberDirectory(values.isDirectory) == expected.expectsDirectory),
+              checked(.resourceBackup, bit: 128, rememberBackup(values.isExcludedFromBackup) == expected.isExcludedFromBackup) else {
+            if let firstRefusedPredicate {
+                emitRefusal(.resourceIdentity, predicate: firstRefusedPredicate,
+                    backup: observedBackup, directory: observedDirectory)
+            }
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+#else
         guard Darwin.lstat(url.path, &named) == 0,
               UInt64(named.st_dev) == expectedDevice, UInt64(named.st_ino) == expectedInode,
               UInt64(named.st_nlink) == expectedLinkCount,
@@ -3116,6 +3220,7 @@ extension ProtectedFilePolicyV1 {
               values.isExcludedFromBackup == expected.isExcludedFromBackup else {
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
+#endif
         let capability = values.allValues[.volumeSupportsFileProtectionKey] as? Bool
         let state: TemporalPolicyObservationV1.State
         if values.fileProtection == .complete {
@@ -3126,10 +3231,28 @@ extension ProtectedFilePolicyV1 {
                 fileManagerProtection: managerProtection, backupExcluded: values.isExcludedFromBackup,
                 isDirectory: values.isDirectory, volumeSupportsProtection: capability)
             guard simulatorReadbackIsExactFallback(readback, disposition: expected) else {
+                // The retained struct was built by the original getters above.
+                // This classification performs no URL or FileManager read.
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                let predicate: RefusalPredicate
+                if readback.volumeSupportsProtection != false { predicate = .fallbackCapability }
+                else if readback.urlProtection != "completeUntilFirstUserAuthentication" { predicate = .fallbackProtection }
+                else if readback.backupExcluded != expected.isExcludedFromBackup { predicate = .fallbackBackup }
+                else { predicate = .fallbackDirectory }
+                emitRefusal(.simulatorFallback, predicate: predicate,
+                    urlProtection: readback.urlProtection,
+                    backup: booleanObservation(readback.backupExcluded),
+                    directory: booleanObservation(readback.isDirectory),
+                    capability: booleanObservation(readback.volumeSupportsProtection))
                 throw ProtectedFilePolicyError.resourceValueMismatch
             }
             state = .pendingSimulatorRequest
 #else
+#if DEBUG
+            emitRefusal(.completeRequired, predicate: .requiredCompleteProtection,
+                backup: observedBackup, directory: observedDirectory)
+#endif
             throw ProtectedFilePolicyError.resourceValueMismatch
 #endif
         }

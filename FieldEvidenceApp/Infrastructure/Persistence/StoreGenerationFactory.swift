@@ -1655,6 +1655,110 @@ final class EraseAbortCheckedSnapshotIOV1 {
         return (missingCount, observedSHA256)
     }
 
+#if DEBUG
+    /// This immutable value can be minted only after the genuine notification
+    /// owner's one-use creation loan has passed its MainActor current reproof.
+    /// It is separate from the single-target-manifest root-link transition.
+    struct OriginalEraseNotificationParentWalkProjectionForTestingV1: Sendable {
+        let afterRootFact: String
+        fileprivate let originLinks: UInt64
+        fileprivate init(afterRootFact: String, originLinks: UInt64) {
+            self.afterRootFact = afterRootFact; self.originLinks = originLinks
+        }
+    }
+
+    @MainActor
+    static func originalEraseNotificationParentWalkProjectionForTesting(
+        _ loan: OriginalEraseNotificationParentProjectionForTestingV1,
+        operation: EraseRouterOperationV1, originalRootFact: String
+    ) throws -> OriginalEraseNotificationParentWalkProjectionForTestingV1 {
+        try loan.consume(operation: operation)
+        let origin = originalRootFact.split(separator: "|", omittingEmptySubsequences: false)
+        let before = loan.beforeRootFact.split(separator: "|", omittingEmptySubsequences: false)
+        let after = loan.afterRootFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard origin.count == 11, before.count == 11, after.count == 11,
+              origin.prefix(6).elementsEqual(before.prefix(6)),
+              before.prefix(5).elementsEqual(after.prefix(5)),
+              let links = UInt64(before[5]), let finalLinks = UInt64(after[5]),
+              finalLinks == links || (links < UInt64.max && finalLinks == links + 1) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return OriginalEraseNotificationParentWalkProjectionForTestingV1(
+            afterRootFact: loan.afterRootFact, originLinks: links)
+    }
+
+    /// Use the existing strict checked walk with its exact four owner branches.
+    /// Its observed tokens are reframed only at the authenticated parent link
+    /// field; every outside token and the complete current parent are proved.
+    func postRetiredNotificationParentTreeForTesting(
+        parent: Int32, name: String,
+        projection: OriginalEraseNotificationParentWalkProjectionForTestingV1
+    ) throws -> String {
+        guard name == "FieldEvidenceOperations" else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        func fullFact(_ s: stat) -> String {
+            "\(s.st_dev)|\(s.st_ino)|\(s.st_mode)|\(s.st_uid)|\(s.st_gid)|\(s.st_nlink)|\(s.st_size)|\(s.st_mtimespec.tv_sec)|\(s.st_mtimespec.tv_nsec)|\(s.st_ctimespec.tv_sec)|\(s.st_ctimespec.tv_nsec)"
+        }
+        func encoded(_ value: String) -> String {
+            value.utf8.map { String(format: "%02x", $0) }.joined()
+        }
+        let value = try withOpen(parent: parent, name: name,
+            flags: O_RDONLY | O_DIRECTORY) { heldDirectory in
+            func requireParent() throws {
+                var held = stat(), named = stat()
+                guard try selectedControlFStatV1(heldDirectory, &held) == 0,
+                      try selectedControlFStatAtV1(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      held.st_mode & S_IFMT == S_IFDIR,
+                      fullFact(held) == projection.afterRootFact,
+                      fullFact(named) == projection.afterRootFact else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            try requireParent()
+            let parentNames = try names(in: heldDirectory)
+            var tokens: [String] = []
+            var rootMatches = false
+            var invalidObservation = false
+            _ = try postRetiredTree(parent: parent, name: name,
+                excluding: ["generation-leases", "AppLockNotificationControlV1",
+                    "ScratchDataV1", "schema-migration"],
+                ignoringDirectoryMetadata: [""],
+                observeNode: { path, kind, fact, members, digest in
+                    switch kind {
+                    case "directory":
+                        guard let members else { invalidObservation = true; return }
+                        let directoryFact: String
+                        if path.isEmpty {
+                            let fields = fact.split(separator: "|", omittingEmptySubsequences: false)
+                            guard fields.count == 4 else { invalidObservation = true; return }
+                            directoryFact = fields.prefix(3).joined(separator: "|")
+                                + "|" + String(projection.originLinks)
+                        } else { directoryFact = fact }
+                        tokens.append("D|\(encoded(path))|\(directoryFact)|\(members.map(encoded).joined(separator: ","))")
+                    case "file":
+                        guard !path.isEmpty, let digest else { invalidObservation = true; return }
+                        tokens.append("F|\(encoded(path))|\(fact)|\(digest)")
+                    default: invalidObservation = true
+                    }
+                },
+                observeTypedNode: { node, _ in
+                    if node.path.isEmpty {
+                        rootMatches = fullFact(node.fact) == projection.afterRootFact
+                    }
+                })
+            guard rootMatches, !invalidObservation,
+                  try names(in: heldDirectory) == parentNames else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try requireParent()
+            return StoreMigrationCanonicalJSONV1.sha256(
+                Data(tokens.sorted().joined(separator: "\n").utf8))
+        }
+        try requireSettled()
+        return value
+    }
+#endif
     /// Nonmutating, checked-close walk of an exact owner-held directory tree.
     /// Every transient descriptor remains here on an ambiguous close. This is
     /// intentionally independent of the generation-only path classifier.
@@ -7520,13 +7624,30 @@ private extension StoreGenerationFactory {
     private func withPrivateSemanticRead<Value>(at root: URL, release: PersistentSchemaReleaseV1,
         markerMigrationID: UUID?, operationID: UUID,
         expectedFiles: [StoreGenerationFileDigestV1]? = nil,
+        restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
         _ read: (ModelContainer, SemanticReadProof) throws -> Value) throws -> Value {
+        // Restore-owned recovery members require their genuine immutable proof,
+        // never migration admission or a refreshed original file snapshot.
+        let frozenSnapshot = try requireRestoreFileSnapshot(
+            restoreFileSnapshot, generationID: restoreProof?.generationID,
+            at: root, restoreProof: restoreProof
+        )
         let descriptor = try openOwnedDirectory(at: root)
         defer { Darwin.close(descriptor) }
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
         let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(parent: descriptor, requireModel: true)
-        try inventory.requireSettledMigrationInput()
-        let originalFiles = try inventory.fileDigests(durable: false)
+        if let restoreProof {
+            try inventory.requireRestoreManifestInput(restoreProof)
+        } else {
+            try inventory.requireSettledMigrationInput()
+        }
+        let originalFiles = try inventory.fileDigests(
+            durable: false, restoreProof: restoreProof
+        )
+        if let frozenSnapshot, originalFiles != frozenSnapshot.files {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
         if let expectedFiles, originalFiles != expectedFiles {
             throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
         }
@@ -7558,11 +7679,17 @@ private extension StoreGenerationFactory {
         func reproveOriginal() throws {
             try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
             try inventory.revalidate()
-            guard try inventory.fileDigests(durable: false) == originalFiles else {
+            guard try inventory.fileDigests(
+                durable: false, restoreProof: restoreProof
+            ) == originalFiles else {
                 throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
             }
             try inventory.revalidate()
             try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
+            _ = try self.requireRestoreFileSnapshot(
+                frozenSnapshot, generationID: restoreProof?.generationID,
+                at: root, restoreProof: restoreProof
+            )
         }
         let now = Date()
         let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
@@ -7624,6 +7751,10 @@ private extension StoreGenerationFactory {
                 @MainActor func reproveIdentity() throws {
                     try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
                     try inventory.revalidate()
+                    _ = try self.requireRestoreFileSnapshot(
+                        frozenSnapshot, generationID: restoreProof?.generationID,
+                        at: root, restoreProof: restoreProof
+                    )
                     guard try copy.sqliteFileNames().subtracting(["model.sqlite-shm"]) == Set(immutableInputs.keys) else {
                         throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
                     }
@@ -8172,12 +8303,21 @@ private extension StoreGenerationFactory {
     private func framedSemanticDigest(
         at modelStoreURL: URL,
         release: PersistentSchemaReleaseV1,
-        markerMigrationID: UUID? = nil
+        markerMigrationID: UUID? = nil,
+        readOnly: Bool = false
     ) throws -> String {
         try autoreleasepool {
-            let container = try openReleasedContainer(
-                at: modelStoreURL, release: release, markerMigrationID: markerMigrationID
-            )
+            let container: ModelContainer
+            if readOnly {
+                container = try openReadOnlyReleasedContainer(
+                    at: modelStoreURL, release: release, markerMigrationID: markerMigrationID,
+                    observe: { _ in }
+                )
+            } else {
+                container = try openReleasedContainer(
+                    at: modelStoreURL, release: release, markerMigrationID: markerMigrationID
+                )
+            }
             return try framedSemanticDigest(in: container.mainContext, release: release)
         }
     }
@@ -8186,13 +8326,22 @@ private extension StoreGenerationFactory {
     @MainActor
     private func semanticDigest(
         at modelStoreURL: URL,
-        manifest: StoreGenerationManifestV1
+        manifest: StoreGenerationManifestV1,
+        readOnly: Bool = false
     ) throws -> String {
         try manifest.validate()
         return try autoreleasepool {
-            let container = try openReleasedContainer(
-                at: modelStoreURL, release: manifest.storeSchemaRelease, markerMigrationID: nil
-            )
+            let container: ModelContainer
+            if readOnly {
+                container = try openReadOnlyReleasedContainer(
+                    at: modelStoreURL, release: manifest.storeSchemaRelease, markerMigrationID: nil,
+                    observe: { _ in }
+                )
+            } else {
+                container = try openReleasedContainer(
+                    at: modelStoreURL, release: manifest.storeSchemaRelease, markerMigrationID: nil
+                )
+            }
             return try semanticDigest(in: container.mainContext, manifest: manifest)
         }
     }
@@ -10510,6 +10659,9 @@ private extension StoreGenerationFactory {
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
         restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
     ) throws -> String {
+#if DEBUG
+        print("V23_RESTORE_FROZEN_SNAPSHOT_PHASE_V1 phase=frozen-identity.require-snapshot.begin")
+#endif
         if let snapshot = try requireRestoreFileSnapshot(
             restoreFileSnapshot,
             generationID: restoreProof?.generationID,
@@ -10552,6 +10704,9 @@ private extension StoreGenerationFactory {
     ) throws -> StoreRestoreGenerationFileSnapshotV1? {
         guard let restoreProof else {
             guard snapshot == nil else {
+#if DEBUG
+                print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=capability.snapshot-without-proof match=false")
+#endif
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
             return nil
@@ -10559,6 +10714,17 @@ private extension StoreGenerationFactory {
         guard let snapshot,
               let generationID,
               snapshot.generationID == generationID else {
+#if DEBUG
+            let subguard: String
+            if snapshot == nil {
+                subguard = "capability.missing-snapshot"
+            } else if generationID == nil {
+                subguard = "capability.missing-generation"
+            } else {
+                subguard = "capability.snapshot-generation"
+            }
+            print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=\(subguard) match=false")
+#endif
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         try StoreRestoreGenerationAuthority.validateRestoreGenerationFileSnapshot(
@@ -10993,176 +11159,199 @@ private extension StoreGenerationFactory {
 #endif
         diagnosticPhase?("manifest.marker")
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
-        let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container: ModelContainer
-            let marker: PersistentSchemaReleaseMarker
-            switch manifest.storeSchemaRelease {
-            case .v2:
-                container = try makeV2Container(at: modelStoreURL, migrate: false)
-                marker = try requireV2Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v3:
-                container = try makeV3Container(at: modelStoreURL, migrate: false)
-                marker = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v4:
-                container = try makeV4Container(at: modelStoreURL, migrate: false)
-                marker = try requireV4Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v5:
-                container = try makeV5Container(at: modelStoreURL, migrate: false)
-                marker = try requireV5Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v6:
-                container = try makeV6Container(at: modelStoreURL, migrate: false)
-                marker = try requireV6Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v7:
-                container = try makeV7Container(at: modelStoreURL, migrate: false)
-                marker = try requireV7Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v8:
-                container = try makeV8Container(at: modelStoreURL, migrate: false)
-                marker = try requireV8Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v9:
-                container = try makeV9Container(at: modelStoreURL, migrate: false)
-                marker = try requireV9Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v10:
-                container = try makeV10Container(at: modelStoreURL, migrate: false)
-                marker = try requireV10Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v11:
-                container = try makeV11Container(at: modelStoreURL, migrate: false)
-                marker = try requireV11Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v12:
-                container = try makeV12Container(at: modelStoreURL, migrate: false)
-                marker = try requireV12Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
-            case .v13:
-                container = try makeV13Container(at:modelStoreURL,migrate:false)
-                marker = try requireV13Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v14:
-                container = try makeV14Container(at:modelStoreURL,migrate:false)
-                marker = try requireV14Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v15:
-                container = try makeV15Container(at:modelStoreURL,migrate:false)
-                marker = try requireV15Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v16:
-                container = try makeV16Container(at:modelStoreURL,migrate:false)
-                marker = try requireV16Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v17:
-                container = try makeV17Container(at:modelStoreURL,migrate:false)
-                marker = try requireV17Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v18:
-                container = try makeV18Container(at:modelStoreURL,migrate:false)
-                marker = try requireV18Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v19:
-                container = try makeV19Container(at:modelStoreURL,migrate:false)
-                marker = try requireV19Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v20:
-                container = try makeV20Container(at:modelStoreURL,migrate:false)
-                marker = try requireV20Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v21:
-                container = try makeV21Container(at:modelStoreURL,migrate:false)
-                marker = try requireV21Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v22:
-                container = try makeV22Container(at:modelStoreURL,migrate:false)
-                marker = try requireV22Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v23:
-                container = try makeV23Container(at:modelStoreURL,migrate:false)
-                marker = try requireV23Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v24:
-                container = try makeV24Container(at:modelStoreURL,migrate:false)
-                marker = try requireV24Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v25:
-                container = try makeV25Container(at:modelStoreURL,migrate:false)
-                marker = try requireV25Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v26:
-                container = try makeV26Container(at:modelStoreURL,migrate:false)
-                marker = try requireV26Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v27:
-                container = try makeV27Container(at:modelStoreURL,migrate:false)
-                marker = try requireV27Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v28:
-                container = try makeV28Container(at:modelStoreURL,migrate:false)
-                marker = try requireV28Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v29:
-                container = try makeV29Container(at:modelStoreURL,migrate:false)
-                marker = try requireV29Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v30:
-                container = try makeV30Container(at:modelStoreURL,migrate:false)
-                marker = try requireV30Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v31:
-                container = try makeV31Container(at:modelStoreURL,migrate:false)
-                marker = try requireV31Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v32:
-                container = try makeV32Container(at:modelStoreURL,migrate:false)
-                marker = try requireV32Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v33:
-                container = try makeV33Container(at:modelStoreURL,migrate:false)
-                marker = try requireV33Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v34:
-                container = try makeV34Container(at:modelStoreURL,migrate:false)
-                marker = try requireV34Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v35:
-                container = try makeV35Container(at:modelStoreURL,migrate:false)
-                marker = try requireV35Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v36:
-                container = try makeV36Container(at:modelStoreURL,migrate:false)
-                marker = try requireV36Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v37:
-                container = try makeV37Container(at:modelStoreURL,migrate:false)
-                marker = try requireV37Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v38:
-                container = try makeV38Container(at:modelStoreURL,migrate:false)
-                marker = try requireV38Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v39:
-                container = try makeV39Container(at:modelStoreURL,migrate:false)
-                marker = try requireV39Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v40:
-                container = try makeV40Container(at:modelStoreURL,migrate:false)
-                marker = try requireV40Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v41:
-                container = try makeV41Container(at:modelStoreURL,migrate:false)
-                marker = try requireV41Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v42:
-                container = try makeV42Container(at:modelStoreURL,migrate:false)
-                marker = try requireV42Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v43:
-                container = try makeV43Container(at:modelStoreURL,migrate:false)
-                marker = try requireV43Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v44:
-                container = try makeV44Container(at:modelStoreURL,migrate:false)
-                marker = try requireV44Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v45:
-                container = try makeV45Container(at:modelStoreURL,migrate:false)
-                marker = try requireV45Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v46:
-                container = try makeV46Container(at:modelStoreURL,migrate:false)
-                marker = try requireV46Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v47:
-                container = try makeV47Container(at:modelStoreURL,migrate:false)
-                marker = try requireV47Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v48:
-                container = try makeV48Container(at:modelStoreURL,migrate:false)
-                marker = try requireV48Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v49:
-                container = try makeV49Container(at:modelStoreURL,migrate:false)
-                marker = try requireV49Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v50:
-                container = try makeV50Container(at:modelStoreURL,migrate:false)
-                marker = try requireV50Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v51:
-                container = try makeV51Container(at:modelStoreURL,migrate:false)
-                marker = try requireV51Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v52:
-                container = try makeV52Container(at:modelStoreURL,migrate:false)
-                marker = try requireV52Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v53:
-                container = try makeV53Container(at:modelStoreURL,migrate:false)
-                marker = try requireV53Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
-            case .v1:
+        let markerMigrationID: UUID
+        if let restoreFileSnapshot {
+            guard manifest.storeSchemaRelease != .v1 else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
-            // The fetched marker remains backed by this container until its
-            // value is copied. Do not retain only a temporary container's context.
-            return try withExtendedLifetime(container) { () throws -> UUID in
-                guard let value = marker.migrationID else {
+            markerMigrationID = try withPrivateSemanticRead(
+                at: root, release: manifest.storeSchemaRelease,
+                markerMigrationID: manifest.migrationID,
+                operationID: restoreFileSnapshot.restoreProof.restoreID,
+                expectedFiles: restoreFileSnapshot.files,
+                restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot
+            ) { _, semanticProof in
+                // The copy's exact-release reader has required its single
+                // genuine marker and this exact migration ID before this body.
+                try semanticProof.verify()
+                return manifest.migrationID
+            }
+        } else {
+            markerMigrationID = try autoreleasepool { () throws -> UUID in
+                let container: ModelContainer
+                let marker: PersistentSchemaReleaseMarker
+                guard manifest.storeSchemaRelease != .v1 else {
                     throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
                 }
-                return value
+                let frozenContainer: ModelContainer? = nil
+                switch manifest.storeSchemaRelease {
+                case .v2:
+                    container = try frozenContainer ?? makeV2Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV2Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v3:
+                    container = try frozenContainer ?? makeV3Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v4:
+                    container = try frozenContainer ?? makeV4Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV4Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v5:
+                    container = try frozenContainer ?? makeV5Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV5Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v6:
+                    container = try frozenContainer ?? makeV6Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV6Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v7:
+                    container = try frozenContainer ?? makeV7Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV7Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v8:
+                    container = try frozenContainer ?? makeV8Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV8Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v9:
+                    container = try frozenContainer ?? makeV9Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV9Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v10:
+                    container = try frozenContainer ?? makeV10Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV10Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v11:
+                    container = try frozenContainer ?? makeV11Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV11Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v12:
+                    container = try frozenContainer ?? makeV12Container(at: modelStoreURL, migrate: false)
+                    marker = try requireV12Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
+                case .v13:
+                    container = try frozenContainer ?? makeV13Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV13Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v14:
+                    container = try frozenContainer ?? makeV14Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV14Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v15:
+                    container = try frozenContainer ?? makeV15Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV15Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v16:
+                    container = try frozenContainer ?? makeV16Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV16Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v17:
+                    container = try frozenContainer ?? makeV17Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV17Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v18:
+                    container = try frozenContainer ?? makeV18Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV18Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v19:
+                    container = try frozenContainer ?? makeV19Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV19Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v20:
+                    container = try frozenContainer ?? makeV20Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV20Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v21:
+                    container = try frozenContainer ?? makeV21Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV21Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v22:
+                    container = try frozenContainer ?? makeV22Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV22Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v23:
+                    container = try frozenContainer ?? makeV23Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV23Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v24:
+                    container = try frozenContainer ?? makeV24Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV24Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v25:
+                    container = try frozenContainer ?? makeV25Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV25Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v26:
+                    container = try frozenContainer ?? makeV26Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV26Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v27:
+                    container = try frozenContainer ?? makeV27Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV27Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v28:
+                    container = try frozenContainer ?? makeV28Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV28Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v29:
+                    container = try frozenContainer ?? makeV29Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV29Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v30:
+                    container = try frozenContainer ?? makeV30Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV30Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v31:
+                    container = try frozenContainer ?? makeV31Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV31Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v32:
+                    container = try frozenContainer ?? makeV32Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV32Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v33:
+                    container = try frozenContainer ?? makeV33Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV33Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v34:
+                    container = try frozenContainer ?? makeV34Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV34Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v35:
+                    container = try frozenContainer ?? makeV35Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV35Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v36:
+                    container = try frozenContainer ?? makeV36Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV36Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v37:
+                    container = try frozenContainer ?? makeV37Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV37Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v38:
+                    container = try frozenContainer ?? makeV38Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV38Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v39:
+                    container = try frozenContainer ?? makeV39Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV39Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v40:
+                    container = try frozenContainer ?? makeV40Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV40Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v41:
+                    container = try frozenContainer ?? makeV41Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV41Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v42:
+                    container = try frozenContainer ?? makeV42Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV42Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v43:
+                    container = try frozenContainer ?? makeV43Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV43Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v44:
+                    container = try frozenContainer ?? makeV44Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV44Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v45:
+                    container = try frozenContainer ?? makeV45Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV45Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v46:
+                    container = try frozenContainer ?? makeV46Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV46Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v47:
+                    container = try frozenContainer ?? makeV47Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV47Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v48:
+                    container = try frozenContainer ?? makeV48Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV48Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v49:
+                    container = try frozenContainer ?? makeV49Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV49Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v50:
+                    container = try frozenContainer ?? makeV50Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV50Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v51:
+                    container = try frozenContainer ?? makeV51Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV51Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v52:
+                    container = try frozenContainer ?? makeV52Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV52Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v53:
+                    container = try frozenContainer ?? makeV53Container(at:modelStoreURL,migrate:false)
+                    marker = try requireV53Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
+                case .v1:
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                // The fetched marker remains backed by this container until its
+                // value is copied. Do not retain only a temporary container's context.
+                return try withExtendedLifetime(container) { () throws -> UUID in
+                    guard let value = marker.migrationID else {
+                        throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                    }
+                    return value
+                }
             }
         }
         diagnosticPhase?("manifest.identity")
@@ -11172,10 +11361,27 @@ private extension StoreGenerationFactory {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         diagnosticPhase?("manifest.semantic")
-        guard manifest.semanticSHA256 == (try semanticDigest(
-                   at: modelStoreURL,
-                   manifest: manifest
-               )) else {
+        let observedSemanticSHA256: String
+        if let restoreFileSnapshot {
+            observedSemanticSHA256 = try withPrivateSemanticRead(
+                at: root, release: manifest.storeSchemaRelease, markerMigrationID: nil,
+                operationID: restoreFileSnapshot.restoreProof.restoreID,
+                expectedFiles: restoreFileSnapshot.files,
+                restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot
+            ) { container, semanticProof in
+                try semanticProof.verify()
+                let value = try self.semanticDigest(
+                    in: container.mainContext, manifest: manifest
+                )
+                try semanticProof.verify()
+                return value
+            }
+        } else {
+            observedSemanticSHA256 = try semanticDigest(
+                at: modelStoreURL, manifest: manifest, readOnly: false
+            )
+        }
+        guard manifest.semanticSHA256 == observedSemanticSHA256 else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         diagnosticPhase?("manifest.files")
@@ -12607,6 +12813,52 @@ final class EraseReaderRetirementInventoryV1 {
         sourceEpoch: GenerationEpochV1,
         registry: GenerationLeaseRegistryV1
     ) throws {
+#if DEBUG
+        do {
+            try requireUnsealed()
+        } catch {
+            EraseAllService.reportPreIntentRefusalForTesting(site: .inventoryAdmission, error: error)
+            throw error
+        }
+        // These are the same short-circuited operands, evaluated once in
+        // incumbent order. Emit only after the actual first operand refuses;
+        // do not re-read a weak alias or manufacture a drain observation.
+        guard preparationWasBound else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryPreparationBound, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard preparationOperation != nil else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryOperationPresent, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard originalObservationCount <= observations.count else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryObservationFrontier, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard observations.dropFirst(originalObservationCount).allSatisfy({ $0.isDrained }) else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryNonOriginalDrain, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard allocations.allSatisfy({
+            $0.matches(registry: registry) && $0.generationEpoch == sourceEpoch
+        }) else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventorySourceAllocations, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard readers.allSatisfy({ reader in
+            originalReaders.contains(where: { $0 === reader })
+                || allocations.contains(where: { $0.allocatedHandle === reader })
+        }) else {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryReaderAccounting, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+#else
         try requireUnsealed()
         guard preparationWasBound, preparationOperation != nil,
               originalObservationCount <= observations.count,
@@ -12620,6 +12872,7 @@ final class EraseReaderRetirementInventoryV1 {
               }) else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#endif
     }
 
     func sealForFreshAdoptionFailure(owner: EraseFreshAdoptionOwnerV1,
@@ -14259,6 +14512,89 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
+#if DEBUG
+    enum OriginalEraseDebugSourceProjectionKindV1: Equatable { case liveHandoff, drainedShutdown }
+
+    @MainActor
+    final class OriginalEraseDebugSourceProjectionV1 {
+        let kind: OriginalEraseDebugSourceProjectionKindV1
+        let generationID: UUID
+        let beforeSQLite: CompletedAbortSQLitePhysicalImageV1
+        let tree: String
+        let nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]
+        let sqlite: CompletedAbortSQLitePhysicalImageV1
+        private weak var authority: StoreRestoreGenerationAuthority?
+        private weak var operation: EraseRouterOperationV1?
+        private weak var transition: OriginalErasePhysicalTransitionV1?
+        private var consumed = false
+        private var uncertain = false
+        func markUncertain() { uncertain = true }
+
+        fileprivate init(authority: StoreRestoreGenerationAuthority,
+            operation: EraseRouterOperationV1, transition: OriginalErasePhysicalTransitionV1,
+            kind: OriginalEraseDebugSourceProjectionKindV1,
+            beforeSQLite: CompletedAbortSQLitePhysicalImageV1,
+            source: (tree: String, nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode],
+                image: CompletedAbortSQLitePhysicalImageV1)) {
+            self.authority = authority; self.operation = operation; self.transition = transition
+            self.kind = kind; generationID = transition.origin.sourceID
+            self.beforeSQLite = beforeSQLite; tree = source.tree; nodes = source.nodes; sqlite = source.image
+        }
+
+        func consume(authority expected: StoreRestoreGenerationAuthority,
+            operation expectedOperation: EraseRouterOperationV1) throws {
+            guard !consumed, !uncertain, authority === expected, operation === expectedOperation,
+                  let transition else { throw StoreGenerationFailure.dataPointerInvalid }
+            try transition.requireBound(authority: expected, operation: expectedOperation)
+            try expectedOperation.requireOriginalEraseDebugSourceLoanConsumptionForTesting(self)
+            consumed = true
+        }
+    }
+
+    /// A readback successor of the existing real alias interval. Neither the
+    /// original P image nor the pointer receipt is replaced by this DEBUG loan.
+    @MainActor
+    func originalEraseDebugSourceProjection(
+        transition: OriginalErasePhysicalTransitionV1, operation: EraseRouterOperationV1,
+        kind: OriginalEraseDebugSourceProjectionKindV1
+    ) throws -> OriginalEraseDebugSourceProjectionV1 {
+        try transition.requireBound(authority: self, operation: operation)
+        guard transition.pendingStage == nil, transition.pendingImage == nil,
+              let sourceAliasOrigin = transition.sourceAliasOrigin else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if kind == .drainedShutdown {
+            guard transition.shutdownAliasOrigin != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        } else {
+            guard transition.shutdownAliasOrigin == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+        let after = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        let allowed: Set<UUID> = [transition.origin.sourceID, transition.origin.targetID]
+        try requireOriginalErasePhysicalTransition(from: sourceAliasOrigin, to: after, allowing: allowed)
+        try requireOriginalErasePhysicalTransition(from: transition.origin, to: after, allowing: allowed)
+        if kind == .drainedShutdown {
+            guard after.siblings == transition.checkedImage.siblings else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        let source = try originalEraseSQLitePhysicalImageForColdExitForTesting(id: after.sourceID)
+        guard source.image == after.sourceSQLite else { throw StoreGenerationFailure.dataPointerInvalid }
+        let prefix = "generations/" + Self.canonical(after.sourceID)
+        let siblings = after.siblings.nodes.filter { $0.path == prefix || $0.path.hasPrefix(prefix + "/") }
+        guard siblings.count == source.nodes.count else { throw StoreGenerationFailure.dataPointerInvalid }
+        for node in source.nodes {
+            let path = node.path.isEmpty ? prefix : prefix + "/" + node.path
+            guard let matching = siblings.first(where: { $0.path == path }),
+                  matching.fact == OriginalErasePointerFullFactV1(node.fact),
+                  matching.sha256 == node.sha256 else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+        let repeated = try captureOriginalErasePhysicalImage(receipt: transition.receipt, operation: operation)
+        guard repeated.siblings == after.siblings, repeated.sourceSQLite == after.sourceSQLite,
+              repeated.targetSQLite == after.targetSQLite else { throw StoreGenerationFailure.dataPointerInvalid }
+        return OriginalEraseDebugSourceProjectionV1(authority: self, operation: operation,
+            transition: transition, kind: kind, beforeSQLite: sourceAliasOrigin.sourceSQLite, source: source)
+    }
+#endif
     @MainActor
     private func captureOriginalErasePhysicalImage(
         receipt: OriginalErasePointerReceiptV1,
@@ -20626,6 +20962,88 @@ final class StoreRestoreGenerationAuthority {
         )
     }
 
+#if DEBUG
+    // C72 metadata diagnostics consume only values from the original checks.
+    // No additional pathname, descriptor, protection, or content read occurs.
+    private static func debugRestoreSnapshotCheck(
+        _ matches: Bool,
+        subguard: String
+    ) -> Bool {
+        print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=\(subguard) match=\(matches)")
+        return matches
+    }
+
+    private static func debugRestoreSnapshotUnsigned(
+        actual: UInt64,
+        expected: UInt64,
+        subguard: String
+    ) -> Bool {
+        let matches = actual == expected
+        print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=\(subguard) "
+            + "expected=\(expected) actual=\(actual) match=\(matches)")
+        return matches
+    }
+
+    private static func debugRestoreSnapshotIdentity(
+        actual: Identity,
+        expected: Identity,
+        subguard: String
+    ) -> Bool {
+        let matches = actual == expected
+        print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=\(subguard) "
+            + "expectedDevice=\(expected.device) expectedInode=\(expected.inode) "
+            + "actualDevice=\(actual.device) actualInode=\(actual.inode) match=\(matches)")
+        return matches
+    }
+
+    private static func debugRestoreSnapshotFact(
+        _ fact: StoreRestoreGenerationFileSnapshotV1.NodeFact?,
+        role: String,
+        index: Int,
+        subguard: String
+    ) {
+        let prefix = "V23_RESTORE_FROZEN_SNAPSHOT_NODE_V1 subguard=\(subguard) "
+            + "role=\(role) index=\(index)"
+        guard let fact else {
+            print(prefix + " presence=absent")
+            return
+        }
+        // Reflection escapes path text; these are relative filesystem names,
+        // never protected record fields, absolute URLs, file bytes, or digests.
+        let path = " relativePath=\(String(reflecting: fact.relativePath))"
+            + " parentRelativePath=\(String(reflecting: fact.parentRelativePath))"
+            + " name=\(String(reflecting: fact.name)) type=\(fact.type.rawValue)"
+        let identity = " device=\(fact.device) inode=\(fact.inode)"
+            + " linkCount=\(String(describing: fact.linkCount))"
+            + " byteCount=\(String(describing: fact.byteCount))"
+        let modification = " modificationSeconds=\(String(describing: fact.modificationSeconds))"
+            + " modificationNanoseconds=\(String(describing: fact.modificationNanoseconds))"
+        let status = " statusChangeSeconds=\(String(describing: fact.statusChangeSeconds))"
+            + " statusChangeNanoseconds=\(String(describing: fact.statusChangeNanoseconds))"
+        print(prefix + " presence=present" + path + identity + modification + status)
+    }
+
+    private static func debugRestoreSnapshotFacts(
+        actual: [StoreRestoreGenerationFileSnapshotV1.NodeFact],
+        expected: [StoreRestoreGenerationFileSnapshotV1.NodeFact],
+        subguard: String
+    ) -> Bool {
+        let matches = actual == expected
+        print("V23_RESTORE_FROZEN_SNAPSHOT_V1 subguard=\(subguard) "
+            + "expectedCount=\(expected.count) actualCount=\(actual.count) match=\(matches)")
+        for index in 0..<max(expected.count, actual.count) {
+            let expectedFact: StoreRestoreGenerationFileSnapshotV1.NodeFact? =
+                index < expected.count ? expected[index] : nil
+            let actualFact: StoreRestoreGenerationFileSnapshotV1.NodeFact? =
+                index < actual.count ? actual[index] : nil
+            print("V23_RESTORE_FROZEN_SNAPSHOT_NODE_PAIR_V1 subguard=\(subguard) "
+                + "index=\(index) match=\(actualFact == expectedFact)")
+            debugRestoreSnapshotFact(expectedFact, role: "expected", index: index, subguard: subguard)
+            debugRestoreSnapshotFact(actualFact, role: "actual", index: index, subguard: subguard)
+        }
+        return matches
+    }
+#endif
     fileprivate static func validateRestoreGenerationFileSnapshot(
         _ snapshot: StoreRestoreGenerationFileSnapshotV1,
         generationID: UUID,
@@ -20634,6 +21052,24 @@ final class StoreRestoreGenerationAuthority {
         restoreProof: StoreRestoreGenerationManifestProofV1
     ) throws {
         try restoreProof.validate()
+#if DEBUG
+        guard debugRestoreSnapshotCheck(snapshot.generationID == generationID,
+                  subguard: "binding.snapshot-generation"),
+              debugRestoreSnapshotCheck(snapshot.staging == staging,
+                  subguard: "binding.staging"),
+              debugRestoreSnapshotCheck(snapshot.rootURL == rootURL,
+                  subguard: "binding.root-url"),
+              debugRestoreSnapshotCheck(snapshot.restoreProof == restoreProof,
+                  subguard: "binding.restore-proof"),
+              debugRestoreSnapshotCheck(restoreProof.generationID == generationID,
+                  subguard: "binding.proof-generation"),
+              debugRestoreSnapshotCheck(rootURL.isFileURL,
+                  subguard: "binding.file-url"),
+              debugRestoreSnapshotCheck(rootURL.standardizedFileURL == rootURL,
+                  subguard: "binding.standardized-url") else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+#else
         guard snapshot.generationID == generationID,
               snapshot.staging == staging,
               snapshot.rootURL == rootURL,
@@ -20643,6 +21079,7 @@ final class StoreRestoreGenerationAuthority {
               rootURL.standardizedFileURL == rootURL else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+#endif
         func freshInventory(
             verifyProtection: Bool
         ) throws -> [StoreRestoreGenerationFileSnapshotV1.NodeFact] {
@@ -20655,11 +21092,24 @@ final class StoreRestoreGenerationAuthority {
             }
             defer { _ = Darwin.close(descriptor) }
             let root = try identity(descriptor)
+#if DEBUG
+            guard debugRestoreSnapshotUnsigned(actual: UInt64(root.device),
+                      expected: snapshot.expectedRootIdentity.device,
+                      subguard: "inventory.root-device"),
+                  debugRestoreSnapshotUnsigned(actual: UInt64(root.inode),
+                      expected: snapshot.expectedRootIdentity.inode,
+                      subguard: "inventory.root-inode"),
+                  try debugRestoreSnapshotIdentity(actual: directoryIdentity(at: rootURL),
+                      expected: root, subguard: "inventory.named-root") else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+#else
             guard UInt64(root.device) == snapshot.expectedRootIdentity.device,
                   UInt64(root.inode) == snapshot.expectedRootIdentity.inode,
                   try directoryIdentity(at: rootURL) == root else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
+#endif
             let inventory = try GenerationInventory(
                 parent: descriptor,
                 requireModel: true
@@ -20669,25 +21119,52 @@ final class StoreRestoreGenerationAuthority {
             let before = try inventory.snapshotFacts(
                 rootName: rootURL.lastPathComponent
             )
+#if DEBUG
+            guard debugRestoreSnapshotFacts(actual: before, expected: snapshot.facts,
+                      subguard: verifyProtection ? "inventory.protected.before-facts" : "inventory.second.before-facts") else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+#else
             guard before == snapshot.facts else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
+#endif
             if verifyProtection {
                 try inventory.verifyProtection(rootURL: rootURL, staging: staging)
             }
             try inventory.revalidate()
+#if DEBUG
+            guard try debugRestoreSnapshotFacts(
+                      actual: inventory.snapshotFacts(rootName: rootURL.lastPathComponent),
+                      expected: before,
+                      subguard: verifyProtection ? "inventory.protected.after-facts" : "inventory.second.after-facts"),
+                  try debugRestoreSnapshotIdentity(actual: identity(descriptor),
+                      expected: root, subguard: "inventory.revalidated-descriptor-root"),
+                  try debugRestoreSnapshotIdentity(actual: directoryIdentity(at: rootURL),
+                      expected: root, subguard: "inventory.revalidated-named-root") else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+#else
             guard try inventory.snapshotFacts(rootName: rootURL.lastPathComponent)
                     == before,
                   try identity(descriptor) == root,
                   try directoryIdentity(at: rootURL) == root else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
+#endif
             return before
         }
         _ = try freshInventory(verifyProtection: true)
+#if DEBUG
+        guard try debugRestoreSnapshotFacts(actual: freshInventory(verifyProtection: false),
+                  expected: snapshot.facts, subguard: "inventory.final-facts") else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+#else
         guard try freshInventory(verifyProtection: false) == snapshot.facts else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+#endif
     }
 
     fileprivate func clearAggregateStagingGeneration(reservation: StoreAggregateMigrationJournalV1) throws {
@@ -25849,6 +26326,9 @@ struct StoreGenerationFactory {
         }
         diagnosticPhase?("recovery.manifest.preflight.end")
         let root = restoreStagingGenerationURL(id: newID)
+#if DEBUG
+        print("V23_RESTORE_FROZEN_SNAPSHOT_PHASE_V1 phase=manifest.preflight-before-container-and-semantic")
+#endif
         _ = try requireRestoreFileSnapshot(
             restoreFileSnapshot,
             generationID: restoreProof?.generationID,
@@ -25857,20 +26337,44 @@ struct StoreGenerationFactory {
         )
         diagnosticPhase?("recovery.manifest.file-snapshot.end")
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
-        let markerMigrationID = try autoreleasepool { () throws -> UUID in
+        let markerMigrationID: UUID
+        if let restoreFileSnapshot {
             diagnosticPhase?("recovery.manifest.container.begin")
-            let container = try makeV53Container(at: modelStoreURL, migrate: false)
-            diagnosticPhase?("recovery.manifest.container.end")
-            diagnosticPhase?("recovery.manifest.marker.begin")
-            let marker = try requireV53Marker(
-                in: container.mainContext,
-                expectedMigrationID: nil
-            )
-            diagnosticPhase?("recovery.manifest.marker.end")
-            guard let value = marker.migrationID else {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            markerMigrationID = try withPrivateSemanticRead(
+                at: root, release: .v53, markerMigrationID: nil,
+                operationID: restoreFileSnapshot.restoreProof.restoreID,
+                expectedFiles: restoreFileSnapshot.files,
+                restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot
+            ) { container, semanticProof in
+                diagnosticPhase?("recovery.manifest.container.end")
+                diagnosticPhase?("recovery.manifest.marker.begin")
+                try semanticProof.verify()
+                let marker = try self.requireV53Marker(
+                    in: container.mainContext, expectedMigrationID: nil
+                )
+                diagnosticPhase?("recovery.manifest.marker.end")
+                guard let value = marker.migrationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                try semanticProof.verify()
+                return value
             }
-            return value
+        } else {
+            markerMigrationID = try autoreleasepool { () throws -> UUID in
+                diagnosticPhase?("recovery.manifest.container.begin")
+                let container = try makeV53Container(at: modelStoreURL, migrate: false)
+                diagnosticPhase?("recovery.manifest.container.end")
+                diagnosticPhase?("recovery.manifest.marker.begin")
+                let marker = try requireV53Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: nil
+                )
+                diagnosticPhase?("recovery.manifest.marker.end")
+                guard let value = marker.migrationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                return value
+            }
         }
         diagnosticPhase?("recovery.manifest.container-scope.end")
         let store = try StoreMigrationJournalStoreV1(
@@ -25893,11 +26397,37 @@ struct StoreGenerationFactory {
             digest = existing.digest
         } else {
             diagnosticPhase?("recovery.manifest.semantic.begin")
-            let semanticSHA256: String = try framedSemanticDigest(
-                at: modelStoreURL,
-                release: PersistentSchemaReleaseRegistryV1.activeRelease
-            )
+#if DEBUG
+            print("V23_RESTORE_FROZEN_SNAPSHOT_PHASE_V1 phase=manifest.semantic.before")
+#endif
+            let semanticSHA256: String
+            if let restoreFileSnapshot {
+                semanticSHA256 = try withPrivateSemanticRead(
+                    at: root, release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                    markerMigrationID: nil,
+                    operationID: restoreFileSnapshot.restoreProof.restoreID,
+                    expectedFiles: restoreFileSnapshot.files,
+                    restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot
+                ) { container, semanticProof in
+                    try semanticProof.verify()
+                    let value = try self.framedSemanticDigest(
+                        in: container.mainContext,
+                        release: PersistentSchemaReleaseRegistryV1.activeRelease
+                    )
+                    try semanticProof.verify()
+                    return value
+                }
+            } else {
+                semanticSHA256 = try framedSemanticDigest(
+                    at: modelStoreURL,
+                    release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                    readOnly: false
+                )
+            }
             diagnosticPhase?("recovery.manifest.semantic.end")
+#if DEBUG
+            print("V23_RESTORE_FROZEN_SNAPSHOT_PHASE_V1 phase=manifest.semantic.after-before-identity")
+#endif
             diagnosticPhase?("recovery.manifest.identity.begin")
             let identityDigest: String = try frozenIdentityDigest(
                 for: root,
@@ -25977,19 +26507,41 @@ struct StoreGenerationFactory {
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
-        let manifest = try store.loadManifest(
-            targetGenerationID: generationID,
-            expectedDigest: expectedManifestDigest
-        )
-        try requireRestoreManifestSnapshot(
-            manifest,
-            expectedOldID: expectedOldID,
-            generationID: generationID,
-            at: installedGenerationURL(id: generationID),
-            staging: false,
-            restoreProof: restoreProof,
-            restoreFileSnapshot: restoreFileSnapshot
-        )
+        if restoreProof != nil {
+            // Borrow G from this actual authority's existing Registry. Its
+            // same-instance recursion preserves an already-held G interval;
+            // a newly constructed same-root Registry cannot substitute here.
+            try authority.mutationRegistry.withNoMigrationReservation {
+                let manifest = try store.loadManifest(
+                    targetGenerationID: generationID,
+                    expectedDigest: expectedManifestDigest
+                )
+                try requireRestoreManifestSnapshot(
+                    manifest,
+                    expectedOldID: expectedOldID,
+                    generationID: generationID,
+                    at: installedGenerationURL(id: generationID),
+                    staging: false,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                )
+            }
+        } else {
+            let manifest = try store.loadManifest(
+                targetGenerationID: generationID,
+                expectedDigest: expectedManifestDigest
+            )
+            try requireRestoreManifestSnapshot(
+                manifest,
+                expectedOldID: expectedOldID,
+                generationID: generationID,
+                at: installedGenerationURL(id: generationID),
+                staging: false,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+        }
+
         if restoreProof == nil {
             try authority.protectInstalledGeneration(id: generationID)
         } else {
@@ -26055,29 +26607,63 @@ struct StoreGenerationFactory {
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
-        if let existing = try store.loadManifestIfPresent(
-            targetGenerationID: generationID
-        ) {
-            guard existing.digest == expectedDigest,
-                  existing.manifest.generationID == generationID,
-                  presence.staging || presence.installed else {
-                throw StoreMigrationFailure.digestMismatch
+        if restoreProof != nil {
+            // Borrow G from this actual authority's existing Registry. Its
+            // same-instance recursion preserves an already-held G interval;
+            // a newly constructed same-root Registry cannot substitute here.
+            try authority.mutationRegistry.withNoMigrationReservation {
+                if let existing = try store.loadManifestIfPresent(
+                    targetGenerationID: generationID
+                ) {
+                    guard existing.digest == expectedDigest,
+                          existing.manifest.generationID == generationID,
+                          presence.staging || presence.installed else {
+                        throw StoreMigrationFailure.digestMismatch
+                    }
+                    try requireRestoreManifestSnapshot(
+                        existing.manifest,
+                        expectedOldID: expectedOldID,
+                        generationID: generationID,
+                        at: presence.staging
+                            ? restoreStagingGenerationURL(id: generationID)
+                            : installedGenerationURL(id: generationID),
+                        staging: presence.staging,
+                        restoreProof: restoreProof,
+                        restoreFileSnapshot: restoreFileSnapshot
+                    )
+                    try store.removeManifest(
+                        targetGenerationID: generationID,
+                        expectedDigest: expectedDigest
+                    )
+                }
+
             }
-            try requireRestoreManifestSnapshot(
-                existing.manifest,
-                expectedOldID: expectedOldID,
-                generationID: generationID,
-                at: presence.staging
-                    ? restoreStagingGenerationURL(id: generationID)
-                    : installedGenerationURL(id: generationID),
-                staging: presence.staging,
-                restoreProof: restoreProof,
-                restoreFileSnapshot: restoreFileSnapshot
-            )
-            try store.removeManifest(
-                targetGenerationID: generationID,
-                expectedDigest: expectedDigest
-            )
+        } else {
+            if let existing = try store.loadManifestIfPresent(
+                targetGenerationID: generationID
+            ) {
+                guard existing.digest == expectedDigest,
+                      existing.manifest.generationID == generationID,
+                      presence.staging || presence.installed else {
+                    throw StoreMigrationFailure.digestMismatch
+                }
+                try requireRestoreManifestSnapshot(
+                    existing.manifest,
+                    expectedOldID: expectedOldID,
+                    generationID: generationID,
+                    at: presence.staging
+                        ? restoreStagingGenerationURL(id: generationID)
+                        : installedGenerationURL(id: generationID),
+                    staging: presence.staging,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                )
+                try store.removeManifest(
+                    targetGenerationID: generationID,
+                    expectedDigest: expectedDigest
+                )
+            }
+
         }
 
         if let _ = try store.loadManifestIfPresent(
@@ -34677,8 +35263,13 @@ struct EraseSchema2ColdTargetSnapshotV1 {
 
 enum EraseSchema2ColdTargetValidationStageV1: Equatable {
     case preparedTargetCurrent
+    case preparedOldCurrent
     case preactivation
     case activated
+
+    var isPrepared: Bool {
+        self == .preparedTargetCurrent || self == .preparedOldCurrent
+    }
 }
 
 /// A live target constructor may checkpoint SQLite or rewrite its shared
@@ -34711,7 +35302,7 @@ struct EraseSchema2ColdTargetLiveOpenPhysicalV1 {
         stage: EraseSchema2ColdTargetValidationStageV1,
         io: EraseAbortCheckedSnapshotIOV1) throws -> Before {
         switch stage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw StoreGenerationFailure.dataPointerInvalid
         case .preactivation:
             try validationAttempt.requireRecordedPreactivation(
@@ -34724,7 +35315,7 @@ struct EraseSchema2ColdTargetLiveOpenPhysicalV1 {
         }
         let nodes = try io.treeWithNodes(parent: root, name: ".").nodes
         switch stage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw StoreGenerationFailure.dataPointerInvalid
         case .preactivation:
             try validationAttempt.requireExactPreactivationTree(root: root)
@@ -34807,7 +35398,7 @@ struct EraseSchema2ColdTargetLiveOpenPhysicalV1 {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         switch stage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw StoreGenerationFailure.dataPointerInvalid
         case .preactivation:
             try attempt.requireRecordedPreactivation(snapshot: snapshot)
@@ -35031,6 +35622,18 @@ final class EraseSchema2ColdTargetValidationAttemptV1 {
             stage: .preparedTargetCurrent)
     }
 
+    /// A prepared-old proof remains bound to its own first old-current cut.
+    /// It cannot satisfy target-current P or pointer-switched Q consumers.
+    func requireCompletedPreparedOldTarget(
+        source expectedSource: EraseSchema2ColdTargetSourceV1,
+        snapshot expectedSnapshot: EraseSchema2ColdTargetSnapshotV1,
+        intent expectedIntent: EraseIntentV1
+    ) throws {
+        try requireCompletedValidation(source: expectedSource,
+            snapshot: expectedSnapshot, intent: expectedIntent,
+            stage: .preparedOldCurrent)
+    }
+
     func requireRecordedActivated(
         snapshot expectedSnapshot: EraseSchema2ColdTargetSnapshotV1
     ) throws {
@@ -35093,7 +35696,9 @@ final class EraseSchema2ColdTargetValidationAttemptV1 {
         guard let operation, uncertainFDs.isEmpty,
               ((validationStage == .preparedTargetCurrent
                 && operation.schema2ColdPreparedTargetValidationAttempt === self)
-               || (validationStage != .preparedTargetCurrent
+               || (validationStage == .preparedOldCurrent
+                && operation.schema2ColdPreparedOldTargetValidationAttempt === self)
+               || (!validationStage.isPrepared
                 && operation.schema2ColdTargetValidationAttempt === self)),
               source.generationID == intent.newGenerationID,
               snapshot.pointer.generationID
@@ -35104,6 +35709,11 @@ final class EraseSchema2ColdTargetValidationAttemptV1 {
               ((validationStage == .preparedTargetCurrent &&
                     intent.phase == .emptyGenerationPrepared &&
                     snapshot.currentPointer == snapshot.pointer) ||
+               (validationStage == .preparedOldCurrent &&
+                    intent.phase == .emptyGenerationPrepared &&
+                    snapshot.currentPointer != snapshot.pointer &&
+                    snapshot.currentPointer.generationID
+                        == intent.oldGenerationID.uuidString.lowercased()) ||
                (validationStage == .preactivation &&
                     intent.phase == .pointerSwitched) ||
                 (validationStage == .activated &&
@@ -35121,7 +35731,9 @@ final class EraseSchema2ColdTargetValidationAttemptV1 {
                 == snapshot.pointer.knownReplicaIDs else {
             throw EraseAllServiceError.invalidAuthority
         }
-        if validationStage == .preparedTargetCurrent {
+        if validationStage == .preparedOldCurrent {
+            try operation.requireSchema2ColdPreparedOldTargetValidationAttempt(self)
+        } else if validationStage == .preparedTargetCurrent {
             try operation.requireSchema2ColdPreparedTargetValidationAttempt(self)
         } else {
             try operation.requireSchema2ColdTargetValidationAttempt(self)
@@ -35397,6 +36009,31 @@ extension StoreGenerationFactory {
             operation: operation, stage: .preparedTargetCurrent)
     }
 
+    /// Validate a prepared target while the actual first current pointer is
+    /// old. Only the operation's distinct retained prepared-old capability
+    /// can bind this private attempt; no Q phase or target-current cut is used.
+    @MainActor
+    func validateOrResumeSchema2ColdPreparedOldCurrent(
+        source: EraseSchema2ColdTargetSourceV1,
+        snapshot: EraseSchema2ColdTargetSnapshotV1,
+        intent: EraseIntentV1,
+        temporaryDirectoryURL: URL,
+        operation: EraseColdPreparationOperationV1
+    ) async throws -> Bool {
+        guard intent.phase == .emptyGenerationPrepared,
+              snapshot.currentPointer != snapshot.pointer,
+              snapshot.currentPointer.generationID
+                == intent.oldGenerationID.uuidString.lowercased() else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try operation.requireSchema2ColdPreparedOldTargetAdmission(
+            source: source, snapshot: snapshot, intent: intent)
+        return try await validateOrResumeSchema2ColdTargetCopy(
+            source: source, snapshot: snapshot, intent: intent,
+            temporaryDirectoryURL: temporaryDirectoryURL,
+            operation: operation, stage: .preparedOldCurrent)
+    }
+
     /// A pointer-switched target is still a preactivation generation. Its
     /// complete private semantic read grants no live session or phase CAS.
     @MainActor
@@ -35471,9 +36108,15 @@ extension StoreGenerationFactory {
         operation: EraseColdPreparationOperationV1,
         stage: EraseSchema2ColdTargetValidationStageV1
     ) async throws -> Bool {
-        let retained = stage == .preparedTargetCurrent
-            ? operation.schema2ColdPreparedTargetValidationAttempt
-            : operation.schema2ColdTargetValidationAttempt
+        let retained: EraseSchema2ColdTargetValidationAttemptV1?
+        switch stage {
+        case .preparedTargetCurrent:
+            retained = operation.schema2ColdPreparedTargetValidationAttempt
+        case .preparedOldCurrent:
+            retained = operation.schema2ColdPreparedOldTargetValidationAttempt
+        case .preactivation, .activated:
+            retained = operation.schema2ColdTargetValidationAttempt
+        }
         if let attempt = retained {
             return try attempt.disposeAfterAliasDrain(source: source,
                 snapshot: snapshot, intent: intent, validationStage: stage)
@@ -35482,6 +36125,11 @@ extension StoreGenerationFactory {
               ((stage == .preparedTargetCurrent
                   && intent.phase == .emptyGenerationPrepared
                   && snapshot.currentPointer == snapshot.pointer)
+                || (stage == .preparedOldCurrent
+                  && intent.phase == .emptyGenerationPrepared
+                  && snapshot.currentPointer != snapshot.pointer
+                  && snapshot.currentPointer.generationID
+                    == intent.oldGenerationID.uuidString.lowercased())
                 || (stage == .preactivation
                   && intent.phase == .pointerSwitched)
                 || (stage == .activated
@@ -35509,7 +36157,10 @@ extension StoreGenerationFactory {
             source: source, snapshot: snapshot, intent: intent,
             temporaryDirectoryURL: temporaryDirectoryURL,
             operation: operation, validationStage: stage)
-        if stage == .preparedTargetCurrent {
+        if stage == .preparedOldCurrent {
+            try operation.retainSchema2ColdPreparedOldTargetValidationAttempt(
+                attempt, snapshot: snapshot, intent: intent)
+        } else if stage == .preparedTargetCurrent {
             try operation.retainSchema2ColdPreparedTargetValidationAttempt(
                 attempt, snapshot: snapshot, intent: intent)
         } else {
@@ -35532,13 +36183,12 @@ extension StoreGenerationFactory {
                     workspaceID: WorkspaceID(rawValue: target.workspaceID),
                     replicaID: ReplicaID(rawValue: target.replicaID))
                 guard identity == expected else { return false }
-                if stage == .preactivation ||
-                    stage == .preparedTargetCurrent {
+                if stage == .preactivation || stage.isPrepared {
                     try EraseAllService.requireSchema2ColdPreactivationGraph(
                         context: container.mainContext,
                         generationID: source.generationID,
                         identity: identity,
-                        switched: stage == .preparedTargetCurrent
+                        switched: stage.isPrepared
                             ? intent.advancing(to: .pointerSwitched) : intent)
                 } else {
                     try EraseAllService.requireEmptyErasePublishedGraph(
@@ -36062,7 +36712,7 @@ final class EraseSchema2ColdActivatedTargetAttemptV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         switch validationStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             try preactivation.requireCompletedPreactivation(
@@ -36078,7 +36728,7 @@ final class EraseSchema2ColdActivatedTargetAttemptV1 {
                 io: physicalIO)
         }
         switch validationStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             try operation.beginSchema2ColdTargetLiveOpen(
@@ -36123,7 +36773,7 @@ final class EraseSchema2ColdActivatedTargetAttemptV1 {
                 before: before, root: descriptor, io: physicalIO)
         }
         switch validationStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             try proof.requireBoundToPreactivation(
@@ -36135,7 +36785,7 @@ final class EraseSchema2ColdActivatedTargetAttemptV1 {
         physical = proof
         phase = .physicallySettled
         switch validationStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             try operation.finishSchema2ColdTargetLiveOpen(
@@ -36171,7 +36821,7 @@ final class EraseSchema2ColdActivatedTargetAttemptV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         switch validationStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             try physical.requireBoundToPreactivation(
@@ -36262,7 +36912,7 @@ extension StoreGenerationFactory {
             throw EraseAllServiceError.invalidAuthority
         }
         switch validated.validatedStage {
-        case .preparedTargetCurrent:
+        case .preparedTargetCurrent, .preparedOldCurrent:
             throw EraseAllServiceError.invalidAuthority
         case .preactivation:
             guard intent.phase == .pointerSwitched else {
@@ -36332,7 +36982,7 @@ extension StoreGenerationFactory {
                 throw EraseAllServiceError.invalidAuthority
             }
             switch validated.validatedStage {
-            case .preparedTargetCurrent:
+            case .preparedTargetCurrent, .preparedOldCurrent:
                 throw EraseAllServiceError.invalidAuthority
             case .preactivation:
                 try EraseAllService.requireSchema2ColdPreactivationGraph(
@@ -36606,7 +37256,11 @@ final class EraseSchema2ColdPrivateSourceAttemptV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         try source.requireOriginalUnchanged()
-        _ = try source.requireCurrentTargetPointer(intent: intent)
+        if let original = source as? EraseSchema2ColdRetainedSourceV1 {
+            _ = try original.requireCurrentPointerForPrivateRead(intent: intent)
+        } else {
+            _ = try source.requireCurrentTargetPointer(intent: intent)
+        }
         _ = try source.requireTargetRootIdentity(targetID: intent.newGenerationID)
         try ancestryIO.requireSettled()
         try contentIO.requireSettled()

@@ -294,7 +294,7 @@ private enum C55PartsStockTestSupport {
                 kind: .workPacket,
                 subjectID: id(slot).uuidString,
                 subjectRevision: 1,
-                subjectSHA256: digest("w")
+                subjectSHA256: CanonicalJSONV1.sha256(Data("C55-WORK-RESOURCE-SUBJECT".utf8))
             )
         }
         let material = try ManualMaterialLineV1(
@@ -1982,7 +1982,7 @@ final class V9_63PartsStockTests: XCTestCase {
             itemID: "C55-MATERIAL",
             kind: .inspection,
             expectedRevision: 1,
-            itemSHA256: C55PartsStockTestSupport.digest("i")
+            itemSHA256: CanonicalJSONV1.sha256(Data("C55-MATERIAL".utf8))
         )
         let manifest = try WorkPacketManifestV1(
             manifestID: C55PartsStockTestSupport.id(830),
@@ -3055,8 +3055,11 @@ final class V9_63PartsStockTests: XCTestCase {
         XCTAssertEqual(lifecycleSpy.rebuildCalls, 1)
         XCTAssertEqual(lifecycleSpy.eraseCalls, 1)
         XCTAssertEqual(lifecycleSpy.deleteCalls, 1)
+        let wrongEffectDigest = CanonicalJSONV1.sha256(Data("C55-WRONG-RESTORE-EFFECT-A".utf8))
+        let alternateWrongEffectDigest = CanonicalJSONV1.sha256(Data("C55-WRONG-RESTORE-EFFECT-B".utf8))
         let wrongEffectSpy = C55PartsStockLifecycleSpy(
-            restoreEffectSHA256: C55PartsStockTestSupport.digest("q")
+            restoreEffectSHA256: delegatedReceipt.effectSHA256 == wrongEffectDigest
+                ? alternateWrongEffectDigest : wrongEffectDigest
         )
         let wrongEffectAdapter = PartsStockLifecycleAdapterV1(
             modelContext: context,
@@ -4509,9 +4512,12 @@ final class V9_63PartsStockTests: XCTestCase {
         try finalReturn.validate()
         XCTAssertEqual(finalReturn.resultingReturnedMantissa, 2)
         let firstFrontier = try firstReturn.frontierSnapshot()
+        let staleReceiptDigest = CanonicalJSONV1.sha256(Data("C55-STALE-FRONTIER-RECEIPT-A".utf8))
+        let alternateStaleReceiptDigest = CanonicalJSONV1.sha256(Data("C55-STALE-FRONTIER-RECEIPT-B".utf8))
         let staleFrontier = try StockReturnFrontierSnapshotV1(
             returnReceiptID: firstReturn.receiptID,
-            returnReceiptSHA256: C55PartsStockTestSupport.digest("s"),
+            returnReceiptSHA256: firstReturn.receiptSHA256 == staleReceiptDigest
+                ? alternateStaleReceiptDigest : staleReceiptDigest,
             sourceUseReceiptID: sourceUse.receiptID,
             resultingReturnedMantissa: firstReturn.resultingReturnedMantissa,
             workResourceSuccessor: returnSuccessor

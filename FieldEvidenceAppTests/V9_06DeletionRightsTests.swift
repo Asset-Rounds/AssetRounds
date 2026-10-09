@@ -152,11 +152,24 @@ final class V9_06DeletionRightsTests: XCTestCase {
             addTeardownBlock { [root = target.root] in
                 try? FileManager.default.removeItem(at: root)
             }
-            let restored = try await V906Integration.restore(
-                archive,
-                into: target,
-                mode: mode,
-                ids: V906Integration.restoreIDs(mode, offset: offset)
+            let restoreIDs = V906Integration.restoreIDs(mode, offset: offset)
+            let validated = try BackupImportService(
+                generationRootURL: target.session.generationRootURL,
+                storagePreflight: V906Integration.storage,
+                makeUUID: { V906Integration.id(70) },
+                scopedAccess: .alreadyAuthorized
+            ).stageAndValidate(selectedPackageURL: archive)
+            let originalHistory = try XCTUnwrap(validated.records.mutationHistory)
+            let restored = try await BackupRestoreService(
+                applicationSupportURL: target.support,
+                storagePreflight: V906Integration.storage,
+                makeUUID: V906Integration.sequence(restoreIDs)
+            ).restore(
+                validatedPackage: validated,
+                currentModelContext: target.session.modelContext,
+                currentGenerationID: target.session.generationID,
+                currentGenerationRootURL: target.session.generationRootURL,
+                mode: mode
             )
             XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Asset>()), 0, mode.rawValue)
             XCTAssertGreaterThanOrEqual(try restored.modelContext.fetchCount(FetchDescriptor<Site>()), 1, mode.rawValue)
@@ -169,10 +182,16 @@ final class V9_06DeletionRightsTests: XCTestCase {
                 identity: restored.workspaceIdentity,
                 generationID: restored.generationID
             )
-            XCTAssertNotNil(
-                try restoredJournal.receipt(mutationID: retainedMutationID),
-                mode.rawValue
-            )
+            let historicReceipt = try assertImportedOriginalReceiptRecords(restoredJournal.exportSnapshot(),
+                matching: originalHistory, workspaceID: source.session.workspaceID,
+                mutationID: retainedMutationID)
+            XCTAssertEqual(historicReceipt.mutationID, retainedMutationID, mode.rawValue)
+            if restored.workspaceID == source.session.workspaceID {
+                XCTAssertNotNil(
+                    try restoredJournal.receipt(mutationID: retainedMutationID),
+                    mode.rawValue
+                )
+            }
         }
     }
 
@@ -346,6 +365,63 @@ final class C27V906RightsTypedLocatorAnchorTests: XCTestCase {
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
     }
+}
+
+private extension V9_06DeletionRightsTests {
+    @MainActor
+    func assertImportedOriginalReceiptRecords(
+        _ actual: MutationHistorySnapshotV1,
+        matching original: MutationHistorySnapshotV1,
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> MutationReceiptV1 {
+        typealias OriginalReceipt = (record: MutationHistoryReceiptRecordV1, receipt: MutationReceiptV1)
+        typealias ReceiptOrderKey = (String, String, UInt64)
+        func orderKey(_ value: MutationReceiptV1) -> ReceiptOrderKey {
+            (value.identity.workspaceID.rawValue.uuidString,
+             value.identity.replicaID.rawValue.uuidString, value.identity.localSequence)
+        }
+        func decode(_ records: [MutationHistoryReceiptRecordV1]) throws -> [OriginalReceipt] {
+            try records.map { record in
+                _ = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+                _ = try record.reversalBasisData.map { try ReversalBasisV1.decodeCanonical(from: $0) }
+                _ = try record.semanticReversalData.map { try SemanticReversalReceiptV1.decodeCanonical(from: $0) }
+                return (record, receipt)
+            }
+        }
+        let originals = try decode(original.receipts)
+        XCTAssertFalse(originals.isEmpty, file: file, line: line)
+        let originalWorkspaces = Set(originals.map { $0.receipt.identity.workspaceID })
+        XCTAssertTrue(originalWorkspaces.contains(workspaceID), file: file, line: line)
+        let expected = originals.sorted { orderKey($0.receipt) < orderKey($1.receipt) }
+        // Inspect every restored original namespace, including any unexpected
+        // extra receipt there. Destination-local history is a distinct namespace.
+        let restoredOriginals = try decode(actual.receipts).filter {
+            originalWorkspaces.contains($0.receipt.identity.workspaceID)
+        }
+        XCTAssertEqual(restoredOriginals.count, originals.count, file: file, line: line)
+        XCTAssertEqual(restoredOriginals.map { $0.record }, expected.map { $0.record },
+            file: file, line: line)
+        let restoredKeys = restoredOriginals.map { orderKey($0.receipt) }
+        XCTAssertTrue(zip(restoredKeys, restoredKeys.dropFirst()).allSatisfy { $0.0 < $0.1 },
+            file: file, line: line)
+        let matchingOriginals = originals.filter {
+            $0.receipt.identity.workspaceID == workspaceID && $0.receipt.mutationID == mutationID
+        }
+        let matchingRestored = restoredOriginals.filter {
+            $0.receipt.identity.workspaceID == workspaceID && $0.receipt.mutationID == mutationID
+        }
+        XCTAssertEqual(matchingOriginals.count, 1, file: file, line: line)
+        XCTAssertEqual(matchingRestored.count, 1, file: file, line: line)
+        let originalReceipt = try XCTUnwrap(matchingOriginals.first?.receipt, file: file, line: line)
+        let restoredReceipt = try XCTUnwrap(matchingRestored.first?.receipt, file: file, line: line)
+        XCTAssertEqual(restoredReceipt, originalReceipt, file: file, line: line)
+        return restoredReceipt
+    }
+
 }
 
 extension V9_06DeletionRightsTests {

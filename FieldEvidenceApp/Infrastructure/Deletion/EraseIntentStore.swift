@@ -37797,7 +37797,7 @@ final class EraseIntentStore {
     private func schema2ColdRosterNames(_ added: [String] = [])
         -> [String] {
         ([Self.intentName, Self.preparationName] +
-            (coldCapturedOpaqueAuxiliaryRosterBytes == nil ? [] :
+            (coldAuxiliaryOriginBytes == nil ? [] :
                 [Self.auxiliaryRosterName]) +
             coldCapturedOpaqueOriginalRetired.keys.sorted() + added).sorted()
     }
@@ -37846,6 +37846,34 @@ final class EraseIntentStore {
     private var coldUncertainStreamClose = false
     private var coldUncertainFDs: [Int32] = []
     private var coldEffectUncertain = false
+    final class Schema2ColdPreparedAuxiliaryPublicationV1 {
+        fileprivate weak var store: EraseIntentStore?
+        fileprivate weak var operation: EraseColdPreparationOperationV1?
+        fileprivate let seal: EraseSchema2ColdAuxiliaryRosterPublicationSealV1
+        fileprivate let bytes: Data
+        fileprivate let fact: EraseColdControlLeafFactV1
+        fileprivate let policy: TemporalPolicyObservationV1
+        fileprivate init(store: EraseIntentStore,
+            operation: EraseColdPreparationOperationV1,
+            seal: EraseSchema2ColdAuxiliaryRosterPublicationSealV1,
+            bytes: Data, fact: EraseColdControlLeafFactV1,
+            policy: TemporalPolicyObservationV1) {
+            self.store = store; self.operation = operation; self.seal = seal
+            self.bytes = bytes; self.fact = fact; self.policy = policy
+        }
+    }
+    private var coldPreparedAuxiliaryPublicationStarted = false
+    private var coldOwnPreparedAuxiliaryBytes: Data?
+    private var coldPreparedAuxiliaryPublication: Schema2ColdPreparedAuxiliaryPublicationV1?
+    private var coldAuxiliaryOriginBytes: Data? {
+        coldCapturedOpaqueAuxiliaryRosterBytes ?? coldPreparedAuxiliaryPublication?.bytes
+    }
+    private var coldAuxiliaryOriginFact: EraseColdControlLeafFactV1? {
+        coldCapturedOpaqueAuxiliaryRosterFact ?? coldPreparedAuxiliaryPublication?.fact
+    }
+    private var coldAuxiliaryOriginPolicy: TemporalPolicyObservationV1? {
+        coldCapturedOpaqueAuxiliaryRosterPolicy ?? coldPreparedAuxiliaryPublication?.policy
+    }
     private var originalAuxiliaryPublicationStarted = false
     private var originalAuxiliaryPublicationUncertain = false
     private var originalAuxiliaryActiveFD: Int32?
@@ -38875,6 +38903,178 @@ final class EraseIntentStore {
         }
     }
 
+    /// Publish a missing first-P auxiliary record under the genuine retained
+    /// cold operation. It returns a cold receipt, never an Original receipt.
+    @MainActor
+    func publishSchema2ColdPreparedAuxiliaryRoster(
+        seal: EraseSchema2ColdAuxiliaryRosterPublicationSealV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> Schema2ColdPreparedAuxiliaryPublicationV1 {
+        guard borrowsColdObservation, !coldEffectUncertain,
+              !coldPreparedAuxiliaryPublicationStarted,
+              coldPreparedAuxiliaryPublication == nil,
+              coldCapturedOpaqueAuxiliaryRosterBytes == nil,
+              coldCapturedOpaqueAuxiliaryRosterFact == nil,
+              coldCapturedOpaqueAuxiliaryRosterPolicy == nil,
+              !coldCapturedOpaqueAuxiliaryRosterNextPresent,
+              seal.firstIntentForComparison.phase == .emptyGenerationPrepared,
+              !seal.canonicalBytes.isEmpty,
+              seal.canonicalBytes.count <= Self.maximumJournalBytes,
+              seal.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(seal.canonicalBytes) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try operation.requireSchema2ColdPreparedAuxiliaryPublicationSeal(seal, store: self)
+        let before = try requireSchema2ColdCanonicalControls(intent: seal.firstIntentForComparison,
+            preparation: seal.preparationForComparison, operation: operation)
+        guard before.names == [Self.intentName, Self.preparationName].sorted(),
+              try readColdLeafIfPresent(Self.auxiliaryRosterName) == nil else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        coldPreparedAuxiliaryPublicationStarted = true
+        coldOwnPreparedAuxiliaryBytes = seal.canonicalBytes
+        do {
+            try operation.withSchema2ColdPreparedAuxiliaryMutation(seal: seal, store: self) {
+                let unchanged = try self.requireSchema2ColdCanonicalControls(intent: seal.firstIntentForComparison,
+                    preparation: seal.preparationForComparison, operation: operation)
+                guard unchanged.eraseRoot == before.eraseRoot,
+                      unchanged.names == before.names,
+                      unchanged.intentBytes == before.intentBytes,
+                      unchanged.preparationBytes == before.preparationBytes else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                let temporary = try self.createColdLeaf(Self.auxiliaryRosterNextName,
+                    data: seal.canonicalBytes)
+                guard let next = try self.readColdLeafIfPresent(Self.auxiliaryRosterNextName),
+                      next.identity == temporary, next.data == seal.canonicalBytes,
+                      try self.readColdLeafIfPresent(Self.auxiliaryRosterName) == nil,
+                      try self.coldNamesChecked() ==
+                        (before.names + [Self.auxiliaryRosterNextName]).sorted() else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                guard Darwin.renameatx_np(self.eraseDescriptor, Self.auxiliaryRosterNextName,
+                    self.eraseDescriptor, Self.auxiliaryRosterName, UInt32(RENAME_EXCL)) == 0,
+                      Darwin.fsync(self.eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                self.coldOwnPublishingName = Self.auxiliaryRosterName
+                self.coldOwnPublishedIdentity = temporary
+                self.coldPublishedVerified = false
+                try self.verifyPublishedPolicy(.journal, name: Self.auxiliaryRosterName,
+                    failure: .writeFailed, expectedIdentity: temporary)
+                guard let published = try self.readColdLeafIfPresent(Self.auxiliaryRosterName),
+                      published.identity == temporary, published.data == seal.canonicalBytes,
+                      try self.readColdLeafIfPresent(Self.auxiliaryRosterNextName) == nil else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                var named = stat()
+                guard Darwin.fstatat(self.eraseDescriptor, Self.auxiliaryRosterName,
+                    &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      named.st_dev == temporary.device, named.st_ino == temporary.inode,
+                      named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                let fact = EraseColdControlLeafFactV1(named)
+                let policy = try self.observeBorrowedColdPolicy(.journal,
+                    at: self.applicationSupportURL.appendingPathComponent(
+                        self.policyRelativePath(Self.auxiliaryRosterName)))
+                guard policy.device == UInt64(fact.device), policy.inode == UInt64(fact.inode),
+                      policy.backupExcluded == true,
+                      try self.coldNamesChecked() ==
+                        (before.names + [Self.auxiliaryRosterName]).sorted() else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                self.coldPreparedAuxiliaryPublication = Schema2ColdPreparedAuxiliaryPublicationV1(
+                    store: self, operation: operation, seal: seal,
+                    bytes: seal.canonicalBytes, fact: fact, policy: policy)
+                self.coldOwnTemporaryName = nil
+                self.coldOwnTemporaryIdentity = nil
+                self.coldOwnTemporaryBytes = nil
+                self.coldOwnPublishingName = nil
+                self.coldOwnPublishedIdentity = nil
+                self.coldPublishedVerified = false
+                let after = try self.requireSchema2ColdCanonicalControls(intent: seal.firstIntentForComparison,
+                    preparation: seal.preparationForComparison, operation: operation)
+                guard after.intentBytes == before.intentBytes,
+                      after.preparationBytes == before.preparationBytes,
+                      after.names == (before.names + [Self.auxiliaryRosterName]).sorted(),
+                      after.eraseRoot.device == before.eraseRoot.device,
+                      after.eraseRoot.inode == before.eraseRoot.inode,
+                      after.eraseRoot.mode == before.eraseRoot.mode,
+                      after.eraseRoot.user == before.eraseRoot.user,
+                      after.eraseRoot.group == before.eraseRoot.group,
+                      after.eraseRoot.links == before.eraseRoot.links else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+            }
+            guard let receipt = coldPreparedAuxiliaryPublication else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try requireSchema2ColdPreparedAuxiliaryPublication(receipt,
+                seal: seal, operation: operation)
+            return receipt
+        } catch {
+            coldEffectUncertain = true
+            throw error
+        }
+    }
+
+    @MainActor
+    func requireSchema2ColdPreparedAuxiliaryPublication(
+        _ receipt: Schema2ColdPreparedAuxiliaryPublicationV1,
+        seal: EraseSchema2ColdAuxiliaryRosterPublicationSealV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdIntentStore(self)
+        guard coldPreparedAuxiliaryPublication === receipt,
+              receipt.store === self, receipt.operation === operation,
+              receipt.seal === seal, receipt.bytes == seal.canonicalBytes,
+              coldCapturedOpaqueAuxiliaryRosterBytes == nil,
+              !coldEffectUncertain,
+              let leaf = try readColdLeafIfPresent(Self.auxiliaryRosterName),
+              leaf.data == receipt.bytes, leaf.identity.device == receipt.fact.device,
+              leaf.identity.inode == receipt.fact.inode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var named = stat(), missing = stat()
+        guard Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterName,
+                &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(named) == (coldProjectedAuxiliaryRosterFact ?? receipt.fact),
+              Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterNextName,
+                &missing, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyAuthority()
+    }
+
+    @MainActor
+    func requireSchema2ColdPreparedDurableAuxiliary(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1) throws {
+        try operation.requireSchema2ColdPreparedControls(intent: intent,
+            preparation: preparation)
+        guard !coldEffectUncertain, !coldCapturedOpaqueAuxiliaryRosterNextPresent,
+              let bytes = coldAuxiliaryOriginBytes,
+              let fact = coldAuxiliaryOriginFact,
+              let policy = coldAuxiliaryOriginPolicy,
+              let leaf = try readColdLeafIfPresent(Self.auxiliaryRosterName),
+              leaf.data == bytes, leaf.identity.device == fact.device,
+              leaf.identity.inode == fact.inode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var named = stat(), absent = stat()
+        guard Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterName,
+                &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(named) == fact,
+              try observeBorrowedColdPolicy(.journal,
+                at: applicationSupportURL.appendingPathComponent(
+                    policyRelativePath(Self.auxiliaryRosterName))) == policy,
+              Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterNextName,
+                &absent, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyAuthority()
+    }
+
     /// Read only the first-held original P record under the already retained
     /// cold EX/G. This never requests or promotes its observed policy; even a
     /// pending Simulator disposition remains opaque data for a later typed
@@ -38950,9 +39150,9 @@ final class EraseIntentStore {
               intent.phase == .sessionActivated,
               preparation.matches(intent),
               !coldCapturedOpaqueAuxiliaryRosterNextPresent,
-              let firstBytes = coldCapturedOpaqueAuxiliaryRosterBytes,
-              let firstFact = coldCapturedOpaqueAuxiliaryRosterFact,
-              let firstPolicy = coldCapturedOpaqueAuxiliaryRosterPolicy else {
+              let firstBytes = coldAuxiliaryOriginBytes,
+              let firstFact = coldAuxiliaryOriginFact,
+              let firstPolicy = coldAuxiliaryOriginPolicy else {
             throw EraseIntentStoreError.invalidAuthority
         }
         let controls = try requireSchema2ColdCanonicalControls(
@@ -39011,8 +39211,8 @@ final class EraseIntentStore {
     ) throws -> EraseColdControlLeafFactV1 {
         guard !coldObservedAuxiliaryPolicyInFlight,
               !coldEffectUncertain,
-              let firstBytes = coldCapturedOpaqueAuxiliaryRosterBytes,
-              let firstFact = coldCapturedOpaqueAuxiliaryRosterFact,
+              let firstBytes = coldAuxiliaryOriginBytes,
+              let firstFact = coldAuxiliaryOriginFact,
               roster.canonicalBytes == firstBytes,
               roster.canonicalSHA256 ==
                 StoreMigrationCanonicalJSONV1.sha256(firstBytes) else {
@@ -39249,8 +39449,8 @@ final class EraseIntentStore {
               preparation.c05JobDrainV3 == nil,
               let intentFact = coldExpectedIntentFact,
               let preparationFact = coldExpectedPreparationFact,
-              let firstBytes = coldCapturedOpaqueAuxiliaryRosterBytes,
-              let firstFact = coldCapturedOpaqueAuxiliaryRosterFact,
+              let firstBytes = coldAuxiliaryOriginBytes,
+              let firstFact = coldAuxiliaryOriginFact,
               let projectedFact = coldProjectedAuxiliaryRosterFact,
               coldVerifiedAuxiliaryDisposition != nil,
               firstBytes == auxiliary.roster.canonicalBytes,
@@ -39345,7 +39545,7 @@ final class EraseIntentStore {
                 ($0 == Self.nextName &&
                     coldCapturedOpaqueNextBytes != nil) ||
                 ($0 == Self.auxiliaryRosterName &&
-                    coldCapturedOpaqueAuxiliaryRosterBytes != nil) ||
+                    coldAuxiliaryOriginBytes != nil) ||
                 ($0 == Self.originalRetiredCommitmentName &&
                     coldCapturedOpaqueOriginalRetired[$0] != nil) ||
                 ($0 == Self.originalRetiredStageIdentityName &&
@@ -41689,8 +41889,10 @@ final class EraseIntentStore {
         guard borrowsColdObservation, !coldEffectUncertain,
               !coldCloseAttempted, !coldClosed,
               expected.schemaVersion == 2,
-              expected.phase == .pointerSwitched,
-              replacement == expected.advancing(to: .sessionActivated) else {
+              ((expected.phase == .pointerSwitched &&
+                replacement == expected.advancing(to: .sessionActivated)) ||
+               (expected.phase == .emptyGenerationPrepared &&
+                replacement == expected.advancing(to: .pointerSwitched))) else {
             throw EraseIntentStoreError.invalidAuthority
         }
         try verifyAuthority()
@@ -41723,6 +41925,57 @@ final class EraseIntentStore {
                 displacedFact: coldCapturedOpaqueNextFact)
         }
         throw EraseIntentStoreError.invalidAuthority
+    }
+
+    @MainActor
+    func replaceSchema2ColdPreparedPhase(expected: EraseIntentV1,
+        with replacement: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1) throws {
+        guard borrowsColdObservation, !coldEffectUncertain,
+              !coldCloseAttempted, !coldClosed,
+              expected.schemaVersion == 2,
+              expected.phase == .emptyGenerationPrepared,
+              replacement == expected.advancing(to: .pointerSwitched),
+              coldCapturedOpaqueNextBytes == nil,
+              coldCapturedOpaqueNextFact == nil,
+              coldPointerOriginalControlCut == nil,
+              coldPointerPhasePublishedControlRoot == nil,
+              let preparation = try loadPreparation() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let before = try requireSchema2ColdCanonicalControls(intent: expected,
+            preparation: preparation, operation: operation)
+        var entered = false
+        do {
+            try operation.withSchema2ColdPreparedPhaseMutation(expected: expected,
+                replacement: replacement, store: self) {
+                guard try self.requireSchema2ColdCanonicalControls(intent: expected,
+                    preparation: preparation, operation: operation).eraseRoot == before.eraseRoot,
+                      try self.requireSchema2ColdPhaseCASCut(expected: expected,
+                        replacement: replacement, operation: operation)
+                        == .pending(nextBytes: nil, nextFact: nil) else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                entered = true
+                try self.replaceWithoutMigrationReservation(expected: expected,
+                    with: replacement)
+                let after = try self.requireSchema2ColdCanonicalControls(intent: replacement,
+                    preparation: preparation, operation: operation)
+                guard after.names == before.names,
+                      after.preparationBytes == before.preparationBytes,
+                      after.eraseRoot.device == before.eraseRoot.device,
+                      after.eraseRoot.inode == before.eraseRoot.inode,
+                      after.eraseRoot.mode == before.eraseRoot.mode,
+                      after.eraseRoot.user == before.eraseRoot.user,
+                      after.eraseRoot.group == before.eraseRoot.group,
+                      after.eraseRoot.links == before.eraseRoot.links else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+        } catch {
+            if entered { coldEffectUncertain = true }
+            throw error
+        }
     }
 
     @MainActor
@@ -42621,7 +42874,7 @@ private extension EraseIntentStore {
             if borrowsColdObservation {
                 guard kind == .journalTemporary,
                       [Self.nextName, Self.preparationNextName,
-                       Self.rosterNextName].contains(name),
+                       Self.rosterNextName, Self.auxiliaryRosterNextName].contains(name),
                       coldOwnTemporaryName == name,
                       coldActiveFD == descriptor else {
                     throw EraseIntentStoreError.invalidAuthority
@@ -42891,7 +43144,8 @@ private extension EraseIntentStore {
                         coldCapturedOpaqueRosterNextPresent &&
                         !coldObservedRosterTempSettled) ||
                     ($0 == Self.auxiliaryRosterName &&
-                        coldCapturedOpaqueAuxiliaryRosterBytes != nil) ||
+                        (coldAuxiliaryOriginBytes != nil ||
+                         coldOwnPublishingName == Self.auxiliaryRosterName)) ||
                     ($0 == Self.originalRetiredCommitmentName &&
                         coldCapturedOpaqueOriginalRetired[$0] != nil) ||
                     ($0 == Self.originalRetiredCommitmentNextName &&
@@ -43341,7 +43595,7 @@ private extension EraseIntentStore {
             let beforeFact = EraseColdControlLeafFactV1(before)
             let kind: OwnedFileKindV1 =
                 [Self.nextName, Self.preparationNextName,
-                 Self.rosterNextName].contains(name)
+                 Self.rosterNextName, Self.auxiliaryRosterNextName].contains(name)
                     ? .journalTemporary : .journal
             let policyURL = applicationSupportURL.appendingPathComponent(
                 policyRelativePath(name))
@@ -43393,17 +43647,19 @@ private extension EraseIntentStore {
                      (name == Self.preparationName &&
                         coldExpectedPreparationBytes == data) ||
                      (name == Self.rosterName &&
-                        coldOwnRosterBytes == data))
+                        coldOwnRosterBytes == data) ||
+                     (name == Self.auxiliaryRosterName &&
+                        coldOwnPreparedAuxiliaryBytes == data))
             // The original owner's record is first-captured opaque data.
             // A pending policy cannot authorize an effect here; only the
             // decoded, operation-bound checked request below can promote it.
             let opaqueOriginalAuxiliary =
                 name == Self.auxiliaryRosterName &&
-                coldCapturedOpaqueAuxiliaryRosterBytes == data &&
+                coldAuxiliaryOriginBytes == data &&
                 (beforeFact == (coldProjectedAuxiliaryRosterFact ??
-                    coldCapturedOpaqueAuxiliaryRosterFact) ||
+                    coldAuxiliaryOriginFact) ||
                     (coldObservedAuxiliaryPolicyInFlight &&
-                        coldCapturedOpaqueAuxiliaryRosterFact.map {
+                        coldAuxiliaryOriginFact.map {
                             beforeFact.device == $0.device &&
                             beforeFact.inode == $0.inode &&
                             beforeFact.mode == $0.mode &&
@@ -43423,7 +43679,7 @@ private extension EraseIntentStore {
                         ownPublishedCanonical ||
                         (opaqueOriginalAuxiliary &&
                             beforePolicy ==
-                                coldCapturedOpaqueAuxiliaryRosterPolicy) else {
+                                coldAuxiliaryOriginPolicy) else {
                     throw EraseIntentStoreError.invalidAuthority
                 }
                 if !opaqueOriginalAuxiliary {
@@ -43600,7 +43856,7 @@ private extension EraseIntentStore {
     private func createColdLeaf(_ name: String, data: Data,
         maximumBytes: Int = EraseIntentStore.maximumJournalBytes) throws -> Identity {
         guard [Self.nextName, Self.preparationNextName,
-               Self.rosterNextName].contains(name),
+               Self.rosterNextName, Self.auxiliaryRosterNextName].contains(name),
               data.count <= maximumBytes,
               coldOwnTemporaryName == nil,
               coldActiveFD == nil, coldUncertainFDs.isEmpty,

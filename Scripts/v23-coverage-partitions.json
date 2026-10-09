@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "21c2f99ab3efdd206a773cae6423275a897d7c92",
+  "generatedAtHead": "97c01bc1f9290ae76b8f17919467d1d39121a379",
   "sweepOrder": [
     "S01",
     "S02",
@@ -39,7 +39,8 @@
     "S34",
     "S35",
     "S36",
-    "S37"
+    "S37",
+    "S38"
   ],
   "partitions": [
     {
@@ -385,7 +386,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1738.1,
+      "estimatedSeconds": 2278.1,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -435,8 +436,17 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testFaultedEraseNeverPublishesCompletedReceipt",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveCleanupWaitsForOldContextReferenceDrain",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveSourceProjectionRejectsGenuineForeignOperationBeforeConsumption",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveSourceProjectionRejectsMutationAfterActualLoanBeforeSearchEffect",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveSourceProjectionRejectsReplayOfActualConsumedLoan",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveSourceProjectionRetainsFirstErrorAndRefusesUncertainLoan",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testMalformedAuxiliaryTreeFailsBeforeAnyDeletion",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNoEraseCheckedOwnerCloseMeasuresSQLiteAndSidecarTransition",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationParentProjectionRefusesUncertainActualLoan",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationParentProjectionRejectsGenuineForeignOperation",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationParentProjectionRejectsMutationInsideExistingOutsideChild",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationParentProjectionRejectsReplayOfActualCreationLoan",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationParentProjectionRejectsUnownedParentLinkAndNamespaceTransition",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalEraseJournalRecoveryFailureBlocksOldCloseAndInstall",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalEraseJournalRecoveryRejectsCompletedReuse",
@@ -1104,7 +1114,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1796.7,
+      "estimatedSeconds": 1856.7,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1138,6 +1148,7 @@
         "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportWithCheckRunnerPhotosCompletesUnderPublicationLock",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistorySeparatesWideAdoptionFromCurrentCloseFrontier",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoRestoreCompiledValueLayoutDiagnostics",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoRestoreMetadataClaimsRecoverAndRejectHostileAliases",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
@@ -1365,7 +1376,7 @@
     {
       "id": "S17",
       "tier": "D50C",
-      "estimatedSeconds": 1436.0,
+      "estimatedSeconds": 1616.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesForeignOperationsChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesPostOpenV3HistoryDriftWithoutRepair",
@@ -1689,6 +1700,9 @@
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testC20PrivacyTransformReplayUsesCanonicalManifestBytes",
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testC21ClientCapabilityLifecycleAnchor",
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testC22RecoverabilityVerificationAnchor",
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testCurrentCheckpoint53And52RoundTripsThroughPreparationReplicaAndJournalReopen",
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testCurrentCheckpointRecordSchemaCovers77FieldsIndependentOfOptionalValues",
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testCurrentCheckpointRejectsRehashedInnerSchemaAndPayloadChangesWithoutEffects",
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testV23P03C13JournalReplayPreservesManifestAttestationCanonicalHistory",
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testV23P03C14JournalReplayRoundTripsResolvedChangeRequestBytes",
         "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testV23P03C15JournalReplayRestoresExactManifestAndClaimBytes",
@@ -1716,8 +1730,9 @@
     {
       "id": "S18",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1619.9,
       "selectors": [
+        "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testAdvancedScheduleDiagnosticsRejectInvalidOverrideGraphsAndRetainValidCounts",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testBoundedMetricsAndFailedCountersRemainNonAuthoritative",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC13EvidenceVisibilityLocalizationIsDenyByDefaultAndClaimBounded",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC14InspectionReviewLocalizationIsCustomerSafeAndClaimBounded",
@@ -1731,6 +1746,7 @@
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC40AuthorityCriterionLocalizationIsCustomerSafeAndClaimBounded",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testC41FunctionalRelationshipLocalizationIsCustomerSafeAndClaimBounded",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testCanonicalExportContainsOnlyAllowedControlledValues",
+        "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testColdDiagnosticsBoundaryLabelsExcludeAssociatedValuesAndFailClosed",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testV23P03C19MeasurementEvidenceRemainsLocalAndProviderFree",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent",
         "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testV23P03C29TypedPlanContractAnchor",
@@ -3226,7 +3242,7 @@
     {
       "id": "S31",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1619.9,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV919LocalSearch/testC33V919LocalSearchCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testBeginEvidenceAndFinalizationReplayReturnExactPriorAuthority",
@@ -3245,6 +3261,8 @@
         "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testV23P03C34IncompleteRecoveryPrecedesExplicitIngressWithoutWriter",
         "FieldEvidenceAppTests/S6_1DeletionGraphTests/testC21ClientCapabilityLifecycleAnchor",
         "FieldEvidenceAppTests/S6_1DeletionGraphTests/testC23FieldReferencePackAnchor",
+        "FieldEvidenceAppTests/S6_1DeletionGraphTests/testC63JournalRemovalColdRecoveryAcceptsAlreadyRemovedEvidenceBundle",
+        "FieldEvidenceAppTests/S6_1DeletionGraphTests/testC63JournalRemovalRecoveryRejectsHostileBundleAndLeafSubstitutions",
         "FieldEvidenceAppTests/S6_1DeletionGraphTests/testCommittedRecoveryRejectsCanonicalIntentPathsOwnedByLiveRows",
         "FieldEvidenceAppTests/S6_1DeletionGraphTests/testDeepEvidenceSnapshotAndPDFAuthorityFailBeforeMutation",
         "FieldEvidenceAppTests/S6_1DeletionGraphTests/testDeletesClosedGraphKeepsCountedTombstoneAndUnrelatedBytes",
@@ -3986,8 +4004,9 @@
     {
       "id": "S37",
       "tier": "D50C",
-      "estimatedSeconds": 2940.0,
+      "estimatedSeconds": 3000.0,
       "selectors": [
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testDrainedSourceProjectionRefusesLateLoanFromGenuineSettledShutdown",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalPhysicalTransitionConservesPopulatedSourceAndEmptyTargetBeforeRetirement",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalPhysicalTransitionRejectsChecksumValidSurvivingWALRewriteBeforeRetirement",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testOriginalPhysicalTransitionRejectsCommittedPageCorruptionBeforeRetirement",
@@ -4037,6 +4056,14 @@
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testSwappedOldTemporaryCompletesGenuineErase",
         "FieldEvidenceAppTests/V949SchemaMigrationRootLinkWitnessTests/testCheckedTreeFileHasherMatchesCanonicalSHA256AtReadBoundaries",
         "FieldEvidenceAppTests/V949SchemaMigrationRootLinkWitnessTests/testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks"
+      ]
+    },
+    {
+      "id": "S38",
+      "tier": "D50C",
+      "estimatedSeconds": 60.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect"
       ]
     }
   ]

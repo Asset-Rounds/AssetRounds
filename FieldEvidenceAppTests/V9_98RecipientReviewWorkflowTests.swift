@@ -249,8 +249,8 @@ final class V9_98RecipientReviewWorkflowTests: XCTestCase {
         XCTAssertLessThanOrEqual(try h.transitionRows().filter {
             $0.transitionID == h.appliedTransition.transitionID
         }.count, 1)
-        _ = try await h.workflow.execute(.recoverAcceptAndApply(h.mutation.mutationID), context: h.workflowContext)
         let recovered = try await h.apply(preview: preview)
+        _ = try await h.workflow.execute(.recoverAcceptAndApply(h.mutation.mutationID), context: h.workflowContext)
         XCTAssertEqual(recovered.mutationReceipt.mutationID, h.mutation.mutationID)
         XCTAssertEqual(try h.transitionRows().filter { $0.transitionID == h.appliedTransition.transitionID }.count, 1)
 

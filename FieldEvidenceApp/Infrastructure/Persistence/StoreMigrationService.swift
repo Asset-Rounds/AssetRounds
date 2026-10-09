@@ -670,6 +670,27 @@ final class EraseSchema2ColdAuxiliaryRosterCaptureV1 {
         }
         return first
     }
+
+    /// A genuine cold P owner shares only the established physical record
+    /// grammar. It is never an Original operation or a Q capture witness.
+    func captureFirstPrepared(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        guard !attempted, first == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        attempted = true
+        let captured = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+            .captureFirstOriginal(intent: intent, preparation: preparation,
+                observer: observer, snapshot: snapshot, support: support,
+                caches: caches, temporary: temporary, io: io)
+        try io.requireSettled()
+        first = captured
+        return captured
+    }
 }
 
 /// Original Erase captures the prepared P image under its own retained EX.
@@ -881,6 +902,8 @@ final class EraseSchema2OriginalAuxiliaryRosterPublicationSealV1 {
 /// Router reproof; the Store still needs its own checked publication cut.
 @MainActor
 final class EraseSchema2ColdAuxiliaryRosterPublicationSealV1 {
+    var firstIntentForComparison: EraseIntentV1 { intent }
+    var preparationForComparison: ErasePreparationV2 { preparation }
     let canonicalBytes: Data
     let canonicalSHA256: String
     let firstRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
@@ -903,7 +926,7 @@ final class EraseSchema2ColdAuxiliaryRosterPublicationSealV1 {
         intent: EraseIntentV1, preparation: ErasePreparationV2
     ) throws {
         guard intent.schemaVersion == 2,
-              intent.phase == .pointerSwitched,
+              intent.phase == .pointerSwitched || intent.phase == .emptyGenerationPrepared,
               preparation.matches(intent),
               try capture.requireFirst().canonicalBytes
                 == roster.canonicalBytes,
@@ -3335,6 +3358,236 @@ final class EraseSchema2ColdPostGenerationProjectionV1 {
 /// its first descriptor open and keeps any ambiguous close terminally held.
 @MainActor
 final class EraseSchema2ColdManifestOwnerV1 {
+#if DEBUG
+    /// Closed first-refusal diagnostics for one synchronous, actual creation
+    /// frame. Object associations are private and cannot authorize effects.
+    private enum C94ColdRootDiagnosticSiteV1: String {
+        case createManifestOwner = "create.manifest-owner.call"
+        case createMutationOwner = "create.mutation-owner.call"
+        case createSource = "create.source-proof.call"
+        case createState = "create.first-absence-state.guard"
+        case createHeld = "create.held-named.call"
+        case createAbsence = "create.canonical-absence.guard"
+        case createRecord = "create.creation-record.call"
+        case createExistingStage = "create.captured-stage-proof.call"
+        case createBeforeDirectory = "create.before-directory.scope-call"
+        case createMkdir = "create.stage-mkdir.guard"
+        case createOpen = "create.stage-open.call"
+        case createOpenResult = "create.stage-open-result.guard"
+        case createRetain = "create.stage-retain.call"
+        case createPolicy = "create.stage-policy.call"
+        case createPolicyOwner = "create.stage-policy-owner.call"
+        case createPolicyScope = "create.stage-policy.scope-call"
+        case createProjectStage = "create.stage-projection.call"
+        case createDirectorySync = "create.stage-parent-sync.guard"
+        case createPublish = "create.canonical-publication.guard"
+        case createProjectRoot = "create.root-projection.call"
+        case createPostimage = "create.postimage.guard"
+        case createNames = "create.projected-operations-enumeration.call"
+        case createFinalHeld = "create.final-held-named.call"
+        case createAfterDirectory = "create.after-directory.scope-call"
+        case createBeforePublish = "create.before-publication.scope-call"
+        case createAfterPublish = "create.after-publication.scope-call"
+        case recordState = "record.state.guard"
+        case recordExistingNamed = "record.existing-named.call"
+        case recordExistingBytes = "record.existing-bytes.guard"
+        case recordExistingPolicy = "record.existing-policy.call"
+        case recordExistingOwner = "record.policy-owner.call"
+        case recordExistingRead = "record.existing-policy-read.call"
+        case recordExistingReadGuard = "record.existing-policy-bytes.guard"
+        case recordExistingProject = "record.existing-projection.call"
+        case recordExistingSync = "record.existing-parent-sync.guard"
+        case recordExistingScope = "record.existing-published.scope-call"
+        case recordExistingPublished = "record.existing-published-node.guard"
+        case recordExistingFact = "record.existing-published-fact.call"
+        case recordPriorNamed = "record.prior-named.call"
+        case recordPriorRead = "record.prior-read.call"
+        case recordPriorPrefix = "record.prior-prefix.guard"
+        case recordPriorPolicy = "record.prior-policy.call"
+        case recordPriorPolicyRead = "record.prior-policy-bytes.guard"
+        case recordPriorAfter = "record.prior-after-read.call"
+        case recordPriorUnlink = "record.prior-unlink-parent-sync.guard"
+        case recordPriorClose = "record.prior-close.guard"
+        case recordOpen = "record.temporary-open.call"
+        case recordOpenResult = "record.temporary-open-result.guard"
+        case recordRetain = "record.temporary-retain.call"
+        case recordWrite = "record.temporary-write.call"
+        case recordWriteResult = "record.temporary-write-result.guard"
+        case recordWriteSync = "record.temporary-sync-bytes.guard"
+        case recordFreshPolicy = "record.temporary-policy.call"
+        case recordFreshOwner = "record.temporary-policy-owner.call"
+        case recordFreshPolicyRead = "record.temporary-policy-bytes.guard"
+        case recordFreshProject = "record.temporary-projection.call"
+        case recordPublish = "record.canonical-publication.guard"
+        case recordPublishedProject = "record.canonical-projection.call"
+        case recordPublishedRead = "record.canonical-bytes.guard"
+        case recordPublishedFact = "record.canonical-fact.call"
+        case recordBeforeTemporary = "record.before-temporary.scope-call"
+        case recordAfterTemporary = "record.after-temporary.scope-call"
+        case scopeOwner = "scope.manifest-owner.call"
+        case scopeState = "scope.state.guard"
+        case scopeParent = "scope.creation-parent.call"
+        case scopeOutsideNamed = "scope.outside-held-named.call"
+        case scopeEnumeration = "scope.operations-enumeration.call"
+        case scopeNamespace = "scope.namespace.guard"
+        case scopeEmptyDirectory = "scope.empty-directory.guard"
+        case scopeRecord = "scope.creation-record-bytes.guard"
+        case parentBinding = "parent.binding.guard"
+        case parentFacts = "parent.physical-facts.guard"
+        case parentSubtract = "parent.link-subtraction.guard"
+        case parentFinalLinks = "parent.expected-links.guard"
+        case namesEntry = "names.entry"
+        case namesOwner = "names.notification-owner.guard"
+        case namesParentBefore = "names.creation-parent-before.call"
+        case namesDirectoryIdentity = "names.directory-identity.call"
+        case namesState = "names.enumeration-state.guard"
+        case namesOpen = "names.enumeration-open.call"
+        case namesOpenResult = "names.enumeration-open-result.guard"
+        case namesStream = "names.fdopendir.guard"
+        case namesRead = "names.readdir.call"
+        case namesDecode = "names.entry-decode.guard"
+        case namesClose = "names.closedir.guard"
+        case namesReadResult = "names.readdir-error.guard"
+        case namesParentAfter = "names.creation-parent-after.call"
+        case unobserved = "UNOBSERVED"
+    }
+    private enum C94ColdRootDiagnosticPredicateV1: String {
+        case createAbsenceCall = "create.absence-fstatat"
+        case createAbsenceErrno = "create.absence-enoent"
+        case createStageSync = "create.stage-fsync"
+        case createParentSync = "create.parent-fsync"
+        case createRename = "create.rename-exclusive"
+        case createRootStat = "create.root-fstat"
+        case createParentStat = "create.parent-fstat"
+        case recordUnlink = "record.prior-unlink"
+        case recordParentSync = "record.parent-fsync"
+        case recordTemporarySync = "record.temporary-fsync"
+        case recordRename = "record.rename-exclusive"
+        case scopeOutside = "scope.outside-child-equal"
+        case scopeOwned = "scope.owned-roles-equal"
+        case scopeUnique = "scope.namespace-unique"
+        case scopeSingleDirectory = "scope.single-directory-role"
+        case scopeSingleRecord = "scope.single-record-role"
+        case scopeDirectoryRecord = "scope.directory-has-record"
+        case parentHeldStat = "parent.fstat"
+        case parentNamedStat = "parent.fstatat"
+        case parentPathStat = "parent.lstat"
+        case parentHeldNamed = "parent.held-named-fact-equal"
+        case parentHeldPath = "parent.held-path-fact-equal"
+        case parentDevice = "parent.first-device-equal"
+        case parentInode = "parent.first-inode-equal"
+        case parentMode = "parent.first-mode-equal"
+        case parentNoOverflow = "parent.first-links-no-overflow"
+        case parentPositive = "parent.first-links-positive"
+        case parentLinks = "parent.expected-links-equal"
+    }
+    private enum C94ColdRootDiagnosticObservationV1: String {
+        case passed = "PASS", refused = "REFUSED"
+    }
+    private final class C94ColdRootDiagnosticContextV1 {
+        let manifest: ObjectIdentifier
+        let source: ObjectIdentifier
+        let operation: ObjectIdentifier
+        var site: C94ColdRootDiagnosticSiteV1 = .unobserved
+        var creationCut: C94ColdRootDiagnosticSiteV1 = .unobserved
+        var parentCallSite: C94ColdRootDiagnosticSiteV1 = .unobserved
+        var parentCreationCut: C94ColdRootDiagnosticSiteV1 = .unobserved
+        var namespaceCreationCut: C94ColdRootDiagnosticSiteV1 = .unobserved
+        var refusedPredicate: C94ColdRootDiagnosticPredicateV1?
+        var parentObservations: [C94ColdRootDiagnosticPredicateV1:
+            C94ColdRootDiagnosticObservationV1] = [:]
+        var namespaceObservations: [C94ColdRootDiagnosticPredicateV1:
+            C94ColdRootDiagnosticObservationV1] = [:]
+        var rootExists: Bool?
+        var firstHasDirectory: Bool?
+        var firstLinks: nlink_t?
+        var heldLinks: nlink_t?
+        var expectedLinks: nlink_t?
+        init(manifest: EraseSchema2ColdManifestOwnerV1,
+            source: EraseSchema2ColdNotificationSourceV1,
+            operation: EraseColdPreparationOperationV1) {
+            self.manifest = ObjectIdentifier(manifest)
+            self.source = ObjectIdentifier(source)
+            self.operation = ObjectIdentifier(operation)
+        }
+    }
+    private var c94ColdRootDiagnostic: C94ColdRootDiagnosticContextV1?
+
+    private func c94ColdRootDiagnosticSite(
+        _ site: C94ColdRootDiagnosticSiteV1, creationCut: Bool = false
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard let context = c94ColdRootDiagnostic,
+              context.manifest == ObjectIdentifier(self) else { return }
+        context.site = site
+        context.refusedPredicate = nil
+        if creationCut { context.creationCut = site }
+        if creationCut || site == .scopeOwner {
+            // A later scope cannot inherit an earlier namespace comparison.
+            context.namespaceObservations = [:]
+            context.namespaceCreationCut = .unobserved
+        }
+    }
+
+    private func c94ColdRootDiagnosticPredicate(
+        _ predicate: C94ColdRootDiagnosticPredicateV1, _ result: Bool,
+        heldLinks: nlink_t? = nil
+    ) -> Bool {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard let context = c94ColdRootDiagnostic,
+              context.manifest == ObjectIdentifier(self) else { return result }
+        let observation: C94ColdRootDiagnosticObservationV1 =
+            result ? .passed : .refused
+        switch predicate {
+        case .parentHeldStat, .parentNamedStat, .parentPathStat,
+             .parentHeldNamed, .parentHeldPath, .parentDevice,
+             .parentInode, .parentMode, .parentNoOverflow,
+             .parentPositive, .parentLinks:
+            context.parentObservations[predicate] = observation
+        case .scopeOutside, .scopeOwned, .scopeUnique,
+             .scopeSingleDirectory, .scopeSingleRecord,
+             .scopeDirectoryRecord:
+            context.namespaceObservations[predicate] = observation
+            context.namespaceCreationCut = context.creationCut
+        default: break
+        }
+        if predicate == .parentHeldStat, result {
+            context.heldLinks = heldLinks
+        }
+        if !result { context.refusedPredicate = predicate }
+        return result
+    }
+
+    private func c94EmitColdRootInnerRefusal(
+        _ context: C94ColdRootDiagnosticContextV1
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        func flag(_ value: Bool?) -> String {
+            value.map { $0 ? "true" : "false" } ?? "UNOBSERVED"
+        }
+        func links(_ value: nlink_t?) -> String {
+            value.map { String($0) } ?? "UNOBSERVED"
+        }
+        func parent(_ predicate: C94ColdRootDiagnosticPredicateV1) -> String {
+            context.parentObservations[predicate]?.rawValue ?? "UNOBSERVED"
+        }
+        func namespace(_ predicate: C94ColdRootDiagnosticPredicateV1) -> String {
+            context.namespaceObservations[predicate]?.rawValue ?? "UNOBSERVED"
+        }
+        // Numeric link counts come only from the already executed original
+        // fstat and retained first fact. No namespace, URL, bytes, device,
+        // inode, user/group, dynamic owner or Error value is printed.
+        let line = "V23_C94_COLD_ROOT_INNER_FIRST_REFUSAL_DIAG_V1 site=\(context.site.rawValue) predicate=\(context.refusedPredicate?.rawValue ?? "UNOBSERVED") creationCut=\(context.creationCut.rawValue) parentCallSite=\(context.parentCallSite.rawValue) parentCreationCut=\(context.parentCreationCut.rawValue) namespaceCreationCut=\(context.namespaceCreationCut.rawValue) rootExists=\(flag(context.rootExists)) firstHasDirectory=\(flag(context.firstHasDirectory)) firstLinks=\(links(context.firstLinks)) heldLinks=\(links(context.heldLinks)) expectedLinks=\(links(context.expectedLinks)) fstat=\(parent(.parentHeldStat)) fstatat=\(parent(.parentNamedStat)) lstat=\(parent(.parentPathStat)) heldNamed=\(parent(.parentHeldNamed)) heldPath=\(parent(.parentHeldPath)) firstDevice=\(parent(.parentDevice)) firstInode=\(parent(.parentInode)) firstMode=\(parent(.parentMode)) linksNoOverflow=\(parent(.parentNoOverflow)) linksPositive=\(parent(.parentPositive)) expectedLinksEqual=\(parent(.parentLinks)) outsideChild=\(namespace(.scopeOutside)) ownedRoles=\(namespace(.scopeOwned)) namespaceUnique=\(namespace(.scopeUnique)) singleDirectory=\(namespace(.scopeSingleDirectory)) singleRecord=\(namespace(.scopeSingleRecord)) directoryHasRecord=\(namespace(.scopeDirectoryRecord))"
+        do {
+            try FileHandle.standardError.write(contentsOf: Data((line + "\n").utf8))
+        } catch {
+            // Transport cannot replace the original guard/syscall error.
+        }
+    }
+#endif
     /// Physical first image only. It cannot authorize adoption of a surviving
     /// private stage or publication of a canonical retired pointer.
     struct OriginalRetiredFirstCutV1 {
@@ -3565,6 +3818,14 @@ final class EraseSchema2ColdManifestOwnerV1 {
         ErasePreparationV2,
         (any Error)?
     ) -> Void)?
+    /// Observes only the actual retained temporary after its complete checked
+    /// write. It grants no admission and cannot manufacture a creator receipt.
+    static var notificationCreationTemporaryForTesting: (@MainActor (
+        EraseSchema2ColdManifestOwnerV1,
+        EraseColdPreparationOperationV1,
+        EraseSchema2ColdNotificationSourceV1,
+        URL
+    ) throws -> Void)?
 #endif
     private var deletionRosterPublicationInFlight = false
     private var sealedDeletionRosterPublication:
@@ -3629,6 +3890,9 @@ final class EraseSchema2ColdManifestOwnerV1 {
     private var handoffAbsent = false
     private var manifestAbsent = false
     private var erasePhase: EraseIntentPhaseV1?
+    private var preparedOriginalProjectionEntered = false
+    private var preparedOriginalPublishedIntent: EraseIntentV1?
+    private var preparedOriginalPublishedStore: EraseIntentStore?
     private var operationsChildren: [String: Opened] = [:]
     private var capturedOperationsNames: [String]?
     private var leaseReaderPublicationInFlight = false
@@ -4480,6 +4744,37 @@ final class EraseSchema2ColdManifestOwnerV1 {
         return seal
     }
 
+    func sealSchema2ColdPreparedAuxiliaryRoster(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        capture: EraseSchema2ColdAuxiliaryRosterCaptureV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdAuxiliaryRosterPublicationSealV1 {
+        try operation.requireSchema2ColdPreparedAuxiliaryRosterCapture(capture,
+            observer: observer, snapshot: snapshot, intent: intent,
+            preparation: preparation)
+        guard opened, !closeAttempted, !auxiliaryRosterSealAttempted,
+              auxiliaryCaptureAttempted, auxiliaryRosterRereadAttempted,
+              !auxiliaryCaptureInFlight, !auxiliaryRosterRereadInFlight,
+              intent.phase == .emptyGenerationPrepared,
+              let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        auxiliaryRosterSealAttempted = true
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let roster = try capture.requireFirst()
+        let seal = try EraseSchema2ColdAuxiliaryRosterPublicationSealV1(
+            manifest: self, operation: operation, capture: capture,
+            observer: observer, snapshot: snapshot, roster: roster,
+            intent: intent, preparation: preparation)
+        auxiliaryRosterSeal = seal
+        return seal
+    }
+
     private func openAuxiliaryParent(
         _ path: URL, retain: (AuxiliaryParent) -> Void
     ) throws -> AuxiliaryParent {
@@ -4607,6 +4902,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         try requireHeldNamed()
         guard let capturedOperationsNames,
               Set(capturedOperationsNames) == expected else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.captured-operations-membership\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
     }
@@ -5586,6 +5891,200 @@ final class EraseSchema2ColdManifestOwnerV1 {
         return actual
     }
 
+#if DEBUG
+    private func settleSchema2ColdNotificationCreationRecord(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        self.c94ColdRootDiagnosticSite(.recordState)
+        guard let operations,
+              let expected = schema2ColdNotificationExpectedCreationRecord,
+              let bytes = schema2ColdNotificationExpectedCreationBytes,
+              schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let name = EraseSchema2ColdNotificationSourceV1
+            .creationRecordName
+        let next = EraseSchema2ColdNotificationSourceV1
+            .creationTemporaryName
+        if let record = operationsChildren[name] {
+            self.c94ColdRootDiagnosticSite(.recordExistingNamed)
+            try requireNamed(record)
+            self.c94ColdRootDiagnosticSite(.recordExistingBytes)
+            guard operationsChildren[next] == nil,
+                  try readSchema2ColdCreationFile(record).0 == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.recordExistingPolicy)
+            _ = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    .journal, at: record.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    }, unchangedWitness: {
+                        self.c94ColdRootDiagnosticSite(.recordExistingOwner)
+                        try operation
+                            .requireSchema2ColdNotificationMutationOwner(
+                                source: source, stage: .createRoot)
+                        self.c94ColdRootDiagnosticSite(.recordExistingRead)
+                        let (read, fact) = try self
+                            .readSchema2ColdCreationFile(record)
+                        self.c94ColdRootDiagnosticSite(.recordExistingReadGuard)
+                        guard read == bytes else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                        return "\(fact.device):\(fact.inode):\(fact.mode):\(fact.links):\(StoreMigrationCanonicalJSONV1.sha256(read))"
+                    })
+            self.c94ColdRootDiagnosticSite(.recordExistingProject)
+            _ = try projectSchema2ColdCreationNode(record,
+                name: name, parent: operations)
+            self.c94ColdRootDiagnosticSite(.recordExistingSync)
+            guard self.c94ColdRootDiagnosticPredicate(.recordParentSync, Darwin.fsync(operations.descriptor) == 0) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.recordExistingScope, creationCut: true)
+            try requireSchema2ColdNotificationRootCreationScope(
+                source: source, token: token, operation: operation)
+            schema2ColdNotificationCreationRecord = expected
+            schema2ColdNotificationCreationBytes = bytes
+            self.c94ColdRootDiagnosticSite(.recordExistingPublished)
+            guard let published = operationsChildren[name] else { throw StoreMigrationFailure.invalidIdentity }
+            self.c94ColdRootDiagnosticSite(.recordExistingFact)
+            schema2ColdNotificationCreationFact = try coldScratchPinnedFullFact(published)
+            return
+        }
+        if let prior = operationsChildren[next] {
+            self.c94ColdRootDiagnosticSite(.recordPriorNamed)
+            try requireNamed(prior)
+            self.c94ColdRootDiagnosticSite(.recordPriorRead)
+            let (prefix, _) = try readSchema2ColdCreationFile(prior)
+            self.c94ColdRootDiagnosticSite(.recordPriorPrefix)
+            guard prefix ==
+                    schema2ColdNotificationCapturedCreationTemporaryBytes,
+                  bytes.starts(with: prefix),
+                  operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1.creationStageName]
+                    == nil else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.recordPriorPolicy)
+            _ = try ProtectedFilePolicyV1
+                .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                    .journalTemporary, at: prior.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    }, authorityCheck: {
+                        self.c94ColdRootDiagnosticSite(.recordExistingOwner)
+                        try operation
+                            .requireSchema2ColdNotificationMutationOwner(
+                                source: source, stage: .createRoot)
+                        self.c94ColdRootDiagnosticSite(.recordPriorPolicyRead)
+                        guard try self.readSchema2ColdCreationFile(prior).0
+                                == prefix else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                    })
+            self.c94ColdRootDiagnosticSite(.recordPriorAfter)
+            let (after, _) = try readSchema2ColdCreationFile(prior)
+            self.c94ColdRootDiagnosticSite(.recordPriorUnlink)
+            guard after == prefix,
+                  self.c94ColdRootDiagnosticPredicate(.recordUnlink, Darwin.unlinkat(operations.descriptor, next, 0) == 0),
+                  self.c94ColdRootDiagnosticPredicate(.recordParentSync, Darwin.fsync(operations.descriptor) == 0) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            // close(2) uncertainty retains this numeric descriptor and the
+            // one-way owner. Only a checked close removes it from held.
+            self.c94ColdRootDiagnosticSite(.recordPriorClose)
+            guard Darwin.close(prior.descriptor) == 0 else {
+                uncertainFDs.append(prior.descriptor)
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            held.removeAll(where: { $0.descriptor == prior.descriptor })
+            operationsChildren.removeValue(forKey: next)
+        }
+        self.c94ColdRootDiagnosticSite(.recordBeforeTemporary, creationCut: true)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        self.c94ColdRootDiagnosticSite(.recordOpen)
+        let fd = Darwin.openat(operations.descriptor, next,
+            O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600))
+        self.c94ColdRootDiagnosticSite(.recordOpenResult)
+        guard fd >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.recordRetain)
+        var temporary = try retain(fd, parent: operations.descriptor,
+            name: next, path: operations.path.appendingPathComponent(next),
+            expectedType: S_IFREG, observePolicy: false)
+        operationsChildren[next] = temporary
+        try bytes.withUnsafeBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                self.c94ColdRootDiagnosticSite(.recordWrite)
+                let count = Darwin.write(fd,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                self.c94ColdRootDiagnosticSite(.recordWriteResult)
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        self.c94ColdRootDiagnosticSite(.recordWriteSync)
+        guard self.c94ColdRootDiagnosticPredicate(.recordTemporarySync, Darwin.fsync(fd) == 0),
+              try readSchema2ColdCreationFile(temporary).0 == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try Self.notificationCreationTemporaryForTesting?(
+            self, operation, source, temporary.path)
+        self.c94ColdRootDiagnosticSite(.recordFreshPolicy)
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .journalTemporary, at: temporary.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, authorityCheck: {
+                    self.c94ColdRootDiagnosticSite(.recordFreshOwner)
+                    try operation
+                        .requireSchema2ColdNotificationMutationOwner(
+                            source: source, stage: .createRoot)
+                    self.c94ColdRootDiagnosticSite(.recordFreshPolicyRead)
+                    guard try self.readSchema2ColdCreationFile(temporary).0
+                            == bytes else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                })
+        self.c94ColdRootDiagnosticSite(.recordFreshProject)
+        temporary = try projectSchema2ColdCreationNode(
+            temporary, name: next, parent: operations)
+        self.c94ColdRootDiagnosticSite(.recordAfterTemporary, creationCut: true)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        self.c94ColdRootDiagnosticSite(.recordPublish)
+        guard operationsChildren[name] == nil,
+              self.c94ColdRootDiagnosticPredicate(.recordRename, Darwin.renameatx_np(operations.descriptor, next,
+                operations.descriptor, name, UInt32(RENAME_EXCL)) == 0),
+              self.c94ColdRootDiagnosticPredicate(.recordParentSync, Darwin.fsync(operations.descriptor) == 0) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.recordPublishedProject)
+        let published = try projectSchema2ColdCreationNode(
+            temporary, name: name, parent: operations)
+        self.c94ColdRootDiagnosticSite(.recordPublishedRead)
+        guard try readSchema2ColdCreationFile(published).0 == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        schema2ColdNotificationCreationRecord = expected
+        schema2ColdNotificationCreationBytes = bytes
+        self.c94ColdRootDiagnosticSite(.recordPublishedFact)
+        schema2ColdNotificationCreationFact = try coldScratchPinnedFullFact(published)
+    }
+#else
     private func settleSchema2ColdNotificationCreationRecord(
         source: EraseSchema2ColdNotificationSourceV1,
         token: EraseSchema2ColdNotificationMutationTokenV1,
@@ -5739,12 +6238,227 @@ final class EraseSchema2ColdManifestOwnerV1 {
         schema2ColdNotificationCreationBytes = bytes
         schema2ColdNotificationCreationFact = try coldScratchPinnedFullFact(published)
     }
+#endif
 
     /// The only cold root creation route starts from the held first absent
     /// name, under the same operation and the Router's typed R-stage owner.
     /// Any syscall/policy/close failure leaves the one-way latch and numeric
     /// descriptors retained. A fresh launch may classify the resulting
     /// physical cut; this operation never adopts it as a new baseline.
+#if DEBUG
+    func createSchema2ColdNotificationRootFromFirstAbsence(
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdNotificationRootCreatedV1 {
+        // This frame records association only; it lends no authority or receipt.
+        let c94EntryErrno = errno
+        let c94PreviousDiagnostic = c94ColdRootDiagnostic
+        let c94Diagnostic = C94ColdRootDiagnosticContextV1(
+            manifest: self, source: source, operation: operation)
+        c94ColdRootDiagnostic = c94Diagnostic
+        var c94ReturnedCreationReceipt = false
+        defer {
+            let c94RefusalErrno = errno
+            if !c94ReturnedCreationReceipt,
+               c94ColdRootDiagnostic === c94Diagnostic,
+               c94Diagnostic.manifest == ObjectIdentifier(self),
+               c94Diagnostic.source == ObjectIdentifier(source),
+               c94Diagnostic.operation == ObjectIdentifier(operation) {
+                c94EmitColdRootInnerRefusal(c94Diagnostic)
+            }
+            c94ColdRootDiagnostic = c94PreviousDiagnostic
+            errno = c94RefusalErrno
+        }
+        errno = c94EntryErrno
+        self.c94ColdRootDiagnosticSite(.createManifestOwner)
+        try operation.requireSchema2ColdManifestOwner(self)
+        self.c94ColdRootDiagnosticSite(.createMutationOwner)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: .createRoot)
+        self.c94ColdRootDiagnosticSite(.createSource)
+        try requireSchema2ColdNotificationSource(
+            source, operation: operation)
+        self.c94ColdRootDiagnosticSite(.createState)
+        guard schema2ColdNotificationWitness === source,
+              source.rootIdentity == nil, source.rootFact == nil,
+              source.names.isEmpty, source.leafBytes.isEmpty,
+              schema2ColdNotificationProjectedNames == nil,
+              !schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken == nil,
+              operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] == nil,
+              let operations, let support,
+              let capturedOperationsNames,
+              !capturedOperationsNames.contains(
+                AppLockNotificationControlStoreV1.rootName),
+              schema2ColdNotificationExpectedCreationRecord != nil,
+              schema2ColdNotificationExpectedCreationBytes != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.createHeld)
+        try requireHeldNamed()
+        var absent = stat()
+        self.c94ColdRootDiagnosticSite(.createAbsence)
+        guard self.c94ColdRootDiagnosticPredicate(.createAbsenceCall, Darwin.fstatat(operations.descriptor,
+            AppLockNotificationControlStoreV1.rootName,
+            &absent, AT_SYMLINK_NOFOLLOW) != 0),
+              self.c94ColdRootDiagnosticPredicate(.createAbsenceErrno, errno == ENOENT) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let token = EraseSchema2ColdNotificationMutationTokenV1(
+            stage: .createRoot, source: source, manifest: self,
+            beforeRootFact: nil, beforeNames: [],
+            beforeLeafBytes: [:], beforeLeafFacts: [:])
+        schema2ColdNotificationMutationToken = token
+        schema2ColdNotificationMutationInFlight = true
+        // The record is outside the not-yet-created root and is made durable
+        // before the first directory inode can be allocated.
+        self.c94ColdRootDiagnosticSite(.createRecord, creationCut: true)
+        try settleSchema2ColdNotificationCreationRecord(
+            source: source, token: token, operation: operation)
+        let stageName = EraseSchema2ColdNotificationSourceV1
+            .creationStageName
+        var stage: Opened
+        if let captured = operationsChildren[stageName] {
+            self.c94ColdRootDiagnosticSite(.createExistingStage)
+            try requireNamed(captured)
+            stage = captured
+        } else {
+            self.c94ColdRootDiagnosticSite(.createBeforeDirectory, creationCut: true)
+            try requireSchema2ColdNotificationRootCreationScope(
+                source: source, token: token, operation: operation)
+            self.c94ColdRootDiagnosticSite(.createMkdir)
+            guard Darwin.mkdirat(operations.descriptor,
+                stageName, 0o700) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.createOpen)
+            let descriptor = Darwin.openat(operations.descriptor,
+                stageName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                    | O_CLOEXEC)
+            self.c94ColdRootDiagnosticSite(.createOpenResult)
+            guard descriptor >= 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.createRetain)
+            stage = try retain(descriptor,
+                parent: operations.descriptor, name: stageName,
+                path: operations.path.appendingPathComponent(
+                    stageName, isDirectory: true),
+                expectedType: S_IFDIR, observePolicy: false)
+            operationsChildren[stageName] = stage
+        }
+        self.c94ColdRootDiagnosticSite(.createAfterDirectory, creationCut: true)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        self.c94ColdRootDiagnosticSite(.createPolicy)
+        let disposition = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .stagingDirectory, at: stage.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, authorityCheck: {
+                    self.c94ColdRootDiagnosticSite(.createPolicyOwner)
+                    try operation
+                        .requireSchema2ColdNotificationMutationOwner(
+                            source: source, stage: .createRoot)
+                    self.c94ColdRootDiagnosticSite(.createPolicyScope, creationCut: true)
+                    try self.requireSchema2ColdNotificationRootCreationScope(
+                        source: source, token: token,
+                        operation: operation)
+                })
+        self.c94ColdRootDiagnosticSite(.createProjectStage)
+        stage = try projectSchema2ColdCreationNode(stage,
+            name: stageName, parent: operations)
+        self.c94ColdRootDiagnosticSite(.createDirectorySync)
+        guard self.c94ColdRootDiagnosticPredicate(.createStageSync, Darwin.fsync(stage.descriptor) == 0),
+              self.c94ColdRootDiagnosticPredicate(.createParentSync, Darwin.fsync(operations.descriptor) == 0) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.createBeforePublish, creationCut: true)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        self.c94ColdRootDiagnosticSite(.createPublish)
+        guard operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] == nil,
+              self.c94ColdRootDiagnosticPredicate(.createRename, Darwin.renameatx_np(operations.descriptor, stageName,
+                operations.descriptor,
+                AppLockNotificationControlStoreV1.rootName,
+                UInt32(RENAME_EXCL)) == 0),
+              self.c94ColdRootDiagnosticPredicate(.createParentSync, Darwin.fsync(operations.descriptor) == 0) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.createProjectRoot)
+        let root = try projectSchema2ColdCreationNode(stage,
+            name: AppLockNotificationControlStoreV1.rootName,
+            parent: operations)
+        self.c94ColdRootDiagnosticSite(.createAfterPublish, creationCut: true)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        self.c94ColdRootDiagnosticSite(.createMutationOwner)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: .createRoot)
+        var rootStat = stat(), operationsStat = stat()
+        self.c94ColdRootDiagnosticSite(.createPostimage)
+        guard self.c94ColdRootDiagnosticPredicate(.createRootStat, Darwin.fstat(root.descriptor, &rootStat) == 0),
+              self.c94ColdRootDiagnosticPredicate(.createParentStat, Darwin.fstat(operations.descriptor, &operationsStat) == 0),
+              let firstOperations = coldScratchFirstOperationsFact,
+              operationsStat.st_uid == firstOperations.user,
+              operationsStat.st_gid == firstOperations.group,
+              let rootIndex = held.firstIndex(where: {
+                $0.descriptor == root.descriptor
+              }),
+              let operationsIndex = held.firstIndex(where: {
+                $0.descriptor == operations.descriptor
+              }),
+              let record = operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName],
+              let creationBytes = schema2ColdNotificationCreationBytes,
+              try readSchema2ColdCreationFile(record).0
+                == creationBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projectedRoot = Opened(descriptor: root.descriptor,
+            parent: root.parent, name: root.name,
+            path: root.path, fact: Fact(rootStat))
+        let projectedOperations = Opened(
+            descriptor: operations.descriptor,
+            parent: operations.parent, name: operations.name,
+            path: operations.path, fact: Fact(operationsStat))
+        self.c94ColdRootDiagnosticSite(.createNames, creationCut: true)
+        let currentOperationsNames = try namesChecked(in:
+            operations, allowOwnedNotificationRootCreation: true)
+        held[rootIndex] = projectedRoot
+        held[operationsIndex] = projectedOperations
+        operationsChildren[AppLockNotificationControlStoreV1.rootName]
+            = projectedRoot
+        self.operations = projectedOperations
+        self.capturedOperationsNames = currentOperationsNames
+        schema2ColdNotificationProjectedRootFact = EraseColdControlLeafFactV1(rootStat)
+        schema2ColdNotificationProjectedOperationsFact = EraseColdControlLeafFactV1(operationsStat)
+        schema2ColdNotificationProjectedNames = []
+        schema2ColdNotificationProjectedBytes = [:]
+        schema2ColdNotificationProjectedFacts = [:]
+        let identity =
+            "\(support.fact.device):\(support.fact.inode):\(rootStat.st_dev):\(rootStat.st_ino)"
+        source.projectedRootIdentity = identity
+        schema2ColdNotificationMutationInFlight = false
+        self.c94ColdRootDiagnosticSite(.createFinalHeld)
+        do { try requireHeldNamed() }
+        catch {
+            schema2ColdNotificationMutationInFlight = true
+            throw error
+        }
+        schema2ColdNotificationMutationToken = nil
+        let receipt = EraseSchema2ColdNotificationRootCreatedV1(
+            source: source, rootIdentity: identity,
+            rootFact: EraseColdControlLeafFactV1(rootStat),
+            policyDisposition: disposition)
+        schema2ColdNamespaceCreatorReceiptV4 = receipt // SAME real returned owner before Ledger postproof
+        c94ReturnedCreationReceipt = true
+        return receipt
+    }
+#else
     func createSchema2ColdNotificationRootFromFirstAbsence(
         source: EraseSchema2ColdNotificationSourceV1,
         operation: EraseColdPreparationOperationV1
@@ -5909,6 +6623,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
         schema2ColdNamespaceCreatorReceiptV4 = receipt // SAME real returned owner before Ledger postproof
         return receipt
     }
+#endif
 
     /// A post-rename fresh launch completes the parent fsync only when the
     /// outside-root creation record is exact and the same canonical inode is
@@ -6352,6 +7067,102 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
     }
 
+#if DEBUG
+    private func requireSchema2ColdNotificationRootCreationScope(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        self.c94ColdRootDiagnosticSite(.scopeOwner)
+        try operation.requireSchema2ColdManifestOwner(self)
+        self.c94ColdRootDiagnosticSite(.scopeState)
+        guard schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token,
+              token.stage == .createRoot,
+              token.source === source,
+              token.manifestIdentity == ObjectIdentifier(self),
+              schema2ColdNotificationWitness === source,
+              source.rootFact == nil, source.names.isEmpty,
+              let operations, let firstNames = capturedOperationsNames,
+              !firstNames.contains(
+                AppLockNotificationControlStoreV1.rootName),
+              opened, !closeAttempted,
+              uncertainFDs.isEmpty, !uncertainStreamClose,
+              enumerationFD == nil, directoryStream == nil,
+              !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              targetLiveOpenState != .inFlight,
+              !pointerPublicationInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let root = operationsChildren[
+            AppLockNotificationControlStoreV1.rootName]
+        let stage = operationsChildren[
+            EraseSchema2ColdNotificationSourceV1.creationStageName]
+        self.c94ColdRootDiagnosticSite(.scopeParent)
+        try requireSchema2ColdNotificationCreationParent(
+            operations, rootExists: root != nil || stage != nil)
+        for node in held {
+            if node.descriptor == operations.descriptor
+                || node.descriptor == root?.descriptor
+                || node.descriptor == stage?.descriptor
+                || node.descriptor == operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationTemporaryName]?.descriptor
+                || node.descriptor == operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationRecordName]?.descriptor {
+                continue
+            }
+            self.c94ColdRootDiagnosticSite(.scopeOutsideNamed)
+            try requireNamed(node)
+        }
+        self.c94ColdRootDiagnosticSite(.scopeEnumeration)
+        let observed = try namesChecked(in: operations,
+            allowOwnedNotificationRootCreation: true)
+        let owned: Set<String> = [
+            AppLockNotificationControlStoreV1.rootName,
+            EraseSchema2ColdNotificationSourceV1.creationRecordName,
+            EraseSchema2ColdNotificationSourceV1.creationTemporaryName,
+            EraseSchema2ColdNotificationSourceV1.creationStageName,
+        ]
+        let firstUnowned = Set(firstNames).subtracting(owned)
+        let observedOwned = Set(observed).intersection(owned)
+        let heldOwned = Set(operationsChildren.keys).intersection(owned)
+        self.c94ColdRootDiagnosticSite(.scopeNamespace)
+        guard self.c94ColdRootDiagnosticPredicate(.scopeOutside, Set(observed).subtracting(owned) == firstUnowned),
+              self.c94ColdRootDiagnosticPredicate(.scopeOwned, observedOwned == heldOwned),
+              self.c94ColdRootDiagnosticPredicate(.scopeUnique, observed.count == Set(observed).count),
+              self.c94ColdRootDiagnosticPredicate(.scopeSingleDirectory, !(root != nil && stage != nil)),
+              self.c94ColdRootDiagnosticPredicate(.scopeSingleRecord, !(operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName]
+                    != nil && operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationTemporaryName]
+                    != nil)),
+              self.c94ColdRootDiagnosticPredicate(.scopeDirectoryRecord, (root == nil && stage == nil) || operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName]
+                    != nil) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for candidate in [root, stage].compactMap({ $0 }) {
+            let isStage = candidate.descriptor == stage?.descriptor
+            self.c94ColdRootDiagnosticSite(.scopeEmptyDirectory)
+            guard try namesChecked(in: candidate,
+                allowOwnedNotificationCreationStage: isStage,
+                allowOwnedNotificationCreationRoot: !isStage).isEmpty else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let record = operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName],
+           let bytes = schema2ColdNotificationCreationBytes {
+            self.c94ColdRootDiagnosticSite(.scopeRecord)
+            guard try readSchema2ColdCreationFile(record).0 == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+#else
     private func requireSchema2ColdNotificationRootCreationScope(
         source: EraseSchema2ColdNotificationSourceV1,
         token: EraseSchema2ColdNotificationMutationTokenV1,
@@ -6438,6 +7249,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
             }
         }
     }
+#endif
 
     private func requireSchema2ColdNotificationSettledCreationScope(
         source: EraseSchema2ColdNotificationSourceV1,
@@ -6489,8 +7301,187 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
     }
 
+    /// The captured Operations children were opened with their closed role's
+    /// physical type before any creator effect. Preserve every law admitted
+    /// by that first census, including genuine all-directory ambiguity. Only
+    /// held creator entries with their exact canonical/admitted-prefix bytes
+    /// contribute to the current count; observed postlinks select no law.
+    private func schema2ColdNotificationCreationParentLinks(
+        _ operations: Opened, rootExists: Bool,
+        observedNames: [String]?
+    ) throws -> Set<nlink_t> {
+        let recordName = EraseSchema2ColdNotificationSourceV1.creationRecordName
+        let temporaryName = EraseSchema2ColdNotificationSourceV1.creationTemporaryName
+        let rootName = AppLockNotificationControlStoreV1.rootName
+        let stageName = EraseSchema2ColdNotificationSourceV1.creationStageName
+        let regularNames: Set<String> = [recordName, temporaryName]
+        let directoryNames: Set<String> = [rootName, stageName]
+        let owned = regularNames.union(directoryNames)
+        guard schema2ColdNotificationMutationInFlight,
+              let token = schema2ColdNotificationMutationToken,
+              token.stage == .createRoot || token.stage == .settleCreatedRoot,
+              token.manifestIdentity == ObjectIdentifier(self),
+              token.source === schema2ColdNotificationWitness,
+              operations.descriptor == self.operations?.descriptor,
+              let firstNames = capturedOperationsNames,
+              Set(firstNames).count == firstNames.count,
+              Set(firstNames).isSubset(of: Self.coldOperationsOwnerNames),
+              firstNames.count <= Int(nlink_t.max) - 2,
+              opened, !closeAttempted, uncertainFDs.isEmpty,
+              !uncertainStreamClose, enumerationFD == nil,
+              directoryStream == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let first = Set(firstNames)
+        let currentOwned = Set(operationsChildren.keys).intersection(owned)
+        let currentRegular = currentOwned.intersection(regularNames)
+        let currentDirectories = currentOwned.intersection(directoryNames)
+        let outside = first.subtracting(owned)
+        let current = outside.union(currentOwned)
+        guard first.intersection(regularNames).count <= 1,
+              first.intersection(directoryNames).count <= 1,
+              currentRegular.count <= 1, currentDirectories.count <= 1,
+              rootExists == !currentDirectories.isEmpty,
+              currentDirectories.isEmpty || currentRegular == Set([recordName]),
+              Set(operationsChildren.keys).subtracting(owned) == outside,
+              current.count <= Int(nlink_t.max) - 2,
+              let expectedBytes = schema2ColdNotificationExpectedCreationBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // These are the same captured FDs or the creator's returned O_EXCL /
+        // mkdir FDs, retained before policy may re-enter the owner. There is
+        // no name-only allowance and no new parent or child baseline.
+        for name in currentOwned {
+            guard let child = operationsChildren[name],
+                  child.parent == operations.descriptor,
+                  child.name == name,
+                  child.path.path == operations.path.appendingPathComponent(name).path,
+                  child.fact.device == operations.fact.device,
+                  child.fact.mode & S_IFMT
+                    == (regularNames.contains(name) ? S_IFREG : S_IFDIR),
+                  held.contains(where: {
+                      $0.descriptor == child.descriptor
+                        && $0.parent == child.parent && $0.name == child.name
+                        && $0.fact == child.fact
+                  }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if regularNames.contains(name) {
+                let bytes = try readSchema2ColdCreationFile(child).0
+                if name == recordName {
+                    guard bytes == expectedBytes else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                } else {
+                    guard bytes == expectedBytes
+                        || (first.contains(temporaryName)
+                            && bytes == schema2ColdNotificationCapturedCreationTemporaryBytes
+                            && expectedBytes.starts(with: bytes)) else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            } else {
+                try requireSameNamedDirectoryIdentity(child)
+            }
+        }
+        // The checked enumeration calls again with its actual names before
+        // returning. Both the outer creator scope and this join require the
+        // exact outside set and exact held owned set before the next effect.
+        if let observedNames {
+            guard observedNames.count == Set(observedNames).count,
+                  Set(observedNames) == current else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        let firstDirectoryCount = first.subtracting(regularNames).count
+        let currentDirectoryCount = current.subtracting(regularNames).count
+        var expected: Set<nlink_t> = []
+        if operations.fact.links == nlink_t(first.count + 2) {
+            expected.insert(nlink_t(current.count + 2))
+        }
+        if operations.fact.links == nlink_t(firstDirectoryCount + 2) {
+            expected.insert(nlink_t(currentDirectoryCount + 2))
+        }
+        guard !expected.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return expected
+    }
+
+#if DEBUG
     private func requireSchema2ColdNotificationCreationParent(
-        _ operations: Opened, rootExists: Bool
+        _ operations: Opened, rootExists: Bool,
+        observedNames: [String]? = nil
+    ) throws {
+        let c94ParentEntryErrno = errno
+        let c94ParentCaller = c94ColdRootDiagnostic?.site
+        if let context = c94ColdRootDiagnostic,
+           context.manifest == ObjectIdentifier(self) {
+            context.parentCallSite = context.site
+            context.parentCreationCut = context.creationCut
+            context.parentObservations = [:]
+            context.rootExists = rootExists
+            context.firstLinks = operations.fact.links
+            context.heldLinks = nil
+            context.expectedLinks = nil
+            context.firstHasDirectory = nil
+        }
+        errno = c94ParentEntryErrno
+        self.c94ColdRootDiagnosticSite(.parentBinding)
+        guard let parent = operations.parent,
+              let name = operations.name else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat(), pathValue = stat()
+        self.c94ColdRootDiagnosticSite(.parentFacts)
+        guard self.c94ColdRootDiagnosticPredicate(.parentHeldStat, Darwin.fstat(operations.descriptor, &heldValue) == 0, heldLinks: heldValue.st_nlink),
+              self.c94ColdRootDiagnosticPredicate(.parentNamedStat, Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0),
+              self.c94ColdRootDiagnosticPredicate(.parentPathStat, Darwin.lstat(operations.path.path, &pathValue) == 0),
+              self.c94ColdRootDiagnosticPredicate(.parentHeldNamed, Fact(heldValue) == Fact(namedValue)),
+              self.c94ColdRootDiagnosticPredicate(.parentHeldPath, Fact(heldValue) == Fact(pathValue)),
+              self.c94ColdRootDiagnosticPredicate(.parentDevice, heldValue.st_dev == operations.fact.device),
+              self.c94ColdRootDiagnosticPredicate(.parentInode, heldValue.st_ino == operations.fact.inode),
+              self.c94ColdRootDiagnosticPredicate(.parentMode, heldValue.st_mode == operations.fact.mode),
+              self.c94ColdRootDiagnosticPredicate(.parentNoOverflow, operations.fact.links < nlink_t.max) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let firstHasDirectory = (capturedOperationsNames ?? []).contains(
+            EraseSchema2ColdNotificationSourceV1.creationStageName)
+            || (capturedOperationsNames ?? []).contains(
+                AppLockNotificationControlStoreV1.rootName)
+        let c94FirstDirectoryErrno = errno
+        c94ColdRootDiagnostic?.firstHasDirectory = firstHasDirectory
+        errno = c94FirstDirectoryErrno
+        let expectedLinks = try schema2ColdNotificationCreationParentLinks(
+            operations, rootExists: rootExists, observedNames: observedNames)
+        var afterHeld = stat(), afterNamed = stat(), afterPath = stat()
+        self.c94ColdRootDiagnosticSite(.parentFacts)
+        guard self.c94ColdRootDiagnosticPredicate(.parentHeldStat, Darwin.fstat(operations.descriptor, &afterHeld) == 0, heldLinks: afterHeld.st_nlink),
+              self.c94ColdRootDiagnosticPredicate(.parentNamedStat, Darwin.fstatat(parent, name, &afterNamed,
+                AT_SYMLINK_NOFOLLOW) == 0),
+              self.c94ColdRootDiagnosticPredicate(.parentPathStat, Darwin.lstat(operations.path.path, &afterPath) == 0),
+              self.c94ColdRootDiagnosticPredicate(.parentHeldNamed, FullRetiredFact(afterHeld) == FullRetiredFact(afterNamed)
+                && FullRetiredFact(afterHeld) == FullRetiredFact(heldValue)),
+              self.c94ColdRootDiagnosticPredicate(.parentHeldPath, FullRetiredFact(afterHeld) == FullRetiredFact(afterPath)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let c94ExpectedLinksErrno = errno
+        c94ColdRootDiagnostic?.expectedLinks = expectedLinks.count == 1
+            ? expectedLinks.first : nil
+        errno = c94ExpectedLinksErrno
+        self.c94ColdRootDiagnosticSite(.parentFinalLinks)
+        guard self.c94ColdRootDiagnosticPredicate(.parentLinks, expectedLinks.contains(heldValue.st_nlink)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let c94ParentReturnErrno = errno
+        if let c94ParentCaller { c94ColdRootDiagnostic?.site = c94ParentCaller }
+        errno = c94ParentReturnErrno
+    }
+#else
+    private func requireSchema2ColdNotificationCreationParent(
+        _ operations: Opened, rootExists: Bool,
+        observedNames: [String]? = nil
     ) throws {
         guard let parent = operations.parent,
               let name = operations.name else {
@@ -6509,25 +7500,23 @@ final class EraseSchema2ColdManifestOwnerV1 {
               operations.fact.links < nlink_t.max else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        let firstHasDirectory = (capturedOperationsNames ?? []).contains(
-            EraseSchema2ColdNotificationSourceV1.creationStageName)
-            || (capturedOperationsNames ?? []).contains(
-                AppLockNotificationControlStoreV1.rootName)
-        let expectedLinks: nlink_t
-        if rootExists && !firstHasDirectory {
-            expectedLinks = operations.fact.links + 1
-        } else if !rootExists && firstHasDirectory {
-            guard operations.fact.links > 0 else {
-                throw StoreMigrationFailure.invalidIdentity
-            }
-            expectedLinks = operations.fact.links - 1
-        } else {
-            expectedLinks = operations.fact.links
+        let expectedLinks = try schema2ColdNotificationCreationParentLinks(
+            operations, rootExists: rootExists, observedNames: observedNames)
+        var afterHeld = stat(), afterNamed = stat(), afterPath = stat()
+        guard Darwin.fstat(operations.descriptor, &afterHeld) == 0,
+              Darwin.fstatat(parent, name, &afterNamed,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(operations.path.path, &afterPath) == 0,
+              FullRetiredFact(afterHeld) == FullRetiredFact(afterNamed),
+              FullRetiredFact(afterHeld) == FullRetiredFact(afterPath),
+              FullRetiredFact(afterHeld) == FullRetiredFact(heldValue) else {
+            throw StoreMigrationFailure.invalidIdentity
         }
-        guard heldValue.st_nlink == expectedLinks else {
+        guard expectedLinks.contains(heldValue.st_nlink) else {
             throw StoreMigrationFailure.invalidIdentity
         }
     }
+#endif
 
     /// The Storage receipt is evidence of completed checked syscalls, not
     /// permission to adopt a new directory image. Re-read the same held root
@@ -7037,8 +8026,8 @@ final class EraseSchema2ColdManifestOwnerV1 {
                 allowed: [(target, .target)], operation: operation)
         case .emptyGenerationPrepared:
             // P can survive either side of the original pointer effect.
-            // Capture that physical first cut once; only the target-current
-            // cut may later own the prepared private-source continuation.
+            // Capture that physical first cut once; distinct prepared-old
+            // and prepared-target capabilities reprove it before any effect.
             return try readCurrentManifestBound(
                 allowed: [(old, .old), (target, .target)],
                 operation: operation)
@@ -7610,7 +8599,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
             return
         }
         guard intent.schemaVersion == 2,
-              intent.phase == .pointerSwitched,
+              intent.phase == .emptyGenerationPrepared || intent.phase == .pointerSwitched,
               capturedCurrentCut == .target,
               let firstCapturedPointerBytes,
               let firstCapturedManifestBytes,
@@ -7659,9 +8648,35 @@ final class EraseSchema2ColdManifestOwnerV1 {
         snapshot: EraseSchema2ColdTargetSnapshotV1,
         operation: EraseColdPreparationOperationV1
     ) throws {
+        guard erasePhase == .pointerSwitched,
+              intent.phase == .pointerSwitched else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try publishTargetPointerForSchema2ColdBound(intent: intent,
+            snapshot: snapshot, operation: operation)
+    }
+
+    func publishTargetPointerForSchema2ColdPreparedOld(
+        intent: EraseIntentV1, snapshot: EraseSchema2ColdTargetSnapshotV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard erasePhase == .emptyGenerationPrepared,
+              intent.phase == .emptyGenerationPrepared else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdPreparedOldPointerMutation(
+            intent: intent, snapshot: snapshot, manifest: self)
+        try publishTargetPointerForSchema2ColdBound(intent: intent,
+            snapshot: snapshot, operation: operation)
+    }
+
+    private func publishTargetPointerForSchema2ColdBound(
+        intent: EraseIntentV1, snapshot: EraseSchema2ColdTargetSnapshotV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
         try operation.requireSchema2ColdManifestOwner(self)
         try requireHeldNamed()
-        guard erasePhase == .pointerSwitched,
+        guard erasePhase == intent.phase,
               !pointerPublicationInFlight,
               let currentPointer, let data,
               let capturedPointerBytes,
@@ -8915,7 +9930,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
         operation: EraseColdPreparationOperationV1
     ) throws -> EraseSchema2ColdRetainedSourceV1 {
         if intent.phase == .emptyGenerationPrepared {
-            try operation.requireSchema2ColdPreparedTargetCurrentControls(
+            try operation.requireSchema2ColdPreparedControls(
                 intent: intent, preparation: preparation)
         } else {
             try operation.requireSchema2ColdOriginalControls(
@@ -8975,9 +9990,9 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
         let cut = try observeAllowedCurrentCut(intent: intent,
             operation: operation)
-        guard intent.phase != .emptyGenerationPrepared
-                || cut == .target else {
-            throw StoreMigrationFailure.invalidIdentity
+        if intent.phase == .emptyGenerationPrepared {
+            try operation.requireSchema2ColdPreparedOriginalCut(cut,
+                intent: intent, preparation: preparation)
         }
         _ = try requireTargetRootIdentity(
             targetID: intent.newGenerationID, operation: operation)
@@ -8997,6 +10012,48 @@ final class EraseSchema2ColdManifestOwnerV1 {
         try source.open(parent: generations.descriptor, name: oldName)
         try requireOriginalSource(source, operation: operation)
         return source
+    }
+
+    /// Retain a genuine P→Q projection for the same original source. Its
+    /// private validation and physical tree are never reacquired or rebased.
+    func projectSchema2ColdPreparedOriginalAfterOwnPhaseCAS(
+        firstIntent: EraseIntentV1, replacement: EraseIntentV1,
+        store: EraseIntentStore, operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard !preparedOriginalProjectionEntered,
+              preparedOriginalPublishedIntent == nil,
+              preparedOriginalPublishedStore == nil,
+              erasePhase == .emptyGenerationPrepared,
+              firstIntent.phase == .emptyGenerationPrepared,
+              replacement == firstIntent.advancing(to: .pointerSwitched),
+              originalSource?.intent == firstIntent,
+              let originalSource,
+              !originalSource.isCheckedClosed,
+              retiredSources == nil,
+              !retiredSourceCaptureComplete,
+              let originalManifest, let capturedOriginalManifestBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdPreparedPhasePublished(firstIntent: firstIntent,
+            replacement: replacement, store: store)
+        preparedOriginalProjectionEntered = true
+        // Failure from this point retains the one-way entered state. No
+        // second projection, source opening or new manifest baseline is legal.
+        try requireHeldNamed()
+        try requireSchema2ColdOwnPublishedSnapshot(
+            try operation.schema2ColdPreparedPublishedSnapshotForManifest(self),
+            intent: replacement, operation: operation)
+        guard try readExact(originalManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024) == capturedOriginalManifestBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try originalSource.requireHeldTreeAfterOwnPhaseCAS()
+        try operation.requireSchema2ColdPreparedPhasePublished(firstIntent: firstIntent,
+            replacement: replacement, store: store)
+        preparedOriginalPublishedIntent = replacement
+        preparedOriginalPublishedStore = store
+        erasePhase = .pointerSwitched
     }
 
     /// Only this operation's checked P→R phase publication can change the
@@ -9020,7 +10077,9 @@ final class EraseSchema2ColdManifestOwnerV1 {
               retiredSourceCaptureComplete,
               erasePhase == .pointerSwitched,
               let originalSource,
-              originalSource.intent == firstIntent,
+              originalSource.intent == firstIntent ||
+                (preparedOriginalPublishedIntent == firstIntent &&
+                 originalSource.intent.advancing(to: .pointerSwitched) == firstIntent),
               !originalSource.isCheckedClosed,
               let retiredSources,
               retiredSources.values.allSatisfy({ !$0.isCheckedClosed }) else {
@@ -9101,6 +10160,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         guard !retainedSourcePhaseProjectionInFlight else {
             throw StoreMigrationFailure.invalidIdentity
         }
+        if preparedOriginalProjectionEntered {
+            guard let projected = preparedOriginalPublishedIntent,
+                  let projectedStore = preparedOriginalPublishedStore,
+                  let originalSource else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try operation.requireSchema2ColdPreparedPhasePublished(
+                firstIntent: originalSource.intent, replacement: projected,
+                store: projectedStore)
+        }
         if let published = retainedSourcePublishedIntent {
             guard let store = retainedSourcePublishedStore,
                   published == firstIntent.advancing(
@@ -9112,7 +10181,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
                 expected: published, store: store)
         } else {
             if firstIntent.phase == .emptyGenerationPrepared {
-                try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                try operation.requireSchema2ColdPreparedControls(
                     intent: firstIntent, preparation: preparation)
             } else {
                 try operation.requireSchema2ColdOriginalControls(
@@ -9143,9 +10212,9 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
         let cut = try observeAllowedCurrentCut(
             intent: expected.intent, operation: operation)
-        guard expected.intent.phase != .emptyGenerationPrepared
-                || cut == .target else {
-            throw StoreMigrationFailure.invalidIdentity
+        if expected.intent.phase == .emptyGenerationPrepared {
+            try operation.requireSchema2ColdPreparedOriginalCut(cut,
+                intent: expected.intent, preparation: expected.preparation)
         }
         _ = try requireTargetRootIdentity(
             targetID: expected.intent.newGenerationID,
@@ -9181,6 +10250,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
               let capturedPointerBytes,
               try readExact(currentPointer,
                 kind: .generationPointer) == capturedPointerBytes else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.admission-frame\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         let otherIDs = intent.generationIDsToDelete.filter {
@@ -9195,6 +10274,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
               firstNames.isSubset(of: allowedNames),
               intent.phase != .pointerSwitched
                 || firstNames == allowedNames else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.generation-membership\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         let present = otherIDs.filter {
@@ -9202,6 +10291,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
         let absent = Set(otherIDs).subtracting(present)
         guard intent.phase != .pointerSwitched || absent.isEmpty else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.pointer-phase-absence\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         if !absent.isEmpty {
@@ -9211,6 +10310,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         var sources: [UUID: EraseSchema2ColdRetiredSourceV1] = [:]
         for id in present {
             guard let migration else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.migration-root-present\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             let manifestName = "manifest-\(id.uuidString.lowercased()).json"
@@ -9220,6 +10329,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                 guard capturedMigrationNames.contains(manifestName),
                       let retained = migrationFiles[manifestName],
                       let retainedBytes = capturedMigrationBytes[manifestName] else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.manifest-binding\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
                 file = retained
@@ -9234,6 +10353,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                 from: bytes)
             guard decoded.generationID == id,
                   decoded.storeSchemaRelease == .v53 else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.manifest-identity-and-release\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             retiredSourceManifests[id] = file
@@ -9257,6 +10386,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         capturedRetiredSourcePreparation = preparation
         for id in present {
             guard let source = sources[id] else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-capture.source-map-binding\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             try source.open(parent: generations.descriptor,
@@ -9650,6 +10789,40 @@ final class EraseSchema2ColdManifestOwnerV1 {
         try requireSchema2ColdFirstActivatedAuxiliaryCutUnchanged(
             intent: intent, preparation: preparation, store: store, operation: operation)
         firstActivatedAuxiliaryAdmissionComplete = true
+    }
+
+    /// A cold-published first-P roster remains distinct from an Original
+    /// record. Its real publication receipt and this owner's two checked
+    /// phase transitions precede admission through the existing R decoder.
+    func requireSchema2ColdPreparedPublishedAuxiliaryAdmission(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        store: EraseIntentStore, operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdRosterObservationOwner(store: store)
+        guard operation.hasSchema2ColdPreparedAuxiliaryPublication,
+              preparedOriginalProjectionEntered,
+              let switched = preparedOriginalPublishedIntent,
+              preparedOriginalPublishedStore === store,
+              switched.phase == .pointerSwitched,
+              intent == switched.advancing(to: .sessionActivated),
+              retainedSourcePublishedIntent == intent,
+              retainedSourcePublishedStore === store,
+              pointerOriginalRetiredFirstCut == nil,
+              pointerOriginalRecordShape == nil,
+              firstActivatedOriginalAuxiliaryCut == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdPreparedAuxiliaryPublication(store: store)
+        _ = try operation.requireSchema2ColdPointerPhasePublished(
+            expected: intent, store: store)
+        if let witness = observedOriginalAuxiliaryRoster {
+            try requireSchema2ColdPublishedOriginalAuxiliaryRoster(witness,
+                intent: intent, preparation: preparation, store: store, operation: operation)
+        } else {
+            _ = try decodeSchema2ColdObservedOriginalAuxiliaryRoster(
+                intent: intent, preparation: preparation, store: store, operation: operation)
+        }
     }
 
     /// Decode the first held original-P auxiliary record only after authentic
@@ -10627,6 +11800,62 @@ final class EraseSchema2ColdManifestOwnerV1 {
         return receipt
     }
 
+    /// The original private old-source read may precede this operation's
+    /// target publication. Only its immutable first-P old cut admits that
+    /// pointer; target-current reads retain the strict target reproof below.
+    func requireCurrentPointerForPrivateOriginalSource(
+        _ source: EraseSchema2ColdRetainedSourceV1,
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> CurrentGenerationPointerV3 {
+        try operation.requireSchema2ColdRetainedSource(source)
+        try requireOriginalSource(source, operation: operation)
+        guard source.intent == intent,
+              source.generationID == intent.oldGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        switch try observeAllowedCurrentCut(intent: intent,
+            operation: operation) {
+        case .old:
+            guard intent.schemaVersion == 2,
+                  intent.phase == .emptyGenerationPrepared,
+                  erasePhase == .emptyGenerationPrepared else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try operation.requireSchema2ColdPreparedOldCurrentControls(
+                intent: intent, preparation: source.preparation)
+            guard let currentPointer, let capturedPointerBytes,
+                  firstCapturedPointerBytes == capturedPointerBytes,
+                  capturedCurrentCut == .old,
+                  let expected = intent.oldPointer,
+                  expected == source.preparation.oldPointer,
+                  expected.generationID == source.generationID,
+                  expected.generationManifestSHA256 == source.manifestDigest,
+                  try readExact(currentPointer, kind: .generationPointer)
+                    == capturedPointerBytes,
+                  case .v3(let pointer, _) = try CurrentPointerCodecV1
+                    .decode(capturedPointerBytes),
+                  try pointer.canonicalData() == capturedPointerBytes,
+                  pointer.generationID
+                    == expected.generationID.uuidString.lowercased(),
+                  pointer.generationManifestSHA256
+                    == expected.generationManifestSHA256,
+                  pointer.workspaceID
+                    == expected.workspaceID.uuidString.lowercased(),
+                  pointer.replicaID
+                    == expected.replicaID.uuidString.lowercased(),
+                  pointer.knownReplicaIDs
+                    == expected.knownReplicaIDs.map({
+                        $0.uuidString.lowercased() }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return pointer
+        case .target:
+            return try requireCurrentTargetPointer(intent: intent,
+                operation: operation)
+        }
+    }
+
     func requireCurrentTargetPointer(intent: EraseIntentV1,
         operation: EraseColdPreparationOperationV1)
         throws -> CurrentGenerationPointerV3 {
@@ -10964,6 +12193,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
               !schema2ColdNotificationMutationInFlight,
               targetLiveOpenState != .inFlight || allowTargetLiveOpen,
               !pointerPublicationInFlight || allowPointerPublication else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.owner-state\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         for node in held {
@@ -10986,6 +12225,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard Darwin.fstatat(support.descriptor,
                     "FieldEvidenceOperations", &observed,
                     AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.operations-absence\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -10994,6 +12243,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard Darwin.fstatat(operations.descriptor,
                     "schema-migration", &observed,
                     AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.migration-absence\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11002,6 +12261,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard Darwin.fstatat(data.descriptor,
                     "erase-current-manifest.json", &observed,
                     AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.handoff-absence\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11014,6 +12283,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard Darwin.fstatat(migration.descriptor,
                     "manifest-\(pointer.generationID).json", &observed,
                     AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.current-manifest-absence\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11021,6 +12300,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         if let capturedOperationsNames, let operations {
             guard try namesChecked(in: operations) == capturedOperationsNames,
                   Set(operationsChildren.keys) == Set(capturedOperationsNames) else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.operations-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11033,6 +12322,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                         .creationTemporaryName] == nil,
                   try readSchema2ColdNotificationBytes(record)
                     == creationBytes else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-creation-record\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11041,6 +12340,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
            let generations {
             guard try namesChecked(in: generations)
                     == expectedGenerationNames else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.generations-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11055,6 +12364,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard try readExact(targetManifest, kind: .journal,
                     maximumBytes: 32 * 1_024 * 1_024)
                     == capturedTargetManifestBytes else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.target-manifest-bytes\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11062,6 +12381,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             guard try readExact(originalManifest, kind: .journal,
                 maximumBytes: 32 * 1_024 * 1_024)
                     == capturedOriginalManifestBytes else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.original-manifest-bytes\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
         }
@@ -11069,18 +12398,48 @@ final class EraseSchema2ColdManifestOwnerV1 {
            let capturedNotificationNames,
            let root = operationsChildren["AppLockNotificationControlV1"] {
             guard try namesChecked(in: root) == capturedNotificationNames else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-first-names\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             guard Set(capturedNotificationFiles.keys)
                     == Set(capturedNotificationNames),
                   Set(capturedNotificationBytes.keys)
                     == Set(capturedNotificationNames) else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-first-map-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             for name in capturedNotificationNames {
                 guard let file = capturedNotificationFiles[name],
                       let bytes = capturedNotificationBytes[name],
                       try readSchema2ColdNotificationBytes(file) == bytes else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-first-leaf-binding\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
             }
@@ -11097,6 +12456,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                       Set(schema2ColdNotificationFiles.keys)
                         == Set(expectedNames),
                       Set(expectedBytes.keys) == Set(expectedNames) else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-projected-map-membership\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
                 for name in expectedNames {
@@ -11104,6 +12473,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                           let bytes = expectedBytes[name],
                           try readSchema2ColdNotificationBytes(file)
                             == bytes else {
+#if DEBUG
+                        do {
+                            let savedErrno = errno
+                            defer { errno = savedErrno }
+                            do {
+                                try FileHandle.standardError.write(contentsOf: Data(
+                                    "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-projected-leaf-binding\n".utf8))
+                            } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                        }
+#endif
                         throw StoreMigrationFailure.invalidIdentity
                     }
                 }
@@ -11114,6 +12493,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                         AppLockNotificationControlStoreV1.rootName,
                         &absent, AT_SYMLINK_NOFOLLOW) != 0,
                       errno == ENOENT else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.notification-root-absence\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
             }
@@ -11124,12 +12513,32 @@ final class EraseSchema2ColdManifestOwnerV1 {
                   Set(finalizationFiles.keys) == Set(capturedFinalizationNames),
                   Set(capturedFinalizationBytes.keys)
                     == Set(capturedFinalizationNames) else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.finalization-map-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             for name in capturedFinalizationNames {
                 guard let file = finalizationFiles[name],
                       let expected = capturedFinalizationBytes[name],
                       try readExact(file, kind: .journal) == expected else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.finalization-leaf-binding\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
             }
@@ -11140,6 +12549,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                   Set(deletionFiles.keys) == Set(capturedDeletionNames),
                   Set(capturedDeletionBytes.keys)
                     == Set(capturedDeletionNames) else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.deletion-map-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             for name in capturedDeletionNames {
@@ -11147,6 +12566,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                       let expected = capturedDeletionBytes[name],
                       try readExact(file, kind: .journal,
                         maximumBytes: 64 * 1_024 * 1_024) == expected else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.deletion-leaf-binding\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
             }
@@ -11157,6 +12586,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                   Set(migrationFiles.keys) == Set(capturedMigrationNames),
                   Set(capturedMigrationBytes.keys)
                     == Set(capturedMigrationNames) else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.migration-map-membership\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             for name in capturedMigrationNames {
@@ -11164,6 +12603,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
                       let expected = capturedMigrationBytes[name],
                       try readExact(file, kind: .journal,
                         maximumBytes: 32 * 1_024 * 1_024) == expected else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        do {
+                            try FileHandle.standardError.write(contentsOf: Data(
+                                "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.migration-leaf-binding\n".utf8))
+                        } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                    }
+#endif
                     throw StoreMigrationFailure.invalidIdentity
                 }
             }
@@ -11174,6 +12623,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
         var heldValue = stat(), named = stat()
         guard Darwin.fstat(node.descriptor, &heldValue) == 0,
               Fact(heldValue) == node.fact else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.named.held-stat-or-fact\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         let result: Int32
@@ -11183,6 +12642,16 @@ final class EraseSchema2ColdManifestOwnerV1 {
             result = Darwin.lstat(node.path.path, &named)
         }
         guard result == 0, Fact(named) == node.fact else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=manifest.named.named-stat-or-fact\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
     }
@@ -11373,6 +12842,144 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
     }
 
+#if DEBUG
+    private func namesChecked(in directory: Opened,
+        allowOwnedLeaseMutation: Bool = false,
+        allowOwnedNotificationMutation: Bool = false,
+        allowOwnedNotificationRootCreation: Bool = false,
+        allowOwnedNotificationCreationStage: Bool = false,
+        allowOwnedNotificationCreationRoot: Bool = false)
+        throws -> [String] {
+        self.c94ColdRootDiagnosticSite(.namesEntry)
+        var notificationBefore: Fact?
+        if allowOwnedLeaseMutation {
+            guard leaseReaderPublicationInFlight
+                    || leaseReaderSettlementInFlight,
+                  directory.descriptor
+                    == operationsChildren["generation-leases"]?.descriptor else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSameNamedDirectoryIdentity(directory,
+                expectedLinks: schema2ColdExpectedLeaseLinks(
+                    lease: directory))
+        } else if allowOwnedNotificationMutation {
+            self.c94ColdRootDiagnosticSite(.namesOwner)
+            guard schema2ColdNotificationMutationInFlight,
+                  directory.descriptor == operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName]?.descriptor,
+                  let token = schema2ColdNotificationMutationToken else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            notificationBefore = try schema2ColdNotificationRootFactInFlight(
+                directory, token: token)
+        } else if allowOwnedNotificationRootCreation {
+            self.c94ColdRootDiagnosticSite(.namesOwner)
+            guard schema2ColdNotificationMutationInFlight,
+                  (schema2ColdNotificationMutationToken?.stage
+                    == .createRoot
+                    || schema2ColdNotificationMutationToken?.stage
+                        == .settleCreatedRoot),
+                  directory.descriptor == operations?.descriptor else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.namesParentBefore)
+            try requireSchema2ColdNotificationCreationParent(
+                directory, rootExists: operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName] != nil
+                    || operationsChildren[
+                        EraseSchema2ColdNotificationSourceV1
+                            .creationStageName] != nil)
+        } else if allowOwnedNotificationCreationStage
+            || allowOwnedNotificationCreationRoot {
+            let name = allowOwnedNotificationCreationStage
+                ? EraseSchema2ColdNotificationSourceV1.creationStageName
+                : AppLockNotificationControlStoreV1.rootName
+            self.c94ColdRootDiagnosticSite(.namesOwner)
+            guard schema2ColdNotificationMutationInFlight,
+                  (schema2ColdNotificationMutationToken?.stage == .createRoot
+                    || schema2ColdNotificationMutationToken?.stage
+                        == .settleCreatedRoot),
+                  directory.descriptor == operationsChildren[name]?.descriptor
+                else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            self.c94ColdRootDiagnosticSite(.namesDirectoryIdentity)
+            try requireSameNamedDirectoryIdentity(directory)
+        } else {
+            try requireNamed(directory)
+        }
+        self.c94ColdRootDiagnosticSite(.namesState)
+        guard enumerationFD == nil, directoryStream == nil,
+              uncertainFDs.isEmpty, !uncertainStreamClose else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.namesOpen)
+        let duplicate = Darwin.openat(directory.descriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        self.c94ColdRootDiagnosticSite(.namesOpenResult)
+        guard duplicate >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        enumerationFD = duplicate
+        self.c94ColdRootDiagnosticSite(.namesStream)
+        guard let stream = Darwin.fdopendir(duplicate) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        enumerationFD = nil
+        directoryStream = stream
+        var names: [String] = []
+        errno = 0
+        self.c94ColdRootDiagnosticSite(.namesRead)
+        while let entry = Darwin.readdir(stream) {
+            self.c94ColdRootDiagnosticSite(.namesDecode)
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if name != "." && name != ".." { names.append(name) }
+            errno = 0
+            self.c94ColdRootDiagnosticSite(.namesRead)
+        }
+        let readError = errno
+        directoryStream = nil
+        self.c94ColdRootDiagnosticSite(.namesClose)
+        guard Darwin.closedir(stream) == 0 else {
+            uncertainStreamClose = true
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.c94ColdRootDiagnosticSite(.namesReadResult)
+        guard readError == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        if allowOwnedLeaseMutation {
+            try requireSameNamedDirectoryIdentity(directory,
+                expectedLinks: schema2ColdExpectedLeaseLinks(
+                    lease: directory))
+        } else if allowOwnedNotificationMutation {
+            guard let token = schema2ColdNotificationMutationToken,
+                  let notificationBefore,
+                  notificationBefore
+                    == (try schema2ColdNotificationRootFactInFlight(
+                        directory, token: token)) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdNotificationRootLinks(
+                token: token, names: names,
+                observedLinks: notificationBefore.links)
+        } else if allowOwnedNotificationRootCreation {
+            self.c94ColdRootDiagnosticSite(.namesParentAfter)
+            try requireSchema2ColdNotificationCreationParent(
+                directory, rootExists: operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName] != nil
+                    || operationsChildren[
+                        EraseSchema2ColdNotificationSourceV1
+                            .creationStageName] != nil,
+                observedNames: names)
+        } else if allowOwnedNotificationCreationStage
+            || allowOwnedNotificationCreationRoot {
+            self.c94ColdRootDiagnosticSite(.namesDirectoryIdentity)
+            try requireSameNamedDirectoryIdentity(directory)
+        } else {
+            try requireNamed(directory)
+        }
+        return names.sorted()
+    }
+#else
     private func namesChecked(in directory: Opened,
         allowOwnedLeaseMutation: Bool = false,
         allowOwnedNotificationMutation: Bool = false,
@@ -11482,7 +13089,8 @@ final class EraseSchema2ColdManifestOwnerV1 {
                     AppLockNotificationControlStoreV1.rootName] != nil
                     || operationsChildren[
                         EraseSchema2ColdNotificationSourceV1
-                            .creationStageName] != nil)
+                            .creationStageName] != nil,
+                observedNames: names)
         } else if allowOwnedNotificationCreationStage
             || allowOwnedNotificationCreationRoot {
             try requireSameNamedDirectoryIdentity(directory)
@@ -11491,6 +13099,7 @@ final class EraseSchema2ColdManifestOwnerV1 {
         }
         return names.sorted()
     }
+#endif
 
     private func requirePolicy(_ node: Opened, kind: OwnedFileKindV1) throws {
         guard uncertainFDs.isEmpty else { throw StoreMigrationFailure.invalidIdentity }
@@ -11762,6 +13371,16 @@ final class EraseSchema2ColdRetainedSourceV1 {
     fileprivate func requirePhysicalIdentity() throws {
         guard descriptor >= 0, !closeAttempted, !uncertain,
               uncertainFDs.isEmpty, let original = identity else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=original-root.owner-state\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         var held = stat(), named = stat(), pathNamed = stat()
@@ -11772,6 +13391,16 @@ final class EraseSchema2ColdRetainedSourceV1 {
               Self.equal(Self.fact(held), original),
               Self.equal(Self.fact(named), original),
               Self.equal(Self.fact(pathNamed), original) else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=original-root.stat-or-fact\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         try checkedIO.requireSettled()
@@ -11798,6 +13427,16 @@ final class EraseSchema2ColdRetainedSourceV1 {
 
     func withHeldOriginalRoot<T>(_ body: (Int32) throws -> T) throws -> T {
         guard let operation, let manifestOwner else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=original-root.owner-binding\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         try operation.requireSchema2ColdRetainedSource(self)
@@ -11817,6 +13456,16 @@ final class EraseSchema2ColdRetainedSourceV1 {
                 parent: held, name: ".")
             guard let originalTreeDigest,
                   result.digest == originalTreeDigest else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=original-root.tree-digest-binding\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             try checkedIO.requireSettled()
@@ -11922,6 +13571,22 @@ final class EraseSchema2ColdRetainedSourceV1 {
             operation: operation)
         return try manifestOwner.requireTargetRootIdentity(
             targetID: targetID, operation: operation)
+    }
+
+    /// Private validation keeps the genuine prepared-old current cut distinct
+    /// from target-current admission. This borrows only the same retained
+    /// source and manifest owner; it creates no pointer or publication proof.
+    func requireCurrentPointerForPrivateRead(intent expected: EraseIntentV1) throws
+        -> CurrentGenerationPointerV3 {
+        guard let operation, let manifestOwner,
+              expected == intent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        return try manifestOwner.requireCurrentPointerForPrivateOriginalSource(
+            self, intent: expected, operation: operation)
     }
 
     func requireCurrentTargetPointer(intent expected: EraseIntentV1) throws
@@ -12651,12 +14316,32 @@ final class EraseSchema2ColdRetiredSourceV1 {
               originalTreeDigest == nil,
               name == generationID.uuidString.lowercased(),
               let operation else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.open-state\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         try operation.requireSchema2ColdRetiredSource(self)
         let opened = Darwin.openat(parent, name,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard opened >= 0 else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.open-return\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         descriptor = opened
@@ -12669,6 +14354,16 @@ final class EraseSchema2ColdRetiredSourceV1 {
               held.st_mode & S_IFMT == S_IFDIR,
               held.st_nlink > 0,
               Fact(held) == Fact(named) else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.open-stat-type-links-or-fact\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         original = Fact(held)
@@ -12682,6 +14377,16 @@ final class EraseSchema2ColdRetiredSourceV1 {
     fileprivate func requirePhysicalIdentity() throws {
         guard descriptor >= 0, !closeAttempted, !uncertain,
               uncertainFDs.isEmpty, let original else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.owner-state\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         var held = stat(), named = stat(), pathNamed = stat()
@@ -12692,6 +14397,16 @@ final class EraseSchema2ColdRetiredSourceV1 {
               Fact(held) == original,
               Fact(named) == original,
               Fact(pathNamed) == original else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.stat-or-fact\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         try checkedIO.requireSettled()
@@ -12701,6 +14416,16 @@ final class EraseSchema2ColdRetiredSourceV1 {
         _ body: (Int32) throws -> T
     ) throws -> T {
         guard let operation, let manifestOwner else {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.owner-binding\n".utf8))
+                } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+            }
+#endif
             throw StoreMigrationFailure.invalidIdentity
         }
         try operation.requireSchema2ColdRetiredSource(self)
@@ -12720,6 +14445,16 @@ final class EraseSchema2ColdRetiredSourceV1 {
                 parent: held, name: ".")
             guard let originalTreeDigest,
                   tree.digest == originalTreeDigest else {
+#if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    do {
+                        try FileHandle.standardError.write(contentsOf: Data(
+                            "V23_C101_RETIRED_POST_COPY_REFUSAL_V1 site=retired-root.tree-digest-binding\n".utf8))
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+#endif
                 throw StoreMigrationFailure.invalidIdentity
             }
             try checkedIO.requireSettled()
@@ -19447,15 +21182,16 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
 #if DEBUG
-    /// The original operation supplies the captured wrapper. Check that the
-    /// exact lease remains active within one G interval before test cold exit.
+    /// The original operation supplies the captured wrapper and retained EX.
+    /// Check the exact active lease within one G interval before test cold exit.
     func requireCapturedOriginalReaderActiveForV949Fixture(
-        _ reader: GenerationLeaseHandleV1
+        _ reader: GenerationLeaseHandleV1,
+        activity: GenerationTemporalActivityHandleV1
     ) throws {
         guard reader.token.role == .reader else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
-        try withExclusiveGenerationMutationLock {
+        try withTemporalNormalizationMutationLock(activity: activity) {
             try reader.requireLiveTemporalIdentity(mutationRegistry: self)
             try validateActiveLocked(reader.token, requiredRole: .reader)
         }

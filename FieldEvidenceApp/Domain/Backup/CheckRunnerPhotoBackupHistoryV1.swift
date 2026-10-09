@@ -105,28 +105,168 @@ struct CheckRunnerPhotoBackupHistoryChildV1: Equatable, Sendable {
         case continuation(CheckRunnerPhotoContinuationEvidenceV1)
     }
 
-    let parentCheckpoint: FieldDraftCheckpointV1
-    let currentCheckpoint: FieldDraftCheckpointV1
-    let payload: CheckRunnerPhotoDraftPayloadV1
-    let raw: CheckRunnerPhotoRawReadyV1?
-    let pair: CheckRunnerPhotoPairReadyV1?
-    let preparedReconstruction: CheckRunnerPhotoCommitReconstructionV1?
-    let committingCheckpoint: FieldDraftCheckpointV1?
-    let originals: [RepetitiveCaptureSourceHistoryRecordV2]
-    let currentStage: AttachmentStagingItemV1?
-    let sagas: [DraftCommitSagaV1]
-    let reservations: [DraftContentReservationV1]
-    let commitReceipts: [DraftCommitReceiptV1]
-    let target: CheckRunnerPhotoCommittedEvidenceV1?
-    let targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?
-    let terminal: CheckRunnerPhotoCommitEvidenceV1?
-    let parentLink: CheckRunnerPhotoParentEvidenceV1?
-    let currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
-    let phaseEvidence: PhaseEvidence
+    // Keep the child value small while its immutable census retains value semantics.
+    private let storage: Storage
+
+    var parentCheckpoint: FieldDraftCheckpointV1 { storage.parentCheckpoint }
+    var currentCheckpoint: FieldDraftCheckpointV1 { storage.currentCheckpoint }
+    var payload: CheckRunnerPhotoDraftPayloadV1 { storage.payload }
+    var raw: CheckRunnerPhotoRawReadyV1? { storage.raw }
+    var pair: CheckRunnerPhotoPairReadyV1? { storage.pair }
+    var preparedReconstruction: CheckRunnerPhotoCommitReconstructionV1? { storage.preparedReconstruction }
+    var committingCheckpoint: FieldDraftCheckpointV1? { storage.committingCheckpoint }
+    var originals: [RepetitiveCaptureSourceHistoryRecordV2] { storage.originals }
+    var currentStage: AttachmentStagingItemV1? { storage.currentStage }
+    var sagas: [DraftCommitSagaV1] { storage.sagas }
+    var reservations: [DraftContentReservationV1] { storage.reservations }
+    var commitReceipts: [DraftCommitReceiptV1] { storage.commitReceipts }
+    var target: CheckRunnerPhotoCommittedEvidenceV1? { storage.target }
+    var targetRecords: CheckRunnerPhotoBackupTargetRecordsV1? { storage.targetRecords }
+    var terminal: CheckRunnerPhotoCommitEvidenceV1? { storage.terminal }
+    var parentLink: CheckRunnerPhotoParentEvidenceV1? { storage.parentLink }
+    var currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1? { storage.currentTarget }
+    var phaseEvidence: PhaseEvidence { storage.phaseEvidence }
     // phaseEvidence authenticates the retained active prefix for a discard.
     // Media admission must also inspect this current lifecycle, not payload phase alone.
-    let discardHistory: CheckRunnerPhotoDiscardHistoryV1?
-    let sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2
+    var discardHistory: CheckRunnerPhotoDiscardHistoryV1? { storage.discardHistory }
+    var sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2 { storage.sourceGraph }
+
+    init(
+        parentCheckpoint: FieldDraftCheckpointV1,
+        currentCheckpoint: FieldDraftCheckpointV1,
+        payload: CheckRunnerPhotoDraftPayloadV1,
+        raw: CheckRunnerPhotoRawReadyV1?,
+        pair: CheckRunnerPhotoPairReadyV1?,
+        preparedReconstruction: CheckRunnerPhotoCommitReconstructionV1?,
+        committingCheckpoint: FieldDraftCheckpointV1?,
+        originals: [RepetitiveCaptureSourceHistoryRecordV2],
+        currentStage: AttachmentStagingItemV1?,
+        sagas: [DraftCommitSagaV1],
+        reservations: [DraftContentReservationV1],
+        commitReceipts: [DraftCommitReceiptV1],
+        target: CheckRunnerPhotoCommittedEvidenceV1?,
+        targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?,
+        terminal: CheckRunnerPhotoCommitEvidenceV1?,
+        parentLink: CheckRunnerPhotoParentEvidenceV1?,
+        currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?,
+        phaseEvidence: PhaseEvidence,
+        discardHistory: CheckRunnerPhotoDiscardHistoryV1?,
+        sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2
+    ) {
+        storage = Storage(
+            parentCheckpoint: parentCheckpoint,
+            currentCheckpoint: currentCheckpoint,
+            payload: payload,
+            raw: raw,
+            pair: pair,
+            preparedReconstruction: preparedReconstruction,
+            committingCheckpoint: committingCheckpoint,
+            originals: originals,
+            currentStage: currentStage,
+            sagas: sagas,
+            reservations: reservations,
+            commitReceipts: commitReceipts,
+            target: target,
+            targetRecords: targetRecords,
+            terminal: terminal,
+            parentLink: parentLink,
+            currentTarget: currentTarget,
+            phaseEvidence: phaseEvidence,
+            discardHistory: discardHistory,
+            sourceGraph: sourceGraph
+        )
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        guard lhs.parentCheckpoint == rhs.parentCheckpoint else { return false }
+        guard lhs.currentCheckpoint == rhs.currentCheckpoint else { return false }
+        guard lhs.payload == rhs.payload else { return false }
+        guard lhs.raw == rhs.raw else { return false }
+        guard lhs.pair == rhs.pair else { return false }
+        guard lhs.preparedReconstruction == rhs.preparedReconstruction else { return false }
+        guard lhs.committingCheckpoint == rhs.committingCheckpoint else { return false }
+        guard lhs.originals == rhs.originals else { return false }
+        guard lhs.currentStage == rhs.currentStage else { return false }
+        guard lhs.sagas == rhs.sagas else { return false }
+        guard lhs.reservations == rhs.reservations else { return false }
+        guard lhs.commitReceipts == rhs.commitReceipts else { return false }
+        guard lhs.target == rhs.target else { return false }
+        guard lhs.targetRecords == rhs.targetRecords else { return false }
+        guard lhs.terminal == rhs.terminal else { return false }
+        guard lhs.parentLink == rhs.parentLink else { return false }
+        guard lhs.currentTarget == rhs.currentTarget else { return false }
+        guard lhs.phaseEvidence == rhs.phaseEvidence else { return false }
+        guard lhs.discardHistory == rhs.discardHistory else { return false }
+        guard lhs.sourceGraph == rhs.sourceGraph else { return false }
+        return true
+    }
+
+    private final class Storage: Sendable {
+        let parentCheckpoint: FieldDraftCheckpointV1
+        let currentCheckpoint: FieldDraftCheckpointV1
+        let payload: CheckRunnerPhotoDraftPayloadV1
+        let raw: CheckRunnerPhotoRawReadyV1?
+        let pair: CheckRunnerPhotoPairReadyV1?
+        let preparedReconstruction: CheckRunnerPhotoCommitReconstructionV1?
+        let committingCheckpoint: FieldDraftCheckpointV1?
+        let originals: [RepetitiveCaptureSourceHistoryRecordV2]
+        let currentStage: AttachmentStagingItemV1?
+        let sagas: [DraftCommitSagaV1]
+        let reservations: [DraftContentReservationV1]
+        let commitReceipts: [DraftCommitReceiptV1]
+        let target: CheckRunnerPhotoCommittedEvidenceV1?
+        let targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?
+        let terminal: CheckRunnerPhotoCommitEvidenceV1?
+        let parentLink: CheckRunnerPhotoParentEvidenceV1?
+        let currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
+        let phaseEvidence: PhaseEvidence
+        let discardHistory: CheckRunnerPhotoDiscardHistoryV1?
+        let sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2
+
+        init(
+            parentCheckpoint: FieldDraftCheckpointV1,
+            currentCheckpoint: FieldDraftCheckpointV1,
+            payload: CheckRunnerPhotoDraftPayloadV1,
+            raw: CheckRunnerPhotoRawReadyV1?,
+            pair: CheckRunnerPhotoPairReadyV1?,
+            preparedReconstruction: CheckRunnerPhotoCommitReconstructionV1?,
+            committingCheckpoint: FieldDraftCheckpointV1?,
+            originals: [RepetitiveCaptureSourceHistoryRecordV2],
+            currentStage: AttachmentStagingItemV1?,
+            sagas: [DraftCommitSagaV1],
+            reservations: [DraftContentReservationV1],
+            commitReceipts: [DraftCommitReceiptV1],
+            target: CheckRunnerPhotoCommittedEvidenceV1?,
+            targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?,
+            terminal: CheckRunnerPhotoCommitEvidenceV1?,
+            parentLink: CheckRunnerPhotoParentEvidenceV1?,
+            currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?,
+            phaseEvidence: PhaseEvidence,
+            discardHistory: CheckRunnerPhotoDiscardHistoryV1?,
+            sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2
+        ) {
+            self.parentCheckpoint = parentCheckpoint
+            self.currentCheckpoint = currentCheckpoint
+            self.payload = payload
+            self.raw = raw
+            self.pair = pair
+            self.preparedReconstruction = preparedReconstruction
+            self.committingCheckpoint = committingCheckpoint
+            self.originals = originals
+            self.currentStage = currentStage
+            self.sagas = sagas
+            self.reservations = reservations
+            self.commitReceipts = commitReceipts
+            self.target = target
+            self.targetRecords = targetRecords
+            self.terminal = terminal
+            self.parentLink = parentLink
+            self.currentTarget = currentTarget
+            self.phaseEvidence = phaseEvidence
+            self.discardHistory = discardHistory
+            self.sourceGraph = sourceGraph
+        }
+    }
 }
 
 /// Canonical rows at an authenticated photo target's current frontier. For an

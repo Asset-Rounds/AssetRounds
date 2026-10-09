@@ -161,6 +161,163 @@ def verify(root: Path)->dict:
     require(not any(path.name=="__pycache__" or path.suffix in (".pyc",".pyo") for path in root.rglob("*")),"Python cache leaked")
     return {"cardID":contracts.CARD,"result":"PASS","verificationMode":"STATIC_ONLY","pathFenceCount":58,"evidenceIDCount":5,"nativeCompileRan":False,"hostedDispatchEnabled":False,"acceptanceCredit":False,"releaseCredit":False}
 
+def current_deletion_source_checks(root: Path) -> dict:
+    """Check current C35 deletion bindings while preserving card-time verify()."""
+    ledger = (root / "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift").read_text(encoding="utf-8")
+    require(len(re.findall(r"\benum\s+DeletionRecordKindV2\b", ledger)) == 1,
+            "current deletion kind declaration is missing or duplicated")
+    enums = list(re.finditer(
+        r"(?m)^enum\s+DeletionRecordKindV2\s*:\s*String\s*,\s*CaseIterable\s*,\s*Codable\s*,\s*Equatable\s*,\s*Sendable\s*\{(?P<body>[^{}]*)\}",
+        ledger,
+    ))
+    require(len(enums) == 1, "current deletion kind enum shape differs")
+    enum_body = enums[0].group("body")
+    case_pattern = r'\bcase\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"\n]+)"'
+    cases = re.findall(case_pattern, enum_body)
+    expected_kinds = ["site", "asset", "workflowRecord", "evidenceFile", "issue",
+                      "packet", "report", "acceptedLabelGenerationSnapshot"]
+    require(cases == [(kind, kind) for kind in expected_kinds],
+            f"current exact eight deletion identifier/raw-value pairs differ: {cases}")
+    require(not re.sub(case_pattern, "", enum_body).strip(),
+            "current deletion kind enum contains unparsed declarations")
+
+    rule=(root/"FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift").read_text(encoding="utf-8")
+    service=(root/"FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift").read_text(encoding="utf-8")
+    require("siteIDToDelete: nil" in rule,"last asset may cascade site")
+    for token in ("validateLocationDeletionNoCascade", "AssetPlacementHistoryV1.validate",
+                  "visited.count == events.count", "AssetCompositionPolicyV1.validate",
+                  "siteAssetIDs.contains($0.parentAssetID)", "siteAssetIDs.contains($0.childAssetID)",
+                  "placementTips[assetID]?.siteID == siteID"):
+        require(token in rule,f"location deletion guard missing: {token}")
+    require("liveAssetSiteByID: Dictionary(uniqueKeysWithValues: rows.assets.map" in service and
+            "validateLocationDeletionNoCascade" in service,"service deletion graph binding missing")
+
+    c45 = load(root / "docs/design/v23/tooling/V23P03C45AssetLabelContractV1.json")
+    require(isinstance(c45, dict) and c45.get("schema") == "V23P03C45AssetLabelContractV1"
+            and type(c45.get("schemaVersion")) is int
+            and c45.get("schemaVersion") == 1, "frozen C45 contract identity differs")
+    persistence = c45.get("persistence")
+    semantics = c45.get("requiredSemantics")
+    require(isinstance(persistence, dict) and isinstance(semantics, dict),
+            "frozen C45 persistence/lifecycle projections are missing")
+    require(persistence.get("persistedFamilies") == ["AcceptedLabelGenerationSnapshotRow"]
+            and type(persistence.get("durableFamilyCount")) is int
+            and persistence.get("durableFamilyCount") == 1
+            and persistence.get("acceptedGenerationSnapshotPersistent") is True
+            and persistence.get("unacceptedPlanAndProjectionResultPersistent") is False
+            and persistence.get("outputReceiptClaimsExternalPossession") is False,
+            "frozen C45 accepted snapshot persistence boundary differs")
+    for key in ("acceptedGenerationSnapshotIsMinimalImmutableCanonicalRegenerationTruth",
+                "durableLifecycleCoversMigrationBackupRestoreCloneForkDeleteEraseExportSearchReplayAndForwardFix",
+                "outputReceiptPreservesDigestsWithoutClaimingExternalPossession"):
+        require(semantics.get(key) is True, f"frozen C45 lifecycle binding missing: {key}")
+
+    policies = list(re.finditer(
+        r"(?ms)^enum\s+AssetLabelDeletionLedgerPolicyV1\s*\{(?P<body>.*?)^\}", ledger
+    ))
+    require(len(re.findall(r"\benum\s+AssetLabelDeletionLedgerPolicyV1\b", ledger)) == 1
+            and len(policies) == 1, "current asset-label deletion policy is missing or duplicated")
+    require(re.findall(r'\bstatic\s+let\s+durableFamily\s*=\s*"([^"\n]*)"',
+                       policies[0].group("body")) == ["AcceptedLabelGenerationSnapshotRow"],
+            "current asset-label deletion durable family differs")
+    expected_policy = """
+    static let durableFamily = "AcceptedLabelGenerationSnapshotRow"
+    static let matchingBatchSnapshotIsDeletedWhole = true
+    static let unrelatedAssetAndLocatorRowsRemain = true
+    static let publishedOutputCleanupIsReceiptBound = true
+    static let committedLedgerAuthorizesIdempotentCleanupRetry = true
+
+    static func validate() throws {
+        guard AssetLabelPersistenceEnrollmentV1.persistentFamilies == [durableFamily],
+              matchingBatchSnapshotIsDeletedWhole,
+              unrelatedAssetAndLocatorRowsRemain,
+              publishedOutputCleanupIsReceiptBound,
+              committedLedgerAuthorizesIdempotentCleanupRetry else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+    """
+    compact = lambda value: re.sub(r"\s+", "", value)
+    require(compact(policies[0].group("body")) == compact(expected_policy),
+            "current asset-label whole-batch/receipt/unrelated/retry policy differs")
+
+    apply_matches = list(re.finditer(
+        r"(?ms)^    func apply\(plan: WholeSignDeletionPlan, rows: Rows\) throws \{(?P<body>.*?)^    \}",
+        service,
+    ))
+    require(len(apply_matches) == 1, "current deletion apply binding is missing or duplicated")
+    apply_body = compact(apply_matches[0].group("body"))
+    whole_batch_selection = compact("""
+        let labelSnapshots = try rows.acceptedLabelSnapshots.compactMap {
+            row -> AcceptedLabelGenerationSnapshotRow? in
+            let snapshot = try row.value()
+            guard snapshot.plan.items.contains(where: { $0.assetID == plan.assetID }) else {
+                return nil
+            }
+            return row
+        }
+    """)
+    require(whole_batch_selection in apply_body
+            and compact("labelSnapshots.forEach { modelContext.delete($0) }") in apply_body,
+            "current deletion does not remove the whole matching accepted snapshot row")
+    require(compact("guard let asset = rows.assets.first(where: { $0.id == plan.assetID }) else") in apply_body
+            and compact("modelContext.delete(asset)") in apply_body,
+            "current accepted-label deletion is not bound to the selected asset")
+    selected_locator_cleanup = compact(r"""
+        let deletedLocatorIDs = Set(rows.assetLocators.filter {
+            $0.assetID == plan.assetID
+        }.map(\.locatorID))
+        if !deletedLocatorIDs.isEmpty {
+            rows.locatorBindingReceipts.filter {
+                deletedLocatorIDs.contains($0.afterLocatorID)
+                    || ($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
+            }.forEach { modelContext.delete($0) }
+            rows.assetLocators.filter {
+                deletedLocatorIDs.contains($0.locatorID)
+            }.forEach { modelContext.delete($0) }
+        }
+    """)
+    require(selected_locator_cleanup in apply_body,
+            "current accepted-label deletion does not preserve unrelated locator rows")
+
+    cleanup_matches = list(re.finditer(
+        r"(?ms)^    private func cleanup\(_ intent: DeletionIntentV1\) async throws \{(?P<body>.*?)^    \}",
+        service,
+    ))
+    require(len(cleanup_matches) == 1, "current deletion cleanup binding is missing or duplicated")
+    cleanup_body = compact(cleanup_matches[0].group("body"))
+    committed_and_absent = compact("""
+        guard intent.phase == .databaseCommitted,
+              snapshotIdentities.allSatisfy({ !liveSnapshotIDs.contains($0.id) }) else {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+    """)
+    ledger_receipt = compact("""
+        do {
+            try ledgerStore.requireContains(snapshotIdentities)
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+    """)
+    matching_output = compact("""
+        let binding = try cleanup.value(containingAssetID: intent.assetID)
+        guard try cleanup.requiresPublishedOutputRemoval(
+            containingAssetID: intent.assetID
+        ) else { continue }
+        guard removedJobs.insert(cleanup.jobID).inserted else { continue }
+    """)
+    publication_removal = compact("try await assetLabelPublishedOutputRemoval(binding)")
+    require(all(token in cleanup_body for token in
+                (committed_and_absent, ledger_receipt, matching_output, publication_removal)),
+            "current accepted-label cleanup lacks committed/absent/ledger/asset-bound output guards")
+    require(cleanup_body.index(committed_and_absent) < cleanup_body.index(ledger_receipt)
+            < cleanup_body.index(matching_output) < cleanup_body.index(publication_removal),
+            "current accepted-label published cleanup precedes its required receipt guards")
+    return {"currentDeletionKindCount": 8, "historicalReleasedKindCount": 7,
+            "locationRuleTokenCount": 7, "serviceBindingTokenCount": 2,
+            "acceptedLabelPolicyFlagCount": 4}
+
+
 def main()->int:
     root=Path(__file__).resolve().parents[2]
     try: result=verify(root)

@@ -2154,6 +2154,10 @@ final class FrozenBeginFixture {
             }
             XCTAssertEqual(try coordinator.workspaceWriter.currentRevision(), publishedRevision)
         }
+        // Producer activity opens the support directory before staging setup.
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("different-photo-owner"),
+            withIntermediateDirectories: true)
         let foreignStaging = try DraftAttachmentStagingAdapterV1(
             applicationSupportURL: root.appendingPathComponent("different-photo-owner"),
             workspaceID: workspaceID)
