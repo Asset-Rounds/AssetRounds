@@ -1,3 +1,38 @@
+## C111 next published-head question — 2026-10-09
+
+- Bounded C111 app/checkpoint correction: Source, exact applicable local compile/capture, affected native eight checkpoint+six C13 and final current395/45 routing checks independently verified. Primary four-path import complete; checkpoint publication and pinned hosted14 DEVELOPMENT are next.
+- Full original18 remains14PASS/4FAIL/native65. Three late-cold-ready kernels and one invalidReversal stay open; no local/pinned/full-sweep failure clearance inferred.
+- Failed completion recorded/sole-appended once to ledger1283293193/3bb2fe59, genuine independent DATA PASS2584/7be8b4b6. Never repeat its reservation/build/native/record/append.
+- C113 composed compile/native34, C112 compile/native/performance, C116 genuine generation/API/CI/compile/affected originals and C117 complete future first-sign producer/verification remain due separately.
+- Historical unavailable-basis owner choice is pending. No legacy basis fabrication, eligibility weakening or implicit approval.
+- Before main: every required same-head gate, qualified unit/UI, integration review, genuine owner review and pinned exact-main verification. Gates0/5; SourceReady=false/releaseReady=false; main unchanged.
+
+Earlier obligations retain their exact historical scopes; no original failure/HOLD is cleared by this update.
+
+## Current terminal follow-through — 2026-10-09
+
+- C111 original18 is terminal14PASS/4FAIL/0skip, native65/controller1/parent1/no timeout. Complete originals and owned settlement have genuine independent DATA PASS; record the truthful failed completion once against preserved ledger127. No replay/re-registration/rebuild.
+- Eight checkpoint and six C13 pass locally. Three late-cold-ready kernels and one invalidReversal remain; historical hosted13 retains exact scope. Full current-head remaining-error count UNKNOWN.
+- New D50 checkpoint/C13-only hosted14 selection needs genuine Source/coupling review and current full395/45. Publish bounded checkpoint only after required verification and records; failed4 remain explicit obligations.
+- C113 current9 tooling and existing C09/C15 joins have genuine DATA PASS; composed compile/native34 remain due. C112 compile/native/performance remain due separately.
+- C116 diagnostic harness and new supplemental test Source independently PASS; genuine census/coverage, C10 metadata/digests, full tooling/compile/affected native remain due. No original full-matrix reduction.
+- Historical reversal-basis product decision awaits owner response; no inference from elapsed time. Future producer completion remains required independently.
+- Main unchanged; all five same-head Phase1 gates and genuine owner review remain required. SourceReady=false/releaseReady=false. Preserve failures/HOLDs/drafts and protected Products.
+
+Earlier obligation records are preserved below with their exact historical scopes; this section supersedes stale live statuses without clearing obligations.
+
+## Current obligations — 2026-10-09
+
+- Finish and collect the sole C111 native18 original (session86962), including the live A01 failure, complete artifacts/witness/final settlement and same-reviewer DATA; record its completion once. No re-registration/replay or rebuild of frozen Products.
+- Diagnose A01/I01 ERASE_AFTER_CLEANUP cold-ready and R01 invalidReversal from exact Source and retained diagnostics. Sixteen distinct failing selectors are observed across current scoped results plus one local Mixed watchdog; full current-head total and distinct root causes remain UNKNOWN.
+- Current C113 nine-path395/45 originals PASS701s/840s with genuine same C89 DATA and full2821 Source endpoints equal. Earlier eight-path results retain their scope; actual Swift/native remains due.
+- Reviewed existing C09 generator/complete swift_checks/C15 generator passed once; current59/85 joins and eight output digests independently DATA PASS1929/5cc62330. Historical C15 base-head artifacts and unchanged API3 closed27 remain preserved; these results do not prove app runtime.
+- Future34 roster independent Source/coupling PASS2472/b3532452 is complete; exact composed compile/native/budget-fit and failure-answering verification remain due. C112 compile/native/performance remain due separately.
+- Publish only a bounded reviewed/verified integration checkpoint, with every remaining failure explicit. Before main: all five same-head Phase1 gates, qualified UI, independent integration review, genuine owner review and pinned exact-main verification remain required. No gate is cleared by local development.
+- Cleanup recovered about3.84GiB from the unused extracted Xcode cache only. Preserve every draft, original failure/HOLD, frozen DD/Products and historical archive; no additional large safe disposal proved.
+
+Entries below are preserved historical obligations/results and retain their exact head/input scopes; this current section supersedes stale status counts without clearing any unresolved obligation.
+
 
 ## Current C10 Source blocker and preserved C79 results — 20261007T055535Z
 
@@ -2353,3 +2388,8 @@ October 9 current obligation update: C104 final runtime4/config and actual compi
 
 
 2026-10-09 C104 failed-original DATA4407/c9ffac0e and existing CLI completion are complete. Native remains0P/1F/65 with1200s watchdog/current-only-state.append.enter; all original/HOLD/witness failures preserved. Sole completion event9562/17dae459 appended once; L1243241177/68cf6bd9 retains exact old123 prefix. Coherent development checkpoint review/publication due; no native pass or SourceReady/gate credit. C108 targeted-selection current verification, C109 direct negatives/C33 pins/compile/native/performance and C110 semantic checkpoint correction remain separate due work. All13 hosted failures/five open gates/mainb1/releaseReadyfalse retain scope; no unchanged retry or release operation. Full details: CURRENT_INTEGRATION final failed-original/recording entry.
+# 2026-10-09 roster reconciliation — preserved hosted failures
+
+Read-only reconciliation of actual hosted37886247749 unit results20687/b36ea80d and current C11329 roster3610/c6974241 found that frozen C11118 covers the one checkpoint replay failure and C11329 covers eight other hosted failures. Four S66 failed methods are absent from both lists: `testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified`, `testC33RealEraseRemovesTemporalRowsJournalAndCanonicalOriginalBytes`, `testLiveCleanupWaitsForOldContextReferenceDrain`, and `testV23P03C42EraseRecoveryLeavesNoTypedArchetypeStateBehind`.
+
+Preserve current C11118 and all current running-source intervals. Carry these four through coupling review into a deliberate later C113 changed-input question (prospective33 if distinct), or keep them named open debts. The union and remaining coupling are under bounded helper review; no execution, app-failure clearance or gate credit follows. C112 has not established coverage of these13 hosted failures. The separate local Mixed watchdog remains open.

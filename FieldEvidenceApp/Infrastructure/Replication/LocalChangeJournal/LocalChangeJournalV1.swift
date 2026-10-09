@@ -1,10 +1,32 @@
 import CryptoKit
 import Foundation
+#if DEBUG
+import Darwin
+#endif
 
 /// The device-local, derived delivery projection over the immutable mutation journal.
 /// Canonical receipts and reversal bases remain owned by `MutationJournalStoreV1`.
 @MainActor
 final class LocalChangeJournalV1 {
+#if DEBUG
+    /// The caller evaluates its existing operand once before this observation.
+    /// Diagnostic transport preserves the operand result and its errno.
+    private func checkpointPredicateForDiagnostics(
+        _ accepted: Bool, step: StaticString
+    ) -> Bool {
+        guard !accepted else { return accepted }
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(
+                "V23_CHECKPOINT_FIRST_REFUSAL_V1 stage=\(step)\n".utf8
+            ))
+        } catch {
+            // Diagnostic transport never replaces the checkpoint refusal.
+        }
+        return accepted
+    }
+#endif
     static func partyAccountabilityCoverage() throws -> PartyAccountabilityJournalCoverageV1 {
         try PartyAccountabilityJournalCoverageV1()
     }
@@ -278,6 +300,9 @@ final class LocalChangeJournalV1 {
         )
         try persistPrepared(checkpoint, preparation: preparation)
         if interruptionPoint() == .afterCheckpointPrepared {
+#if DEBUG
+            _ = checkpointPredicateForDiagnostics(false, step: "preparation.interrupted-after-prepared")
+#endif
             throw ChangeJournalFailureV1.incompleteCheckpoint
         }
         return preparation
@@ -289,10 +314,23 @@ final class LocalChangeJournalV1 {
     ) throws -> CheckpointActivationReceiptV1 {
         try preparation.validate(limits: limits)
         let prepared = try loadPrepared(preparation.preparationID)
+#if DEBUG
+        guard checkpointPredicateForDiagnostics(
+            prepared.manifest == preparation.manifest,
+            step: "activation.prepared-manifest"
+        ),
+              try checkpointPredicateForDiagnostics(
+            checkpointArchiveEntries(prepared) == preparation.entries,
+            step: "activation.archive-entries"
+        ) else {
+            throw ChangeJournalFailureV1.incompleteCheckpoint
+        }
+#else
         guard prepared.manifest == preparation.manifest,
               try checkpointArchiveEntries(prepared) == preparation.entries else {
             throw ChangeJournalFailureV1.incompleteCheckpoint
         }
+#endif
         let verification = try verifiedContentDisposition(
             prepared.contentEntries.map(\.reference)
         )
@@ -310,6 +348,9 @@ final class LocalChangeJournalV1 {
         }
         try persistState()
         if interruptionPoint() == .afterCheckpointStateWritten {
+#if DEBUG
+            _ = checkpointPredicateForDiagnostics(false, step: "activation.interrupted-after-state")
+#endif
             throw ChangeJournalFailureV1.incompleteCheckpoint
         }
         try removePrepared(preparation.preparationID)
@@ -349,6 +390,48 @@ final class LocalChangeJournalV1 {
             limits: limits
         )
         return (value, data)
+    }
+
+    /// Compare complete canonical state without treating an empty C13
+    /// bootstrap envelope's local generation as business history. Transport
+    /// validation and all installation authority/frontier checks stay with the
+    /// caller. This only constructs a value; it never installs or rewrites it.
+    static func checkpointSemanticRecordsMatch(
+        destination: BackupCanonicalCheckpointBasisV1,
+        checkpoint: WorkspaceCheckpointContentV1
+    ) throws -> Bool {
+        guard destination.recordsSchemaVersion
+                == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+            return Self.rawSHA256(destination.semanticRecordsData)
+                == checkpoint.manifest.normalizedRecordsSHA256
+        }
+        var records = try BackupCanonicalDecoderV1().decodeRecords(destination.recordsData)
+        guard let snapshot = records.entityIdentityResolution,
+              snapshot.aliasLinks.isEmpty,
+              snapshot.consolidationReceipts.isEmpty,
+              snapshot.mutationReceipts.isEmpty else {
+            // Complete nonempty identity history keeps its incumbent bytes.
+            return Self.rawSHA256(destination.semanticRecordsData)
+                == checkpoint.manifest.normalizedRecordsSHA256
+        }
+        let encoder = BackupCanonicalEncoderV1()
+        guard snapshot.workspaceID == destination.workspaceIdentity.workspaceID,
+              checkpoint.manifest.workspaceID == destination.workspaceIdentity.workspaceID,
+              snapshot.generationID == destination.generationID,
+              try encoder.encodeRecords(records).data == destination.recordsData,
+              try encoder.encodeSemanticRecords(records).data == destination.semanticRecordsData else {
+            return false
+        }
+        // The typed initializer validates the empty source-context value and
+        // derives its own digest. Every other records field, including the
+        // complete original mutation history, remains in the immutable copy.
+        records.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+            workspaceID: snapshot.workspaceID,
+            generationID: checkpoint.manifest.sourceGenerationID,
+            aliasLinks: [], consolidationReceipts: [], mutationReceipts: []
+        )
+        return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)
+            == checkpoint.manifest.normalizedRecordsSHA256
     }
 
     /// Publishes a transported checkpoint only after an existing restore
@@ -407,6 +490,62 @@ final class LocalChangeJournalV1 {
                 for: destination.recordsSchemaVersion
             )
         ))
+#if DEBUG
+        guard checkpointPredicateForDiagnostics(
+            destination.workspaceIdentity == identity,
+            step: "installation.destination-workspace"
+        ),
+              checkpointPredicateForDiagnostics(
+            destination.generationID == generationID,
+            step: "installation.destination-generation"
+        ),
+              checkpointPredicateForDiagnostics(
+            destination.workspaceRevision == history.workspaceRevision,
+            step: "installation.workspace-revision"
+        ),
+              checkpointPredicateForDiagnostics(
+            destination.lastLocalSequence == history.lastLocalSequence,
+            step: "installation.local-sequence"
+        ),
+              checkpointPredicateForDiagnostics(
+            destination.persistentSchemaVersion == checkpoint.manifest.persistentSchemaVersion,
+            step: "installation.persistent-version"
+        ),
+              checkpointPredicateForDiagnostics(
+            destination.recordsSchemaVersion == checkpoint.manifest.recordSchemaVersion,
+            step: "installation.records-version"
+        ),
+              checkpointPredicateForDiagnostics(
+            persistentSchemaSHA256 == checkpoint.manifest.persistentSchemaSHA256,
+            step: "installation.persistent-schema-digest"
+        ),
+              checkpointPredicateForDiagnostics(
+            recordSchemaSHA256 == checkpoint.manifest.recordSchemaSHA256,
+            step: "installation.record-schema-digest"
+        ),
+              checkpointPredicateForDiagnostics(
+            destinationPackages == checkpoint.manifest.packages,
+            step: "installation.package-digests"
+        ),
+              checkpointPredicateForDiagnostics(
+            destinationFrontier == checkpoint.manifest.frontier,
+            step: "installation.frontier"
+        ),
+              checkpointPredicateForDiagnostics(
+            destinationTombstones == checkpoint.tombstoneIdentities,
+            step: "installation.tombstones"
+        ),
+              checkpointPredicateForDiagnostics(
+            destinationMutationIDs == checkpointMutationIDs,
+            step: "installation.mutation-ids"
+        ),
+              try checkpointPredicateForDiagnostics(
+            Self.checkpointSemanticRecordsMatch(destination: destination, checkpoint: checkpoint),
+            step: "installation.normalized-records-digest"
+        ) else {
+            throw ChangeJournalFailureV1.incompleteCheckpoint
+        }
+#else
         guard destination.workspaceIdentity == identity,
               destination.generationID == generationID,
               destination.workspaceRevision == history.workspaceRevision,
@@ -419,10 +558,12 @@ final class LocalChangeJournalV1 {
               destinationFrontier == checkpoint.manifest.frontier,
               destinationTombstones == checkpoint.tombstoneIdentities,
               destinationMutationIDs == checkpointMutationIDs,
-              Self.rawSHA256(destination.semanticRecordsData)
-                == checkpoint.manifest.normalizedRecordsSHA256 else {
+              try Self.checkpointSemanticRecordsMatch(
+                  destination: destination, checkpoint: checkpoint
+              ) else {
             throw ChangeJournalFailureV1.incompleteCheckpoint
         }
+#endif
         let projection = try semanticProjection(
             checkpoint: checkpoint,
             unresolvedConflicts: state.unresolvedConflicts
@@ -803,9 +944,18 @@ final class LocalChangeJournalV1 {
             }
             try record.preparation.validate(limits: limits)
             try record.checkpoint.validate(limits: limits)
+#if DEBUG
+            guard checkpointPredicateForDiagnostics(
+                record.preparation.manifest == record.checkpoint.manifest,
+                step: "recovery.prepared-manifest"
+            ) else {
+                throw ChangeJournalFailureV1.incompleteCheckpoint
+            }
+#else
             guard record.preparation.manifest == record.checkpoint.manifest else {
                 throw ChangeJournalFailureV1.incompleteCheckpoint
             }
+#endif
             return record.preparation
         }
     }
@@ -830,11 +980,28 @@ final class LocalChangeJournalV1 {
         }
         let history = try writer.sourceMutationHistorySnapshot()
         let currentFrontier = try frontier(history)
+#if DEBUG
+        guard checkpointPredicateForDiagnostics(
+            basis.workspaceRevision == history.workspaceRevision,
+            step: "preparation.workspace-revision"
+        ),
+              checkpointPredicateForDiagnostics(
+            basis.lastLocalSequence == history.lastLocalSequence,
+            step: "preparation.local-sequence"
+        ),
+              checkpointPredicateForDiagnostics(
+            checkpointLocalSequence(currentFrontier) == basis.lastLocalSequence,
+            step: "preparation.frontier-local-sequence"
+        ) else {
+            throw ChangeJournalFailureV1.incompleteCheckpoint
+        }
+#else
         guard basis.workspaceRevision == history.workspaceRevision,
               basis.lastLocalSequence == history.lastLocalSequence,
               checkpointLocalSequence(currentFrontier) == basis.lastLocalSequence else {
             throw ChangeJournalFailureV1.incompleteCheckpoint
         }
+#endif
         let persistentSchemaSHA256 = try Self.sha256(PersistentSchemaDigestBasis(
             persistentSchemaVersion: basis.persistentSchemaVersion,
             compatibilityID: try persistentCompatibilityID(basis.persistentSchemaVersion),
@@ -1363,7 +1530,16 @@ final class LocalChangeJournalV1 {
         }
         try record.preparation.validate(limits: limits)
         try record.checkpoint.validate(limits: limits)
+#if DEBUG
+        guard checkpointPredicateForDiagnostics(
+            record.preparation.manifest == record.checkpoint.manifest,
+            step: "load.prepared-manifest"
+        ) else {
+            throw ChangeJournalFailureV1.incompleteCheckpoint
+        }
+#else
         guard record.preparation.manifest == record.checkpoint.manifest else { throw ChangeJournalFailureV1.incompleteCheckpoint }
+#endif
         return record.checkpoint
     }
 

@@ -1,43 +1,39 @@
-# Active integration brief — C104 checkpoint review passed; publication preparation
+# Active integration brief — 2026-10-09
 
-- Goal: verified V23 incorporating accepted S10; full V23 remains required for release.
-- Primary: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds.
-- Branch: codex/v23-s10-integration-20260910; published C103 head437a73e2d5a6355240591bed9194e2f898b0f4c1.
-- Main remainsb1d04ae5e684aa9c6807af655089efa1df8a7ed6; Phase1 gates0/5, SourceReady=false, releaseReady=false.
-- Preserve all owner drafts/untracked work, original failures/HOLDs, frozen Source/DD/Products and historical model attribution.
-- Primary has exact reviewed C104 S62 and five Root records dirty; five prior untracked excluded. Six-path independent Sol6.1/xhigh checkpoint PASS; factual bookkeeping/publication due, no commit yet.
-- Current hosted DEVELOPMENT37886247749 on437 is fully collected and independently DATA reviewed:20PASS/13FAIL/0skip.
-- Hosted failure groups:6 S66 erase,2 kernel journeys,4 temporal erase,1 checkpoint replay. Global defect/root-cause count UNKNOWN.
-- Do not retry unchanged failures. Read-only diagnosis found prior-retired/rollback ownership and cross-generation checkpoint semantic mismatches; behavioral corrections remain due.
-- C103 local affected five selectors=4PASS/1FAIL; broader310 leaves305 unexecuted. Historical112=87PASS/25FAIL retains its original scope.
-- C104 isolated W14: .codex-temp/resume-20261002/c104-mixed-export-fixture-and-late-stage-diagnostic-source-v1, exact97 base/68 owned/2821 inputs.
-- Sole tracked C104 delta is S6_2BackupExportTests.swift549427/e2d64f69: legitimate2ready/0pending/1failed/exactPDFset and22 fixed DEBUG late-call labels.
-- SAME independent C89 Source PASS; full current395+45 tooling PASS/independent DATA; no test/watchdog/coverage weakening.
-- Acquisition/logical15/physical17/request/APIs/registration/born-GP recovery are complete at their scoped independent DATA; never repeat originals.
-- Current ledger1243241177/68cf6bd9 = exact preserved1233231615/6965e2b3 plus sole failed-native completion9562/17dae459. Failed question is recorded; never repeat registration/record/appends.
-- Prior failed compiler edc083 stopped BEFORE Xcode on copied-checkout stat-only census; original and failed witness stay preserved.
-- Coherent content/mode Code3/publisher/actual controlled76/76 and final compiler pair have genuine combined Source/DATA PASS.
-- Changed full-module unsigned DEBUG compiler670fef/session15863 finished8f2cb0 exit0 in318.878s/zero Swift errors.
-- Compiler complete47 originals/XC7 retained; genuine independent DATA5373/5283e8f4 PASS. DD/build-original-v1 are now frozen; never rebuild.
-- Final capture constructor/operator/caller Source PASS5660/a0aa4f7e. Actual config10864/ecc09c67 published once and strictly matches prospective bytes.
-- Sole capture2581d5/session57068 finished39c614 exit0 in68.339s; actual final settlement true, immutable false-at-birth outer preserved.
-- CAPTURE15432/62676a43, Products48858/ce43c5d9, XCTESTRUN3701/f484f4be, compiledInputs176312/0dcce72e retain capture-only scope; later native failure is below.
-- All231 capture originals/73067458 bytes retained; genuine SAME Restore capture DATA7702/278ccadb PASS. No capture replay.
-- Capture-readonly utility failures/clipped console retained; no original replay or acceptance claim. Use actual schemas/mode projections/mount query.
-- Final request Source25712/940efeb6 genuinely PASS3298/0d2803a0. Sole standalone publication70537b exit0/56 reads/all owners closed; actual build4256/76902af9/native3433/25d870fd requests born.
-- Actual request DATA4911/705df6a7 and FirstGroup DATA3892/8e3a5b35 PASS. Sole caller7ca58c exit0/5 positive0 children/121 read rows/157 closed owners/final allPassed;31 originals/363773 bytes retained.
-- Final native family Source4861/5207eaca PASS; actual config12246/3f14ad61 exact. Sole caller8ecea0/session5838 terminal6ba0a2 exit1; native exit65/one exact Failed selector, watchdog1200 at current-only-state.append.enter.
-- All299 native/witness/operator originals82577300 bytes retained; SAME combined failed-original DATA4407/c9ffac0e PASS for integrity/settlement only. Native remains FAILED; witness false/final caller settlement true/HOLD unchanged.
-- C108 one-test hosted selection Source4438/ddb428a1 PASS; candidate/full395+45/resolver due. Routing alone cannot justify unchanged-failure retry; failure-answering dispatch needs actual reviewed correction. Hosted13 remain open.
-- C109 private same-read journal decoded-value reuse Source PASS; meaningful direct negatives/current C33 bindings/compile/affected runtime/memory assessment due. Runtime speedup/failure clearance UNKNOWN.
-- C110 private contextual checkpoint-semantic correction is being authored; preserve distinct generations/replicas/C13 history and exact authenticated comparison. Actual hosted first guard remains UNKNOWN; review/verification due.
-- Keep W17 C107 later diagnostics/current APIs separate: four API/selected10 DATA PASS; corrected190 carrier composite Source PASS2178/cee3ad1a.
-- C107 full395/45 tooling originals PASS804s/703s/zero skips; genuine SAME C89 DATA2655/cad51500 PASS/full2821 endpoints conserved. Map/runtime/final-binding/190/C11/compile/native remain due.
-- Child minimum10/conservative58/broader310 remain due; neither all310 locally nor C107 closure is an extra C104 checkpoint prerequisite.
-- Full3757 methods/38 partitions, cold route qualification, qualified UI, independent candidate and genuine owner reviews, then pinned exact-main verification remain required.
-- Local DEVELOPMENT: Xcode27.0/27A266a, Swift6.4, SDK27.0/24A430, iOS26.2/23C54. Official gates/exact-main retain GitHub26.6/17F113 + iOS26.2/23C54.
-- Source/coordination stay Dropbox; fixed evidence lifecycle /Volumes/EXTERNAL/AssetRounds-resume-20261002/evidence; do not change root mid-candidate.
-- Root alone integrates/Git/dispatches/native/ledger. Helpers gpt-6.1-sol/xhigh, independent nonauthor review; use only useful lanes.
-- Actual pre-native admission: external31878385664 bytes/required15GiB floor and65% memory-free indication/25% floor. Refresh resources/identity/holder checks for later effects; no future admission implied.
-- Minimum/physical runtime, Card135, privacy, C13/C55 and App Store debts retain deferred/owner/release-blocking scope; no signing/distribution.
-- Details: CURRENT_INTEGRATION; obligations: VERIFICATION_DUE; phases: MERGE_READINESS; scheduling: PERFORMANCE_WORKFLOW.
+- Goal: finish the verified Phase 1 V23/S10 merge; complete V23 remains required for release.
+- Primary source: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds.
+- Integration branch: codex/v23-s10-integration-20260910; C111 checkpoint on parent6beccacf9e9df40fd3f08cd7f7be149217ca98b9. Exact current head is recorded by Git.
+- Main: b1d04ae5e684aa9c6807af655089efa1df8a7ed6, unchanged. Phase 1 gates: 0/5. SourceReady=false; releaseReady=false.
+- Preserve owner drafts, five excluded untracked paths, original failures/HOLDs, frozen Source/DD/Products and historical model attribution.
+- Root alone integrates, commits, pushes, dispatches and collects. Helpers: GPT-6.1 Sol/xhigh, disjoint or read-only; independent reviewers never author.
+
+- Failure baseline: hosted development 37886247749 on 437 has 20 PASS / 13 FAIL / 0 skip, independently collected/reviewed.
+- Those failures: six S66 erase, two kernel journeys, four temporal erase and one checkpoint replay. Distinct causes remain UNKNOWN.
+- C111 terminal local18:14 PASS/4 FAIL/0 skip. Failures: A01/I01/CrossMarket I01 late cold-ready, R01 invalidReversal; all four absent from hosted13.
+- Seventeen distinct historically failed selectors across these scoped runs plus separate C104 Mixed watchdog; full current-head remaining-error total UNKNOWN.
+- No unchanged failure retry. Historical development results retain their exact scopes and do not become gates.
+
+- C111/W18: contextual empty-C13 checkpoint correction; independent Source, current 395/45 tooling, full-module compile and capture DATA PASS.
+- Compile exit0 / 350.518s; capture exit0 / 28.756s. Frozen DD/Products must never be rebuilt.
+- Current ledger:128 records/3,293,193bytes/SHA-256 3bb2fe59430c761014109a506da21e38f9d0f2484241ad8cc0bda68a884724f5. Completion consumed; never repeat.
+- Sole FirstGroup completed once, five positive waits; genuine DATA 3019/e3a30ae3 PASS. Build completion and native18 reservation are consumed.
+- Sole C111 native18 finished: native65/controller1/parent1, no timeout,3228.954s. All eight checkpoint and six C13 passed. Complete337 originals/86,891,711bytes and final settlement independently DATA PASS5356/df6224f8; completion recorded once127→128, independent DATA PASS2584/7be8b4b6.
+- Final Source2877/5126a65f, config11781/b8ab5a0f, admission30290/e3409418. Never re-register/replay; preserve the failed original and HOLD.
+- C111 final four paths imported to Primary with strict full paired checks; five untracked drafts excluded. Final395/45 PASS462s/584s, independent Source/Data PASS; compiled Source2820 equal except selectionJSON.
+
+- C112/W19: same-pass raw-photo journal reuse; Source, current 395/45 and 83 tooling controls independently PASS. Compile/native/performance remain due.
+- C113/W20: prior-retired/pre-intent rollback correction; reviewed I01 fixture applied once. Nine tracked owned paths; census3758 methods/38 partitions.
+- C113 prior eight-path tooling retains its scope. Current nine-path 395/45 originals PASS701s/840s, independent DATA PASS; full2821 Source endpoints equal.
+- API3 stays unchanged27 and excludes I01. Existing C09 generator/complete swift_checks/C15 generator passed once; eight outputs and current59/85 manifest joins independently DATA PASS1929/5cc62330. C15 sourceArtifacts stay historical.
+- Future34 = preserved reviewed33 + I01, independent Source/coupling PASS2472/b3532452. Current composed compile/native and budget-fit remain unproved.
+- Next: publish bounded C111 checkpoint, then pinned GitHub DEVELOPMENT question c111-checkpoint-c13-verified-hosted-development-v1 (14selectors). Four failed kernels remain open; no unchanged failure retry.
+- Keep C107/C112/C113/C116 isolated. C116 Source/coupling PASS; actual generation/tooling/compile/native due. C117 future first-sign producer author active separately; historical reversal-basis owner choice pending.
+
+- Local DEVELOPMENT only: Xcode27.0/27A266a, Swift6.4, SDK27.0/24A430, iOS26.2/23C54.
+- Official five gates and exact-main verification: pinned GitHub Xcode26.6/17F113 + iOS26.2/23C54; qualified unit/UI and independent/genuine owner reviews required.
+- Source and coordination stay Dropbox. Fixed evidence lifecycle: /Volumes/EXTERNAL/AssetRounds-resume-20261002/evidence.
+- New C111 physical scratch: ~/Library/Caches/AssetRounds-resume-20261002/scratch/c111-contextual-checkpoint-development-v1.
+- Cleanup freed an observed4,124,844,032 bytes (~3.84GiB) by deleting only the independently checked unused extracted26.6 cache. No further large safe deletion proved.
+- Refresh capacity, ownership, filesystem identity, Source and holders before effects. Do not change evidence root mid-candidate or fill RAM artificially.
+- Minimum/physical runtime, Card135, privacy, C13/C55 and App Store obligations retain their recorded scopes. No signing or distribution.
+- Details: CURRENT_INTEGRATION.md; obligations: VERIFICATION_DUE.md; phases: MERGE_READINESS.md; scheduling: PERFORMANCE_WORKFLOW.md.

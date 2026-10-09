@@ -391,9 +391,15 @@ def current_source_and_test_checks(root: Path) -> dict[str, Any]:
     the current C64 checkpoint tests.  Keep that named declaration separate
     from C11's ordered five evidence methods and account for C64 explicitly.
     Historical verify() continues to use source_and_test_checks().
+    Bind the reviewed current C106 DEBUG diagnostic bytes independently;
+    these raw joins do not rebase historical card artifacts or qualify verify().
     """
     source_parity = source_codable_parity(root)
-    local = (root / "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift").read_text(encoding="utf-8")
+    local_raw = (root / "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift").read_bytes()
+    local = local_raw.decode("utf-8")
+    require((len(local_raw), sha256(local_raw)) == (
+        108370, "0d2a034d67295c8f7b1d38a6189b2ded0551800db895e5446c3d608143acc523"
+    ), "current C106 checkpoint diagnostic source raw binding differs")
     required_local_tokens = (
         "WorkspaceSnapshotManifestV1", "ChangeBatchV1", "ChangeCursorV1",
         "ChangeJournalFailureV1", "checkpoint", "replay", "compaction",
@@ -404,7 +410,11 @@ def current_source_and_test_checks(root: Path) -> dict[str, Any]:
     for token in ("URL" + "Session", "Cloud" + "Kit", "Provider" + "Outbox",
                   "Network" + "Transport", "Cloud" + "Attachment", "signed" + "URL"):
         require(token not in local, f"forbidden external scope symbol in local journal: {token}")
-    test = (root / contracts.TEST_PATH).read_text(encoding="utf-8")
+    test_raw = (root / contracts.TEST_PATH).read_bytes()
+    test = test_raw.decode("utf-8")
+    require((len(test_raw), sha256(test_raw)) == (
+        107887, "f89d392031c155a6b77328f7e0bc12e229479c0d2f3f4ddfc85372df571f1f6e"
+    ), "current C106 checkpoint diagnostic test raw binding differs")
     methods = re.findall(r"\bfunc\s+(testV9_ChangeJournalCheckpointReplay[A-Za-z0-9_]*)\s*\(",
                          test)
     c17_method = "testV9_ChangeJournalCheckpointReplayC17IntegrationEventsRemainDerivedAndRebuildable"

@@ -1,5 +1,8 @@
 import CryptoKit
 import Foundation
+#if DEBUG
+import Darwin
+#endif
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -1366,6 +1369,20 @@ extension V9_ChangeJournalCheckpointReplayTests {
 
 extension V9_ChangeJournalCheckpointReplayTests {
     func testCurrentCheckpoint53And52RoundTripsThroughPreparationReplicaAndJournalReopen() async throws {
+#if DEBUG
+        let checkpointStep: (StaticString) -> Void = { step in
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            do {
+                try FileHandle.standardError.write(contentsOf: Data(
+                    "V23_CHECKPOINT_ROUNDTRIP_STEP_V1 stage=\(step)\n".utf8
+                ))
+            } catch {
+                // Diagnostic transport never replaces the test outcome.
+            }
+        }
+        checkpointStep("roundtrip.fixture.enter")
+#endif
         let workspaceID = WorkspaceID(rawValue: UUID())
         let source = try CurrentCheckpointSchemaFixtureV1(workspaceID: workspaceID)
         defer { XCTAssertNoThrow(try source.close()) }
@@ -1384,7 +1401,16 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertEqual(destinationHistory.lastLocalSequence, 0)
         XCTAssertNotEqual(source.session.workspaceIdentity.replicaID, destination.session.workspaceIdentity.replicaID)
         XCTAssertNotEqual(source.session.generationID, destination.session.generationID)
+#if DEBUG
+        checkpointStep("roundtrip.fixture.returned")
+#endif
+#if DEBUG
+        checkpointStep("roundtrip.preparation.enter")
+#endif
         let preparation = try source.prepareEmptyCheckpoint()
+#if DEBUG
+        checkpointStep("roundtrip.preparation.returned")
+#endif
         XCTAssertEqual(preparation.manifest.persistentSchemaVersion, 53)
         XCTAssertEqual(preparation.manifest.recordSchemaVersion, 52)
         let persistentBasis = CurrentCheckpointPersistentDigestFixtureV1(
@@ -1395,23 +1421,90 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertEqual(PersistentSchemaReleaseV1.v53.compatibilityID, "LIGHTING_NIGHT_WORKFLOW_V1")
         XCTAssertEqual(preparation.manifest.persistentSchemaSHA256,
                        try WorkspaceMutationCanonicalV1.sha256(persistentBasis))
+#if DEBUG
+        checkpointStep("roundtrip.export.enter")
+#endif
         let transported = try source.journal.exportPreparedCheckpoint(
             preparation, packageRelativePath: "schema/current.fecp"
         )
+#if DEBUG
+        checkpointStep("roundtrip.export.returned")
+#endif
+#if DEBUG
+        checkpointStep("roundtrip.decode.enter")
+#endif
         let content = try CurrentCheckpointSchemaFixtureV1.decode(transported.packageData)
+#if DEBUG
+        checkpointStep("roundtrip.decode.returned")
+#endif
         XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(content), transported.packageData)
+#if DEBUG
+        checkpointStep("roundtrip.basis.enter")
+#endif
         let basis = try source.backup.canonicalCheckpointBasis()
+#if DEBUG
+        checkpointStep("roundtrip.basis.returned")
+#endif
         XCTAssertEqual(content.normalizedRecordData, basis.semanticRecordsData)
         XCTAssertTrue(try CurrentCheckpointSchemaFixtureV1.keys(basis.recordsData).contains("mutationHistory"))
         XCTAssertFalse(try CurrentCheckpointSchemaFixtureV1.keys(content.normalizedRecordData).contains("mutationHistory"))
+        // Distinct local bootstrap envelopes remain exact backup values.
+        // Only their already validated empty business-state comparison is
+        // expressed in the transported source generation's context.
+        let destinationBasis = try destination.backup.canonicalCheckpointBasis()
+        let sourceRecords = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+        let destinationRecords = try BackupCanonicalDecoderV1().decodeRecords(destinationBasis.recordsData)
+        let sourceIdentity = try XCTUnwrap(sourceRecords.entityIdentityResolution)
+        let destinationIdentity = try XCTUnwrap(destinationRecords.entityIdentityResolution)
+        XCTAssertEqual(sourceIdentity.generationID, source.session.generationID)
+        XCTAssertEqual(destinationIdentity.generationID, destination.session.generationID)
+        XCTAssertTrue(sourceIdentity.aliasLinks.isEmpty)
+        XCTAssertTrue(sourceIdentity.consolidationReceipts.isEmpty)
+        XCTAssertTrue(sourceIdentity.mutationReceipts.isEmpty)
+        XCTAssertTrue(destinationIdentity.aliasLinks.isEmpty)
+        XCTAssertTrue(destinationIdentity.consolidationReceipts.isEmpty)
+        XCTAssertTrue(destinationIdentity.mutationReceipts.isEmpty)
+        XCTAssertNotEqual(sourceIdentity, destinationIdentity)
+        XCTAssertNotEqual(basis.semanticRecordsData, destinationBasis.semanticRecordsData)
+        XCTAssertTrue(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: destinationBasis, checkpoint: content
+        ))
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(sourceRecords).data, basis.recordsData)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(destinationRecords).data, destinationBasis.recordsData)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeSemanticRecords(sourceRecords).data, basis.semanticRecordsData)
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeSemanticRecords(destinationRecords).data, destinationBasis.semanticRecordsData)
+#if DEBUG
+        checkpointStep("roundtrip.activation.enter")
+#endif
         _ = try source.journal.activatePreparedCheckpoint(preparation)
+#if DEBUG
+        checkpointStep("roundtrip.activation.returned")
+#endif
+#if DEBUG
+        checkpointStep("roundtrip.installation.enter")
+#endif
         let installed = try destination.journal.installImportedCheckpoint(
             export: transported.export, packageData: transported.packageData
         )
+#if DEBUG
+        checkpointStep("roundtrip.installation.returned")
+#endif
         XCTAssertEqual(installed.activatedFrontier, preparation.manifest.frontier)
         XCTAssertEqual(destination.journal.activeCheckpoint, content)
+#if DEBUG
+        checkpointStep("roundtrip.source-reopen-assert.enter")
+#endif
         XCTAssertEqual(try source.reopenJournal().activeCheckpoint, content)
+#if DEBUG
+        checkpointStep("roundtrip.source-reopen-assert.returned")
+#endif
+#if DEBUG
+        checkpointStep("roundtrip.destination-reopen-assert.enter")
+#endif
         XCTAssertEqual(try destination.reopenJournal().activeCheckpoint, content)
+#if DEBUG
+        checkpointStep("roundtrip.destination-reopen-assert.returned")
+#endif
         XCTAssertEqual(try source.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), sourceHistory)
         XCTAssertEqual(try destination.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), destinationHistory)
         XCTAssertFalse(source.session.modelContext.hasChanges)
@@ -1504,7 +1597,8 @@ extension V9_ChangeJournalCheckpointReplayTests {
         _ = try destination.journal.activatePreparedCheckpoint(destinationPreparation)
         let beforeCheckpoint = try XCTUnwrap(destination.journal.activeCheckpoint)
         let beforeHistory = try destination.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
-        let beforeRecords = try destination.backup.canonicalCheckpointBasis().recordsData
+        let beforeBasis = try destination.backup.canonicalCheckpointBasis()
+        let beforeRecords = beforeBasis.recordsData
         let stateURL = destination.session.generationRootURL
             .appendingPathComponent("replication/local-change-journal-v1/state.json")
         let beforeState = try Data(contentsOf: stateURL)
@@ -1539,6 +1633,22 @@ extension V9_ChangeJournalCheckpointReplayTests {
         cases.append(("ordinary-instead-of-semantic", try CurrentCheckpointSchemaFixtureV1.replacing(
             original, normalizedRecords: beforeRecords
         ), .incompleteCheckpoint))
+        let sourceBasis = try source.backup.canonicalCheckpointBasis()
+        let sourceRecords = try BackupCanonicalDecoderV1().decodeRecords(sourceBasis.recordsData)
+        let sourceIdentity = try XCTUnwrap(sourceRecords.entityIdentityResolution)
+        for (label, workspace, generation) in [
+            ("empty-c13-wrong-generation", sourceIdentity.workspaceID, UUID()),
+            ("empty-c13-wrong-workspace", WorkspaceID(rawValue: UUID()), sourceIdentity.generationID),
+        ] {
+            var changed = sourceRecords
+            changed.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+                workspaceID: workspace, generationID: generation,
+                aliasLinks: [], consolidationReceipts: [], mutationReceipts: []
+            )
+            cases.append((label, try CurrentCheckpointSchemaFixtureV1.replacing(
+                original, normalizedRecords: BackupCanonicalEncoderV1().encodeSemanticRecords(changed).data
+            ), .incompleteCheckpoint))
+        }
         for (label, changed, expectedFailure) in cases {
             let transported = try CurrentCheckpointSchemaFixtureV1.transport(changed)
             // Prove that a well-formed, rehashed package reaches installation's
@@ -1556,6 +1666,24 @@ extension V9_ChangeJournalCheckpointReplayTests {
             XCTAssertEqual(try destination.backup.canonicalCheckpointBasis().recordsData, beforeRecords, label)
             XCTAssertFalse(destination.session.modelContext.hasChanges, label)
         }
+        var tamperedPackage = originalExport.packageData
+        let firstByte = try XCTUnwrap(tamperedPackage.indices.first)
+        tamperedPackage[firstByte] ^= 1
+        XCTAssertEqual(tamperedPackage.count, originalExport.packageData.count)
+        XCTAssertNotEqual(tamperedPackage, originalExport.packageData)
+        XCTAssertThrowsError(try destination.journal.installImportedCheckpoint(
+            export: originalExport.export, packageData: tamperedPackage
+        )) { error in
+            XCTAssertEqual(error as? ChangeJournalFailureV1, .tamperedBatch)
+        }
+        try CurrentCheckpointSchemaFixtureV1.assertContextualComparisonControls(
+            basis: beforeBasis, checkpoint: original
+        )
+        XCTAssertEqual(destination.journal.activeCheckpoint, beforeCheckpoint)
+        XCTAssertEqual(try Data(contentsOf: stateURL), beforeState)
+        XCTAssertEqual(try destination.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), beforeHistory)
+        XCTAssertEqual(try destination.backup.canonicalCheckpointBasis().recordsData, beforeRecords)
+        XCTAssertFalse(destination.session.modelContext.hasChanges)
     }
 }
 
@@ -1650,6 +1778,283 @@ private final class CurrentCheckpointSchemaFixtureV1 {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
         return try decoder.decode(WorkspaceCheckpointContentV1.self, from: data)
+    }
+
+    /// Value controls use the complete shipping basis and canonical domain
+    /// constructors. They are never installed or claimed as writer effects.
+    static func assertContextualComparisonControls(
+        basis: BackupCanonicalCheckpointBasisV1,
+        checkpoint: WorkspaceCheckpointContentV1
+    ) throws {
+        let decoder = BackupCanonicalDecoderV1()
+        let encoder = BackupCanonicalEncoderV1()
+        let records = try decoder.decodeRecords(basis.recordsData)
+        let empty = try XCTUnwrap(records.entityIdentityResolution)
+        for (workspace, generation) in [
+            (empty.workspaceID, UUID()),
+            (WorkspaceID(rawValue: UUID()), empty.generationID),
+        ] {
+            var invalid = records
+            invalid.entityIdentityResolution = try .init(
+                workspaceID: workspace, generationID: generation,
+                aliasLinks: [], consolidationReceipts: [], mutationReceipts: []
+            )
+            let invalidBasis = try valueBasis(basis, records: invalid)
+            let matchingBytes = try replacing(checkpoint, normalizedRecords: invalidBasis.semanticRecordsData)
+            XCTAssertEqual(CanonicalJSONV1.sha256(invalidBasis.semanticRecordsData), matchingBytes.manifest.normalizedRecordsSHA256)
+            XCTAssertFalse(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+                destination: invalidBasis, checkpoint: matchingBytes
+            ))
+            XCTAssertEqual(try encoder.encodeRecords(invalid).data, invalidBasis.recordsData)
+        }
+        var noncanonicalRecords = basis.recordsData
+        noncanonicalRecords.append(0)
+        let corruptBasis = try valueBasis(basis, records: records, recordsData: noncanonicalRecords)
+        XCTAssertThrowsError(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: corruptBasis, checkpoint: checkpoint
+        )) { error in
+            XCTAssertEqual(error as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+        let legacyRecords = try encoder.encodeLegacyEmptyServiceRequestRecords(records)
+        XCTAssertNotEqual(legacyRecords, basis.recordsData)
+        let legacyBasis = try valueBasis(basis, records: records, recordsData: legacyRecords)
+        XCTAssertFalse(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: legacyBasis, checkpoint: checkpoint
+        ))
+        var changedSemantic = basis.semanticRecordsData
+        changedSemantic.append(0)
+        let mismatchedBasis = try valueBasis(basis, records: records, semanticRecordsData: changedSemantic)
+        let matchingChanged = try replacing(checkpoint, normalizedRecords: changedSemantic)
+        XCTAssertFalse(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: mismatchedBasis, checkpoint: matchingChanged
+        ))
+
+        let nonempty = try nonemptyIdentityRecords(records, basis: basis)
+        let nonemptyBasis = try valueBasis(basis, records: nonempty)
+        let nonemptySnapshot = try XCTUnwrap(nonempty.entityIdentityResolution)
+        let history = try XCTUnwrap(nonempty.mutationHistory)
+        XCTAssertEqual(nonemptySnapshot.aliasLinks.count, 1)
+        XCTAssertEqual(nonemptySnapshot.consolidationReceipts.count, 1)
+        XCTAssertEqual(nonemptySnapshot.mutationReceipts.count, 2)
+        XCTAssertEqual(history.receipts.count, 2)
+        XCTAssertEqual(history.workspaceRevision, 2)
+        XCTAssertEqual(history.lastLocalSequence, 2)
+        let same = try replacing(checkpoint, normalizedRecords: nonemptyBasis.semanticRecordsData)
+        XCTAssertTrue(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: nonemptyBasis, checkpoint: same
+        ))
+        XCTAssertFalse(try LocalChangeJournalV1.checkpointSemanticRecordsMatch(
+            destination: nonemptyBasis, checkpoint: checkpoint
+        ))
+        let decoded = try decoder.decodeRecords(nonemptyBasis.recordsData)
+        XCTAssertEqual(decoded, nonempty)
+        XCTAssertEqual(decoded.entityIdentityResolution, nonemptySnapshot)
+        XCTAssertEqual(decoded.mutationHistory, history)
+        let decodedHistory = try XCTUnwrap(decoded.mutationHistory)
+        for (actual, original) in zip(decodedHistory.receipts, history.receipts) {
+            XCTAssertEqual(actual.envelopeData, original.envelopeData)
+            XCTAssertEqual(actual.receiptData, original.receiptData)
+            XCTAssertEqual(actual.reversalBasisData, original.reversalBasisData)
+            XCTAssertEqual(actual.semanticReversalData, original.semanticReversalData)
+        }
+        XCTAssertEqual(try encoder.encodeRecords(nonempty).data, nonemptyBasis.recordsData)
+        XCTAssertEqual(try encoder.encodeSemanticRecords(nonempty).data, nonemptyBasis.semanticRecordsData)
+        XCTAssertEqual(try encoder.encodeRecords(records).data, basis.recordsData)
+        XCTAssertEqual(try encoder.encodeSemanticRecords(records).data, basis.semanticRecordsData)
+        XCTAssertEqual(records.entityIdentityResolution, empty)
+    }
+
+    static func valueBasis(
+        _ original: BackupCanonicalCheckpointBasisV1, records: V4BackupRecordsV1,
+        recordsData: Data? = nil, semanticRecordsData: Data? = nil
+    ) throws -> BackupCanonicalCheckpointBasisV1 {
+        let encoder = BackupCanonicalEncoderV1()
+        return BackupCanonicalCheckpointBasisV1(
+            workspaceIdentity: original.workspaceIdentity, generationID: original.generationID,
+            persistentSchemaVersion: original.persistentSchemaVersion,
+            recordsSchemaVersion: original.recordsSchemaVersion,
+            packageReleases: original.packageReleases,
+            workspaceRevision: records.mutationHistory?.workspaceRevision ?? original.workspaceRevision,
+            lastLocalSequence: records.mutationHistory?.lastLocalSequence ?? original.lastLocalSequence,
+            recordsData: try recordsData ?? encoder.encodeRecords(records).data,
+            semanticRecordsData: try semanticRecordsData ?? encoder.encodeSemanticRecords(records).data,
+            memberInventory: original.memberInventory
+        )
+    }
+
+    static func nonemptyIdentityRecords(
+        _ original: V4BackupRecordsV1, basis: BackupCanonicalCheckpointBasisV1
+    ) throws -> V4BackupRecordsV1 {
+        let workspace = basis.workspaceIdentity.workspaceID
+        let instant = Date(timeIntervalSince1970: 1_777_593_600)
+        let actor = try ActorSnapshotV1(
+            snapshotID: UUID(), workspaceID: workspace,
+            actor: LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Operator"),
+            responsibility: .recordedBy, displayNameAtTime: "Operator", capturedAt: instant
+        )
+        let source = try EntityIdentitySnapshotV1(workspaceID: workspace,
+            identity: .init(kind: .asset, id: UUID()), revision: 1, entitySHA256: String(repeating: "1", count: 64))
+        let survivor = try EntityIdentitySnapshotV1(workspaceID: workspace,
+            identity: .init(kind: .asset, id: UUID()), revision: 1, entitySHA256: String(repeating: "2", count: 64))
+        let alias = try EntityAliasLinkV1(
+            linkEventID: UUID(), workspaceID: workspace, alias: source, canonicalEntity: survivor,
+            revision: 1, reason: .verifiedPriorAlias, policyVersion: 1,
+            policySHA256: String(repeating: "3", count: 64), recordedBy: actor,
+            recordedAt: instant, mutationID: .init(rawValue: UUID())
+        )
+        let atoms = try Dictionary(uniqueKeysWithValues: EntityConsolidationInventoryFamilyV1.allCases.map { family in
+            let values: [EntityConsolidationInventoryAtomV1]
+            switch family {
+            case .tombstone, .mutationReceipt: values = []
+            default: values = [try .init(kind: family.rawValue.lowercased(), itemID: "fixture-item",
+                revision: 1, itemSHA256: String(repeating: "4", count: 64),
+                associationRole: family == .relationship ? "evidence-only" : "preserve")]
+            }
+            return (family, values)
+        })
+        let inventory = try EntityConsolidationInventoryBuilderV1.inventory(
+            workspaceID: workspace, source: source, survivor: survivor, atomsByFamily: atoms
+        )
+        let consolidation = try EntityConsolidationReceiptV1(
+            consolidationReceiptID: UUID(), workspaceID: workspace, source: source, survivor: survivor,
+            inventory: inventory, revision: 1, policyVersion: 1,
+            policySHA256: String(repeating: "5", count: 64), recordedBy: actor,
+            recordedAt: instant, mutationID: .init(rawValue: UUID())
+        )
+        var revisions = [WorkspaceEntityRevisionV1]()
+        var originals = [MutationHistoryReceiptRecordV1]()
+        var typed = [EntityIdentityResolutionMutationReceiptV1]()
+        let writerInstanceID = UUID()
+        let payloads: [EntityIdentityResolutionMutationPayloadV1] = [.alias(alias, nil), .consolidation(consolidation, nil)]
+        for (index, payload) in payloads.enumerated() {
+            let target = try EntityIdentityResolutionMutationCommandV1.concurrencyTarget(for: payload)
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspace, generationID: basis.generationID, writerInstanceID: writerInstanceID,
+                workspaceRevision: UInt64(index), entityRevisions: revisions + [.init(identity: target, revision: 0)]
+            )
+            let command = try EntityIdentityResolutionMutationCommandV1(
+                commandID: UUID(), workspaceID: workspace, expectedRevision: expected,
+                mutationID: payload.mutationID, payload: payload, submittedAt: instant
+            )
+            let envelope = try MutationEnvelopeV1(request: .init(
+                mutationID: command.mutationID, expectedRevision: expected,
+                command: .applyEntityIdentityResolution(command)
+            ), identity: basis.workspaceIdentity)
+            let image: MutationPostImageV1
+            switch payload {
+            case let .alias(value, _): image = .entityIdentityResolution(id: value.linkEventID,
+                kind: .entityAliasLink, concurrencyIdentity: target, revision: value.revision, semanticSHA256: value.linkSHA256)
+            case let .consolidation(value, _): image = .entityIdentityResolution(id: value.consolidationReceiptID,
+                kind: .entityConsolidationReceipt, concurrencyIdentity: target, revision: value.revision, semanticSHA256: value.receiptSHA256)
+            }
+            revisions += [.init(identity: target, revision: 1), .init(identity: try image.identity, revision: 1)]
+            let resulting = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspace, generationID: basis.generationID, writerInstanceID: writerInstanceID,
+                workspaceRevision: UInt64(index + 1), entityRevisions: revisions
+            )
+            let receipt = try MutationReceiptV1(
+                identity: .init(workspaceID: workspace, replicaID: basis.workspaceIdentity.replicaID, localSequence: UInt64(index + 1)),
+                envelope: envelope, resultingRevision: .init(resulting), postImages: [image], committedAt: instant
+            )
+            originals.append(.init(envelopeData: try envelope.canonicalData(), receiptData: try receipt.canonicalData(),
+                reversalBasisData: nil, semanticReversalData: nil))
+            typed.append(try .init(receiptID: UUID(), command: command, resultingWorkspaceRevision: UInt64(index + 1),
+                recoveryState: .receiptCommitted, committedAt: instant))
+        }
+        let history = MutationHistorySnapshotV1(workspaceRevision: 2, lastLocalSequence: 2,
+            receipts: originals, quarantines: [], entityRevisions: revisions.sorted { $0.identity.stableKey < $1.identity.stableKey }.map { .init(identity: $0.identity, revision: $0.revision) })
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let snapshot = try EntityIdentityResolutionBackupSnapshotV1(
+            workspaceID: workspace, generationID: basis.generationID,
+            aliasLinks: [alias], consolidationReceipts: [consolidation], mutationReceipts: typed
+        )
+        return replacingIdentityAndHistory(original, identity: snapshot, history: history)
+    }
+
+    static func replacingIdentityAndHistory(
+        _ original: V4BackupRecordsV1,
+        identity: EntityIdentityResolutionBackupSnapshotV1,
+        history: MutationHistorySnapshotV1
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            guidedSurveys: original.guidedSurveys,
+            assetLocators: original.assetLocators,
+            schedules: original.schedules,
+            plans: original.plans,
+            placementPoses: original.placementPoses,
+            accessibleDocumentAssessments: original.accessibleDocumentAssessments,
+            surveyDefinitions: original.surveyDefinitions,
+            fieldReferences: original.fieldReferences,
+            recoverabilityReceipts: original.recoverabilityReceipts,
+            clientCapabilities: original.clientCapabilities,
+            privacyTransforms: original.privacyTransforms,
+            measurementIntegrity: original.measurementIntegrity,
+            packageEvolution: original.packageEvolution,
+            fieldDrafts: original.fieldDrafts,
+            workPackets: original.workPackets,
+            inspectionReview: original.inspectionReview,
+            evidenceAssurance: original.evidenceAssurance,
+            functionalRelationships: original.functionalRelationships,
+            authorityCriterion: original.authorityCriterion,
+            assetSemantics: original.assetSemantics,
+            assetCompositionEdges: original.assetCompositionEdges,
+            assetCompositionEvents: original.assetCompositionEvents,
+            assetPlacementEvents: original.assetPlacementEvents,
+            assets: original.assets,
+            deletionLedger: original.deletionLedger,
+            evidenceFiles: original.evidenceFiles,
+            issues: original.issues,
+            locationHierarchyEvents: original.locationHierarchyEvents,
+            locationMigrationReceipts: original.locationMigrationReceipts,
+            locationNodes: original.locationNodes,
+            mutationHistory: history,
+            packets: original.packets,
+            partyAccountability: original.partyAccountability,
+            recordsSchemaVersion: original.recordsSchemaVersion,
+            reports: original.reports,
+            requirementAssurance: original.requirementAssurance,
+            savedSmartViews: original.savedSmartViews,
+            sites: original.sites,
+            workflowRecords: original.workflowRecords,
+            evidenceContexts: original.evidenceContexts,
+            pairedObservationLinks: original.pairedObservationLinks,
+            lighting: original.lighting,
+            lightingDayInventoryWorkflows: original.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: original.lightingNightWorkflows,
+            assistanceAcceptanceReceipts: original.assistanceAcceptanceReceipts,
+            temporalEvidence: original.temporalEvidence,
+            acceptedLabelGenerationSnapshots: original.acceptedLabelGenerationSnapshots,
+            operationalContacts: original.operationalContacts,
+            activityContracts: original.activityContracts,
+            workResources: original.workResources,
+            serviceRequests: original.serviceRequests,
+            serviceRequestDispositionEvents: original.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: original.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: original.serviceReliabilityIncidents,
+            serviceImpactSegments: original.serviceImpactSegments,
+            serviceCauseAssertions: original.serviceCauseAssertions,
+            serviceRemedyAssertions: original.serviceRemedyAssertions,
+            serviceRepairIntervals: original.serviceRepairIntervals,
+            serviceRestorationAssertions: original.serviceRestorationAssertions,
+            qualifiedServiceExposures: original.qualifiedServiceExposures,
+            serviceReliabilityReceipts: original.serviceReliabilityReceipts,
+            partsStockSnapshot: original.partsStockSnapshot,
+            myDayPlans: original.myDayPlans,
+            myDayCarryoverReceipts: original.myDayCarryoverReceipts,
+            nonactivePlanReferences: original.nonactivePlanReferences,
+            evidenceAssociationEvents: original.evidenceAssociationEvents,
+            evidenceSequenceRevisions: original.evidenceSequenceRevisions,
+            shopReportProfiles: original.shopReportProfiles,
+            roundSessions: original.roundSessions,
+            importMappingProfiles: original.importMappingProfiles,
+            bulkSessions: original.bulkSessions,
+            bulkCommitReceipts: original.bulkCommitReceipts,
+            evidenceQuality: original.evidenceQuality,
+            fastSurveyInbox: original.fastSurveyInbox,
+            reinspectionExceptionQueue: original.reinspectionExceptionQueue,
+            entityIdentityResolution: identity,
+            practiceWorkspaceProvenance: original.practiceWorkspaceProvenance
+        )
     }
 
     static func practiceValue(workspaceID: WorkspaceID) throws -> PracticeWorkspaceBackupSnapshotV1 {
