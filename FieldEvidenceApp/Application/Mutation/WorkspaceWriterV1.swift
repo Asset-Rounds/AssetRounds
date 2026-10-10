@@ -4,12 +4,20 @@ import SwiftData
 @MainActor
 protocol WorkspaceWriterAdapterPortV1: AnyObject {
     var requiresInitialPlacementForFirstSign: Bool { get }
+    /// Live persistence capability, never caller authorization or a cached decision.
+    var recordsExecutableFirstSignBasis: Bool { get }
     func finalizationMutationID(recordID: UUID) throws -> MutationIDV1?
     func apply(
         _ command: WorkspaceCommandV1,
         occurredAt: Date,
         temporaryRelativePath: String
     ) throws -> WorkspaceMutationEffectV1
+    func applyFirstSignCompensation(
+        _ payload: FirstSignCompensationV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1
+    func validateFirstSignCompensation(_ payload: FirstSignCompensationV1) throws
     func applyPreparedRepetitiveCaptureDestinationContinuation(
         _ mutation: FieldDraftMutationV1,
         proof: PreparedReviewedFieldDraftApplyProofV1,
@@ -137,6 +145,18 @@ extension WorkspaceWriterAdapterPortV1 {
         throw WorkspaceMutationFailureV1.unsupportedCommand
     }
     var requiresInitialPlacementForFirstSign: Bool { false }
+    var recordsExecutableFirstSignBasis: Bool { false }
+
+    func applyFirstSignCompensation(
+        _ payload: FirstSignCompensationV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func validateFirstSignCompensation(_ payload: FirstSignCompensationV1) throws {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
 }
 
 extension WorkspaceWriterAdapterPortV1 {
@@ -1502,6 +1522,49 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         try executeInternal(request, reversalPlan: reversalPlan, semanticReversalExecution: nil, semanticReversalReplayIdentitySHA256: nil)
     }
 
+    /// A current graph-checked preview from an actual new executable basis.
+    /// Legacy missing/digest-only bases retain their existing refusal.
+    func firstSignReversalEligibility(targetMutationID: MutationIDV1) throws -> ReversalEligibilitySnapshotV1 {
+        try withProvenLease {
+            guard let journalStore,
+                  let target = try journalStore.checkedReceipt(mutationID: targetMutationID),
+                  let basis = try journalStore.reversalBasis(mutationID: targetMutationID),
+                  let payload = basis.firstSignCompensation else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+            try journalStore.validateFirstSignCompensation(
+                targetMutationID: targetMutationID, payload: payload,
+                writerInstanceID: writerInstanceID)
+            try adapter.validateFirstSignCompensation(payload)
+            let portable = try PortableReversalPlanV1(
+                basis: basis, expectedRevision: target.resultingRevision,
+                compensatingCommands: [payload.compensatingCommand()])
+            return try ReversalEligibilitySnapshotV1(
+                targetMutationID: targetMutationID, eligibility: .eligible,
+                portablePlan: portable, reversingMutationID: nil,
+                basisSHA256: basis.canonicalSHA256())
+        }
+    }
+
+    /// The portable original keeps its receipt-bound revision. A new live
+    /// preview additionally binds this writer's current Asset CAS authority.
+    func firstSignReversalPlan(targetMutationID: MutationIDV1) throws -> SemanticReversalPlanV1 {
+        try withProvenLease {
+            let eligibility = try firstSignReversalEligibility(targetMutationID: targetMutationID)
+            guard let payload = eligibility.portablePlan?.firstSignCompensation else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+            let current = try currentRevision()
+            let asset = try WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID)
+            let revisions = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: [.init(identity: asset, revision: revisions[asset, default: 0])])
+            return try payload.semanticPlan(expectedRevision: expected)
+        }
+    }
+
     func executeSemanticReversal(
         _ request: WorkspaceMutationRequestV1,
         targetMutationID: MutationIDV1,
@@ -1540,6 +1603,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
               basis.planDigest == plan.planDigest,
               basis.compensatingCommandKinds == plan.compensatingCommands.map(\.kind) else {
             throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        if let payload = basis.firstSignCompensation {
+            guard plan.firstSignCompensation == payload,
+                  plan.expectedRevision == request.expectedRevision,
+                  request.command == (try payload.compensatingCommand()) else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
         }
         let execution = try SemanticReversalExecutionV1(
             targetMutationID: targetMutationID,
@@ -1996,6 +2066,44 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         default:
             break
         }
+        var effectiveReversalPlan = reversalPlan
+        var originalFirstSign: MutationEnvelopeV1?
+        if case .createFirstSign = request.command,
+           effectiveSourceKind == .localUser, adapter.recordsExecutableFirstSignBasis {
+            guard let journalStore else { throw WorkspaceMutationFailureV1.invalidReversal }
+            if let original = try journalStore.firstSignCommitment(mutationID: request.mutationID) {
+                // Accepted IDs keep their original commitment, including nil or
+                // digest-only historic bases. Explicit changed inputs still go
+                // through the incumbent exact-envelope replay/quarantine check.
+                originalFirstSign = original.envelope
+                if reversalPlan == nil, portableReversalPlan == nil {
+                    effectiveReversalPlan = try original.basis?.firstSignCompensation?
+                        .semanticPlan(writerInstanceID: writerInstanceID)
+                }
+            } else {
+                let payload: FirstSignCompensationV1
+                do { payload = try FirstSignCompensationV1(request: request) }
+                catch { throw WorkspaceMutationFailureV1.invalidCommand }
+                let completed = try payload.semanticPlan(writerInstanceID: writerInstanceID)
+                if let reversalPlan {
+                    guard reversalPlan.mutationID == request.mutationID,
+                          reversalPlan.commandKind == .createFirstSign,
+                          reversalPlan.expectedRevision == request.expectedRevision,
+                          reversalPlan.firstSignCompensation == payload,
+                          reversalPlan.planDigest == completed.planDigest,
+                          reversalPlan.compensatingCommands == completed.compensatingCommands else {
+                        throw WorkspaceMutationFailureV1.invalidReversal
+                    }
+                }
+                guard portableReversalPlan == nil else {
+                    throw WorkspaceMutationFailureV1.invalidReversal
+                }
+                effectiveReversalPlan = completed
+            }
+        }
+        let firstSignDigest = originalFirstSign != nil && reversalPlan == nil && portableReversalPlan == nil
+            ? originalFirstSign?.reversalPlanDigest
+            : (effectiveReversalPlan?.planDigest ?? portableReversalPlan?.planDigest)
         let envelope: MutationEnvelopeV1
         let digest: String
 #if DEBUG
@@ -2009,8 +2117,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 contentDependencyIDs: contentDependencyIDs,
                 causationMutationID: semanticReversalExecution?.targetMutationID,
                 correlationID: correlationID,
-                reversalPlanDigest: reversalPlan?.planDigest
-                    ?? portableReversalPlan?.planDigest,
+                reversalPlanDigest: firstSignDigest,
                 semanticReversalReplayIdentitySHA256: semanticReversalReplayIdentitySHA256,
                 semanticReversalExecution: semanticReversalExecution
             )
@@ -2062,6 +2169,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 digest: digest,
                 occurredAt: occurredAt
             ))
+        }
+        guard originalFirstSign == nil else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
 
         guard !quarantined.contains(request.mutationID) else {
@@ -2167,7 +2277,23 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
 #if DEBUG
         traceC32("targets-and-revision")
 #endif
-        let targets = try Self.affectedIdentities(for: request.command)
+        var firstSignCompensation: FirstSignCompensationV1?
+        if let execution = semanticReversalExecution, let journalStore,
+           let basis = try journalStore.reversalBasis(mutationID: execution.targetMutationID),
+           let payload = basis.firstSignCompensation {
+            guard request.command == (try payload.compensatingCommand()) else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+            try journalStore.validateFirstSignCompensation(
+                targetMutationID: execution.targetMutationID, payload: payload,
+                writerInstanceID: writerInstanceID)
+            firstSignCompensation = payload
+        }
+        var targets = try Self.affectedIdentities(for: request.command)
+        if let payload = firstSignCompensation {
+            targets.append(try .init(kind: .deletionLedgerEntry, id: payload.assetID))
+            targets.sort { $0.stableKey < $1.stableKey }
+        }
         let expectedRevisionTargets = try Self.expectedRevisionIdentities(for: request.command)
         try require(request.expectedRevision, targets: expectedRevisionTargets)
 #if DEBUG
@@ -2260,7 +2386,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
         do {
             let applied: WorkspaceMutationEffectV1
-            if let proof = preparedReviewedFieldDraftProof {
+            if let payload = firstSignCompensation {
+                applied = try adapter.applyFirstSignCompensation(
+                    payload, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+            } else if let proof = preparedReviewedFieldDraftProof {
                 guard case let .applyFieldDraft(mutation) = request.command,
                       envelope.sourceKind != .importedHistory else {
                     throw WorkspaceMutationFailureV1.invalidCommand
@@ -2303,7 +2432,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             if let journalStore {
                 try journalStore.reach(.afterEffectBeforeReceipt)
                 let basis: ReversalBasisV1?
-                if let reversalPlan {
+                if let reversalPlan = effectiveReversalPlan {
                     guard reversalPlan.mutationID == request.mutationID,
                           reversalPlan.commandKind == request.command.kind,
                           reversalPlan.expectedRevision == request.expectedRevision else {
@@ -2331,7 +2460,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                             request.expectedRevision
                         ),
                         planDigest: portableReversalPlan.planDigest,
-                        compensatingCommands: portableReversalPlan.compensatingCommands
+                        compensatingCommands: portableReversalPlan.compensatingCommands,
+                        firstSignCompensation: portableReversalPlan.firstSignCompensation
                     )
                     basis = try ReversalBasisV1(
                         portablePlan: rebound,

@@ -16312,6 +16312,22 @@ final class EraseRouterOperationV1 {
         preparationRegistry = registry
     }
 
+    func requirePreexistingRetiredReadCohort(_ cohort: ErasePreexistingRetiredReadCohortV1,
+        inventory expectedInventory: EraseReaderRetirementInventoryV1,
+        registry: GenerationLeaseRegistryV1) throws {
+        guard let router, preparationServiceFrame, expectedInventory === inventory,
+              preparationRegistry === registry, let source = preparationSourceWriter,
+              source.token.epoch.generationID == cohort.currentID,
+              cohort.retiredID != cohort.currentID, cohort.retiredIDs.contains(cohort.retiredID),
+              inventory.containsPreexistingRetiredReadCohort(cohort),
+              cohort.matches(operation: self, inventory: inventory, registry: registry),
+              preparationFailureWitness == nil, !detached else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try source.requireExactRegistry(registry)
+        try router.requireEraseRetirementOperation(self)
+    }
+
     func requirePreparationReaderAllocation(_ attempt: GenerationLeaseAllocationAttemptV1,
         registry: GenerationLeaseRegistryV1) throws {
         guard let router, preparationServiceFrame, preparationRegistry === registry,

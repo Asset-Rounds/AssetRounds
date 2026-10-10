@@ -395,11 +395,42 @@ def current_source_and_test_checks(root: Path) -> dict[str, Any]:
     these raw joins do not rebase historical card artifacts or qualify verify().
     """
     source_parity = source_codable_parity(root)
+    # C117 preserves the six-key legacy plan and promises a strict schema-2
+    # executable payload. The historical reader remains unchanged; its
+    # unanchored CodingKeys matcher sees LegacyCodingKeys for that type.
+    current_contract_source = (root / "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift").read_text(encoding="utf-8")
+    current_starts = list(re.finditer(r"(?m)^(?:struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b", current_contract_source))
+    current_sections = {
+        match.group(1): current_contract_source[match.start(): (current_starts[index + 1].start()
+                                                               if index + 1 < len(current_starts) else len(current_contract_source))]
+        for index, match in enumerate(current_starts)
+    }
+    portable = current_sections.get("PortableReversalPlanV1")
+    require(portable is not None, "current portable reversal type missing")
+    legacy_fields = contracts.CODABLE_FIELDS["PortableReversalPlanV1"]
+    for key_type, expected in (("LegacyCodingKeys", legacy_fields),
+                               ("CodingKeys", [*legacy_fields, "firstSignCompensation"])):
+        key_match = re.search(rf"\bprivate\s+enum\s+{key_type}:[^{{]+\{{(?P<body>.*?)\}}", portable, re.S)
+        require(key_match is not None, f"current portable {key_type} missing")
+        actual_keys: list[str] = []
+        for case_body in re.findall(r"\bcase\s+([^}\n]+)", key_match.group("body")):
+            actual_keys.extend(re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", case_body))
+        require(actual_keys == expected, f"current portable {key_type} differs: {actual_keys}")
+    portable_compact = re.sub(r"\s+", "", portable)
+    for required in (
+        "caseSelf.schemaVersion:tryChangeJournalClosedCodingV1.requireExact(decoder,LegacyCodingKeys.self)",
+        "case2:tryChangeJournalClosedCodingV1.requireExact(decoder,CodingKeys.self)",
+        "default:throwChangeJournalFailureV1.incompatibleVersion",
+        "firstSignCompensation:version==2?c.decode(FirstSignCompensationV1.self,forKey:.firstSignCompensation):nil",
+        "guardfirstSignCompensation==nilelse{throwChangeJournalFailureV1.invalidReversal}",
+        "guardletfirstSignCompensation,firstSignCompensation.targetMutationID==targetMutationID,tryfirstSignCompensation.commitment()==planDigest,compensatingCommands==[tryfirstSignCompensation.compensatingCommand()]else{throwChangeJournalFailureV1.invalidReversal}",
+    ):
+        require(required in portable_compact, "current portable schema/payload closure differs")
     local_raw = (root / "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift").read_bytes()
     local = local_raw.decode("utf-8")
     require((len(local_raw), sha256(local_raw)) == (
-        108370, "0d2a034d67295c8f7b1d38a6189b2ded0551800db895e5446c3d608143acc523"
-    ), "current C106 checkpoint diagnostic source raw binding differs")
+        109338, "01f663cdd9423d7a9769088a504e10aa7cee034fbda2cc247708ad8c39a91d69"
+    ), "current C117 executable compensation source raw binding differs")
     required_local_tokens = (
         "WorkspaceSnapshotManifestV1", "ChangeBatchV1", "ChangeCursorV1",
         "ChangeJournalFailureV1", "checkpoint", "replay", "compaction",

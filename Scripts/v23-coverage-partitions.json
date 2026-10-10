@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "97c01bc1f9290ae76b8f17919467d1d39121a379",
+  "generatedAtHead": "1902d0870587cccdf374311631b986763be0c428",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1195,7 +1195,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 626.2,
+      "estimatedSeconds": 866.2,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1316,6 +1316,10 @@
         "FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testTransitionDerivesOneRevisionWithoutReplacingAnyOtherFact",
         "FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testVerifiedResolutionRequiresTheExactRetainedPassedRecheck",
         "FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testWholeWorkspaceFrontierExceedsRegistryCountAndRetainsCanonicalByteLimit",
+        "FieldEvidenceAppTests/V23FirstSignPersistedRecoveryTests/testDiskEachAtomicBoundaryReopensWholeCompensationAndReplaysOnce",
+        "FieldEvidenceAppTests/V23FirstSignPersistedRecoveryTests/testDiskMissingOrCorruptPromisedPayloadRefusesFreshWriterWithoutEffects",
+        "FieldEvidenceAppTests/V23FirstSignPersistedRecoveryTests/testDiskOrdinarySchema1AndAbsentBasisForwardReplayPreserveCanonicalBytes",
+        "FieldEvidenceAppTests/V23FirstSignPersistedRecoveryTests/testDiskSchema2NewContainerCompensationReplayRetainsOriginalHistory",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection",
@@ -3882,7 +3886,7 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1500.0,
+      "estimatedSeconds": 1560.0,
       "selectors": [
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testActualWriterThumbnailOnlyDescriptorOwnsPreparedOriginal",
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedInboxRetainsOriginalAndThumbnailDescriptors",
@@ -3900,6 +3904,7 @@
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredCorruptHistoryAndUnknownBytesRetainAllSources",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredScopeRejectsWrongMembershipAndLateControlDriftWithoutEffects",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredSourcesPreserveHistoryAcrossPreparedPointerLagAndPartialCleanup",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testReplacedNonemptyDestinationRetiredReadSettlesBeforePreIntentRollback",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredAdmissionRejectsCorruptOriginalStateAndUnknownMemberWithoutEffects",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredSummaryReprovesExactPointerAfterFullInventoryAndPreservesDenial",
         "FieldEvidenceAppTests/V23FindingInstantParserTests/testConcurrentMixedParsingPreservesSerialOriginalOutcomes",
@@ -4061,9 +4066,24 @@
     {
       "id": "S38",
       "tier": "D50C",
-      "estimatedSeconds": 60.0,
+      "estimatedSeconds": 960.0,
       "selectors": [
-        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect"
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect",
+        "FieldEvidenceAppTests/V23EraseLateColdReplaySupplementalTests/testDeleteCommittedThenAfterCleanupColdReplayRequiresCompleteAuthority",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testChangedCreatedAssetPostimageRefusesWithoutCompensationEffects",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testColdEligibilityResolvesRealPlanAndSingleAssetCompensationRetainsSitePlacementAndHistory",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testCompensatedAssetIdentityCannotBeRecreatedAndReversalReceiptReplaysCold",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testDamagedPromisedExecutableBasisRefusesBeforeAnyCompensationEffect",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testEveryAtomicBoundaryColdRecoversOneWholeCompensationAndRetryReplaysOnce",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testIndependentSiteTimeZoneChangeDoesNotBecomeWholeWorkspaceUndoVeto",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testLivePreviewBindsCurrentRevisionAndStalePreviewRefusesWithoutEffects",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testMissingPromisedExecutablePayloadFailsClosedWhileLegacyCanonicalBasisStaysExact",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testNewFirstSignAtomicallyRecordsExecutableOriginalCommitment",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testRetainedSourceBatchChecksNonFirstAssetAndAdmitsUnrelatedNilPreviews",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testSameIDReplayUsesOriginalCommitmentAfterColdReopenAndChangedCommandQuarantines",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnknownRetainedDraftCodecRefusesBeforeDeletionTombstoneOrReceipt",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnrelatedCalendarAndEvidenceAudienceMetadataRemainExactThroughCompensation",
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnrelatedMetadataNeverExemptsRealTypedAssetDependency"
       ]
     }
   ]

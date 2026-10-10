@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import Darwin
+#endif
 import CryptoKit
 import SwiftData
 import CoreGraphics
@@ -2322,7 +2325,9 @@ final class KernelConformanceProductionHarnessV1 {
             mutationID: firstSignMutationID
         )
         let checkpoint = try node.journal.prepareCheckpoint(
-            supplement: .init(contentEntries: [], reversalEligibility: [])
+            supplement: .init(contentEntries: [], reversalEligibility: [
+                node.coordinator.workspaceWriter.firstSignReversalEligibility(targetMutationID: firstSignMutationID)
+            ])
         )
         _ = try node.journal.activatePreparedCheckpoint(checkpoint)
         let timeZones = [
@@ -4141,9 +4146,110 @@ final class KernelConformanceProductionHarnessV1 {
             userDefaults: defaults, bundleIdentifier: "com.palatis3.fieldrecord",
             defaultsDomainName: defaultsName, privateSystemDiscoveryIndex: owner.discovery)
         owner.services.append(coldService)
+#if DEBUG
+        let lateColdSetupErrnoForTesting = errno
+        // Diagnostic DATA only: the genuine cold owner still decides recovery.
+        // No callback retains an Error, Router, model, path or authority token.
+        var lateColdPhaseForTesting = "unobserved"
+        let emitLateColdDiagnosticForTesting: @MainActor (String) -> Void = { line in
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Diagnostic transport never replaces the actual outcome. */ }
+        }
+        var lateColdFirstFailureForTesting: (@MainActor (Error) -> Void)?
+        if late {
+            coldService.schema2ColdFixedStageForTesting = { phase in
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                switch phase {
+                case "recovery.support",
+                     "recovery.schema2.store-retained",
+                     "recovery.schema2.manifest-open",
+                     "recovery.schema2.target-snapshot",
+                     "recovery.schema2.operations-captured",
+                     "recovery.schema2.late-controls-captured",
+                     "recovery.schema2.registry-census",
+                     "recovery.schema2.phase-cut",
+                     "recovery.schema2.source-admission",
+                     "recovery.schema2.old-valid",
+                     "recovery.schema2.target-private-valid",
+                     "recovery.schema2.target-live-session",
+                     "recovery.schema2.r-forward.enter",
+                     "recovery.schema2.r-forward.continuation",
+                     "recovery.schema2.r-forward.private-reproof",
+                     "recovery.schema2.r-forward.final-pointer",
+                     "recovery.schema2.r-forward.live-open",
+                     "recovery.schema2.r-forward.session-bound",
+                     "recovery.schema2.r-forward.temp-settled",
+                     "recovery.schema2.r-forward.entry-complete",
+                     "recovery.schema2.r-forward.roster-enter",
+                     "recovery.schema2.r-forward.roster-published",
+                     "recovery.schema2.r-forward.notification-enter",
+                     "recovery.schema2.r-forward.notification-controls",
+                     "recovery.schema2.r-forward.notification-owner",
+                     "recovery.schema2.r-forward.notification-system",
+                     "recovery.schema2.r-forward.notification-drained",
+                     "recovery.schema2.post-generation-seal-complete",
+                     "recovery.schema2.post-generation-terminal-owner-due",
+                     "recovery.schema2.post-generation.scratch-enter",
+                     "recovery.schema2.post-generation.scratch-settled",
+                     "recovery.schema2.post-generation.target-drained",
+                     "recovery.schema2.post-generation.reader-retired",
+                     "recovery.schema2.post-content-auxiliary-owner-due",
+                     "recovery.cleanup-presence",
+                     "recovery.intent-contract",
+                     "recovery.authority",
+                     "recovery.targets":
+                    lateColdPhaseForTesting = phase
+                default:
+                    lateColdPhaseForTesting = "other-fixed-phase"
+                }
+            }
+            lateColdFirstFailureForTesting = { error in
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                let errorLabel: String
+                if let failure = error as? EraseAllServiceError {
+                    switch failure {
+                    case .contextHasChanges: errorLabel = "erase.context-has-changes"
+                    case .invalidAuthority: errorLabel = "erase.invalid-authority"
+                    case .invalidConfirmation: errorLabel = "erase.invalid-confirmation"
+                    case .recoveryRequired: errorLabel = "erase.recovery-required"
+                    case .injectedFailure: errorLabel = "erase.injected-failure"
+                    }
+                } else { errorLabel = "other-error" }
+                emitLateColdDiagnosticForTesting(
+                    "V23_KERNEL_A01_LATE_COLD_DIAG_V1 event=first-refusal error=\(errorLabel) phase=\(lateColdPhaseForTesting)\n")
+            }
+        }
+        errno = lateColdSetupErrnoForTesting
+#endif
         try coldRouter.bindStartupAccessGate(coldGate)
+#if DEBUG
+        try await coldRouter.retryColdEraseForTesting(service: coldService,
+            accessGate: coldGate,
+            firstColdEraseFailureForTesting: lateColdFirstFailureForTesting)
+#else
         try await coldRouter.retryColdEraseForTesting(service: coldService,
             accessGate: coldGate)
+#endif
+#if DEBUG
+        if late {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            let routeLabel: String
+            switch coldRouter.route {
+            case .checking: routeLabel = "checking"
+            case .awaitingIndependentValidation: routeLabel = "awaiting-independent-validation"
+            case .ready: routeLabel = "ready"
+            case .eraseCleanupPending: routeLabel = "erase-cleanup-pending"
+            case .maintenance: routeLabel = "maintenance"
+            }
+            emitLateColdDiagnosticForTesting(
+                "V23_KERNEL_A01_LATE_COLD_DIAG_V1 event=retry-return route=\(routeLabel) phase=\(lateColdPhaseForTesting)\n")
+        }
+#endif
         let expectedID = expectedOld ? frame.oldID : newID
         let first: (generationID: UUID, assetCount: Int, canonicalRows: Int) = try {
             guard case let .ready(coordinator, _, _) = coldRouter.route else {

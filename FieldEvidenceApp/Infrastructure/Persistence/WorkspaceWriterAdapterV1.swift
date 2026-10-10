@@ -28,6 +28,7 @@ private enum C44WorkspaceWriterStockBoundaryV1 {
 @MainActor
 final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     let requiresInitialPlacementForFirstSign = true
+    let recordsExecutableFirstSignBasis = true
     static let supportedCommandKinds: Set<WorkspaceCommandKindV1> = [
         .createFirstSign,
         .createCheckDraft,
@@ -5601,6 +5602,51 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         )
     }
 
+    func validateFirstSignCompensation(_ payload: FirstSignCompensationV1) throws {
+        _ = try admittedFirstSignAsset(payload)
+    }
+
+    private func admittedFirstSignAsset(_ payload: FirstSignCompensationV1) throws -> Asset {
+        var descriptor = FetchDescriptor<WorkspaceMutationStateRow>()
+        descriptor.fetchLimit = 2
+        let states = try modelContext.fetch(descriptor)
+        guard states.count == 1, let state = states.first,
+              state.workspaceID == payload.expectedRevision.workspaceID.rawValue else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        return try FirstSignCompensationAdmissionV1.admit(
+            payload, in: modelContext, generationID: state.generationID)
+    }
+
+    /// Only stages the one compensating effect. The existing central journal
+    /// commits this Asset tombstone, deletion, envelope, basis and receipt in
+    /// its single save. Site, placement and every original history row remain.
+    func applyFirstSignCompensation(
+        _ payload: FirstSignCompensationV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try prepareAdapterForApply()
+        do {
+            let asset = try admittedFirstSignAsset(payload)
+            let deletion = try DeletionIdentityV2(kind: .asset, id: payload.assetID)
+            let ledger = DeletionLedgerStore(context: modelContext, privateSystemDiscoveryIndex: nil)
+            guard !Set(try ledger.snapshot().entries.map(\.identity)).contains(deletion) else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+            let effect = try WorkspaceMutationEffectV1(affectedEntities: [
+                .init(kind: .asset, id: payload.assetID),
+                .init(kind: .deletionLedgerEntry, id: payload.assetID),
+            ].sorted { $0.stableKey < $1.stableKey }, temporaryRelativePath: temporaryRelativePath)
+            try ledger.stageUnion([.init(identity: deletion, deletedAt: occurredAt)])
+            modelContext.delete(asset)
+            return effect
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+    }
+
     func createFirstSign(
         _ value: FirstSignMutationV1,
         occurredAt: Date,
@@ -5627,6 +5673,13 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         guard try modelContext.fetch(FetchDescriptor<Asset>(
             predicate: #Predicate { $0.id == assetID }
         )).isEmpty else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        // Compensation archives this identity. A later create must not reclaim
+        // it even though its live Asset row has been removed.
+        let ledger = DeletionLedgerStore(context: modelContext, privateSystemDiscoveryIndex: nil)
+        let deletion = try DeletionIdentityV2(kind: .asset, id: assetID)
+        guard !Set(try ledger.snapshot().entries.map(\.identity)).contains(deletion) else {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
 

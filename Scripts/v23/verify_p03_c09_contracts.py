@@ -235,7 +235,7 @@ def swift_checks(root: Path) -> None:
         r"XCTAssertEqual\(canonicalOffset, 10_000\)",
         r"XCTAssertEqual\(projectedRows, 30_000\)",
         r"XCTAssertLessThanOrEqual\(page\.records\.count, 2_500\)",
-        r"productionRevisionBox\.value = try source\(revision: 8\).*"
+        r"productionRevisionBox\.value = try self\.source\(revision: 8\).*"
         r"XCTAssertEqual\(error, \.sourceChangedDuringRebuild\)",
         r"collisionContext\.insert\(workflowRecord\(id: collisionID\)\).*"
         r"collisionContext\.insert\(Issue\(.*WorkspaceEntityIdentityV1\(kind: \.workflowRecord.*"
@@ -273,16 +273,34 @@ def swift_checks(root: Path) -> None:
 
     rebuild = (root / "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift").read_text(
         encoding="utf-8")
-    for token in ("exactSearchableFieldCount", "maximumCanonicalRecords", "maximumProjectionRowsPerPage",
+    for token in ("maximumSearchableFieldCount", "maximumCanonicalRecords", "maximumProjectionRowsPerPage",
                   "SwiftDataSearchCanonicalProjectionSourceV1", "ProductionSearchServicesV1",
                   "SearchOperationalStatusProvidingV1", "backupStaleCanonicalIdentities",
                   "WorkspaceEntityIdentityV1", "kind: .workflowRecord", "kind: .issue",
                   "FetchDescriptor<Asset>()", "FetchDescriptor<Site>()", "FetchDescriptor<WorkflowRecord>()",
                   "FetchDescriptor<Issue>()", "FetchDescriptor<Report>()"):
         require(token in rebuild, f"production projection closure missing: {token}")
-    require("static let maximumProjectionRowsPerPage = pageSize" in rebuild and
-            "let projectionRowCapacity = Self.maximumCanonicalRecords" in rebuild and
-            "* SearchContractLimitsV1.exactSearchableFieldCount" in rebuild,
+    require("static let exactSearchableFieldCount = 10\n" in search_source and
+            "static let maximumFieldRegistrations = 13\n" in search_source and
+            "static let maximumCanonicalRecords = 10_000\n" in search_source and
+            "static let maximumWorkPacketFieldRegistrations = 45\n" in search_source and
+            "static let maximumSearchableFieldCount = maximumWorkPacketFieldRegistrations\n" in search_source and
+            "static let maximumProjectionRecords = maximumCanonicalRecords * maximumSearchableFieldCount\n" in search_source and
+            "fields.count <= SearchContractLimitsV1.maximumWorkPacketFieldRegistrations else {\n"
+            "            throw SearchContractFailureV1.limitExceeded\n" in search_source,
+            "legacy/current projection registry bounds differ")
+    require("static let pageSize = 250\n" in rebuild and
+            "static let maximumCanonicalRecords = SearchContractLimitsV1.maximumCanonicalRecords\n" in rebuild and
+            "static let maximumProjectionRowsPerPage = pageSize\n"
+            "        * SearchContractLimitsV1.maximumSearchableFieldCount\n" in rebuild and
+            "    ) throws {\n        try registry.validate()\n"
+            "        guard C08ImportBulkSearchRebuildBoundaryV1.validate(),\n" in rebuild and
+            "let projectionRowCapacity = Self.maximumCanonicalRecords\n"
+            "                * registry.fields.count\n" in rebuild and
+            "if records.count + page.records.count > projectionRowCapacity {\n"
+            "                throw SearchIndexRebuildFailureV1.recordLimitExceeded\n" in rebuild and
+            "records.append(contentsOf: page.records)\n"
+            "            records = try SearchIndexProjectionRecordV1.validateProjection(records, against: registry)\n" in rebuild,
             "canonical/projection scale separation differs")
     require("let publicationToken = await store.publicationToken()" in rebuild and
             "publicationToken: publicationToken" in rebuild and

@@ -170,6 +170,42 @@ struct WholeSignDeletionRecoverySummary: Equatable, Sendable {
 
 @MainActor
 extension WholeSignDeletionService {
+    /// Canonical, read-only core admission. The additional enrolled families
+    /// are checked by FirstSignCompensationAdmissionV1 before any staging.
+    static func firstSignCompensationCoreAdmission(
+        in modelContext: ModelContext,
+        generationID: UUID,
+        payload: FirstSignCompensationV1
+    ) throws -> Asset {
+        guard !modelContext.hasChanges else { throw WholeSignDeletionServiceError.contextHasChanges }
+        let reader = CompensationInventoryReader(modelContext: modelContext, generationID: generationID)
+        try reader.validateKernelDeletionMappings()
+        let rows = try reader.fetchRows()
+        let assets = rows.assets.filter { $0.id == payload.assetID }
+        guard assets.count == 1, let asset = assets.first,
+              asset.siteID == payload.siteID,
+              rows.sites.filter({ $0.id == payload.siteID }).count == 1,
+              !rows.records.contains(where: { $0.assetID == payload.assetID }),
+              !rows.issues.contains(where: { $0.assetID == payload.assetID }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        try reader.validateLocationDeletionNoCascade(
+            rows: rows, deletingAssetID: payload.assetID, deletingSiteID: nil)
+        for row in rows.acceptedLabelSnapshots {
+            let snapshot = try row.value()
+            guard !snapshot.plan.items.contains(where: { $0.assetID == payload.assetID }) else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
+        let plan = try WholeSignDeletionRule.makePlan(reader.makeRuleInput(
+            rows: rows, assetID: payload.assetID, deletionID: payload.targetMutationID.rawValue,
+            deletedAt: Date(timeIntervalSince1970: 0)))
+        guard plan.intent.ledgerEntries.map(\.identity) == [try DeletionIdentityV2(kind: .asset, id: payload.assetID)] else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        return asset
+    }
+
     /// Recovery of a released schema1 journal is not a new deletion command.
     /// No current writer, ledger, companion or later model is opened here.
     static func reconcileOriginalSource(
@@ -2403,54 +2439,8 @@ private extension WholeSignDeletionService {
     }
 
     func validateKernelDeletionMappings() throws {
-        do { try AuthorityCriterionDeletionLedgerPolicyV1.validate() }
-        catch { throw WholeSignDeletionServiceError.graphInvalid }
-        do {
-            for kind in DeletionRecordKindV2.allCases {
-                guard let kernelKind = kernelKind(for: kind) else {
-                    guard kind == .acceptedLabelGenerationSnapshot else {
-                        throw WholeSignDeletionServiceError.graphInvalid
-                    }
-                    try C45AcceptedLabelKernelDeletionEnrollmentV1.validate()
-                    continue
-                }
-                let registration = try KernelDeletionEraseRegistryV4.registration(for: kernelKind)
-                guard !registration.clearsTombstonesOnDelete else {
-                    throw WholeSignDeletionServiceError.graphInvalid
-                }
-                if kind == .packet {
-                    guard registration.deletion == .tombstonePreservingHistory,
-                          registration.clearsTombstonesOnErase else {
-                        throw WholeSignDeletionServiceError.graphInvalid
-                    }
-                }
-            }
-            let ledger = try KernelDeletionEraseRegistryV4.registration(
-                for: .deletionLedgerRow
-            )
-            guard ledger.deletion == .preserveUntilErase,
-                  !ledger.clearsTombstonesOnDelete,
-                  ledger.clearsTombstonesOnErase else {
-                throw WholeSignDeletionServiceError.graphInvalid
-            }
-        } catch let error as WholeSignDeletionServiceError {
-            throw error
-        } catch {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-    }
-
-    func kernelKind(for kind: DeletionRecordKindV2) -> KernelPersistenceV4RecordKind? {
-        switch kind {
-        case .site: .site
-        case .asset: .asset
-        case .workflowRecord: .workflowRecord
-        case .evidenceFile: .evidenceFile
-        case .issue: .issue
-        case .packet: .packet
-        case .report: .report
-        case .acceptedLabelGenerationSnapshot: nil
-        }
+        try CompensationInventoryReader(modelContext: modelContext, generationID: generationID)
+            .validateKernelDeletionMappings()
     }
 
     func mutationHistoryAuthorityMatches(
@@ -2633,6 +2623,651 @@ private extension WholeSignDeletionService {
         let installationTaskResults: [InstallationTaskResultRow]
         let installationAsBuiltSnapshots: [InstallationAsBuiltSnapshotRow]
         let punchReviewBasisSnapshots: [PunchReviewBasisSnapshotRow]
+    }
+
+    func fetchRows() throws -> Rows {
+        try CompensationInventoryReader(modelContext: modelContext, generationID: generationID).fetchRows()
+    }
+
+    func validateLocationDeletionNoCascade(rows: Rows, deletingAssetID: UUID?, deletingSiteID: UUID?) throws {
+        try CompensationInventoryReader(modelContext: modelContext, generationID: generationID)
+            .validateLocationDeletionNoCascade(rows: rows, deletingAssetID: deletingAssetID, deletingSiteID: deletingSiteID)
+    }
+
+    func makeRuleInput(rows: Rows, assetID: UUID, deletionID: UUID, deletedAt: Date) -> WholeSignDeletionRuleInput {
+        CompensationInventoryReader(modelContext: modelContext, generationID: generationID)
+            .makeRuleInput(rows: rows, assetID: assetID, deletionID: deletionID, deletedAt: deletedAt)
+    }
+
+    func explicitSiteInput(
+        site: Site,
+        rows: Rows,
+        deletionID: UUID,
+        deletedAt: Date
+    ) throws -> ExplicitSiteDeletionInputV1 {
+        let assetPlans = try rows.assets
+            .filter { $0.siteID == site.id }
+            .map { asset in
+                try WholeSignDeletionRule.makePlan(makeRuleInput(
+                    rows: rows,
+                    assetID: asset.id,
+                    deletionID: deletionID,
+                    deletedAt: deletedAt
+                ))
+            }
+        return ExplicitSiteDeletionInputV1(
+            siteID: site.id,
+            generationID: generationID,
+            deletionID: deletionID,
+            deletedAt: deletedAt,
+            siteSchemaVersion: site.schemaVersion,
+            label: site.label,
+            address: site.address,
+            timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt,
+            updatedAt: site.updatedAt,
+            siteAssets: rows.assets.filter { $0.siteID == site.id }.map {
+                DeletionAssetPayloadV1(
+                    id: $0.id,
+                    schemaVersion: $0.schemaVersion,
+                    siteID: $0.siteID
+                )
+            },
+            assetPlans: assetPlans
+        )
+    }
+
+    func validateOwnedFiles(
+        plan: WholeSignDeletionPlan,
+        rows: Rows
+    ) throws {
+        if !plan.reportIDs.isEmpty {
+            let coordinator: ReportDeliveryCoordinator
+            do {
+                let packageProfile = try lifecycleProfile(
+                    for: plan.assetID,
+                    rows: rows
+                )
+                switch lifecycleRoute {
+                case .live:
+                    coordinator = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: packageProfile.package
+                    )
+                case .expiringCompatibility:
+                    // Legacy XCTest stores predate the package dependency
+                    // boundary. The explicit compatibility route resolves
+                    // the requested package's legacy V3 profile.
+                    coordinator = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: packageProfile.package
+                    )
+                }
+                for reportID in plan.reportIDs {
+                    try coordinator.validateRecoveryAuthority(id: reportID)
+                }
+            } catch {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+        }
+        let evidenceByPath = Dictionary(uniqueKeysWithValues: rows.evidence.flatMap {
+            [($0.relativePath, ($0.byteCount, $0.sha256, true)),
+             ($0.thumbnailRelativePath, ($0.thumbnailByteCount, $0.thumbnailSHA256, true))]
+        })
+        let reportsByPath = Dictionary(uniqueKeysWithValues: rows.reports.flatMap { report in
+            var values = [(report.snapshotRelativePath, (Int?.none, report.snapshotSHA256, false))]
+            if let path = report.pdfRelativePath, let hash = report.pdfSHA256 {
+                values.append((path, (Int?.none, hash, false)))
+            }
+            return values
+        })
+        let snapshotReports = Dictionary(uniqueKeysWithValues: rows.reports.map {
+            ($0.snapshotRelativePath, $0)
+        })
+        for path in plan.intent.relativePaths {
+            let data: Data
+            let maximumByteCount: Int
+            if evidenceByPath[path] != nil {
+                maximumByteCount = path.hasSuffix("thumbnail.jpg")
+                    ? MediaContractV1.thumbnailByteCountMaximum
+                    : MediaContractV1.originalByteCountMaximum
+            } else if path.hasPrefix("snapshots/") {
+                maximumByteCount = Self.maximumSnapshotByteCount
+            } else {
+                maximumByteCount = Self.maximumPDFByteCount
+            }
+            do {
+                data = try files.read(
+                    relativePath: path,
+                    maximumByteCount: maximumByteCount
+                )
+            }
+            catch { throw WholeSignDeletionServiceError.fileInvalid }
+            if let authority = evidenceByPath[path] {
+                guard data.count == authority.0,
+                      sha256(data) == authority.1 else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                do {
+                    _ = try MediaNormalizerV1().validateCanonicalJPEG(
+                        data,
+                        kind: path.hasSuffix("thumbnail.jpg") ? .thumbnail : .original
+                    )
+                } catch { throw WholeSignDeletionServiceError.fileInvalid }
+            } else if let authority = reportsByPath[path] {
+                guard sha256(data) == authority.1 else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                if let report = snapshotReports[path] {
+                    do {
+                        let snapshot = try ReportSnapshotEncoderV1().decode(data)
+                        guard try ReportSnapshotEncoderV1().encode(snapshot).data == data,
+                              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
+                              snapshot.reportID == report.id,
+                              snapshot.packetID == report.packetID,
+                              snapshot.sourceRecordID == report.sourceRecordID else {
+                            throw WholeSignDeletionServiceError.fileInvalid
+                        }
+                    } catch {
+                        throw WholeSignDeletionServiceError.fileInvalid
+                    }
+                } else if path.hasPrefix("pdfs/") {
+                    guard data.starts(with: Data("%PDF-".utf8)),
+                          data.count >= 6 else {
+                        throw WholeSignDeletionServiceError.fileInvalid
+                    }
+                }
+            } else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+        }
+        for id in plan.evidenceIDs {
+            do {
+                try files.validateEvidenceBundle(id: id)
+                try files.requireAbsent(
+                    components: [".staging", "evidence", id.uuidString.lowercased()]
+                )
+            }
+            catch { throw WholeSignDeletionServiceError.fileInvalid }
+        }
+        for reportID in plan.reportIDs {
+            do {
+                try files.requireAbsent(
+                    components: [".staging", "pdfs", "\(reportID.uuidString.lowercased()).pdf"]
+                )
+            } catch { throw WholeSignDeletionServiceError.fileInvalid }
+        }
+        let selectedRecordIDs = Set(plan.workflowRecordIDs)
+        let selectedRecords = rows.records.filter { selectedRecordIDs.contains($0.id) }
+        for mutationID in selectedRecords.compactMap(\.finalizationMutationID) {
+            do {
+                try files.requireAbsent(
+                    components: [
+                        ".staging", "snapshots",
+                        "\(mutationID.uuidString.lowercased()).json",
+                    ]
+                )
+            } catch { throw WholeSignDeletionServiceError.fileInvalid }
+        }
+    }
+
+    func preparedPlan(
+        _ intent: DeletionIntentV1,
+        rows: Rows
+    ) throws -> WholeSignDeletionPlan? {
+        guard intent.schemaVersion == 2 || intent.schemaVersion == 3 else { return nil }
+        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
+        let ledgerDates = Set(intent.ledgerEntries.map(\.deletedAt))
+        guard dates.count <= 1,
+              ledgerDates.count == 1,
+              let ledgerDate = ledgerDates.first else { return nil }
+        let input = makeRuleInput(
+            rows: rows, assetID: intent.assetID,
+            deletionID: intent.deletionID,
+            deletedAt: dates.first ?? ledgerDate
+        )
+        guard let basePlan = try? WholeSignDeletionRule.makePlan(input),
+              let augmentedIntent = try? addingAcceptedLabelSnapshotLedgerEntries(
+                  to: basePlan.intent,
+                  snapshots: acceptedLabelSnapshots(
+                      referencing: intent.assetID, rows: rows
+                  )
+              ),
+              augmentedIntent == intent else { return nil }
+        let plan = WholeSignDeletionPlan(
+            assetID: basePlan.assetID,
+            evidenceIDs: basePlan.evidenceIDs,
+            intent: augmentedIntent,
+            issueIDs: basePlan.issueIDs,
+            packetIDsToDelete: basePlan.packetIDsToDelete,
+            reportIDs: basePlan.reportIDs,
+            siteIDToDelete: basePlan.siteIDToDelete,
+            workflowRecordIDs: basePlan.workflowRecordIDs
+        )
+        if case .live = lifecycleRoute {
+            try validateDeleteCommand(for: plan)
+        }
+        try validateOwnedFiles(
+            plan: plan,
+            rows: rows
+        )
+        return plan
+    }
+
+    func legacyPreparedIntentMatches(
+        _ intent: DeletionIntentV1,
+        rows: Rows
+    ) throws -> Bool {
+        guard intent.schemaVersion == 1, intent.ledgerEntries.isEmpty else { return false }
+        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
+        guard dates.count <= 1 else { return false }
+        let input = makeRuleInput(
+            rows: rows,
+            assetID: intent.assetID,
+            deletionID: intent.deletionID,
+            deletedAt: dates.first ?? .distantPast
+        )
+        guard let plan = try? WholeSignDeletionRule.makePlan(input) else { return false }
+        let legacy = DeletionIntentV1(
+            assetID: plan.intent.assetID,
+            countedPacketTombstones: plan.intent.countedPacketTombstones,
+            deletionID: plan.intent.deletionID,
+            generationID: plan.intent.generationID,
+            ledgerEntries: [],
+            phase: plan.intent.phase,
+            relativePaths: plan.intent.relativePaths,
+            schemaVersion: 1
+        )
+        guard legacy == intent else { return false }
+        if case .live = lifecycleRoute {
+            try validateDeleteCommand(for: plan)
+        }
+        try validateOwnedFiles(
+            plan: plan,
+            rows: rows
+        )
+        return true
+    }
+
+    func committedStateMatches(_ intent: DeletionIntentV1, rows: Rows) throws -> Bool {
+        let tombstones = Dictionary(uniqueKeysWithValues:
+            intent.countedPacketTombstones.map { ($0.id, $0) }
+        )
+        let liveRelativePaths = Set(
+            rows.evidence.flatMap { [$0.relativePath, $0.thumbnailRelativePath] }
+                + rows.reports.flatMap {
+                    [$0.snapshotRelativePath] + [$0.pdfRelativePath].compactMap { $0 }
+                }
+        )
+        guard unique(rows.sites.map(\.id)),
+              unique(rows.assets.map(\.id)),
+              unique(rows.records.map(\.id)),
+              unique(rows.evidence.map(\.id)),
+              unique(rows.issues.map(\.id)),
+              unique(rows.packets.map(\.id)),
+              unique(rows.packets.map(\.stableRootID)),
+              unique(rows.reports.map(\.id)),
+              unique(rows.serviceParties.map(\.partyID)),
+              unique(rows.sitePartyRoles.map(\.eventID)),
+              unique(rows.actorSnapshots.map(\.snapshotID)),
+              unique(rows.qualificationSnapshots.map(\.snapshotID)),
+              unique(rows.signoffSnapshots.map(\.snapshotID)),
+              unique(rows.assetKindBindingEvents.map(\.eventID)),
+              unique(rows.assetWorkflowCapabilityBindingEvents.map(\.eventID)),
+              unique(rows.assetProductIdentities.map(\.identityID)),
+              unique(rows.assetLifecycleEvents.map(\.eventID)),
+              unique(rows.assetSuccessorLinks.map(\.linkID)),
+              unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
+              unique(rows.functionalRelationshipDescriptors.map(\.descriptorReleaseID)),
+              unique(rows.functionalRelationshipEvents.map(\.eventID)),
+              unique(rows.evidenceVisibilities.map(\.visibilityID)),
+              unique(rows.claimEvidenceLinks.map(\.linkID)),
+              unique(rows.assuranceManifests.map(\.manifestID)),
+              unique(rows.attestations.map(\.attestationID)),
+              rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
+              rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
+              rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.qualificationSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.signoffSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetKindBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetWorkflowCapabilityBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetProductIdentities.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetLifecycleEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetSuccessorLinks.allSatisfy({ (try? $0.value()) != nil }),
+              rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.functionalRelationshipDescriptors.allSatisfy({ (try? $0.value()) != nil }),
+              rows.functionalRelationshipEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.evidenceVisibilities.allSatisfy({ (try? $0.value()) != nil }),
+              rows.claimEvidenceLinks.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assuranceManifests.allSatisfy({ (try? $0.value()) != nil }),
+              rows.attestations.allSatisfy({ (try? $0.value()) != nil }),
+              rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
+              rows.assets.allSatisfy({ asset in
+                  asset.schemaVersion == 1
+                    && rows.sites.contains(where: { $0.id == asset.siteID })
+              }),
+              rows.records.allSatisfy({ record in
+                  record.assetID != intent.assetID
+                    && rows.assets.contains(where: { $0.id == record.assetID })
+                    && record.parentRecordID.map({ parent in
+                        rows.records.contains(where: {
+                            $0.id == parent && $0.assetID == record.assetID
+                        })
+                    }) ?? true
+              }),
+              rows.issues.allSatisfy({ $0.assetID != intent.assetID }),
+              tombstones.allSatisfy({ id, expected in
+                  rows.packets.filter({ $0.id == id }).count == 1
+                    && rows.packets.first(where: { $0.id == id }).map {
+                        $0.schemaVersion == expected.schemaVersion
+                            && $0.stableRootID == expected.stableRootID
+                            && $0.currentRecordID == nil
+                            && $0.evaluationCounted
+                            && $0.contentDeletedAt == expected.contentDeletedAt
+                            && $0.createdAt == expected.createdAt
+                    } == true
+              }),
+              rows.evidence.allSatisfy({ evidence in
+                  rows.records.contains(where: { $0.id == evidence.recordID })
+              }),
+              rows.reports.allSatisfy({ report in
+                  rows.records.contains(where: { $0.id == report.sourceRecordID })
+                    && rows.packets.contains(where: { $0.id == report.packetID })
+              }),
+              rows.packets.allSatisfy({ packet in
+                  if let recordID = packet.currentRecordID {
+                      return packet.contentDeletedAt == nil
+                        && rows.records.contains(where: {
+                            $0.id == recordID && $0.packetID == packet.id
+                        })
+                  }
+                  return packet.evaluationCounted && packet.contentDeletedAt != nil
+                    && rows.records.allSatisfy({ $0.packetID != packet.id })
+                    && rows.reports.allSatisfy({ $0.packetID != packet.id })
+              }),
+              Set(intent.relativePaths).isDisjoint(with: liveRelativePaths),
+              intent.ledgerEntries.allSatisfy({ entry in
+                  if entry.identity.kind == .packet,
+                     tombstones[entry.identity.id] != nil {
+                      return true
+                  }
+                  return !contains(entry.identity, rows: rows)
+              }) else { return false }
+        if intent.schemaVersion == 2 || intent.schemaVersion == 3 {
+            do {
+                try ledgerStore.requireContains(Set(intent.ledgerEntries.map(\.identity)))
+            } catch {
+                return false
+            }
+        }
+        return true
+    }
+
+    func unique<T: Hashable>(_ values: [T]) -> Bool {
+        Set(values).count == values.count
+    }
+
+    func acceptedLabelSnapshots(
+        referencing assetID: UUID,
+        rows: Rows
+    ) throws -> [AcceptedLabelGenerationSnapshotV1] {
+        try rows.acceptedLabelSnapshots.compactMap { row in
+            let snapshot = try row.value()
+            return snapshot.plan.items.contains(where: { $0.assetID == assetID })
+                ? snapshot : nil
+        }.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString }
+    }
+
+    func addingAcceptedLabelSnapshotLedgerEntries(
+        to intent: DeletionIntentV1,
+        snapshots: [AcceptedLabelGenerationSnapshotV1]
+    ) throws -> DeletionIntentV1 {
+        guard intent.schemaVersion == 2,
+              let deletedAt = intent.ledgerEntries.first?.deletedAt,
+              intent.ledgerEntries.allSatisfy({ $0.deletedAt == deletedAt }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        let additions = try snapshots.map {
+            try DeletionLedgerEntryV2(
+                identity: DeletionIdentityV2(
+                    kind: .acceptedLabelGenerationSnapshot, id: $0.snapshotID
+                ),
+                deletedAt: deletedAt
+            )
+        }
+        let cleanups = try snapshots.map {
+            try AssetLabelPublishedOutputCleanupV1(snapshot: $0)
+        }
+        return DeletionIntentV1(
+            acceptedLabelOutputCleanups: cleanups,
+            assetID: intent.assetID,
+            countedPacketTombstones: intent.countedPacketTombstones,
+            deletionID: intent.deletionID,
+            generationID: intent.generationID,
+            ledgerEntries: (intent.ledgerEntries + additions).sorted {
+                $0.identity < $1.identity
+            },
+            phase: intent.phase,
+            relativePaths: intent.relativePaths,
+            schemaVersion: cleanups.isEmpty ? intent.schemaVersion : 3
+        )
+    }
+
+    func contains(_ identity: DeletionIdentityV2, rows: Rows) -> Bool {
+        switch identity.kind {
+        case .site:
+            return rows.sites.contains { $0.id == identity.id }
+        case .asset:
+            return rows.assets.contains { $0.id == identity.id }
+        case .workflowRecord:
+            return rows.records.contains { $0.id == identity.id }
+        case .evidenceFile:
+            return rows.evidence.contains { $0.id == identity.id }
+        case .issue:
+            return rows.issues.contains { $0.id == identity.id }
+        case .packet:
+            return rows.packets.contains { $0.id == identity.id }
+        case .report:
+            return rows.reports.contains { $0.id == identity.id }
+        case .acceptedLabelGenerationSnapshot:
+            return rows.acceptedLabelSnapshots.contains { $0.snapshotID == identity.id }
+        }
+    }
+
+    func apply(plan: WholeSignDeletionPlan, rows: Rows) throws {
+        guard plan.intent.ledgerEntries.contains(where: {
+            $0.identity.kind == .asset && $0.identity.id == plan.assetID
+        }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        let evidenceIDs = Set(plan.evidenceIDs)
+        let issueIDs = Set(plan.issueIDs)
+        let reportIDs = Set(plan.reportIDs)
+        let recordIDs = Set(plan.workflowRecordIDs)
+        let packetDeleteIDs = Set(plan.packetIDsToDelete)
+        let tombstones = Dictionary(uniqueKeysWithValues:
+            plan.intent.countedPacketTombstones.map { ($0.id, $0) }
+        )
+        let labelSnapshots = try rows.acceptedLabelSnapshots.compactMap {
+            row -> AcceptedLabelGenerationSnapshotRow? in
+            let snapshot = try row.value()
+            guard snapshot.plan.items.contains(where: { $0.assetID == plan.assetID }) else {
+                return nil
+            }
+            return row
+        }
+        let activityValues = try rows.activitySessionEnvelopes.map { try $0.value() }
+        let immutableActivityIDs = Set(
+            rows.activityStateTransitions.map(\.activityID)
+                + rows.installationTaskResults.map(\.activityID)
+                + rows.installationAsBuiltSnapshots.map(\.activityID)
+                + rows.punchReviewBasisSnapshots.map(\.activityID)
+                + activityValues.compactMap { value in
+                    guard value.installationCloseout != nil
+                        || value.punchReviewCloseout != nil
+                        || value.completedSnapshotReference != nil else {
+                        return nil
+                    }
+                    return value.activityID
+                }
+        )
+        let removableActivityIDs = Set(activityValues.compactMap { value -> UUID? in
+            guard value.subjectID == plan.assetID,
+                  !immutableActivityIDs.contains(value.activityID) else {
+                return nil
+            }
+            switch value.state {
+            case .finalized, .superseded, .cancelled, .unableToComplete:
+                return nil
+            default:
+                return value.activityID
+            }
+        })
+        let deletedLocatorIDs = Set(rows.assetLocators.filter {
+            $0.assetID == plan.assetID
+        }.map(\.locatorID))
+        if !deletedLocatorIDs.isEmpty {
+            rows.locatorBindingReceipts.filter {
+                deletedLocatorIDs.contains($0.afterLocatorID)
+                    || ($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
+            }.forEach { modelContext.delete($0) }
+            rows.assetLocators.filter {
+                deletedLocatorIDs.contains($0.locatorID)
+            }.forEach { modelContext.delete($0) }
+        }
+        let remainingLocatorIDs = Set(rows.assetLocators.map(\.locatorID))
+            .subtracting(deletedLocatorIDs)
+        guard rows.locatorBindingReceipts.filter({
+            !deletedLocatorIDs.contains($0.afterLocatorID)
+                && !($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
+        }).allSatisfy({
+            remainingLocatorIDs.contains($0.afterLocatorID)
+                && ($0.replacementLocatorID.map(remainingLocatorIDs.contains) ?? true)
+        }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        let retainedAccessibleOutputDigests=Set(try rows.accessibleDocumentAssessmentReceipts.map{try $0.value().outputSHA256})
+        rows.reports.filter { reportIDs.contains($0.id) && !retainedAccessibleOutputDigests.contains($0.snapshotSHA256) && !($0.pdfSHA256.map(retainedAccessibleOutputDigests.contains) ?? false) }.forEach { modelContext.delete($0) }
+        recordIDs.compactMap { rows.observationAndTime[$0] }
+            .forEach { modelContext.delete($0) }
+        rows.requirementAssurance.filter { recordIDs.contains($0.workflowRecordID) }
+            .forEach { modelContext.delete($0) }
+        let boundFieldReferenceReleaseIDs=Set(rows.fieldReferenceBindings.map(\.releaseID))
+        for row in rows.fieldReferenceReleases where !boundFieldReferenceReleaseIDs.contains(row.releaseID){_ = try row.value();modelContext.delete(row)}
+        rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        labelSnapshots.forEach { modelContext.delete($0) }
+        rows.activityStateTransitions.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.installationTaskResults.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.installationAsBuiltSnapshots.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.punchReviewBasisSnapshots.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.activitySessionEnvelopes.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        for packet in rows.packets {
+            if let tombstone = tombstones[packet.id] {
+                packet.currentRecordID = nil
+                packet.evaluationCounted = true
+                packet.contentDeletedAt = tombstone.contentDeletedAt
+            }
+        }
+        guard let asset = rows.assets.first(where: { $0.id == plan.assetID }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        modelContext.delete(asset)
+        guard plan.siteIDToDelete == nil else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func requireLedgerEntriesUnseen(_ intent: DeletionIntentV1) throws {
+        try requireLedgerIdentitiesUnseen(intent.ledgerEntries.map(\.identity))
+    }
+
+    func requireLedgerIdentitiesUnseen(_ identities: [DeletionIdentityV2]) throws {
+        let expected = Set(identities)
+        do {
+            let existing = Set(try ledgerStore.snapshot().entries.map(\.identity))
+            guard expected.isDisjoint(with: existing) else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    /// Read-only ModelContext inventory shared by ordinary deletion and the
+    /// central writer's compensation admission. It has no file, lease, journal,
+    /// cleanup or persistence constructor and performs no save.
+    @MainActor
+    struct CompensationInventoryReader {
+        let modelContext: ModelContext
+        let generationID: UUID
+        static let maximumGraphRowsPerKind = WholeSignDeletionService.maximumGraphRowsPerKind
+        static let observationAndTimeBatchSize = WholeSignDeletionService.observationAndTimeBatchSize
+
+    func validateKernelDeletionMappings() throws {
+        do { try AuthorityCriterionDeletionLedgerPolicyV1.validate() }
+        catch { throw WholeSignDeletionServiceError.graphInvalid }
+        do {
+            for kind in DeletionRecordKindV2.allCases {
+                guard let kernelKind = kernelKind(for: kind) else {
+                    guard kind == .acceptedLabelGenerationSnapshot else {
+                        throw WholeSignDeletionServiceError.graphInvalid
+                    }
+                    try C45AcceptedLabelKernelDeletionEnrollmentV1.validate()
+                    continue
+                }
+                let registration = try KernelDeletionEraseRegistryV4.registration(for: kernelKind)
+                guard !registration.clearsTombstonesOnDelete else {
+                    throw WholeSignDeletionServiceError.graphInvalid
+                }
+                if kind == .packet {
+                    guard registration.deletion == .tombstonePreservingHistory,
+                          registration.clearsTombstonesOnErase else {
+                        throw WholeSignDeletionServiceError.graphInvalid
+                    }
+                }
+            }
+            let ledger = try KernelDeletionEraseRegistryV4.registration(
+                for: .deletionLedgerRow
+            )
+            guard ledger.deletion == .preserveUntilErase,
+                  !ledger.clearsTombstonesOnDelete,
+                  ledger.clearsTombstonesOnErase else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func kernelKind(for kind: DeletionRecordKindV2) -> KernelPersistenceV4RecordKind? {
+        switch kind {
+        case .site: .site
+        case .asset: .asset
+        case .workflowRecord: .workflowRecord
+        case .evidenceFile: .evidenceFile
+        case .issue: .issue
+        case .packet: .packet
+        case .report: .report
+        case .acceptedLabelGenerationSnapshot: nil
+        }
     }
 
     func fetchRows() throws -> Rows {
@@ -3190,44 +3825,6 @@ private extension WholeSignDeletionService {
         )
     }
 
-    func explicitSiteInput(
-        site: Site,
-        rows: Rows,
-        deletionID: UUID,
-        deletedAt: Date
-    ) throws -> ExplicitSiteDeletionInputV1 {
-        let assetPlans = try rows.assets
-            .filter { $0.siteID == site.id }
-            .map { asset in
-                try WholeSignDeletionRule.makePlan(makeRuleInput(
-                    rows: rows,
-                    assetID: asset.id,
-                    deletionID: deletionID,
-                    deletedAt: deletedAt
-                ))
-            }
-        return ExplicitSiteDeletionInputV1(
-            siteID: site.id,
-            generationID: generationID,
-            deletionID: deletionID,
-            deletedAt: deletedAt,
-            siteSchemaVersion: site.schemaVersion,
-            label: site.label,
-            address: site.address,
-            timeZoneID: site.timeZoneID,
-            createdAt: site.createdAt,
-            updatedAt: site.updatedAt,
-            siteAssets: rows.assets.filter { $0.siteID == site.id }.map {
-                DeletionAssetPayloadV1(
-                    id: $0.id,
-                    schemaVersion: $0.schemaVersion,
-                    siteID: $0.siteID
-                )
-            },
-            assetPlans: assetPlans
-        )
-    }
-
     func payload(
         _ row: WorkflowRecord,
         companion: ObservationAndTimeRow
@@ -3267,536 +3864,6 @@ private extension WholeSignDeletionService {
         )
     }
 
-    func validateOwnedFiles(
-        plan: WholeSignDeletionPlan,
-        rows: Rows
-    ) throws {
-        if !plan.reportIDs.isEmpty {
-            let coordinator: ReportDeliveryCoordinator
-            do {
-                let packageProfile = try lifecycleProfile(
-                    for: plan.assetID,
-                    rows: rows
-                )
-                switch lifecycleRoute {
-                case .live:
-                    coordinator = try ReportDeliveryCoordinator(
-                        modelContext: modelContext,
-                        generationRootURL: generationRootURL,
-                        signPack: packageProfile.package
-                    )
-                case .expiringCompatibility:
-                    // Legacy XCTest stores predate the package dependency
-                    // boundary. The explicit compatibility route resolves
-                    // the requested package's legacy V3 profile.
-                    coordinator = try ReportDeliveryCoordinator(
-                        modelContext: modelContext,
-                        generationRootURL: generationRootURL,
-                        signPack: packageProfile.package
-                    )
-                }
-                for reportID in plan.reportIDs {
-                    try coordinator.validateRecoveryAuthority(id: reportID)
-                }
-            } catch {
-                throw WholeSignDeletionServiceError.fileInvalid
-            }
-        }
-        let evidenceByPath = Dictionary(uniqueKeysWithValues: rows.evidence.flatMap {
-            [($0.relativePath, ($0.byteCount, $0.sha256, true)),
-             ($0.thumbnailRelativePath, ($0.thumbnailByteCount, $0.thumbnailSHA256, true))]
-        })
-        let reportsByPath = Dictionary(uniqueKeysWithValues: rows.reports.flatMap { report in
-            var values = [(report.snapshotRelativePath, (Int?.none, report.snapshotSHA256, false))]
-            if let path = report.pdfRelativePath, let hash = report.pdfSHA256 {
-                values.append((path, (Int?.none, hash, false)))
-            }
-            return values
-        })
-        let snapshotReports = Dictionary(uniqueKeysWithValues: rows.reports.map {
-            ($0.snapshotRelativePath, $0)
-        })
-        for path in plan.intent.relativePaths {
-            let data: Data
-            let maximumByteCount: Int
-            if evidenceByPath[path] != nil {
-                maximumByteCount = path.hasSuffix("thumbnail.jpg")
-                    ? MediaContractV1.thumbnailByteCountMaximum
-                    : MediaContractV1.originalByteCountMaximum
-            } else if path.hasPrefix("snapshots/") {
-                maximumByteCount = Self.maximumSnapshotByteCount
-            } else {
-                maximumByteCount = Self.maximumPDFByteCount
-            }
-            do {
-                data = try files.read(
-                    relativePath: path,
-                    maximumByteCount: maximumByteCount
-                )
-            }
-            catch { throw WholeSignDeletionServiceError.fileInvalid }
-            if let authority = evidenceByPath[path] {
-                guard data.count == authority.0,
-                      sha256(data) == authority.1 else {
-                    throw WholeSignDeletionServiceError.fileInvalid
-                }
-                do {
-                    _ = try MediaNormalizerV1().validateCanonicalJPEG(
-                        data,
-                        kind: path.hasSuffix("thumbnail.jpg") ? .thumbnail : .original
-                    )
-                } catch { throw WholeSignDeletionServiceError.fileInvalid }
-            } else if let authority = reportsByPath[path] {
-                guard sha256(data) == authority.1 else {
-                    throw WholeSignDeletionServiceError.fileInvalid
-                }
-                if let report = snapshotReports[path] {
-                    do {
-                        let snapshot = try ReportSnapshotEncoderV1().decode(data)
-                        guard try ReportSnapshotEncoderV1().encode(snapshot).data == data,
-                              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
-                              snapshot.reportID == report.id,
-                              snapshot.packetID == report.packetID,
-                              snapshot.sourceRecordID == report.sourceRecordID else {
-                            throw WholeSignDeletionServiceError.fileInvalid
-                        }
-                    } catch {
-                        throw WholeSignDeletionServiceError.fileInvalid
-                    }
-                } else if path.hasPrefix("pdfs/") {
-                    guard data.starts(with: Data("%PDF-".utf8)),
-                          data.count >= 6 else {
-                        throw WholeSignDeletionServiceError.fileInvalid
-                    }
-                }
-            } else {
-                throw WholeSignDeletionServiceError.fileInvalid
-            }
-        }
-        for id in plan.evidenceIDs {
-            do {
-                try files.validateEvidenceBundle(id: id)
-                try files.requireAbsent(
-                    components: [".staging", "evidence", id.uuidString.lowercased()]
-                )
-            }
-            catch { throw WholeSignDeletionServiceError.fileInvalid }
-        }
-        for reportID in plan.reportIDs {
-            do {
-                try files.requireAbsent(
-                    components: [".staging", "pdfs", "\(reportID.uuidString.lowercased()).pdf"]
-                )
-            } catch { throw WholeSignDeletionServiceError.fileInvalid }
-        }
-        let selectedRecordIDs = Set(plan.workflowRecordIDs)
-        let selectedRecords = rows.records.filter { selectedRecordIDs.contains($0.id) }
-        for mutationID in selectedRecords.compactMap(\.finalizationMutationID) {
-            do {
-                try files.requireAbsent(
-                    components: [
-                        ".staging", "snapshots",
-                        "\(mutationID.uuidString.lowercased()).json",
-                    ]
-                )
-            } catch { throw WholeSignDeletionServiceError.fileInvalid }
-        }
-    }
-
-    func preparedPlan(
-        _ intent: DeletionIntentV1,
-        rows: Rows
-    ) throws -> WholeSignDeletionPlan? {
-        guard intent.schemaVersion == 2 || intent.schemaVersion == 3 else { return nil }
-        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
-        let ledgerDates = Set(intent.ledgerEntries.map(\.deletedAt))
-        guard dates.count <= 1,
-              ledgerDates.count == 1,
-              let ledgerDate = ledgerDates.first else { return nil }
-        let input = makeRuleInput(
-            rows: rows, assetID: intent.assetID,
-            deletionID: intent.deletionID,
-            deletedAt: dates.first ?? ledgerDate
-        )
-        guard let basePlan = try? WholeSignDeletionRule.makePlan(input),
-              let augmentedIntent = try? addingAcceptedLabelSnapshotLedgerEntries(
-                  to: basePlan.intent,
-                  snapshots: acceptedLabelSnapshots(
-                      referencing: intent.assetID, rows: rows
-                  )
-              ),
-              augmentedIntent == intent else { return nil }
-        let plan = WholeSignDeletionPlan(
-            assetID: basePlan.assetID,
-            evidenceIDs: basePlan.evidenceIDs,
-            intent: augmentedIntent,
-            issueIDs: basePlan.issueIDs,
-            packetIDsToDelete: basePlan.packetIDsToDelete,
-            reportIDs: basePlan.reportIDs,
-            siteIDToDelete: basePlan.siteIDToDelete,
-            workflowRecordIDs: basePlan.workflowRecordIDs
-        )
-        if case .live = lifecycleRoute {
-            try validateDeleteCommand(for: plan)
-        }
-        try validateOwnedFiles(
-            plan: plan,
-            rows: rows
-        )
-        return plan
-    }
-
-    func legacyPreparedIntentMatches(
-        _ intent: DeletionIntentV1,
-        rows: Rows
-    ) throws -> Bool {
-        guard intent.schemaVersion == 1, intent.ledgerEntries.isEmpty else { return false }
-        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
-        guard dates.count <= 1 else { return false }
-        let input = makeRuleInput(
-            rows: rows,
-            assetID: intent.assetID,
-            deletionID: intent.deletionID,
-            deletedAt: dates.first ?? .distantPast
-        )
-        guard let plan = try? WholeSignDeletionRule.makePlan(input) else { return false }
-        let legacy = DeletionIntentV1(
-            assetID: plan.intent.assetID,
-            countedPacketTombstones: plan.intent.countedPacketTombstones,
-            deletionID: plan.intent.deletionID,
-            generationID: plan.intent.generationID,
-            ledgerEntries: [],
-            phase: plan.intent.phase,
-            relativePaths: plan.intent.relativePaths,
-            schemaVersion: 1
-        )
-        guard legacy == intent else { return false }
-        if case .live = lifecycleRoute {
-            try validateDeleteCommand(for: plan)
-        }
-        try validateOwnedFiles(
-            plan: plan,
-            rows: rows
-        )
-        return true
-    }
-
-    func committedStateMatches(_ intent: DeletionIntentV1, rows: Rows) throws -> Bool {
-        let tombstones = Dictionary(uniqueKeysWithValues:
-            intent.countedPacketTombstones.map { ($0.id, $0) }
-        )
-        let liveRelativePaths = Set(
-            rows.evidence.flatMap { [$0.relativePath, $0.thumbnailRelativePath] }
-                + rows.reports.flatMap {
-                    [$0.snapshotRelativePath] + [$0.pdfRelativePath].compactMap { $0 }
-                }
-        )
-        guard unique(rows.sites.map(\.id)),
-              unique(rows.assets.map(\.id)),
-              unique(rows.records.map(\.id)),
-              unique(rows.evidence.map(\.id)),
-              unique(rows.issues.map(\.id)),
-              unique(rows.packets.map(\.id)),
-              unique(rows.packets.map(\.stableRootID)),
-              unique(rows.reports.map(\.id)),
-              unique(rows.serviceParties.map(\.partyID)),
-              unique(rows.sitePartyRoles.map(\.eventID)),
-              unique(rows.actorSnapshots.map(\.snapshotID)),
-              unique(rows.qualificationSnapshots.map(\.snapshotID)),
-              unique(rows.signoffSnapshots.map(\.snapshotID)),
-              unique(rows.assetKindBindingEvents.map(\.eventID)),
-              unique(rows.assetWorkflowCapabilityBindingEvents.map(\.eventID)),
-              unique(rows.assetProductIdentities.map(\.identityID)),
-              unique(rows.assetLifecycleEvents.map(\.eventID)),
-              unique(rows.assetSuccessorLinks.map(\.linkID)),
-              unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
-              unique(rows.functionalRelationshipDescriptors.map(\.descriptorReleaseID)),
-              unique(rows.functionalRelationshipEvents.map(\.eventID)),
-              unique(rows.evidenceVisibilities.map(\.visibilityID)),
-              unique(rows.claimEvidenceLinks.map(\.linkID)),
-              unique(rows.assuranceManifests.map(\.manifestID)),
-              unique(rows.attestations.map(\.attestationID)),
-              rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
-              rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
-              rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
-              rows.qualificationSnapshots.allSatisfy({ (try? $0.value()) != nil }),
-              rows.signoffSnapshots.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assetKindBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assetWorkflowCapabilityBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assetProductIdentities.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assetLifecycleEvents.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assetSuccessorLinks.allSatisfy({ (try? $0.value()) != nil }),
-              rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value()) != nil }),
-              rows.functionalRelationshipDescriptors.allSatisfy({ (try? $0.value()) != nil }),
-              rows.functionalRelationshipEvents.allSatisfy({ (try? $0.value()) != nil }),
-              rows.evidenceVisibilities.allSatisfy({ (try? $0.value()) != nil }),
-              rows.claimEvidenceLinks.allSatisfy({ (try? $0.value()) != nil }),
-              rows.assuranceManifests.allSatisfy({ (try? $0.value()) != nil }),
-              rows.attestations.allSatisfy({ (try? $0.value()) != nil }),
-              rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
-              rows.assets.allSatisfy({ asset in
-                  asset.schemaVersion == 1
-                    && rows.sites.contains(where: { $0.id == asset.siteID })
-              }),
-              rows.records.allSatisfy({ record in
-                  record.assetID != intent.assetID
-                    && rows.assets.contains(where: { $0.id == record.assetID })
-                    && record.parentRecordID.map({ parent in
-                        rows.records.contains(where: {
-                            $0.id == parent && $0.assetID == record.assetID
-                        })
-                    }) ?? true
-              }),
-              rows.issues.allSatisfy({ $0.assetID != intent.assetID }),
-              tombstones.allSatisfy({ id, expected in
-                  rows.packets.filter({ $0.id == id }).count == 1
-                    && rows.packets.first(where: { $0.id == id }).map {
-                        $0.schemaVersion == expected.schemaVersion
-                            && $0.stableRootID == expected.stableRootID
-                            && $0.currentRecordID == nil
-                            && $0.evaluationCounted
-                            && $0.contentDeletedAt == expected.contentDeletedAt
-                            && $0.createdAt == expected.createdAt
-                    } == true
-              }),
-              rows.evidence.allSatisfy({ evidence in
-                  rows.records.contains(where: { $0.id == evidence.recordID })
-              }),
-              rows.reports.allSatisfy({ report in
-                  rows.records.contains(where: { $0.id == report.sourceRecordID })
-                    && rows.packets.contains(where: { $0.id == report.packetID })
-              }),
-              rows.packets.allSatisfy({ packet in
-                  if let recordID = packet.currentRecordID {
-                      return packet.contentDeletedAt == nil
-                        && rows.records.contains(where: {
-                            $0.id == recordID && $0.packetID == packet.id
-                        })
-                  }
-                  return packet.evaluationCounted && packet.contentDeletedAt != nil
-                    && rows.records.allSatisfy({ $0.packetID != packet.id })
-                    && rows.reports.allSatisfy({ $0.packetID != packet.id })
-              }),
-              Set(intent.relativePaths).isDisjoint(with: liveRelativePaths),
-              intent.ledgerEntries.allSatisfy({ entry in
-                  if entry.identity.kind == .packet,
-                     tombstones[entry.identity.id] != nil {
-                      return true
-                  }
-                  return !contains(entry.identity, rows: rows)
-              }) else { return false }
-        if intent.schemaVersion == 2 || intent.schemaVersion == 3 {
-            do {
-                try ledgerStore.requireContains(Set(intent.ledgerEntries.map(\.identity)))
-            } catch {
-                return false
-            }
-        }
-        return true
-    }
-
-    func unique<T: Hashable>(_ values: [T]) -> Bool {
-        Set(values).count == values.count
-    }
-
-    func acceptedLabelSnapshots(
-        referencing assetID: UUID,
-        rows: Rows
-    ) throws -> [AcceptedLabelGenerationSnapshotV1] {
-        try rows.acceptedLabelSnapshots.compactMap { row in
-            let snapshot = try row.value()
-            return snapshot.plan.items.contains(where: { $0.assetID == assetID })
-                ? snapshot : nil
-        }.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString }
-    }
-
-    func addingAcceptedLabelSnapshotLedgerEntries(
-        to intent: DeletionIntentV1,
-        snapshots: [AcceptedLabelGenerationSnapshotV1]
-    ) throws -> DeletionIntentV1 {
-        guard intent.schemaVersion == 2,
-              let deletedAt = intent.ledgerEntries.first?.deletedAt,
-              intent.ledgerEntries.allSatisfy({ $0.deletedAt == deletedAt }) else {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-        let additions = try snapshots.map {
-            try DeletionLedgerEntryV2(
-                identity: DeletionIdentityV2(
-                    kind: .acceptedLabelGenerationSnapshot, id: $0.snapshotID
-                ),
-                deletedAt: deletedAt
-            )
-        }
-        let cleanups = try snapshots.map {
-            try AssetLabelPublishedOutputCleanupV1(snapshot: $0)
-        }
-        return DeletionIntentV1(
-            acceptedLabelOutputCleanups: cleanups,
-            assetID: intent.assetID,
-            countedPacketTombstones: intent.countedPacketTombstones,
-            deletionID: intent.deletionID,
-            generationID: intent.generationID,
-            ledgerEntries: (intent.ledgerEntries + additions).sorted {
-                $0.identity < $1.identity
-            },
-            phase: intent.phase,
-            relativePaths: intent.relativePaths,
-            schemaVersion: cleanups.isEmpty ? intent.schemaVersion : 3
-        )
-    }
-
-    func contains(_ identity: DeletionIdentityV2, rows: Rows) -> Bool {
-        switch identity.kind {
-        case .site:
-            return rows.sites.contains { $0.id == identity.id }
-        case .asset:
-            return rows.assets.contains { $0.id == identity.id }
-        case .workflowRecord:
-            return rows.records.contains { $0.id == identity.id }
-        case .evidenceFile:
-            return rows.evidence.contains { $0.id == identity.id }
-        case .issue:
-            return rows.issues.contains { $0.id == identity.id }
-        case .packet:
-            return rows.packets.contains { $0.id == identity.id }
-        case .report:
-            return rows.reports.contains { $0.id == identity.id }
-        case .acceptedLabelGenerationSnapshot:
-            return rows.acceptedLabelSnapshots.contains { $0.snapshotID == identity.id }
-        }
-    }
-
-    func apply(plan: WholeSignDeletionPlan, rows: Rows) throws {
-        guard plan.intent.ledgerEntries.contains(where: {
-            $0.identity.kind == .asset && $0.identity.id == plan.assetID
-        }) else {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-        let evidenceIDs = Set(plan.evidenceIDs)
-        let issueIDs = Set(plan.issueIDs)
-        let reportIDs = Set(plan.reportIDs)
-        let recordIDs = Set(plan.workflowRecordIDs)
-        let packetDeleteIDs = Set(plan.packetIDsToDelete)
-        let tombstones = Dictionary(uniqueKeysWithValues:
-            plan.intent.countedPacketTombstones.map { ($0.id, $0) }
-        )
-        let labelSnapshots = try rows.acceptedLabelSnapshots.compactMap {
-            row -> AcceptedLabelGenerationSnapshotRow? in
-            let snapshot = try row.value()
-            guard snapshot.plan.items.contains(where: { $0.assetID == plan.assetID }) else {
-                return nil
-            }
-            return row
-        }
-        let activityValues = try rows.activitySessionEnvelopes.map { try $0.value() }
-        let immutableActivityIDs = Set(
-            rows.activityStateTransitions.map(\.activityID)
-                + rows.installationTaskResults.map(\.activityID)
-                + rows.installationAsBuiltSnapshots.map(\.activityID)
-                + rows.punchReviewBasisSnapshots.map(\.activityID)
-                + activityValues.compactMap { value in
-                    guard value.installationCloseout != nil
-                        || value.punchReviewCloseout != nil
-                        || value.completedSnapshotReference != nil else {
-                        return nil
-                    }
-                    return value.activityID
-                }
-        )
-        let removableActivityIDs = Set(activityValues.compactMap { value -> UUID? in
-            guard value.subjectID == plan.assetID,
-                  !immutableActivityIDs.contains(value.activityID) else {
-                return nil
-            }
-            switch value.state {
-            case .finalized, .superseded, .cancelled, .unableToComplete:
-                return nil
-            default:
-                return value.activityID
-            }
-        })
-        let deletedLocatorIDs = Set(rows.assetLocators.filter {
-            $0.assetID == plan.assetID
-        }.map(\.locatorID))
-        if !deletedLocatorIDs.isEmpty {
-            rows.locatorBindingReceipts.filter {
-                deletedLocatorIDs.contains($0.afterLocatorID)
-                    || ($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
-            }.forEach { modelContext.delete($0) }
-            rows.assetLocators.filter {
-                deletedLocatorIDs.contains($0.locatorID)
-            }.forEach { modelContext.delete($0) }
-        }
-        let remainingLocatorIDs = Set(rows.assetLocators.map(\.locatorID))
-            .subtracting(deletedLocatorIDs)
-        guard rows.locatorBindingReceipts.filter({
-            !deletedLocatorIDs.contains($0.afterLocatorID)
-                && !($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
-        }).allSatisfy({
-            remainingLocatorIDs.contains($0.afterLocatorID)
-                && ($0.replacementLocatorID.map(remainingLocatorIDs.contains) ?? true)
-        }) else {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-        rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }
-        rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
-        let retainedAccessibleOutputDigests=Set(try rows.accessibleDocumentAssessmentReceipts.map{try $0.value().outputSHA256})
-        rows.reports.filter { reportIDs.contains($0.id) && !retainedAccessibleOutputDigests.contains($0.snapshotSHA256) && !($0.pdfSHA256.map(retainedAccessibleOutputDigests.contains) ?? false) }.forEach { modelContext.delete($0) }
-        recordIDs.compactMap { rows.observationAndTime[$0] }
-            .forEach { modelContext.delete($0) }
-        rows.requirementAssurance.filter { recordIDs.contains($0.workflowRecordID) }
-            .forEach { modelContext.delete($0) }
-        let boundFieldReferenceReleaseIDs=Set(rows.fieldReferenceBindings.map(\.releaseID))
-        for row in rows.fieldReferenceReleases where !boundFieldReferenceReleaseIDs.contains(row.releaseID){_ = try row.value();modelContext.delete(row)}
-        rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
-        rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
-        labelSnapshots.forEach { modelContext.delete($0) }
-        rows.activityStateTransitions.filter { removableActivityIDs.contains($0.activityID) }
-            .forEach { modelContext.delete($0) }
-        rows.installationTaskResults.filter { removableActivityIDs.contains($0.activityID) }
-            .forEach { modelContext.delete($0) }
-        rows.installationAsBuiltSnapshots.filter { removableActivityIDs.contains($0.activityID) }
-            .forEach { modelContext.delete($0) }
-        rows.punchReviewBasisSnapshots.filter { removableActivityIDs.contains($0.activityID) }
-            .forEach { modelContext.delete($0) }
-        rows.activitySessionEnvelopes.filter { removableActivityIDs.contains($0.activityID) }
-            .forEach { modelContext.delete($0) }
-        for packet in rows.packets {
-            if let tombstone = tombstones[packet.id] {
-                packet.currentRecordID = nil
-                packet.evaluationCounted = true
-                packet.contentDeletedAt = tombstone.contentDeletedAt
-            }
-        }
-        guard let asset = rows.assets.first(where: { $0.id == plan.assetID }) else {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-        modelContext.delete(asset)
-        guard plan.siteIDToDelete == nil else {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
-    }
-
-    func sha256(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
-    func requireLedgerEntriesUnseen(_ intent: DeletionIntentV1) throws {
-        try requireLedgerIdentitiesUnseen(intent.ledgerEntries.map(\.identity))
-    }
-
-    func requireLedgerIdentitiesUnseen(_ identities: [DeletionIdentityV2]) throws {
-        let expected = Set(identities)
-        do {
-            let existing = Set(try ledgerStore.snapshot().entries.map(\.identity))
-            guard expected.isDisjoint(with: existing) else {
-                throw WholeSignDeletionServiceError.graphInvalid
-            }
-        } catch let error as WholeSignDeletionServiceError {
-            throw error
-        } catch {
-            throw WholeSignDeletionServiceError.graphInvalid
-        }
     }
 
     static let maximumGraphRowsPerKind = DeletionLedgerV2.maximumEntryCount

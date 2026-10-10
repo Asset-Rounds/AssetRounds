@@ -807,11 +807,23 @@ final class V9_19LocalSearchTests: XCTestCase {
         XCTAssertEqual(bounds["maximumProjectionRows"] as? Int, 100_000)
         XCTAssertEqual(bounds["maximumProjectionRowsPerPage"] as? Int, 2_500)
         XCTAssertEqual(SearchContractLimitsV1.maximumCanonicalRecords, 10_000)
-        XCTAssertEqual(SearchContractLimitsV1.maximumProjectionRecords, 100_000)
-        XCTAssertEqual(SearchIndexRebuildCoordinatorV1.maximumProjectionRowsPerPage, 2_500)
+        XCTAssertEqual(SearchContractLimitsV1.exactSearchableFieldCount, 10)
+        XCTAssertEqual(SearchContractLimitsV1.maximumFieldRegistrations, 13)
+        XCTAssertEqual(SearchContractLimitsV1.maximumSearchableFieldCount, 45)
+        XCTAssertEqual(SearchContractLimitsV1.maximumProjectionRecords, 10_000 * 45)
+        XCTAssertEqual(SearchIndexRebuildCoordinatorV1.maximumProjectionRowsPerPage, 250 * 45)
         let harness = try makeHarness("scale")
         defer { harness.cleanup() }
         let registry = try makeRegistry()
+        XCTAssertEqual(registry.fields.count, 13)
+        XCTAssertEqual(
+            registry.fields.map { "\($0.fieldID):\($0.sourceKind.rawValue)" },
+            expectedFieldMappings
+        )
+        XCTAssertEqual(
+            Array(Set(registry.fields.map(\.fieldID))).sorted(),
+            expectedIndexedFieldIDs.sorted()
+        )
         let revision = try source(revision: 10_000)
         let records = try (0..<10_000).map { index in
             try record(id: String(format: "asset-%05d", index), text: String(format: "Asset %05d", index),
@@ -858,7 +870,19 @@ final class V9_19LocalSearchTests: XCTestCase {
             modelContext: productionContext,
             workspaceID: productionRevision.workspaceID,
             generationID: productionRevision.generationID,
-            revisionProvider: { productionRevisionBox.value }
+            revisionProvider: { productionRevisionBox.value },
+            includeAccountability: false,
+            includeAssetSemantics: false,
+            includeAuthorityCriterion: false,
+            includeFunctionalRelationships: false,
+            includeAssurance: false,
+            includeInspectionReview: false,
+            includeWorkPacket: false
+        )
+        XCTAssertEqual(productionSource.registry.fields.count, 13)
+        XCTAssertEqual(
+            productionSource.registry.fields.map { "\($0.fieldID):\($0.sourceKind.rawValue)" },
+            expectedFieldMappings
         )
         var canonicalOffset = 0
         var projectedRows = 0

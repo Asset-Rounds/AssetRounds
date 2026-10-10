@@ -7064,6 +7064,7 @@ private extension EraseAllService {
                 id: id, expectedCurrentID: expectedID, expectedRetiredIDs: retiredIDs,
                 authority: authority, service: self)
         }
+        try generationFactory.requirePreexistingRetiredEraseReadsSettled()
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
         }

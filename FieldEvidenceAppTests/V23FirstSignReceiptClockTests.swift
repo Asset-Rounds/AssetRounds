@@ -119,26 +119,39 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
         )
         defer { harness.removeFiles() }
         let scenario = try harness.makeScenario(createdAt: sourceDate)
-        let envelope = try MutationEnvelopeV1(
+        let premiseEnvelope = try MutationEnvelopeV1(
             request: scenario.request,
             identity: harness.identity
         )
-        let envelopeBytes = try envelope.canonicalData()
-        let decodedEnvelope = try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes)
-        guard case let .createFirstSign(originalCommand) = envelope.command,
+        let premiseEnvelopeBytes = try premiseEnvelope.canonicalData()
+        let decodedEnvelope = try MutationEnvelopeV1.decodeCanonical(from: premiseEnvelopeBytes)
+        guard case let .createFirstSign(originalCommand) = premiseEnvelope.command,
               case let .createFirstSign(decodedCommand) = decodedEnvelope.command else {
             return XCTFail("Expected the actual First Sign command")
         }
 
         XCTAssertNotEqual(decodedCommand.createdAt, originalCommand.createdAt)
-        XCTAssertNotEqual(decodedEnvelope, envelope)
-        XCTAssertEqual(try decodedEnvelope.canonicalData(), envelopeBytes)
-        XCTAssertEqual(try decodedEnvelope.canonicalSHA256(), try envelope.canonicalSHA256())
+        XCTAssertNotEqual(decodedEnvelope, premiseEnvelope)
+        XCTAssertEqual(try decodedEnvelope.canonicalData(), premiseEnvelopeBytes)
+        XCTAssertEqual(try decodedEnvelope.canonicalSHA256(), try premiseEnvelope.canonicalSHA256())
 
         _ = try harness.writer.execute(scenario.request)
         let receipt = try XCTUnwrap(
             harness.store.receipt(mutationID: scenario.mutationID)
         )
+        // The future eligible original includes its atomically committed basis
+        // digest. Retry authority comes from those accepted envelope bytes,
+        // not a synthetic pre-execution envelope that omitted the commitment.
+        let acceptedRows = try harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).filter {
+            $0.workspaceID == harness.identity.workspaceID.rawValue
+                && $0.mutationID == scenario.mutationID.rawValue
+        }
+        XCTAssertEqual(acceptedRows.count, 1)
+        let acceptedRow = try XCTUnwrap(acceptedRows.first)
+        let envelopeBytes = acceptedRow.envelopeData
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes)
+        XCTAssertEqual(try envelope.canonicalData(), envelopeBytes)
+        XCTAssertEqual(try envelope.canonicalSHA256(), acceptedRow.envelopeSHA256)
         let beforeReplay = try harness.writer.currentRevision()
         let countsBeforeReplay = try harness.rowCounts(in: harness.context)
         XCTAssertEqual(
@@ -178,7 +191,8 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
                 expectedRevision: scenario.request.expectedRevision,
                 command: changedCommand
             ),
-            identity: harness.identity
+            identity: harness.identity,
+            reversalPlanDigest: envelope.reversalPlanDigest
         )
         XCTAssertNotEqual(try changedEnvelope.canonicalData(), envelopeBytes)
         XCTAssertNotEqual(try changedEnvelope.canonicalSHA256(), try envelope.canonicalSHA256())

@@ -556,14 +556,15 @@ struct PortableReversalPlanV1: Codable, Equatable, Sendable {
     let expectedRevision: MutationPortableExpectedRevisionV1
     let planDigest: String
     let compensatingCommands: [WorkspaceCommandV1]
+    let firstSignCompensation: FirstSignCompensationV1?
 
-    init(targetMutationID: MutationIDV1, targetReceiptIdentity: MutationReceiptIdentityV1, expectedRevision: MutationPortableExpectedRevisionV1, planDigest: String, compensatingCommands: [WorkspaceCommandV1]) throws {
-        schemaVersion = Self.schemaVersion; self.targetMutationID = targetMutationID; self.targetReceiptIdentity = targetReceiptIdentity; self.expectedRevision = expectedRevision; self.planDigest = planDigest; self.compensatingCommands = compensatingCommands
+    init(targetMutationID: MutationIDV1, targetReceiptIdentity: MutationReceiptIdentityV1, expectedRevision: MutationPortableExpectedRevisionV1, planDigest: String, compensatingCommands: [WorkspaceCommandV1], firstSignCompensation: FirstSignCompensationV1? = nil) throws {
+        schemaVersion = firstSignCompensation == nil ? Self.schemaVersion : 2; self.targetMutationID = targetMutationID; self.targetReceiptIdentity = targetReceiptIdentity; self.expectedRevision = expectedRevision; self.planDigest = planDigest; self.compensatingCommands = compensatingCommands; self.firstSignCompensation = firstSignCompensation
         try validate()
     }
     init(basis: ReversalBasisV1, expectedRevision: MutationPortableExpectedRevisionV1, compensatingCommands: [WorkspaceCommandV1]) throws {
         guard compensatingCommands.map(\.kind) == basis.compensatingCommandKinds else { throw ChangeJournalFailureV1.invalidReversal }
-        try self.init(targetMutationID: basis.targetMutationID, targetReceiptIdentity: basis.targetReceiptIdentity, expectedRevision: expectedRevision, planDigest: basis.planDigest, compensatingCommands: compensatingCommands)
+        try self.init(targetMutationID: basis.targetMutationID, targetReceiptIdentity: basis.targetReceiptIdentity, expectedRevision: expectedRevision, planDigest: basis.planDigest, compensatingCommands: compensatingCommands, firstSignCompensation: basis.firstSignCompensation)
     }
     init(plan: SemanticReversalPlanV1, targetReceiptIdentity: MutationReceiptIdentityV1) throws {
         try self.init(
@@ -571,22 +572,44 @@ struct PortableReversalPlanV1: Codable, Equatable, Sendable {
             targetReceiptIdentity: targetReceiptIdentity,
             expectedRevision: MutationPortableExpectedRevisionV1(plan.expectedRevision),
             planDigest: plan.planDigest,
-            compensatingCommands: plan.compensatingCommands
+            compensatingCommands: plan.compensatingCommands,
+            firstSignCompensation: plan.firstSignCompensation
         )
     }
     func validate() throws {
         try targetReceiptIdentity.validate(); try expectedRevision.validate()
-        guard schemaVersion == Self.schemaVersion, targetReceiptIdentity.workspaceID == expectedRevision.workspaceID, ChangeJournalValidationV1.isSHA256(planDigest), !compensatingCommands.isEmpty, compensatingCommands.count <= SemanticReversalPlanV1.maximumItems else { throw ChangeJournalFailureV1.invalidReversal }
+        guard schemaVersion == Self.schemaVersion || schemaVersion == 2, targetReceiptIdentity.workspaceID == expectedRevision.workspaceID, ChangeJournalValidationV1.isSHA256(planDigest), !compensatingCommands.isEmpty, compensatingCommands.count <= SemanticReversalPlanV1.maximumItems else { throw ChangeJournalFailureV1.invalidReversal }
+        if schemaVersion == Self.schemaVersion {
+            guard firstSignCompensation == nil else { throw ChangeJournalFailureV1.invalidReversal }
+        } else {
+            guard let firstSignCompensation,
+                  firstSignCompensation.targetMutationID == targetMutationID,
+                  try firstSignCompensation.commitment() == planDigest,
+                  compensatingCommands == [try firstSignCompensation.compensatingCommand()] else {
+                throw ChangeJournalFailureV1.invalidReversal
+            }
+        }
     }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, targetMutationID, targetReceiptIdentity, expectedRevision, planDigest, compensatingCommands }
-    init(from decoder: any Decoder) throws { try ChangeJournalClosedCodingV1.requireExact(decoder, CodingKeys.self); let c = try decoder.container(keyedBy: CodingKeys.self); guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else { throw ChangeJournalFailureV1.incompatibleVersion }; try self.init(targetMutationID: c.decode(MutationIDV1.self, forKey: .targetMutationID), targetReceiptIdentity: c.decode(MutationReceiptIdentityV1.self, forKey: .targetReceiptIdentity), expectedRevision: c.decode(MutationPortableExpectedRevisionV1.self, forKey: .expectedRevision), planDigest: c.decode(String.self, forKey: .planDigest), compensatingCommands: c.decode([WorkspaceCommandV1].self, forKey: .compensatingCommands)) }
+    private enum LegacyCodingKeys: String, CodingKey, CaseIterable { case schemaVersion, targetMutationID, targetReceiptIdentity, expectedRevision, planDigest, compensatingCommands }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, targetMutationID, targetReceiptIdentity, expectedRevision, planDigest, compensatingCommands, firstSignCompensation }
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try c.decode(Int.self, forKey: .schemaVersion)
+        switch version {
+        case Self.schemaVersion: try ChangeJournalClosedCodingV1.requireExact(decoder, LegacyCodingKeys.self)
+        case 2: try ChangeJournalClosedCodingV1.requireExact(decoder, CodingKeys.self)
+        default: throw ChangeJournalFailureV1.incompatibleVersion
+        }
+        try self.init(targetMutationID: c.decode(MutationIDV1.self, forKey: .targetMutationID), targetReceiptIdentity: c.decode(MutationReceiptIdentityV1.self, forKey: .targetReceiptIdentity), expectedRevision: c.decode(MutationPortableExpectedRevisionV1.self, forKey: .expectedRevision), planDigest: c.decode(String.self, forKey: .planDigest), compensatingCommands: c.decode([WorkspaceCommandV1].self, forKey: .compensatingCommands), firstSignCompensation: version == 2 ? c.decode(FirstSignCompensationV1.self, forKey: .firstSignCompensation) : nil)
+    }
 }
 
 extension ReversalBasisV1 {
     init(portablePlan: PortableReversalPlanV1, targetReceiptIdentity: MutationReceiptIdentityV1) throws {
         try portablePlan.validate()
         try targetReceiptIdentity.validate()
-        schemaVersion = Self.schemaVersion
+        firstSignCompensation = portablePlan.firstSignCompensation
+        schemaVersion = firstSignCompensation == nil ? Self.schemaVersion : 2
         targetMutationID = portablePlan.targetMutationID
         self.targetReceiptIdentity = targetReceiptIdentity
         policyVersion = MutationReversalPolicyRegistryV1.version

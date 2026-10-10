@@ -4872,6 +4872,7 @@ struct SemanticReversalPlanV1: Equatable, Sendable {
     let conflicts: [String]
     let compensatingCommands: [WorkspaceCommandV1]
     let planDigest: String
+    let firstSignCompensation: FirstSignCompensationV1?
 
     init(
         mutationID: MutationIDV1,
@@ -4925,6 +4926,40 @@ struct SemanticReversalPlanV1: Equatable, Sendable {
         self.conflicts = sortedConflicts
         self.compensatingCommands = compensatingCommands
         planDigest = try WorkspaceMutationCanonicalV1.sha256(basis)
+        firstSignCompensation = nil
+    }
+
+    /// New first-sign plans commit portable operands rather than a transient
+    /// writer-instance token. Legacy plan hashing above remains byte-exact.
+    init(firstSignCompensation payload: FirstSignCompensationV1, writerInstanceID: UUID,
+         expectedRevision currentExpectedRevision: WorkspaceExpectedRevisionV1? = nil) throws {
+        try payload.validate()
+        guard try MutationReversalPolicyRegistryV1.policy(for: .createFirstSign).disposition == .compensatable else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        schemaVersion = 2
+        mutationID = payload.targetMutationID
+        commandKind = .createFirstSign
+        disposition = .compensatable
+        let original = try WorkspaceExpectedRevisionV1(
+            workspaceID: payload.expectedRevision.workspaceID,
+            generationID: payload.expectedRevision.generationID,
+            writerInstanceID: writerInstanceID,
+            workspaceRevision: payload.expectedRevision.workspaceRevision,
+            entityRevisions: payload.expectedRevision.entityRevisions)
+        expectedRevision = currentExpectedRevision ?? original
+        guard expectedRevision.workspaceID == payload.expectedRevision.workspaceID,
+              expectedRevision.writerInstanceID == writerInstanceID else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        prospectiveTargets = [try .init(kind: .asset, id: payload.assetID)]
+        requiredSemanticValues = [.init(key: "first_sign_commitment", value: try payload.commitment())]
+        contentReferences = []
+        dependencyGraph = []
+        conflicts = []
+        compensatingCommands = [try payload.compensatingCommand()]
+        planDigest = try payload.commitment()
+        firstSignCompensation = payload
     }
 
     private struct DigestBasis: Codable {

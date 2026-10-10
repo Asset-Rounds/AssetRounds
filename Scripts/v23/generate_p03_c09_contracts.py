@@ -24,7 +24,7 @@ def require_behavioral_swift_evidence(root: Path) -> None:
         r"for index in 0\.\.<10_000 \{\s*productionContext\.insert\(Asset\(",
         r"XCTAssertEqual\(canonicalOffset, 10_000\)",
         r"XCTAssertEqual\(projectedRows, 30_000\)",
-        r"productionRevisionBox\.value = try source\(revision: 8\)",
+        r"productionRevisionBox\.value = try self\.source\(revision: 8\)",
         r"collisionContext\.insert\(workflowRecord\(id: collisionID\)\)",
         r"collisionContext\.insert\(Issue\(",
         r"WorkspaceEntityIdentityV1\(kind: \.workflowRecord, id: collisionID\)\.stableKey",

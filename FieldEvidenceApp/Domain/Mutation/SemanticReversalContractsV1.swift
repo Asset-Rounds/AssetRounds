@@ -77,6 +77,89 @@ struct SemanticReversalReplayIdentityV1: Codable, Equatable, Sendable {
     }
 }
 
+/// A bounded executable commitment for newly recorded first-sign operations.
+/// Canonical command bytes and portable authority survive process restart;
+/// the process-local writer token is never persisted or exported here.
+struct FirstSignCompensationV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let targetMutationID: MutationIDV1
+    let expectedRevision: MutationPortableExpectedRevisionV1
+    let originalCommandSHA256: String
+    let assetID: UUID
+    let siteID: UUID
+    let initialPlacementMutationID: MutationIDV1?
+    let initialPlacementEventID: UUID?
+    let initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1?
+
+    init(request: WorkspaceMutationRequestV1) throws {
+        guard case let .createFirstSign(value) = request.command else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        schemaVersion = 1
+        targetMutationID = request.mutationID
+        expectedRevision = try MutationPortableExpectedRevisionV1(request.expectedRevision)
+        originalCommandSHA256 = try WorkspaceMutationCanonicalV1.sha256(request.command)
+        assetID = value.assetID
+        siteID = value.siteID
+        initialPlacementMutationID = value.initialPlacementMutationID
+        initialPlacementEventID = value.initialPlacementEventID
+        initialPhysicalEpisodeID = value.initialPhysicalEpisodeID
+        try validate()
+    }
+
+    /// The full command remains in its immutable original envelope. This
+    /// bounded executable basis joins that real body without copying labels,
+    /// package strings, dates, evidence, or process-local writer authority.
+    func requireOriginalCommand(_ command: WorkspaceCommandV1) throws -> FirstSignMutationV1 {
+        guard case let .createFirstSign(value) = command,
+              try WorkspaceMutationCanonicalV1.sha256(command) == originalCommandSHA256,
+              value.assetID == assetID, value.siteID == siteID,
+              value.initialPlacementMutationID == initialPlacementMutationID,
+              value.initialPlacementEventID == initialPlacementEventID,
+              value.initialPhysicalEpisodeID == initialPhysicalEpisodeID else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        return value
+    }
+
+    func validate() throws {
+        try expectedRevision.validate()
+        _ = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+        _ = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+        guard schemaVersion == 1,
+              MutationEnvelopeV1.isSHA256(originalCommandSHA256) else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        let placement = [initialPlacementMutationID != nil,
+                         initialPlacementEventID != nil,
+                         initialPhysicalEpisodeID != nil]
+        guard placement.allSatisfy({ $0 }) || placement.allSatisfy({ !$0 }),
+              initialPlacementMutationID == nil || initialPlacementMutationID == targetMutationID else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+    }
+
+    func commitment() throws -> String {
+        try validate()
+        return try WorkspaceMutationCanonicalV1.sha256(self)
+    }
+
+    func compensatingCommand() throws -> WorkspaceCommandV1 {
+        try validate()
+        return .deleteAsset(.init(deletionID: targetMutationID.rawValue,
+                                 assetID: assetID, planDigest: try commitment()))
+    }
+
+    func semanticPlan(writerInstanceID: UUID) throws -> SemanticReversalPlanV1 {
+        try SemanticReversalPlanV1(firstSignCompensation: self, writerInstanceID: writerInstanceID)
+    }
+
+    func semanticPlan(expectedRevision: WorkspaceExpectedRevisionV1) throws -> SemanticReversalPlanV1 {
+        try SemanticReversalPlanV1(firstSignCompensation: self,
+            writerInstanceID: expectedRevision.writerInstanceID, expectedRevision: expectedRevision)
+    }
+}
+
 struct ReversalBasisV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
@@ -85,6 +168,9 @@ struct ReversalBasisV1: Codable, Equatable, Sendable {
     let policyVersion: Int
     let planDigest: String
     let compensatingCommandKinds: [WorkspaceCommandKindV1]
+    /// Nil for the exact historic digest-only schema. Missing promised V2
+    /// payloads fail closed; a legacy digest is never used to invent a body.
+    let firstSignCompensation: FirstSignCompensationV1?
 
     init(targetMutationID: MutationIDV1, targetReceiptIdentity: MutationReceiptIdentityV1, plan: SemanticReversalPlanV1) throws {
         guard plan.mutationID == targetMutationID,
@@ -92,7 +178,8 @@ struct ReversalBasisV1: Codable, Equatable, Sendable {
               plan.compensatingCommands.count <= SemanticReversalPlanV1.maximumItems else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
-        schemaVersion = Self.schemaVersion
+        firstSignCompensation = plan.firstSignCompensation
+        schemaVersion = firstSignCompensation == nil ? Self.schemaVersion : 2
         self.targetMutationID = targetMutationID
         self.targetReceiptIdentity = targetReceiptIdentity
         policyVersion = MutationReversalPolicyRegistryV1.version
@@ -112,22 +199,33 @@ struct ReversalBasisV1: Codable, Equatable, Sendable {
     ) throws {
         try source.validate()
         try targetReceiptIdentity.validate()
-        schemaVersion = Self.schemaVersion
+        schemaVersion = source.schemaVersion
         self.targetMutationID = targetMutationID
         self.targetReceiptIdentity = targetReceiptIdentity
         policyVersion = MutationReversalPolicyRegistryV1.version
         planDigest = source.planDigest
         compensatingCommandKinds = source.compensatingCommandKinds
+        firstSignCompensation = source.firstSignCompensation
         try validate()
     }
 
     func validate() throws {
         try targetReceiptIdentity.validate()
-        guard schemaVersion == Self.schemaVersion,
+        guard schemaVersion == Self.schemaVersion || schemaVersion == 2,
               policyVersion == MutationReversalPolicyRegistryV1.version,
               MutationEnvelopeV1.isSHA256(planDigest),
               compensatingCommandKinds.count <= SemanticReversalPlanV1.maximumItems else {
             throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        if schemaVersion == Self.schemaVersion {
+            guard firstSignCompensation == nil else { throw WorkspaceMutationFailureV1.invalidReversal }
+        } else {
+            guard let firstSignCompensation,
+                  firstSignCompensation.targetMutationID == targetMutationID,
+                  try firstSignCompensation.commitment() == planDigest,
+                  compensatingCommandKinds == [.deleteAsset] else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
         }
     }
 

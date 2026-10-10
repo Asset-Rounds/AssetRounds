@@ -11688,6 +11688,7 @@ final class ErasePreexistingRetiredSourceValidationV1 {
     private let pointer: CurrentGenerationPointerV3
     private let retiredIDs: [UUID]
     private let rootDescriptor: Int32
+    private let ownsRootDescriptor: Bool
     private let rootIdentity: StoreRestoreGenerationAuthority.Identity
     private let currentRootIdentity: StreamingArchiveRootIdentityV1
     private let modelIdentity: StoreRestoreGenerationAuthority.RegularFileIdentity
@@ -11702,7 +11703,7 @@ final class ErasePreexistingRetiredSourceValidationV1 {
         session: StoreGenerationSession, manifestStore: StoreMigrationJournalStoreV1,
         manifest: StoreGenerationManifestV1, epoch: GenerationEpochV1,
         reader: GenerationLeaseTokenV1, pointer: CurrentGenerationPointerV3,
-        retiredIDs: [UUID], rootDescriptor: Int32,
+        retiredIDs: [UUID], rootDescriptor: Int32, ownsRootDescriptor: Bool,
         rootIdentity: StoreRestoreGenerationAuthority.Identity,
         currentRootIdentity: StreamingArchiveRootIdentityV1,
         identity: WorkspaceReplicaIdentityV1, history: MutationHistorySnapshotV1,
@@ -11713,6 +11714,7 @@ final class ErasePreexistingRetiredSourceValidationV1 {
         self.manifestStore = manifestStore; self.manifest = manifest
         self.epoch = epoch; self.reader = reader; self.pointer = pointer
         self.retiredIDs = retiredIDs; self.rootDescriptor = rootDescriptor
+        self.ownsRootDescriptor = ownsRootDescriptor
         self.rootIdentity = rootIdentity; self.currentRootIdentity = currentRootIdentity
         modelIdentity = try StoreRestoreGenerationAuthority.regularFileIdentity(
             parent: rootDescriptor, name: "model.sqlite")
@@ -11722,11 +11724,12 @@ final class ErasePreexistingRetiredSourceValidationV1 {
         mutableSemanticSHA256 = state.mutableSemanticSHA256
     }
 
-    deinit { _ = Darwin.close(rootDescriptor) }
+    deinit { if ownsRootDescriptor { _ = Darwin.close(rootDescriptor) } }
 
     fileprivate static func acquire(factory: StoreGenerationFactory,
         authority: StoreRestoreGenerationAuthority, session: StoreGenerationSession,
-        expectedCurrentID: UUID, expectedRetiredIDs: [UUID]
+        expectedCurrentID: UUID, expectedRetiredIDs: [UUID],
+        cohort: ErasePreexistingRetiredReadCohortV1? = nil
     ) throws -> ErasePreexistingRetiredSourceValidationV1 {
         let id = session.generationID
         guard id != expectedCurrentID, expectedRetiredIDs.contains(id),
@@ -11745,9 +11748,10 @@ final class ErasePreexistingRetiredSourceValidationV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         let descriptor = Darwin.open(session.generationRootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        try cohort?.captureRootDescriptor(descriptor)
         guard descriptor >= 0 else { throw EraseAllServiceError.invalidAuthority }
         var transferred = false
-        defer { if !transferred { _ = Darwin.close(descriptor) } }
+        defer { if !transferred && cohort == nil { _ = Darwin.close(descriptor) } }
         let root = try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor)
         let currentRoot = try authority.restoreGenerationRootIdentity(id: expectedCurrentID, staging: false)
         try factory.reprovePreexistingRetiredRoot(id: id, descriptor: descriptor, expectedIdentity: root)
@@ -11761,7 +11765,8 @@ final class ErasePreexistingRetiredSourceValidationV1 {
         let result = try ErasePreexistingRetiredSourceValidationV1(factory: factory,
             authority: authority, session: session, manifestStore: store, manifest: manifest,
             epoch: epoch, reader: reader, pointer: pointer, retiredIDs: expectedRetiredIDs,
-            rootDescriptor: descriptor, rootIdentity: root, currentRootIdentity: currentRoot,
+            rootDescriptor: descriptor, ownsRootDescriptor: cohort == nil,
+            rootIdentity: root, currentRootIdentity: currentRoot,
             identity: identity, history: history, state: state)
         transferred = true
         try result.revalidate(modelContext: session.modelContext)
@@ -12244,6 +12249,166 @@ fileprivate final class EraseSessionWeakObservationV1 {
     }
 }
 
+/// A single synchronous prior-retired read belongs to the original Erase
+/// operation, but its authentic manifest epoch is not the current writer epoch.
+/// The inventory retains it before publication and until real checked settlement.
+/// No session/context/container or reusable semantic authorization is retained.
+@MainActor
+final class ErasePreexistingRetiredReadCohortV1 {
+    let retiredID: UUID
+    let currentID: UUID
+    let retiredIDs: [UUID]
+    private weak var operation: EraseRouterOperationV1?
+    private weak var inventory: EraseReaderRetirementInventoryV1?
+    private let registry: GenerationLeaseRegistryV1
+    private var allocation: GenerationLeaseAllocationAttemptV1?
+    private var observation: EraseSessionWeakObservationV1?
+    private weak var validation: ErasePreexistingRetiredSourceValidationV1?
+    private var frameEnded = false
+    private var settled = false
+
+    // Capture the returned descriptor before any subsequent identity/semantic
+    // check can throw. An uncertain close is never retried or called disposal.
+    private struct RootDescriptor {
+        let returned: Int32
+        var closed = false
+        var uncertain = false
+    }
+    private var rootDescriptors: [RootDescriptor] = []
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        inventory: EraseReaderRetirementInventoryV1, registry: GenerationLeaseRegistryV1,
+        retiredID: UUID, currentID: UUID, retiredIDs: [UUID]) {
+        self.operation = operation; self.inventory = inventory; self.registry = registry
+        self.retiredID = retiredID; self.currentID = currentID; self.retiredIDs = retiredIDs
+    }
+
+    func matches(operation expected: EraseRouterOperationV1,
+        inventory expectedInventory: EraseReaderRetirementInventoryV1,
+        registry expectedRegistry: GenerationLeaseRegistryV1) -> Bool {
+        operation === expected && inventory === expectedInventory && registry === expectedRegistry
+    }
+    fileprivate func contains(_ value: GenerationLeaseAllocationAttemptV1) -> Bool {
+        allocation === value
+    }
+    fileprivate var publishedToken: GenerationLeaseTokenV1? {
+        allocation?.preparationPublishedToken
+    }
+#if DEBUG
+    // Genuine retained Registry only; this observation cannot mint a cohort.
+    var registryForTesting: GenerationLeaseRegistryV1 { registry }
+    var readerAllocationForTesting: GenerationLeaseAllocationAttemptV1? { allocation }
+#endif
+    fileprivate func requireRegistry(_ expected: GenerationLeaseRegistryV1) throws {
+        guard registry === expected,
+              allocation.map({ $0.matches(registry: expected)
+                  && $0.generationEpoch.generationID == retiredID }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    private func requireLiveFrame() throws {
+        guard !frameEnded, !settled, let operation, let inventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreexistingRetiredReadCohort(self, inventory: inventory, registry: registry)
+    }
+    fileprivate func retainAllocation(_ value: GenerationLeaseAllocationAttemptV1) throws {
+        try requireLiveFrame()
+        guard allocation == nil, value.matches(registry: registry),
+              value.generationEpoch.generationID == retiredID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        allocation = value // before any token publication or Registry replacement
+    }
+    fileprivate func acquireReader(_ value: GenerationLeaseAllocationAttemptV1) throws
+        -> GenerationLeaseHandleV1 {
+        try requireLiveFrame()
+        guard allocation === value, let operation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try value.acquireReaderForErasePreparation(operation: operation)
+    }
+    fileprivate func beginConstruction(reader: GenerationLeaseHandleV1?) throws
+        -> EraseSessionWeakObservationV1 {
+        try requireLiveFrame()
+        guard observation == nil, let reader, allocation?.allocatedHandle === reader,
+              reader.token.role == .reader, reader.token.epoch == allocation?.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let result = EraseSessionWeakObservationV1()
+        observation = result // before the real ModelContainer constructor
+        return result
+    }
+    fileprivate func captureRootDescriptor(_ returned: Int32) throws {
+        // Retain first even if a future erroneous duplicate call refuses.
+        rootDescriptors.append(RootDescriptor(returned: returned))
+        try requireLiveFrame()
+        guard rootDescriptors.count == 1 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    fileprivate func captureValidation(_ value: ErasePreexistingRetiredSourceValidationV1) throws {
+        try requireLiveFrame()
+        guard validation == nil, rootDescriptors.count == 1,
+              rootDescriptors[0].returned >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        validation = value
+    }
+    private func requireAliasesDrained() throws {
+        guard frameEnded, validation == nil,
+              observation.map({ $0.isDrained }) ?? true,
+              rootDescriptors.count <= 1 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    fileprivate func settleAfterFrame() throws {
+        try requireLiveFrame()
+        frameEnded = true // the real synchronous autoreleasepool has returned
+        try requireAliasesDrained()
+        for index in rootDescriptors.indices {
+            guard !rootDescriptors[index].uncertain else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if rootDescriptors[index].returned >= 0 && !rootDescriptors[index].closed {
+                let result = Darwin.close(rootDescriptors[index].returned)
+                let savedErrno = errno
+                if result == 0 { rootDescriptors[index].closed = true }
+                else { rootDescriptors[index].uncertain = true }
+                errno = savedErrno
+                guard result == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            }
+        }
+        if let allocation {
+            allocation.sealForRetirement()
+            try allocation.closeAfterPreexistingRetiredRead(proof: self)
+        }
+        settled = true
+        try requireSettled()
+    }
+    func requireDrained(registry expected: GenerationLeaseRegistryV1,
+        readerAllocation expectedAllocation: GenerationLeaseAllocationAttemptV1) throws {
+        try requireRegistry(expected)
+        try requireAliasesDrained()
+        guard allocation === expectedAllocation,
+              expectedAllocation.sealedForRetirement,
+              rootDescriptors.allSatisfy({ !$0.uncertain && ($0.returned < 0 || $0.closed) }),
+              let operation, let inventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreexistingRetiredReadCohort(self, inventory: inventory, registry: registry)
+    }
+    fileprivate func requireSettled() throws {
+        try requireRegistry(registry)
+        try requireAliasesDrained()
+        guard settled,
+              rootDescriptors.allSatisfy({ !$0.uncertain && ($0.returned < 0 || $0.closed) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let allocation { try allocation.requirePreexistingRetiredReadDisposed() }
+    }
+}
+
 /// Captures exact leases while the owning sessions are still alive. It stores
 /// no factory, callback, arbitrary Error, writer or strong SwiftData reference.
 /// The owner must retain this inventory on every failure until handoff closes
@@ -12263,6 +12428,7 @@ final class EraseReaderRetirementInventoryV1 {
     private weak var preparationOperation: EraseRouterOperationV1?
     private var preparationWasBound = false
     private var preparationWitness: ErasePreparationFailureDrainWitnessV1?
+    private var preexistingRetiredReadCohorts: [ErasePreexistingRetiredReadCohortV1] = []
 #if DEBUG
     private var originalShutdownWitness: EraseOriginalShutdownWitnessV1?
     // Retains any uncertain diagnostic descriptor through the Erase operation.
@@ -12442,6 +12608,8 @@ final class EraseReaderRetirementInventoryV1 {
             }
             expected = originalReaders.map(\.token) + [sourceWriter.token]
             expected += allocations.compactMap(\.preparationPublishedToken)
+            for cohort in preexistingRetiredReadCohorts { try cohort.requireRegistry(registry) }
+            expected += preexistingRetiredReadCohorts.compactMap { $0.publishedToken }
             if let token = writer?.preparationPublishedToken { expected.append(token) }
 #if DEBUG
             diagnosticStage = "lease-set"
@@ -12476,8 +12644,40 @@ final class EraseReaderRetirementInventoryV1 {
     }
 
     func containsPreparationAllocation(_ value: GenerationLeaseAllocationAttemptV1) -> Bool {
-        preparationWasBound && allocations.contains(where: { $0 === value })
+        preparationWasBound && (allocations.contains(where: { $0 === value })
+            || preexistingRetiredReadCohorts.contains(where: { $0.contains(value) }))
     }
+
+    func containsPreexistingRetiredReadCohort(_ value: ErasePreexistingRetiredReadCohortV1) -> Bool {
+        preparationWasBound && preexistingRetiredReadCohorts.contains(where: { $0 === value })
+    }
+
+    fileprivate func beginPreexistingRetiredRead(factory: StoreGenerationFactory,
+        registry: GenerationLeaseRegistryV1, id: UUID, currentID: UUID, retiredIDs: [UUID]
+    ) throws -> ErasePreexistingRetiredReadCohortV1 {
+        try requireUnsealed()
+        try requirePreexistingRetiredReadsSettled()
+        guard preparationWasBound, let operation = preparationOperation,
+              id != currentID, retiredIDs.contains(id),
+              !freshOwnerWasBound, !coldPreparationWasBound, !schema2ColdCompletedWasBound else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registerFreshRegistry(registry, factory: factory)
+        let cohort = ErasePreexistingRetiredReadCohortV1(operation: operation,
+            inventory: self, registry: registry, retiredID: id, currentID: currentID, retiredIDs: retiredIDs)
+        preexistingRetiredReadCohorts.append(cohort) // the owner exists before first allocation
+        try operation.requirePreexistingRetiredReadCohort(cohort, inventory: self, registry: registry)
+        return cohort
+    }
+
+    func requirePreexistingRetiredReadsSettled() throws {
+        for cohort in preexistingRetiredReadCohorts { try cohort.requireSettled() }
+    }
+#if DEBUG
+    var lastPreexistingRetiredReadCohortForTesting: ErasePreexistingRetiredReadCohortV1? {
+        preexistingRetiredReadCohorts.last
+    }
+#endif
 
     func observesPreparationSession(_ value: StoreGenerationSession) -> Bool {
         preparationWasBound && observations.dropFirst(originalObservationCount).contains(where: {
@@ -12495,6 +12695,7 @@ final class EraseReaderRetirementInventoryV1 {
               writer.map({ $0.matches(registry: registry) }) ?? true else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+        try requirePreexistingRetiredReadsSettled()
         try operation.requirePreparationFailureWitnessRegistration(inventory: self, registry: registry, writer: writer)
         admissionClosed = true
         allocations.forEach { $0.sealForRetirement() }
@@ -12551,6 +12752,7 @@ final class EraseReaderRetirementInventoryV1 {
         registry: GenerationLeaseRegistryV1,
         writer: GenerationWriterAllocationAttemptV1?) throws
         -> EraseOriginalShutdownWitnessV1 {
+        try requirePreexistingRetiredReadsSettled()
         let unsealed = !admissionClosed && preparationWitness == nil
         let disposedAbort = completedAbortOriginalShutdownArmed
             && admissionClosed && preparationWitness != nil
@@ -12760,6 +12962,7 @@ final class EraseReaderRetirementInventoryV1 {
 #endif
 
     func requireNoConstructedResourcesForAbort() throws {
+        try requirePreexistingRetiredReadsSettled()
         // Original source capture does not allocate a reader. Any actual
         // allocation remains owned until the separate preparation-failure
         // disposal boundary has genuinely settled it.
@@ -12776,6 +12979,7 @@ final class EraseReaderRetirementInventoryV1 {
     /// while its actual operation is still current.  The original cohort is
     /// deliberately not closed here: its SwiftData aliases may still be live.
     func armAbortedOriginalReaderRetirement(operation: EraseRouterOperationV1) throws {
+        try requirePreexistingRetiredReadsSettled()
         guard preparationOperation === operation, preparationWasBound,
               !abortedOriginalReaderRetirementArmed,
               originalObservationCount > 0, !originalReaders.isEmpty,
@@ -12813,6 +13017,7 @@ final class EraseReaderRetirementInventoryV1 {
         sourceEpoch: GenerationEpochV1,
         registry: GenerationLeaseRegistryV1
     ) throws {
+        try requirePreexistingRetiredReadsSettled()
 #if DEBUG
         do {
             try requireUnsealed()
@@ -12898,6 +13103,7 @@ final class EraseReaderRetirementInventoryV1 {
     }
 
     func seal(binding: EraseRetirementBindingV1) throws -> EraseSessionDrainWitnessV1 {
+        try requirePreexistingRetiredReadsSettled()
         guard !schema2ColdCompletedWasBound, !admissionClosed, sealedWitness == nil,
               (!observations.isEmpty || !allocations.isEmpty),
               observations.allSatisfy({ !$0.constructionInProgress }) else {
@@ -24045,6 +24251,7 @@ struct StoreGenerationFactory {
     // The Erase operation, not this value or its save callback, must retain the
     // inventory until every captured lease has explicitly settled.
     private var eraseReaderRetirementInventory: EraseReaderRetirementInventoryV1? = nil
+    private var preexistingRetiredReadCohort: ErasePreexistingRetiredReadCohortV1? = nil
 
     func sharesRegistryProvider(with other: StoreGenerationFactory) -> Bool {
         generationLeaseRegistryProvider === other.generationLeaseRegistryProvider
@@ -24272,6 +24479,7 @@ struct StoreGenerationFactory {
         // saving must not extend that inventory's lifetime through a factory.
         var reproof = withoutColdOpenDiagnostics()
         reproof.eraseReaderRetirementInventory = nil
+        reproof.preexistingRetiredReadCohort = nil
         return reproof
     }
 
@@ -24557,6 +24765,11 @@ struct StoreGenerationFactory {
             )
             guard acceptedIDs.contains(epoch.generationID) else {
                 throw GenerationLeaseRegistryFailureV1.staleGeneration
+            }
+            if let cohort = preexistingRetiredReadCohort {
+                let allocation = try registry.makeReaderAllocationAttempt(epoch: epoch)
+                try cohort.retainAllocation(allocation)
+                return try cohort.acquireReader(allocation)
             }
             if let inventory = eraseReaderRetirementInventory {
                 let allocation = try registry.makeReaderAllocationAttempt(epoch: epoch)
@@ -28176,6 +28389,11 @@ struct StoreGenerationFactory {
             parent: descriptor, requireModel: true)
     }
 
+    @MainActor
+    func requirePreexistingRetiredEraseReadsSettled() throws {
+        try eraseReaderRetirementInventory?.requirePreexistingRetiredReadsSettled()
+    }
+
     /// A closed, synchronous maintenance read. No reader/context or reusable
     /// authorization escapes this call, and ordinary export stays current-only.
     @MainActor
@@ -28196,21 +28414,28 @@ struct StoreGenerationFactory {
                   try authority.retiredGenerationIDs() == expectedRetiredIDs else {
                 throw EraseAllServiceError.invalidAuthority
             }
+            let cohort = try eraseReaderRetirementInventory?.beginPreexistingRetiredRead(
+                factory: self, registry: registry, id: id,
+                currentID: expectedCurrentID, retiredIDs: expectedRetiredIDs)
+            var readFactory = self
+            readFactory.preexistingRetiredReadCohort = cohort
             var drain: ErasePreexistingRetiredDrainProofV1?
 #if DEBUG
             var phase = "open"
 #endif
             let result: Result<Void, Error> = autoreleasepool {
                 Result {
-                    let session = try openInstalledGeneration(id: id, authority: authority)
+                    let session = try readFactory.openInstalledGeneration(id: id, authority: authority)
                     drain = ErasePreexistingRetiredDrainProofV1(session: session)
 #if DEBUG
                     phase = "accepted-semantics-and-authority"
 #endif
                     let validation = try ErasePreexistingRetiredSourceValidationV1.acquire(
-                        factory: self, authority: authority, session: session,
-                        expectedCurrentID: expectedCurrentID, expectedRetiredIDs: expectedRetiredIDs)
+                        factory: readFactory, authority: authority, session: session,
+                        expectedCurrentID: expectedCurrentID, expectedRetiredIDs: expectedRetiredIDs,
+                        cohort: cohort)
                     defer { validation.invalidate() }
+                    try cohort?.captureValidation(validation)
                     do {
 #if DEBUG
                         phase = "complete-summary-and-inventory"
@@ -28235,6 +28460,7 @@ struct StoreGenerationFactory {
                     }
                 }
             }
+            let readErrno = errno
 #if DEBUG
             if case .failure(let error) = result {
                 print("Erase.preexisting-retired failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
@@ -28248,6 +28474,22 @@ struct StoreGenerationFactory {
                 // never become permission to dispose of the root.
                 if case .failure(let original) = result { throw original }
                 throw EraseAllServiceError.invalidAuthority
+            }
+            if let cohort {
+                do { try cohort.settleAfterFrame() }
+                catch {
+#if DEBUG
+                    print("Erase.preexisting-retired failure phase=cohort-settlement type=\(String(reflecting: type(of: error)))")
+#endif
+                    // An uncertain owned close blocks every later rollback. The
+                    // original semantic/read failure remains the causal error.
+                    if case .failure(let original) = result {
+                        errno = readErrno
+                        throw original
+                    }
+                    throw error
+                }
+                errno = readErrno
             }
             try result.get()
         }
@@ -31288,8 +31530,12 @@ struct StoreGenerationFactory {
             epoch = nil
             readerLease = nil
         }
-        let retirementConstruction = try eraseReaderRetirementInventory?
-            .beginConstruction(reader: readerLease)
+        let retirementConstruction: EraseSessionWeakObservationV1?
+        if let cohort = preexistingRetiredReadCohort {
+            retirementConstruction = try cohort.beginConstruction(reader: readerLease)
+        } else {
+            retirementConstruction = try eraseReaderRetirementInventory?.beginConstruction(reader: readerLease)
+        }
         defer { retirementConstruction?.constructionInProgress = false }
         diagnosticPhase?("generation-open.lease.done")
         guard try itemType(at: generationRootURL) == .typeDirectory else {

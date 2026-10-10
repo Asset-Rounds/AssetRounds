@@ -107,6 +107,68 @@ final class V23ErasePreexistingRetiredAuthorityTests: XCTestCase {
     }
 
     @MainActor
+    func testReplacedNonemptyDestinationRetiredReadSettlesBeforePreIntentRollback() async throws {
+#if DEBUG
+        let source = try makeFixture()
+        try source.seedSign()
+        let sourceFacts = try source.currentFacts()
+        let archive = try autoreleasepool { () throws -> URL in
+            let session = try source.open()
+            let exporter = BackupExportService(modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL)
+            let preview = try exporter.prepare()
+            let directory = source.root.appendingPathComponent("exports", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return try exporter.export(previewID: preview.id, to: directory)
+        }
+        let destination = try makeFixture()
+        try destination.seedSign()
+        let oldDestination = try destination.currentFacts()
+        XCTAssertFalse(oldDestination.history.receipts.isEmpty)
+        XCTAssertTrue(try destination.controls().retiredIDs.isEmpty)
+        let restoredID: UUID = try await { @MainActor () async throws -> UUID in
+            let current = try destination.open()
+            let package = try BackupImportService(generationRootURL: current.generationRootURL,
+                scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: archive)
+            let restorer = try BackupRestoreService(applicationSupportURL: destination.support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            destination.owners.unobservedOpen = true
+            let restored = try await restorer.restore(validatedPackage: package,
+                currentModelContext: current.modelContext, currentGenerationID: current.generationID,
+                currentGenerationRootURL: current.generationRootURL, mode: .replaceExisting)
+            destination.owners.observe(restored)
+            return restored.generationID
+        }()
+        XCTAssertNotEqual(restoredID, oldDestination.id)
+        let controls = try destination.controls()
+        XCTAssertEqual(controls.currentID, restoredID)
+        XCTAssertEqual(controls.retiredIDs, [oldDestination.id])
+        let currentFacts = try destination.currentFacts()
+        XCTAssertEqual(try destination.facts(id: oldDestination.id), oldDestination)
+        let retiredRows = try destination.rawRows(id: oldDestination.id)
+        XCTAssertFalse(retiredRows.isEmpty)
+        let retiredRoot = destination.factory.installedGenerationURL(id: oldDestination.id)
+        let retiredBytes = try destination.closedGenerationSnapshot(at: retiredRoot)
+        let foreignRegistry = try source.factory.makeGenerationLeaseRegistry()
+        let abort = try await destination.rollbackPriorRetiredPreparation(foreignRegistry: foreignRegistry)
+        try destination.requireDrained()
+        XCTAssertEqual(abort.originalGenerationID, restoredID)
+        XCTAssertNotEqual(abort.subject.newGenerationID, restoredID)
+        XCTAssertEqual(abort.reservation.subject, abort.subject)
+        XCTAssertEqual(try destination.controls(), controls)
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
+            applicationSupportURL: destination.support))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            destination.factory.installedGenerationURL(id: abort.subject.newGenerationID).path))
+        XCTAssertEqual(try destination.closedGenerationSnapshot(at: retiredRoot), retiredBytes)
+        XCTAssertEqual(try destination.rawRows(id: oldDestination.id), retiredRows)
+        XCTAssertEqual(try destination.facts(id: oldDestination.id), oldDestination)
+        XCTAssertEqual(try destination.currentFacts(), currentFacts)
+        XCTAssertEqual(try source.currentFacts(), sourceFacts)
+#endif
+    }
+
+    @MainActor
     func testRetiredAdmissionRejectsCorruptOriginalStateAndUnknownMemberWithoutEffects() throws {
         for hostile in ["receipt", "state-generation", "unknown-member"] {
             let fixture = try makeFixture()
@@ -555,6 +617,9 @@ private final class Owners {
     }
     // A later observed session cannot discharge an earlier incomplete acquisition.
     private(set) var pendingOperations: Set<UUID> = []
+#if DEBUG
+    var pendingOperationAfterPriorRetiredRollback: UUID?
+#endif
     func beginOperation() -> UUID {
         let token = UUID()
         pendingOperations.insert(token)
@@ -648,6 +713,12 @@ private final class Fixture {
                 statusUpdates: { AsyncStream { $0.finish() } }))
     }
     func requireDrained() throws {
+#if DEBUG
+        if let pending = owners.pendingOperationAfterPriorRetiredRollback {
+            try owners.completeOperationAfterDrain(pending)
+            owners.pendingOperationAfterPriorRetiredRollback = nil
+        }
+#endif
         _ = try XCTUnwrap(owners.pendingOperations.isEmpty && !owners.unobservedOpen
             && owners.allObservedOwnerControlsAreSettled ? true : nil,
             "Synthetic Erase boundary has unsettled controls or live aliases")
@@ -773,6 +844,126 @@ private final class Fixture {
         try requireDrained()
         return authenticIntent
     }
+#if DEBUG
+    /// Real original Router and gate ownership; no synthetic source-only receipt.
+    func rollbackPriorRetiredPreparation(foreignRegistry: GenerationLeaseRegistryV1) async throws
+        -> AbortedEraseAdmissionReceiptV1 {
+        let pending = owners.beginOperation()
+        let retained = RetainedInterruptedEraseOwner(root: root)
+        Self.retainedInterruptedOwners.append(retained) // before original controls/effects
+        let gate = try await unlockedGate()
+        retained.gate = gate
+        let router = startupRouter()
+        retained.router = router
+        owners.observeRouter(router)
+        try router.bindStartupAccessGate(gate)
+        try await router.startIfNeeded(accessGate: gate)
+        var checkedNegativeAuthorities = false
+        var aborts: [AbortedEraseAdmissionReceiptV1] = []
+        var activationEntries = 0
+        @MainActor
+        func execute() async throws -> (StartupRouter.OriginalOperationTicket, AbortedEraseAdmissionReceiptV1) {
+            guard case let .ready(coordinator, diagnostics, _) = router.route else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            retained.coordinator = coordinator
+            owners.observeCoordinator(coordinator)
+            let ticket = try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)
+            let operation = try router.eraseRetirementOperation(for: ticket)
+            retained.operation = operation
+            var reservation: AppAccessGateV1.EraseAdoptionToken?
+            let original = EraseAllService(applicationSupportURL: support,
+                cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                userDefaults: UserDefaults(suiteName: defaultsName)!,
+                bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: defaultsName,
+                failureInjection: EraseAllFailureInjection(failOnceAt: .afterEmptyGenerationDirectoryCreate),
+                admitErase: { [weak router, weak gate] subject in
+                    guard let router, let gate else { throw AppAccessContractFailureV1.staleAttempt }
+                    if let authorization = try await router.eraseAdmissionAuthorization(ticket, subject: subject) {
+                        let value = try await gate.reserveEraseAdoption(subject: subject, authorization: authorization)
+                        try router.recordEraseReservation(ticket, reservation: value)
+                        reservation = value
+                        return value
+                    }
+                    guard let reservation, reservation.subject == subject else {
+                        throw AppAccessContractFailureV1.staleAttempt
+                    }
+                    return reservation
+                }, didAbortEraseAdmission: { aborts.append($0) })
+            retained.service = original
+            let configured = try router.configureEraseService(original, operation: operation)
+            retained.service = configured
+            configured.erasePhaseDiagnosticForTesting = { phase in
+                guard phase == "frozen.inventory-predicate", !checkedNegativeAuthorities,
+                      let cohort = operation.inventory.lastPreexistingRetiredReadCohortForTesting else { return }
+                do {
+                    XCTAssertNoThrow(try operation.requirePreexistingRetiredReadCohort(cohort,
+                        inventory: operation.inventory, registry: cohort.registryForTesting))
+                    guard let allocation = cohort.readerAllocationForTesting else {
+                        XCTFail("Live retired semantic read has no actual retained allocation")
+                        return
+                    }
+                    XCTAssertThrowsError(try cohort.requireDrained(registry: cohort.registryForTesting,
+                        readerAllocation: allocation)) {
+                        XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+                    }
+                    XCTAssertThrowsError(try operation.requirePreexistingRetiredReadCohort(cohort,
+                        inventory: EraseReaderRetirementInventoryV1(), registry: cohort.registryForTesting)) {
+                        XCTAssertEqual($0 as? AppAccessContractFailureV1, .staleAttempt)
+                    }
+                    XCTAssertThrowsError(try operation.requirePreexistingRetiredReadCohort(cohort,
+                        inventory: operation.inventory, registry: foreignRegistry)) {
+                        XCTAssertEqual($0 as? AppAccessContractFailureV1, .staleAttempt)
+                    }
+                    checkedNegativeAuthorities = true
+                } catch {
+                    XCTFail("Unexpected error while checking retired read cohort authorities")
+                }
+            }
+            defer { configured.erasePhaseDiagnosticForTesting = nil }
+            do {
+                _ = try await configured.erase(confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: diagnostics, operation: operation,
+                    activate: { _ in activationEntries += 1 },
+                    lifecycleDependencies: coordinator.packageLifecycleDependencies())
+                XCTFail("Expected genuine pre-intent preparation injection")
+                throw AppAccessContractFailureV1.staleAttempt
+            } catch EraseAllServiceError.injectedFailure { }
+            XCTAssertTrue(checkedNegativeAuthorities)
+            XCTAssertEqual(activationEntries, 0)
+            XCTAssertEqual(aborts.count, 1)
+            let receipt = try XCTUnwrap(aborts.first)
+            XCTAssertEqual(receipt.reservation, reservation)
+            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: support))
+            try router.cancelAbortedErase(ticket, receipt: receipt)
+            XCTAssertThrowsError(try router.cancelAbortedErase(ticket, receipt: receipt)) {
+                XCTAssertEqual($0 as? AppAccessContractFailureV1, .staleAttempt)
+            }
+            try await gate.abandonEraseAdmission(receipt, setting: .value(.init(isEnabled: true)))
+            return (ticket, receipt)
+        }
+        let (_, receipt) = try await execute()
+        retained.coordinator = nil
+        let unlockedAgain = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlockedAgain, .authenticated)
+        guard unlockedAgain == .authenticated else { throw AppAccessContractFailureV1.accessDenied }
+        // This actual startup settles pending source writers and aborted readers
+        // before reopening. Dropping aliases alone is never called settlement.
+        try await router.retryChecks(accessGate: gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        owners.observeCoordinator(coordinator)
+        try coordinator.invalidateAndReleaseWriter()
+        retained.router = nil
+        retained.markCheckedControlsReleased()
+        // The local router/coordinator aliases end at this helper's return;
+        // the host pin still retains the original operation, service and root.
+        owners.pendingOperationAfterPriorRetiredRollback = pending
+        return receipt
+    }
+#endif
+
     func finishRecovery(intent: EraseIntentV1) async throws {
         try requireDrained()
         let diagnostics = DiagnosticsStore(applicationSupportURL: support)

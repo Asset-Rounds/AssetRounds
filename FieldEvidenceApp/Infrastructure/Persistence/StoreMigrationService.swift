@@ -25472,6 +25472,7 @@ final class GenerationLeaseAllocationAttemptV1 {
     private weak var coldPreparationOperation: EraseColdPreparationOperationV1?
     private var preparationAcquisitionStarted = false
     private weak var preparationOperation: EraseRouterOperationV1?
+    private var preexistingRetiredReadDisposalCompleted = false
     private var freshAdoptionAcquisitionStarted = false
     private weak var freshAdoption: EraseFreshAdoptionOwnerV1?
     private var schema2ColdTargetAcquisitionStarted = false
@@ -25787,6 +25788,28 @@ final class GenerationLeaseAllocationAttemptV1 {
     }
 #endif
 
+    @MainActor
+    func closeAfterPreexistingRetiredRead(proof: ErasePreexistingRetiredReadCohortV1) throws {
+        try requireNotCompletedStartupOrigin()
+        try proof.requireDrained(registry: registry, readerAllocation: self)
+        try requirePreparationDisposalEligibility()
+        guard sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try registry.closePreexistingRetiredReader(self, proof: proof)
+        closed = true // only after real Registry token/descriptor settlement
+        preexistingRetiredReadDisposalCompleted = true
+    }
+    @MainActor
+    func requirePreexistingRetiredReadDisposed() throws {
+        try requireNotCompletedStartupOrigin()
+        try requirePreparationDisposalEligibility()
+        // Terminal allocation state only. All durable absence and checked IO
+        // were proved by this exact close; later EX must not reacquire ordinary SH.
+        guard preexistingRetiredReadDisposalCompleted, closed, sealedForRetirement,
+              let completion = freshDisposalCompletion, completion.token == token else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try handle?.requireRecordedFreshAdoptionRelease(registry: registry)
+    }
     func closeAfterErasePreparationFailure(proof: ErasePreparationFailureDrainWitnessV1) throws {
         try requireNotCompletedStartupOrigin()
         try proof.requireDrained(registry: registry, readerAllocation: self)
@@ -31392,6 +31415,54 @@ extension GenerationLeaseRegistryV1 {
     @MainActor
     fileprivate func closePreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         proof: ErasePreparationFailureDrainWitnessV1) throws {
+        guard allocation.registry === self, allocation.sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try proof.requireDrained(registry: self, readerAllocation: allocation)
+        try allocation.requirePreparationDisposalEligibility()
+        try withExclusiveGenerationMutationLock {
+            try proof.requireDrained(registry: self, readerAllocation: allocation)
+            guard temporalReaderAllocations[ObjectIdentifier(allocation)] == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if let completed = allocation.freshDisposalCompletion {
+                guard preparationReaderPublications[ObjectIdentifier(allocation)] == nil else { throw Self.identityFailure() }
+                try requireFreshDisposalCompletionLocked(completed, token: allocation.token, handle: allocation.handle)
+                return
+            }
+            if let retained = preparationReaderPublications[ObjectIdentifier(allocation)], retained.closeUncertain {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            var published = allocation.handle != nil
+            if let insertion = preparationReaderPublications[ObjectIdentifier(allocation)]?.replacement {
+                if insertion.renamed {
+                    published = true
+                    if allocation.handle == nil, freshAdoptionReleases[insertion.token.leaseID] == nil {
+                        try finishTemporalReplacementLocked(insertion)
+                    }
+                } else { try abandonFreshAdoptionInsertionLocked(insertion) }
+            }
+            if published {
+                guard let token = allocation.token else { throw Self.identityFailure() }
+                try releaseFreshAdoptionTokenLocked(token)
+                try finishFreshAdoptionRelease(token)
+            } else if let token = allocation.token {
+                guard try !observeTemporalRegistryLocked().leases.contains(where: { $0.leaseID == token.leaseID }) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            if let insertion = preparationReaderPublications[ObjectIdentifier(allocation)] {
+                try insertion.closeOwnedDescriptorsChecked()
+                preparationReaderPublications.removeValue(forKey: ObjectIdentifier(allocation))
+            }
+            try allocation.handle?.recordFreshAdoptionRelease(registry: self)
+            allocation.freshDisposalCompletion = .init(token: allocation.token)
+            try proof.requireDrained(registry: self, readerAllocation: allocation)
+        }
+        try proof.requireDrained(registry: self, readerAllocation: allocation)
+    }
+
+    @MainActor
+    fileprivate func closePreexistingRetiredReader(_ allocation: GenerationLeaseAllocationAttemptV1,
+        proof: ErasePreexistingRetiredReadCohortV1) throws {
         guard allocation.registry === self, allocation.sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try proof.requireDrained(registry: self, readerAllocation: allocation)
         try allocation.requirePreparationDisposalEligibility()

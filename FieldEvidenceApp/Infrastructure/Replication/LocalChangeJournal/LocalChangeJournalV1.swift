@@ -125,7 +125,13 @@ final class LocalChangeJournalV1 {
         policyResolver: @escaping ConflictPolicyResolver,
         contentReferenceResolver: @escaping ContentReferenceResolver,
         contentEntryResolver: @escaping ContentEntryResolver,
-        portableReversalPlanResolver: @escaping PortableReversalPlanResolver = { _, _ in nil },
+        portableReversalPlanResolver: @escaping PortableReversalPlanResolver = { basis, receipt in
+            guard let payload = basis.firstSignCompensation else { return nil }
+            guard basis.targetReceiptIdentity == receipt.identity,
+                  basis.targetMutationID == receipt.mutationID else { throw ChangeJournalFailureV1.invalidReversal }
+            return try PortableReversalPlanV1(basis: basis, expectedRevision: receipt.resultingRevision,
+                                              compensatingCommands: [payload.compensatingCommand()])
+        },
         fileManager: FileManager = .default,
         makeUUID: @escaping () -> UUID = UUID.init,
         interruptionPoint: @escaping () -> InterruptionPointV1 = { .none }
@@ -1931,7 +1937,13 @@ extension StoreSessionCoordinator {
         policyResolver: @escaping LocalChangeJournalV1.ConflictPolicyResolver,
         contentReferenceResolver: @escaping LocalChangeJournalV1.ContentReferenceResolver,
         contentEntryResolver: @escaping LocalChangeJournalV1.ContentEntryResolver,
-        portableReversalPlanResolver: @escaping LocalChangeJournalV1.PortableReversalPlanResolver = { _, _ in nil },
+        portableReversalPlanResolver: @escaping LocalChangeJournalV1.PortableReversalPlanResolver = { basis, receipt in
+            guard let payload = basis.firstSignCompensation else { return nil }
+            guard basis.targetReceiptIdentity == receipt.identity,
+                  basis.targetMutationID == receipt.mutationID else { throw ChangeJournalFailureV1.invalidReversal }
+            return try PortableReversalPlanV1(basis: basis, expectedRevision: receipt.resultingRevision,
+                                              compensatingCommands: [payload.compensatingCommand()])
+        },
         fileManager: FileManager = .default,
         makeUUID: @escaping () -> UUID = UUID.init,
         interruptionPoint: @escaping () -> LocalChangeJournalV1.InterruptionPointV1 = { .none }

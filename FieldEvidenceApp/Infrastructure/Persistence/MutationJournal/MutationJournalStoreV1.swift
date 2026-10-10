@@ -1090,6 +1090,16 @@ final class MutationJournalStoreV1 {
         guard reversalBasis.map(\.planDigest) == envelope.reversalPlanDigest else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
+        if let reversalBasis {
+            try reversalBasis.validate()
+            if let payload = reversalBasis.firstSignCompensation {
+                _ = try payload.requireOriginalCommand(envelope.command)
+                guard try WorkspaceMutationCanonicalV1.sha256(envelope.command) == payload.originalCommandSHA256,
+                      envelope.sourceKind != .localUser || envelope.expectedRevision == payload.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidReversal
+                }
+            }
+        }
         if case let .applyAssetSemantics(value) = envelope.command {
             do {
                 try value.validate()
@@ -1590,6 +1600,58 @@ final class MutationJournalStoreV1 {
             throw WorkspaceMutationFailureV1.mutationIDQuarantined
         }
         return try receipt(mutationID: mutationID)
+    }
+
+    /// Exact original authority for first-sign retry. Reading current rows can
+    /// never manufacture a replacement plan for an already accepted ID.
+    func firstSignCommitment(mutationID: MutationIDV1) throws
+        -> (envelope: MutationEnvelopeV1, basis: ReversalBasisV1?)? {
+        guard try checkedReceipt(mutationID: mutationID) != nil else { return nil }
+        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }))
+        guard rows.count == 1, let row = rows.first else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        return (envelope, try row.reversalBasisData.map(ReversalBasisV1.decodeCanonical))
+    }
+
+    /// Checks only the original created Asset and immutable placement. The
+    /// retained Site may have independent later changes; they are not authority
+    /// to delete it, nor a surrogate whole-workspace eligibility predicate.
+    func validateFirstSignCompensation(
+        targetMutationID: MutationIDV1,
+        payload: FirstSignCompensationV1,
+        writerInstanceID: UUID
+    ) throws {
+        try validateCurrentWriterLease()
+        guard !modelContext.hasChanges,
+              let original = try firstSignCommitment(mutationID: targetMutationID),
+              let basis = original.basis,
+              basis.firstSignCompensation == payload,
+              try WorkspaceMutationCanonicalV1.sha256(original.envelope.command) == payload.originalCommandSHA256,
+              let receipt = try checkedReceipt(mutationID: targetMutationID) else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        _ = try payload.requireOriginalCommand(original.envelope.command)
+        try validateAll()
+        let revision = try currentRevision(writerInstanceID: writerInstanceID)
+        let revisions = Dictionary(uniqueKeysWithValues: revision.entityRevisions.map { ($0.identity, $0.revision) })
+        let images = try receipt.postImages.filter {
+            let kind = try $0.identity.kind
+            return kind == .asset || kind == .assetPlacementEvent
+        }
+        guard images.contains(where: { (try? $0.identity.kind) == .asset }) else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        for image in images {
+            let entity = try image.identity
+            guard revisions[entity] == image.revision,
+                  try currentPostImage(identity: entity, revision: image.revision) == image else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+        }
     }
 
     /// Recovery must compare the original finalizer, never just the existence
@@ -7751,6 +7813,17 @@ final class MutationJournalStoreV1 {
                   basis.targetReceiptIdentity == receipt.identity,
                   envelope.reversalPlanDigest == basis.planDigest else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if let payload = basis.firstSignCompensation {
+                _ = try payload.requireOriginalCommand(envelope.command)
+                guard try WorkspaceMutationCanonicalV1.sha256(envelope.command) == payload.originalCommandSHA256 else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if envelope.sourceKind == .localUser {
+                    guard envelope.expectedRevision == payload.expectedRevision else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                }
             }
         } else if row.reversalBasisSHA256 != nil || envelope.reversalPlanDigest != nil {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
