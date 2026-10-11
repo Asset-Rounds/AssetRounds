@@ -1417,7 +1417,7 @@ final class V9_46LightingPackageTests: XCTestCase {
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
         let measurementManifest = V4BackupManifestV1(
-            backupSchemaVersion: 1,
+            backupSchemaVersion: 4,
             consumedEvaluationRootIDs: [],
             declaredPayloadByteCount: 0,
             entries: [],
@@ -1426,7 +1426,7 @@ final class V9_46LightingPackageTests: XCTestCase {
             source: V4BackupSourceV1(
                 appBuild: "C31-test",
                 appVersion: "C31-test",
-                persistentSchemaVersion: 30,
+                persistentSchemaVersion: 31,
                 recordsSchemaVersion: 30,
                 workspaceID: fixture.workspace.rawValue
             )

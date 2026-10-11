@@ -1273,7 +1273,10 @@ extension KernelConformanceFixtureHarnessV1 {
                 formatter.string(from: NSDecimalNumber(decimal: rounded)), fixture.vector
             )
             observedDisposition = .accepted
-        case .unknownBranchRepeatLimit, .staleRevision, .relationshipCardinality,
+        case .staleRevision:
+            observedDisposition = try required(input.integer, fixture.vector)
+                != required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted
+        case .unknownBranchRepeatLimit, .relationshipCardinality,
              .lowStorage, .resourceExhaustion, .recoveryFrontierDrift:
             observedDisposition = try required(input.integer, fixture.vector)
                 > required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted

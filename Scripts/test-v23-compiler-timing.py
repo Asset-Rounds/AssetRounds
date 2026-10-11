@@ -879,6 +879,9 @@ class InterruptionPassiveTimingTests(unittest.TestCase):
         # Real Git/admission/main/observer run. Windows substitutes only the
         # Darwin platform and OS process interfaces; no admission is mocked.
         checkout, head = self.make_real_git_fixture()
+        # Real Git uses this Mac's developer selection while admission and the
+        # fake Xcode child keep the official hosted fixture's exact 26.6 pin.
+        host_developer_dir = os.environ.get("DEVELOPER_DIR")
         original_popen, original_check, original_run = subprocess.Popen, subprocess.check_output, subprocess.run
         compiler = "123 45 9.0 0:12.00 00:20 2048 R Mon Sep 14 22:05:03 2026 /tool/swift-frontend\n"
         old_defaults = TIMING.admit.__defaults__
@@ -915,6 +918,14 @@ class InterruptionPassiveTimingTests(unittest.TestCase):
                     if label == "sampler-failure": raise OSError("test-only ps unavailable")
                     if status is None: signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
                     return compiler.encode()
+                if argv and argv[0] == "git":
+                    git_environment = dict(os.environ)
+                    if host_developer_dir is None:
+                        git_environment.pop("DEVELOPER_DIR", None)
+                    else:
+                        git_environment["DEVELOPER_DIR"] = host_developer_dir
+                    self.assertEqual(os.environ["DEVELOPER_DIR"], self.env["DEVELOPER_DIR"])
+                    return original_check(argv, *args, **dict(kwargs, env=git_environment))
                 return original_check(argv, *args, **kwargs)
             def run(argv, *args, **kwargs):
                 if argv[:2] == ["/bin/ps", "-ww"]:
@@ -967,17 +978,105 @@ class DevelopmentPassiveTimingTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("development_selector", ROOT / "Scripts/v23-native-ci.py")
         selector = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(selector)
-        selected = selector.development_batch_selection(ROOT)
+        # The observer profiles bind the authentic e74/f9 historical fourteen.
+        # Current class files supply declaration existence only, never historical runtime.
+        historical_batch_raw = b"""{
+  "schema": "v23-dev-batch.v1",
+  "question": "Development checkpoint: pinned-runtime retirement-policy effects and cold recovery, framed canonical memory/semantic parity, maintenance journal and V906 recovery. S6 later authority and V949 hostile-source SHM failures remain explicitly open; no gate acceptance.",
+  "tests": [
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
+    "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredSourcesPreserveHistoryAcrossPreparedPointerLagAndPartialCleanup",
+    "FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication",
+    "FieldEvidenceAppTests/V9_53OperationalContactTests/testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew",
+    "FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests/testV9_06I01PartialDeletionRecoveryAndInterruptedErasePreservesOrForwards",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRecoveryRejectsHostileRetainedOriginalInventoryBeforeCleanup",
+    "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testRevokedDurableReaderWithLiveWrapperRefusesEraseBeforeEffects",
+    "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testGenuineNoAdmissionReturnsSameWriterAndAuthenticatedRestartPublishesIt",
+    "FieldEvidenceAppTests/V23ProductionAppAccessTests/testTrackedMaintenanceDeletionRecoversActualPreparedJournalAndClosesOwner",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortHeldBackupAccessDefersCheckedColdExit",
+    "FieldEvidenceAppTests/V23StoreSemanticValidationTests/testCurrentV53ValidationTraversesEveryLayerWithoutRetainingPredecessorBytesAndColdReopens"
+  ]
+}
+"""
+        self.assertEqual(hashlib.sha256(historical_batch_raw).hexdigest().upper(),
+                         "FA75F49088999042D2FCBD9E695F85A4827C9EE06CC2FECFE84A163B5F0F858C")
+        fixture_root = self.root.resolve()
+        (fixture_root / selector.DEV_BATCH_PATH).write_bytes(historical_batch_raw)
+        fixture_unit_root = fixture_root / "FieldEvidenceAppTests"
+        fixture_unit_root.mkdir()
+        batch = json.loads(historical_batch_raw)
+        self.assertEqual(len(batch["tests"]), 14)
+        source_unit_root = ROOT / "FieldEvidenceAppTests"
+        for class_name in dict.fromkeys(item.split("/")[1] for item in batch["tests"]):
+            source = source_unit_root / (class_name + ".swift")
+            self.assertTrue(source.is_file() and not source.is_symlink())
+            self.assertEqual(source.resolve().parent, source_unit_root.resolve())
+            self.assertFalse((ROOT / "FieldEvidenceAppUITests" / source.name).exists())
+            (fixture_unit_root / source.name).write_bytes(source.read_bytes())
+        generator = ROOT / "Scripts/v23-selection-generator.py"
+        self.assertTrue(generator.is_file() and not generator.is_symlink())
+        (fixture_root / "Scripts/v23-selection-generator.py").write_bytes(generator.read_bytes())
+        selected = selector.development_batch_selection(fixture_root)
         self.assertEqual((len(selected["unitTestSelectors"]), selected["tier"],
                           selected["buildTimeoutSeconds"], selected["testTimeoutSeconds"],
                           selected["totalBudgetSeconds"]), (14, "D50", 1800, 3000, 5100))
-        self.resolved.write_bytes(selector.canonical(selected))
+        selected_raw = selector.canonical(selected)
+        self.assertEqual(hashlib.sha256(selected_raw).hexdigest().upper(),
+                         self.config["resolvedSelectionSHA256"])
+        self.resolved.write_bytes(selected_raw)
+        self.development_selector = selector
         self.env.update(NATIVE_SELECTION_ID=TIMING.DEVELOPMENT_SELECTION_ID,
                         CI_TIER="D50", CI_BUILD_TIMEOUT_SECONDS="1800",
                         CI_TEST_TIMEOUT_SECONDS="3000", CI_TOTAL_BUDGET_SECONDS="5100",
                         CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development",
                         DISPATCH_NATIVE_SELECTION_SHA256=self.config["resolvedSelectionSHA256"])
         self.command = TIMING.expected_command(self.env, self.config)
+
+    def testHistoricalObserverSelectionDoesNotReadLiveDevelopmentBatch(self):
+        live_batch = ROOT / self.development_selector.DEV_BATCH_PATH
+        read_bytes = Path.read_bytes
+
+        def refuse_live_batch(path):
+            if path == live_batch:
+                raise AssertionError("historical observer must not read the live development batch")
+            return read_bytes(path)
+
+        with mock.patch.object(Path, "read_bytes", new=refuse_live_batch):
+            DevelopmentPassiveTimingTests.setUp(self)
+        self.assertEqual(len(self.resolved.read_bytes()), 2482)
+        self.assertEqual(hashlib.sha256(self.resolved.read_bytes()).hexdigest().upper(),
+                         self.config["resolvedSelectionSHA256"])
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+
+    def testHistoricalQuestionDriftCannotRebindFrozenObserverProfile(self):
+        selector = self.development_selector
+        fixture_root = self.root.resolve()
+        batch_path = fixture_root / selector.DEV_BATCH_PATH
+        original_batch = batch_path.read_bytes()
+        original_resolved = self.resolved.read_bytes()
+        batch = json.loads(original_batch)
+        batch["question"] = "Different development question; no historical observer adoption."
+        try:
+            batch_path.write_bytes((json.dumps(batch, indent=2) + "\n").encode("utf-8"))
+            changed = selector.development_batch_selection(fixture_root)
+            self.assertEqual(changed["unitTestSelectors"],
+                             json.loads(original_resolved)["unitTestSelectors"])
+            self.assertEqual((changed["tier"], changed["buildTimeoutSeconds"],
+                              changed["testTimeoutSeconds"], changed["totalBudgetSeconds"]),
+                             ("D50", 1800, 3000, 5100))
+            changed_raw = selector.canonical(changed)
+            changed_sha = hashlib.sha256(changed_raw).hexdigest().upper()
+            self.assertNotEqual(changed_sha, self.config["resolvedSelectionSHA256"])
+            self.resolved.write_bytes(changed_raw)
+            with self.assertRaisesRegex(ValueError, "resolved selection bytes"):
+                self.admit(environment=dict(self.env,
+                           DISPATCH_NATIVE_SELECTION_SHA256=changed_sha))
+        finally:
+            batch_path.write_bytes(original_batch)
+            self.resolved.write_bytes(original_resolved)
 
     def testExactProfileAndPreservedPassiveCommand(self):
         self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
@@ -1041,7 +1140,21 @@ class DevelopmentPassiveTimingTests(unittest.TestCase):
         self.assertEqual(after.count(addition), 1)
         self.assertEqual(after.count(admission), 1)
         self.assertEqual(after.count(j2_admission), 1)
-        self.assertEqual(after.replace(addition, b"").replace(admission, b"")
+        # Later cold/Phase 1 routes have independent native-CI behavioral and
+        # exact-source checks. Remove only their five exact additions here to
+        # preserve this historical passive-profile boundary byte-for-byte.
+        later_route_additions = (
+            b'   [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ] || \\\n',
+            b'# Cold-only original-context compilation; every other route retains its argv.\nv23_cold_original_context_setting=""\nif [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ]; then\n  test "${V23_SHARED_ROLE:-}" = producer\n  test "${CI_V23_RUN_KIND:-}" = development\n  test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-}" = v23.integration.current-native.v1\n  v23_cold_original_context_setting=\'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_COLD_EMITTED_ORIGINAL_CONTEXT_V1\'\nfi\n\n',
+            b'# The actual V2 admission triggers an independently bound Native recheck.\nv23_phase1_original_context_setting=""\nif jq -e \'.phase1Gate.schema == "v23-phase1-original-event-binding.v2"\' "$CI_ARTIFACT_DIR/native-admission.json" >/dev/null; then\n  v23_phase1_original_context_setting="$(python3 Scripts/v23-native-ci.py phase1-build-setting)"\n  test "$v23_phase1_original_context_setting" = \'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG V23_PHASE1_EMITTED_ORIGINAL_CONTEXT_V1\'\nfi\n\n',
+            b'  ${v23_cold_original_context_setting:+"$v23_cold_original_context_setting"} \\\n',
+            b'  ${v23_phase1_original_context_setting:+"$v23_phase1_original_context_setting"} \\\n',
+        )
+        historical_after = after
+        for block in later_route_additions:
+            self.assertEqual(historical_after.count(block), 1)
+            historical_after = historical_after.replace(block, b"")
+        self.assertEqual(historical_after.replace(addition, b"").replace(admission, b"")
                          .replace(j2_admission, b""), before)
         self.assertEqual(subprocess.check_output(["git", "show", self.config["sourceHead"]
                          + ":Scripts/run-with-timeout.sh"], cwd=ROOT),
@@ -1187,8 +1300,20 @@ class DevelopmentPassiveTimingTests(unittest.TestCase):
                 payload = (Path(directory) / "events.jsonl").read_text()
                 self.assertNotIn("/private/secret-value", payload)
                 events = [json.loads(line) for line in payload.splitlines()]
+                self.assertEqual(events[-1]["event"], "build-terminal-observation")
                 self.assertEqual(events[-1]["buildReturnCode"], 0)
-                self.assertEqual(events[-2]["errorCategory"], "invalid-sample")
+                errors = [event for event in events if event["event"] == "observation-error"]
+                self.assertEqual(len(errors), 2)  # Child.poll permits exactly two samples.
+                for event in errors:
+                    self.assertEqual(event["errorCategory"], "invalid-sample")
+                    self.assertNotIn("error", event)
+                    self.assertNotIn("errorType", event)
+                # A missed sampling deadline may follow each error, so its
+                # position relative to the terminal is intentionally variable.
+                self.assertEqual([event["event"] for event in events
+                                  if event["event"] != "sampling-deadline-missed"],
+                                 ["build-request", "build-process", "observation-error",
+                                  "observation-error", "build-terminal-observation"])
 
 
 class CapabilityTests(unittest.TestCase):
