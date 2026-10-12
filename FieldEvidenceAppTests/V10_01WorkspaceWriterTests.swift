@@ -139,12 +139,14 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: applicationSupport) }
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
             .openOrBootstrapCurrent()
-        let realWriter = StoreSessionCoordinator(
-            session: session,
+        let realCoordinator = try StoreSessionCoordinator(
+            validatingSession: session,
             clock: TestApplicationClockV1(value: Date(timeIntervalSince1970: 1_800_000_100)),
             idSource: TestApplicationIDSourceV1(value: Harness.id(80)),
             fileAuthority: TestApplicationFileAuthorityV1()
-        ).workspaceWriter
+        )
+        defer { XCTAssertNoThrow(try realCoordinator.invalidateAndReleaseWriter()) }
+        let realWriter = realCoordinator.workspaceWriter
         let realSiteID = Harness.id(81)
         let realAssetID = Harness.id(82)
         let realMutationID = try MutationIDV1(rawValue: Harness.id(83))
@@ -272,20 +274,23 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         }
         let firstSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
             .openOrBootstrapCurrent()
-        let secondSession = try StoreGenerationFactory(applicationSupportURL: secondRoot)
+        let secondSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
+            .openOrBootstrapCurrent()
+        let foreignSession = try StoreGenerationFactory(applicationSupportURL: secondRoot)
             .openOrBootstrapCurrent()
         let instanceIDs = SequenceApplicationIDSourceV1(values: [
             Harness.id(84),
             Harness.id(85),
         ])
-        let coordinator = StoreSessionCoordinator(
-            session: firstSession,
+        let coordinator = try StoreSessionCoordinator(
+            validatingSession: firstSession,
             idSource: instanceIDs
         )
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
         let oldWriter = coordinator.workspaceWriter
         let oldRevision = try oldWriter.currentRevision()
         let initialToken = coordinator.uiGenerationToken
-        coordinator.activate(session: secondSession)
+        try coordinator.activateValidating(session: secondSession)
         XCTAssertThrowsError(try oldWriter.currentRevision()) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
         }
@@ -293,6 +298,13 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         let replacementRevision = try coordinator.workspaceWriter.currentRevision()
         XCTAssertEqual(replacementRevision.generationID, secondSession.generationID)
         XCTAssertNotEqual(replacementRevision.writerInstanceID, oldRevision.writerInstanceID)
+        XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
+        let replacementWriter = coordinator.workspaceWriter
+        XCTAssertThrowsError(try coordinator.activateValidating(session: foreignSession)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .invalidPath)
+        }
+        XCTAssertTrue(coordinator.workspaceWriter === replacementWriter)
+        XCTAssertEqual(try replacementWriter.currentRevision(), replacementRevision)
         XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
     }
 
@@ -589,7 +601,9 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         let root = try Self.makeTemporaryApplicationSupportURL()
         defer { try? FileManager.default.removeItem(at: root) }
         let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
-        let writer = StoreSessionCoordinator(session: session).workspaceWriter
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let writer = coordinator.workspaceWriter
         let workspaceID = try writer.currentRevision().workspaceID
         let firstMutationID = try MutationIDV1(rawValue: Harness.id(101))
         let first = try AuthoritySourceReleaseV1(

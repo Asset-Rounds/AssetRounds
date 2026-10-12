@@ -1227,27 +1227,34 @@ extension V9_ChangeJournalCheckpointReplayTests {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
             defer { try? FileManager.default.removeItem(at: root) }
             let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
-            let siteID = UUID()
-            session.modelContext.insert(Site(
-                id: siteID,
-                label: receipt.archetypeID,
-                address: payload,
-                timeZoneID: "UTC",
-                createdAt: Date(timeIntervalSince1970: 1_800_420_000 + Double(offset))
-            ))
-            try session.modelContext.save()
-            let coordinator = StoreSessionCoordinator(session: session)
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
             let writer = coordinator.workspaceWriter
+            let siteID = UUID()
+            let seedMutationID = try MutationIDV1(rawValue: UUID())
+            XCTAssertNotEqual(seedMutationID, mutationID)
+            // The factory has already checkpointed the empty store; seed through
+            // its canonical writer so relaunch validation retains a real receipt.
+            _ = try writer.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: receipt.archetypeID, address: payload, timeZoneID: "UTC"),
+                assetID: UUID(), assetLabel: "C42 journal payload",
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_800_420_000 + Double(offset)),
+                initialPlacementMutationID: seedMutationID, initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: .init(rawValue: UUID())
+            )), mutationID: seedMutationID)
             let before = try writer.currentRevision()
+            let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+            let siteRevision = try XCTUnwrap(before.entityRevisions.first { $0.identity == siteIdentity })
             let expected = try WorkspaceExpectedRevisionV1(
                 workspaceID: before.workspaceID,
                 generationID: before.generationID,
                 writerInstanceID: before.writerInstanceID,
                 workspaceRevision: before.revision,
-                entityRevisions: [try WorkspaceEntityRevisionV1(
-                    identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID),
-                    revision: 0
-                )]
+                entityRevisions: [siteRevision]
             )
             let request = WorkspaceMutationRequestV1(
                 mutationID: mutationID,

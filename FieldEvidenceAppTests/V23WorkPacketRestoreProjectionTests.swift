@@ -8,7 +8,16 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
     private let lifetime = WorkPacketRestoreFixtureLifetime()
 
     func testWriterProducedFiveKindHistoryPlansExactImagesAndRejectsHostileDTOs() throws {
-        let fixture = try makeSource("planner")
+        let clockInstant = Date(timeIntervalSinceReferenceDate: 811_123_456.000_000_1)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let clockBytes = try WorkspaceMutationCanonicalV1.data(clockInstant)
+        let canonicalClockInstant = try decoder.decode(Date.self, from: clockBytes)
+        // This clock exposes first-write/replay representation drift while
+        // retaining the exact receipt codec bytes; a whole-second clock cannot.
+        XCTAssertNotEqual(canonicalClockInstant, clockInstant)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(canonicalClockInstant), clockBytes)
+        let fixture = try makeSource("planner", clockInstant: clockInstant)
         let sourceHistory = try journal(fixture.harness.session).exportSnapshot()
         let records = try exportRecords(fixture.harness)
         let original = try XCTUnwrap(records.mutationHistory)
@@ -84,10 +93,78 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
         XCTAssertEqual(try journal(fixture.harness.session).exportSnapshot(), sourceHistory)
         XCTAssertEqual(try persistedRecords(fixture.harness.session), records.workPackets)
         XCTAssertFalse(fixture.harness.session.modelContext.hasChanges)
+
+        // Establish the real journal writer with a finite clock before exposing
+        // invalid clocks to a fresh, intrinsically valid generic command. These
+        // clocks are outside the typed First Sign/My Day preflight branches.
+        do {
+            let session = fixture.harness.session
+            let clock = WorkPacketRestoreMutableClock(clockInstant)
+            let coordinator = try StoreSessionCoordinator(validatingSession: session, clock: clock)
+            defer {
+                clock.value = clockInstant
+                XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter())
+            }
+            let writer = coordinator.workspaceWriter
+            let before = try writer.currentRevision()
+            let existing = fixture.values.manifest
+            let mutationID = try MutationIDV1(rawValue: Values.id(211))
+            let manifest = try WorkPacketManifestV1(manifestID: Values.id(11),
+                packetID: existing.packetID, packetVersion: 2, workspaceID: existing.workspaceID,
+                items: existing.items, packageReleases: existing.packageReleases,
+                creationBasis: existing.creationBasis, creator: existing.creator,
+                createdAt: existing.createdAt, mutationID: mutationID)
+            let mutation = try WorkPacketMutationV1(workspaceID: existing.workspaceID,
+                expectedRevision: 0, mutationID: mutationID, postImage: .appendManifest(manifest))
+            let concurrency = try mutation.concurrencyIdentity
+            XCTAssertNil(before.entityRevisions.first { $0.identity == concurrency })
+            let expectedBefore = try WorkspaceRevisionV1(workspaceID: before.workspaceID,
+                generationID: before.generationID, writerInstanceID: before.writerInstanceID,
+                revision: before.revision,
+                entityRevisions: [.init(identity: concurrency, revision: 0)])
+            let request = WorkspaceMutationRequestV1(mutationID: mutationID,
+                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: expectedBefore),
+                command: .applyWorkPacket(mutation))
+            let envelope = try MutationEnvelopeV1(request: request, identity: session.workspaceIdentity)
+            let envelopeBytes = try envelope.canonicalData()
+            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes).canonicalData(),
+                envelopeBytes)
+            let wasDirty = session.modelContext.hasChanges
+            XCTAssertFalse(wasDirty)
+            XCTAssertEqual(try journal(session).exportSnapshot(), sourceHistory)
+            XCTAssertEqual(try persistedRecords(session), records.workPackets)
+
+            for (label, invalidInstant) in [
+                ("NaN", Date(timeIntervalSinceReferenceDate: .nan)),
+                ("infinity", Date(timeIntervalSinceReferenceDate: .infinity)),
+            ] {
+                clock.value = invalidInstant
+                XCTAssertThrowsError(try writer.execute(request), label) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt, label)
+                }
+                XCTAssertEqual(session.modelContext.hasChanges, wasDirty, label)
+                let unchangedHistory = try journal(session).exportSnapshot()
+                XCTAssertEqual(unchangedHistory, sourceHistory, label)
+                XCTAssertEqual(unchangedHistory.receipts.map(\.receiptData),
+                    sourceHistory.receipts.map(\.receiptData), label)
+                XCTAssertEqual(unchangedHistory.receipts.map(\.envelopeData),
+                    sourceHistory.receipts.map(\.envelopeData), label)
+                XCTAssertEqual(try persistedRecords(session), records.workPackets, label)
+                XCTAssertEqual(try writer.currentRevision(), before, label)
+                XCTAssertNil(try writer.durableReceipt(mutationID: mutationID), label)
+                XCTAssertEqual(try envelope.canonicalData(), envelopeBytes, label)
+                XCTAssertEqual(session.modelContext.hasChanges, wasDirty, label)
+            }
+        }
     }
 
     func testFiveKindPublicReplacementAndColdReadbackPreserveImmutableOriginals() async throws {
-        let fixture = try makeSource("physical")
+        let clockInstant = Date(timeIntervalSinceReferenceDate: 811_123_456.125)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        XCTAssertEqual(try decoder.decode(Date.self,
+            from: WorkspaceMutationCanonicalV1.data(clockInstant)), clockInstant)
+        let fixture = try makeSource("physical", clockInstant: clockInstant)
         let source = fixture.harness
         let sourceHistory = try journal(source.session).exportSnapshot()
         let archive = try V906Integration.exportStreaming(source)
@@ -216,7 +293,15 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
         static func id(_ n: Int) -> UUID { V906Integration.id(900_000 + n) }
     }
 
-    private func makeSource(_ label: String) throws -> (harness: V906Integration.Harness, values: Values) {
+    private func makeSource(_ label: String, clockInstant: Date) throws -> (harness: V906Integration.Harness, values: Values) {
+        struct Clock: ApplicationClock {
+            let value: Date
+            func now() -> Date { value }
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let expectedReportedInstant = try decoder.decode(Date.self,
+            from: WorkspaceMutationCanonicalV1.data(clockInstant))
         let h = try V906Integration.makeHarness("work-packet-\(label)", withAsset: false)
         registerCleanup(h)
         // Reviewed retained Packet baseline, not a claimed end-user finalization.
@@ -242,7 +327,8 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
         XCTAssertNil(owner.currentRecordID); XCTAssertTrue(owner.evaluationCounted)
         XCTAssertEqual(owner.contentDeletedAt, Values.date); XCTAssertEqual(owner.createdAt, Values.date)
         let values = try Values(workspaceID: h.session.workspaceID)
-        let coordinator = try StoreSessionCoordinator(validatingSession: h.session)
+        let coordinator = try StoreSessionCoordinator(validatingSession: h.session,
+            clock: Clock(value: clockInstant))
         defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
         let writer = coordinator.workspaceWriter
         for (index, actor) in values.actors.enumerated() {
@@ -253,15 +339,46 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
             let before = try writer.currentRevision()
             let mutation = try WorkPacketMutationV1(workspaceID: values.workspaceID,
                 expectedRevision: payload.revision - 1, mutationID: payload.mutationID, postImage: payload)
-            let outcome = try writer.execute(.applyWorkPacket(mutation), mutationID: mutation.mutationID)
-            XCTAssertEqual(outcome.before, before)
-            XCTAssertEqual(outcome.after.revision, before.revision + 1)
-            let receipt = try XCTUnwrap(writer.durableReceipt(mutationID: mutation.mutationID))
-            XCTAssertEqual(receipt.postImages, [try payload.mutationPostImage])
             let concurrency = try mutation.concurrencyIdentity
+            XCTAssertEqual(before.entityRevisions.first {
+                $0.identity == concurrency
+            }?.revision ?? 0, mutation.expectedRevision)
+            let expectedBefore = try WorkspaceRevisionV1(
+                workspaceID: before.workspaceID,
+                generationID: before.generationID,
+                writerInstanceID: before.writerInstanceID,
+                revision: before.revision,
+                entityRevisions: [.init(identity: concurrency, revision: mutation.expectedRevision)]
+            )
+            let outcome = try writer.execute(.applyWorkPacket(mutation), mutationID: mutation.mutationID)
+            // The mutation proof binds its CAS vector; the full workspace
+            // remains independently checked before and after the write.
+            XCTAssertEqual(outcome.before, expectedBefore)
+            XCTAssertEqual(outcome.after.revision, before.revision + 1)
+            XCTAssertEqual(outcome.after, try writer.currentRevision())
+            let expectedAffectedIdentities = [try mutation.affectedIdentity]
+            XCTAssertEqual(outcome.effect.affectedEntities, expectedAffectedIdentities)
+            let changedIdentities = Set(expectedAffectedIdentities + [concurrency])
+            XCTAssertEqual(
+                outcome.after.entityRevisions.filter { !changedIdentities.contains($0.identity) },
+                before.entityRevisions.filter { !changedIdentities.contains($0.identity) }
+            )
+            let receipt = try XCTUnwrap(writer.durableReceipt(mutationID: mutation.mutationID))
+            XCTAssertEqual(outcome.occurredAt, receipt.committedAt)
+            XCTAssertEqual(receipt.committedAt, expectedReportedInstant)
+            XCTAssertEqual(receipt.postImages, [try payload.mutationPostImage])
             XCTAssertEqual(receipt.expectedRevision.entityRevisions.first {
                 $0.identity == concurrency
             }?.revision, mutation.expectedRevision)
+            let receiptBytes = try receipt.canonicalData()
+            let replay = try writer.execute(.init(
+                mutationID: mutation.mutationID,
+                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: expectedBefore),
+                command: .applyWorkPacket(mutation)
+            ))
+            XCTAssertEqual(replay, outcome)
+            let replayReceipt = try XCTUnwrap(writer.durableReceipt(mutationID: mutation.mutationID))
+            XCTAssertEqual(try replayReceipt.canonicalData(), receiptBytes)
         }
         let history = try journal(h.session).exportSnapshot()
         XCTAssertEqual(history.receipts.count, 10)
@@ -366,6 +483,23 @@ final class V23WorkPacketRestoreProjectionTests: XCTestCase {
         if let actors { object["partyAccountability"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(actors)) }
         return try JSONDecoder().decode(V4BackupRecordsV1.self, from: JSONSerialization.data(withJSONObject: object))
     }
+}
+
+/// Shares the wall clock retained by a real Coordinator. Every mutable access
+/// follows the existing lock-backed ApplicationClock test pattern.
+private struct WorkPacketRestoreMutableClock: ApplicationClock, @unchecked Sendable {
+    private final class Storage: @unchecked Sendable {
+        let lock = NSLock()
+        var value: Date
+        init(_ value: Date) { self.value = value }
+    }
+    private let storage: Storage
+    init(_ value: Date) { storage = Storage(value) }
+    var value: Date {
+        get { storage.lock.withLock { storage.value } }
+        nonmutating set { storage.lock.withLock { storage.value = newValue } }
+    }
+    func now() -> Date { value }
 }
 
 /// Tracks the store owners created by this fixture, including replaced and cold

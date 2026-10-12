@@ -1,9 +1,34 @@
 {
   "schema": "v23-dev-batch.v1",
-  "question": "c138-source3-direct-affected-three-pinned-hosted-development-v1",
+  "question": "c162-journal-clock-lifetime-bundle-family-pinned-hosted-development-v1",
   "tests": [
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests/testStoreSessionCoordinatorActivationChangesContextAndMonotonicallyAdvancesToken",
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests/testValidatingCoordinatorConstructionReleasesLeaseAfterRealJournalFailure",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV23P03C40WriterUsesPredecessorRevisionAndReceiptsNewPostImage",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08A01SerializedOrderingUsesOneRevisionSequence",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08G01ExpectedRevisionSuccessAndStaleRejection",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08H01SameIDRetryAndChangedInputQuarantine",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testV9_08I01BoundedNoEvictionIdempotency",
+    "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testCanonicalDateReplayUsesExactEnvelopeBytesAndChangedBytesStillQuarantine",
+    "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignQuantizesGeneratedClockAndColdReplayPreservesExactBytes",
+    "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect",
+    "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime",
+    "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect",
+    "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testProductionSavePersistsExactCommitRowsReceiptsAndNoContentReservations",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testConfirmedTerminalUsesActualAtomicReceiptForAbsentAndArchivedTargetsAndExactReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testContinueUsesActualWriterReceiptAndPreservesRoundSourceAndReplay",
+    "FieldEvidenceAppTests/V23StoreSemanticValidationTests/testMutableSemanticCheckpointCoversEveryJournaledKind",
+    "FieldEvidenceAppTests/V23StoreSemanticValidationTests/testOutOfWriterTamperMatrixRecordsDetectionMechanism",
+    "FieldEvidenceAppTests/V23StoreSemanticValidationTests/testPartsStockCommitUnderSubMillisecondClockReportsSuccess",
+    "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testFiveKindPublicReplacementAndColdReadbackPreserveImmutableOriginals",
+    "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testWriterProducedFiveKindHistoryPlansExactImagesAndRejectsHostileDTOs",
     "FieldEvidenceAppTests/V9_20KernelConformanceTests/testC42CrossMarketCorpusReusesPinnedKernelAndCompatibilityOwners",
+    "FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests/testV23P03C40MutationCoordinatorPredecessorConcurrencyAndReceiptReplay",
     "FieldEvidenceAppTests/V9_46LightingPackageTests/testV23P03C31R01RestoreReplayAndHistoricLightingReportsRemainExact",
-    "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests/testV23P03C42H01HostileCorpusAndReleaseLeakageFailClosed"
+    "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests/testV23P03C42H01HostileCorpusAndReleaseLeakageFailClosed",
+    "FieldEvidenceAppTests/V9_75FastSurveyInboxTests/testFastSurveyExpectedRevisionEnrollsOnlyAbsentTargetsAndRetainsFullSnapshotCAS",
+    "FieldEvidenceAppTests/V9_76ReinspectionExceptionQueueTests/testV23P04C12T03InterruptedAcknowledgementRecoversThroughExistingJournalPair",
+    "FieldEvidenceAppTests/V9_76ReinspectionExceptionQueueTests/testV23P04C12T05CanonicalExpectedRevisionEnrollsOnlyAbsentTargetAndRetainsFullSnapshotCAS",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests/testV23P03C42ChangeJournalReplayRetainsTypedRevisionAndMutationIdentity"
   ]
 }

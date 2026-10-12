@@ -182,11 +182,19 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
             ('persistent: destination.persistentSchemaVersion,\n            records: destination.recordsSchemaVersion',
              'persistent: checkpoint.manifest.persistentSchemaVersion,\n            records: checkpoint.manifest.recordSchemaVersion',
              'checkpoint destination|incoming and destination'),
-            ('recordSchemaSHA256 == checkpoint.manifest.recordSchemaSHA256,', '', 'checkpoint destination'),
-            ('destinationFrontier == checkpoint.manifest.frontier,', '', 'checkpoint destination'),
-            ('== checkpoint.manifest.normalizedRecordsSHA256 else', '== "unbound" else', 'checkpoint destination'),
+            ('recordSchemaSHA256 == checkpoint.manifest.recordSchemaSHA256,\n'
+             '              destinationPackages == checkpoint.manifest.packages,',
+             'destinationPackages == checkpoint.manifest.packages,', 'checkpoint destination'),
+            ('destinationFrontier == checkpoint.manifest.frontier,\n'
+             '              destinationTombstones == checkpoint.tombstoneIdentities,',
+             'destinationTombstones == checkpoint.tombstoneIdentities,', 'checkpoint destination'),
+            ('try Self.checkpointSemanticRecordsMatch(\n                  destination: destination, checkpoint: checkpoint\n              ) else',
+             'try Self.checkpointSemanticRecordsMatch(\n                  destination: destination, checkpoint: differentCheckpoint\n              ) else',
+             'checkpoint destination'),
         ):
             with self.subTest(mutation=old):
+                self.assertEqual(self.source[reader.JOURNAL].count(old), 1,
+                                 'checkpoint admission mutation must target one release guard')
                 self.rejects(reader.verify_checkpoint_history, self.changed(reader.JOURNAL, old, new), reason)
 
     def test_actual_model_census_cannot_be_replaced_by_the_retained_168_literal(self) -> None:
@@ -200,6 +208,111 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
                      self.changed(reader.CATALOG, '+ v52PersistentModelNames + v53PersistentModelNames).sorted()',
                                   '+ v53PersistentModelNames).sorted()'),
                      'model inventory composition')
+
+    def test_checkpoint_contextual_helper_preserves_every_admission_boundary(self) -> None:
+        declaration = 'static func checkpointSemanticRecordsMatch('
+        reason = 'checkpoint contextual semantic comparison'
+        for boundary, old, new in (
+            ('current schema',
+             '== LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else',
+             '!= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else'),
+            ('other schema strict digest fallback',
+             'return Self.rawSHA256(destination.semanticRecordsData)\n                == checkpoint.manifest.normalizedRecordsSHA256',
+             'return true'),
+            ('decode actual complete records',
+             'try BackupCanonicalDecoderV1().decodeRecords(destination.recordsData)',
+             'try BackupCanonicalDecoderV1().decodeRecords(destination.semanticRecordsData)'),
+            ('required identity snapshot',
+             'guard let snapshot = records.entityIdentityResolution,',
+             'guard let snapshot = differentRecords.entityIdentityResolution,'),
+            ('empty aliases', 'snapshot.aliasLinks.isEmpty,', 'true,'),
+            ('empty consolidations', 'snapshot.consolidationReceipts.isEmpty,', 'true,'),
+            ('empty mutations', 'snapshot.mutationReceipts.isEmpty else', 'true else'),
+            ('absent or nonempty snapshot strict digest fallback',
+             '// Complete nonempty identity history keeps its incumbent bytes.\n'
+             '            return Self.rawSHA256(destination.semanticRecordsData)\n'
+             '                == checkpoint.manifest.normalizedRecordsSHA256',
+             'return true'),
+            ('canonical encoder', 'let encoder = BackupCanonicalEncoderV1()',
+             'let encoder = differentEncoder'),
+            ('snapshot workspace', 'snapshot.workspaceID == destination.workspaceIdentity.workspaceID,', 'true,'),
+            ('checkpoint workspace', 'checkpoint.manifest.workspaceID == destination.workspaceIdentity.workspaceID,', 'true,'),
+            ('destination generation', 'snapshot.generationID == destination.generationID,', 'true,'),
+            ('complete canonical records round trip',
+             'try encoder.encodeRecords(records).data == destination.recordsData,', 'true,'),
+            ('complete semantic round trip',
+             'try encoder.encodeSemanticRecords(records).data == destination.semanticRecordsData else', 'true else'),
+            ('canonical rejection', 'return false', 'return true'),
+            ('typed value construction',
+             'records.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(',
+             'records.entityIdentityResolution = unvalidatedIdentitySnapshot('),
+            ('contextual workspace', 'workspaceID: snapshot.workspaceID,',
+             'workspaceID: checkpoint.manifest.workspaceID,'),
+            ('source generation', 'generationID: checkpoint.manifest.sourceGenerationID,',
+             'generationID: destination.generationID,'),
+            ('empty contextual aliases', 'aliasLinks: [],', 'aliasLinks: snapshot.aliasLinks,'),
+            ('empty contextual consolidations', 'consolidationReceipts: [],',
+             'consolidationReceipts: snapshot.consolidationReceipts,'),
+            ('empty contextual mutations', 'mutationReceipts: []',
+             'mutationReceipts: snapshot.mutationReceipts'),
+            ('all other records retained',
+             'records.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(',
+             'records.mutationHistory = nil\n'
+             '        records.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1('),
+            ('contextual semantic encoding',
+             'return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)',
+             'return Self.rawSHA256(try encoder.encodeRecords(records).data)'),
+            ('contextual digest algorithm',
+             'return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)',
+             'return differentDigest(try encoder.encodeSemanticRecords(records).data)'),
+            ('contextual digest target',
+             'return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)\n'
+             '            == checkpoint.manifest.normalizedRecordsSHA256',
+             'return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)\n'
+             '            == checkpoint.manifest.manifestSHA256'),
+            ('no early success', 'guard destination.recordsSchemaVersion',
+             'if true { return true }\n        guard destination.recordsSchemaVersion'),
+            ('admission order',
+             'snapshot.workspaceID == destination.workspaceIdentity.workspaceID,\n'
+             '              checkpoint.manifest.workspaceID == destination.workspaceIdentity.workspaceID,',
+             'checkpoint.manifest.workspaceID == destination.workspaceIdentity.workspaceID,\n'
+             '              snapshot.workspaceID == destination.workspaceIdentity.workspaceID,'),
+        ):
+            with self.subTest(boundary=boundary):
+                self.rejects(reader.verify_checkpoint_history,
+                             self.scoped_changed(reader.JOURNAL, declaration, old, new), reason)
+
+    def test_checkpoint_contextual_helper_requires_real_owner_signature_and_executed_guards(self) -> None:
+        declaration = 'static func checkpointSemanticRecordsMatch('
+        reason = 'checkpoint contextual semantic comparison'
+        self.rejects(reader.verify_checkpoint_history,
+                     self.changed(reader.JOURNAL, 'final class LocalChangeJournalV1 {',
+                                  'final class LocalChangeJournalV1Decoy {'),
+                     reason + ': complete class owner header differs')
+        signature = (declaration + '\n'
+                     '        destination: BackupCanonicalCheckpointBasisV1,\n'
+                     '        checkpoint: WorkspaceCheckpointContentV1\n'
+                     '    ) throws -> Bool')
+        for old, new in (
+            ('destination: BackupCanonicalCheckpointBasisV1', 'destination: DifferentCheckpointBasis'),
+            ('checkpoint: WorkspaceCheckpointContentV1', 'checkpoint: DifferentCheckpointContent'),
+            (') throws -> Bool', ') -> Bool'),
+            (') throws -> Bool', ') throws -> Bool?'),
+        ):
+            with self.subTest(signature=new):
+                self.rejects(reader.verify_checkpoint_history,
+                             self.changed(reader.JOURNAL, signature, signature.replace(old, new)), reason)
+        for head in ('guard destination.recordsSchemaVersion',
+                     'guard let snapshot = records.entityIdentityResolution,',
+                     'guard snapshot.workspaceID == destination.workspaceIdentity.workspaceID,'):
+            for wrapper in ('if false', 'unused closure'):
+                with self.subTest(guard=head, wrapper=wrapper):
+                    source = self.wrapped_owned_seam(reader.JOURNAL, declaration, head,
+                                                     guard=True, wrapper=wrapper)
+                    self.rejects(reader.verify_checkpoint_history, source, reason)
+        source = self.wrapped_owned_seam(reader.JOURNAL, 'final class LocalChangeJournalV1',
+                                         declaration)
+        self.rejects(reader.verify_checkpoint_history, source, reason)
 
     def test_checkpoint_raw_reversal_and_content_guards_cannot_disappear(self) -> None:
         for old, new in (
@@ -509,8 +622,10 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
 
     def test_full_reader_rejects_digest_condition_bypass_rejection_fallback_and_checkpoint_early_success(self) -> None:
         for declaration, old, new, reason in (
-            ('func installImportedCheckpoint(', 'Self.rawSHA256(destination.semanticRecordsData)\n                == checkpoint.manifest.normalizedRecordsSHA256 else',
-             'Self.rawSHA256(destination.semanticRecordsData)\n                == checkpoint.manifest.normalizedRecordsSHA256 || true else', 'checkpoint destination integrity'),
+            ('func installImportedCheckpoint(',
+             'try Self.checkpointSemanticRecordsMatch(\n                  destination: destination, checkpoint: checkpoint\n              ) else',
+             'try Self.checkpointSemanticRecordsMatch(\n                  destination: destination, checkpoint: checkpoint\n              ) || true else',
+             'checkpoint destination integrity'),
             ('func installImportedCheckpoint(', 'export.packageSHA256 == Self.rawSHA256(packageData) else',
              'export.packageSHA256 == Self.rawSHA256(packageData) || true else', 'checkpoint imported raw binding'),
             ('func installImportedCheckpoint(', 'throw ChangeJournalFailureV1.tamperedBatch',

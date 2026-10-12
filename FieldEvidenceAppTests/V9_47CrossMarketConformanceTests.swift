@@ -373,9 +373,61 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
             forResource: "V22P03C42CrossMarketConformanceCorpusV1",
             withExtension: "json"
         ))
-        XCTAssertFalse(try bundleResourceInventory().contains {
+        let resourceURLs = try bundleResourceInventory()
+        let productOwnedPaths = try productOwnedBundleResourcePaths(resourceURLs)
+        let productOwnedMatches = productOwnedPaths.filter {
             $0.localizedCaseInsensitiveContains("CrossMarketConformance")
-        })
+        }
+        #if DEBUG
+        let matchedResourcePaths = try bundleResourcePaths(resourceURLs).filter {
+            $0.localizedCaseInsensitiveContains("CrossMarketConformance")
+        }
+        let authenticatedBundleURL = try authenticatedInjectedUnitTestBundleURL()
+        let authenticatedBundlePaths: [String]
+        if let authenticatedBundleURL {
+            authenticatedBundlePaths = try bundleResourcePaths([authenticatedBundleURL])
+        } else {
+            authenticatedBundlePaths = []
+        }
+        print("C42_H01_RESOURCE_BOUNDARY injectedUnitTestBundlePaths=\(authenticatedBundlePaths) matchedPaths=\(matchedResourcePaths) productOwnedMatches=\(productOwnedMatches)")
+        let injectedBundleURL = try XCTUnwrap(authenticatedBundleURL)
+        let runtimeBundle = Bundle(for: V9_47CrossMarketConformanceTests.self)
+        let injectedCorpusURL = try XCTUnwrap(runtimeBundle.url(
+            forResource: "V22P03C42CrossMarketConformanceCorpusV1",
+            withExtension: "json"
+        )).standardizedFileURL.resolvingSymlinksInPath()
+        XCTAssertTrue(try productOwnedBundleResourcePaths([injectedCorpusURL]).isEmpty)
+        XCTAssertTrue(try productOwnedBundleResourcePaths([
+            injectedBundleURL.appendingPathComponent("ordinary-injected-resource.txt")
+        ]).isEmpty)
+        #endif
+        XCTAssertTrue(productOwnedMatches.isEmpty, "C42 product-owned resource leak: \(productOwnedMatches)")
+
+        let resourceRoot = try bundleResourceRoot()
+        let corpusName = "V22P03C42CrossMarketConformanceCorpusV1.json"
+        let runtimeBundleName = Bundle(for: V9_47CrossMarketConformanceTests.self).bundleURL.lastPathComponent
+        let productLeakControls = [
+            resourceRoot.appendingPathComponent(corpusName),
+            resourceRoot.appendingPathComponent("PlugIns/OtherTests.xctest/\(corpusName)"),
+            resourceRoot.appendingPathComponent("Resources/\(runtimeBundleName)/\(corpusName)"),
+            resourceRoot.appendingPathComponent("Resources/Other.bundle/\(corpusName)"),
+            resourceRoot.appendingPathComponent("PlugIns/Other.appex/\(corpusName)"),
+            resourceRoot.appendingPathComponent("PlugIns/\(runtimeBundleName)-lookalike/\(corpusName)")
+        ]
+        for leakURL in productLeakControls {
+            let expectedPath = try bundleResourcePaths([leakURL])
+            let observedPaths = try productOwnedBundleResourcePaths([leakURL])
+            XCTAssertEqual(observedPaths, expectedPath)
+            XCTAssertTrue(observedPaths.contains {
+                $0.localizedCaseInsensitiveContains("CrossMarketConformance")
+            }, "C42 injected-bundle boundary hid product-owned leak: \(expectedPath)")
+        }
+        #if DEBUG
+        XCTAssertEqual(
+            try productOwnedBundleResourcePaths(productLeakControls + [injectedCorpusURL]),
+            try bundleResourcePaths(productLeakControls)
+        )
+        #endif
         XCTAssertFalse(corpus.containsCustomerData)
         XCTAssertFalse(corpus.containsLicensedContent)
     }
@@ -714,21 +766,82 @@ final class V9_47CrossMarketConformanceTests: XCTestCase {
         return data
     }
 
-    private func bundleResourceInventory() throws -> [String] {
-        guard let root = Bundle.main.resourceURL,
-              let enumerator = FileManager.default.enumerator(
+    private func bundleResourceRoot() throws -> URL {
+        guard let root = Bundle.main.resourceURL else {
+            throw CrossMarketConformanceFailureV1.invalidValue
+        }
+        return root.standardizedFileURL.resolvingSymlinksInPath()
+    }
+
+    private func authenticatedInjectedUnitTestBundleURL() throws -> URL? {
+        #if DEBUG
+        // The executing test class identifies one injected container; names do
+        // not authorize other test bundles or any Release-resource exemption.
+        let root = try bundleResourceRoot()
+        let hostBundleURL = Bundle.main.bundleURL.standardizedFileURL.resolvingSymlinksInPath()
+        let runtimeBundle = Bundle(for: V9_47CrossMarketConformanceTests.self)
+        let runtimeBundleURL = runtimeBundle.bundleURL.standardizedFileURL.resolvingSymlinksInPath()
+        guard hostBundleURL.pathExtension == "app",
+              root.pathComponents.starts(with: hostBundleURL.pathComponents),
+              runtimeBundleURL != hostBundleURL,
+              runtimeBundleURL.pathExtension == "xctest",
+              runtimeBundleURL.pathComponents.count > root.pathComponents.count,
+              runtimeBundleURL.pathComponents.starts(with: root.pathComponents) else {
+            return nil
+        }
+        return runtimeBundleURL
+        #else
+        return nil
+        #endif
+    }
+
+    private func bundleResourcePaths(_ resourceURLs: [URL]) throws -> [String] {
+        let root = try bundleResourceRoot()
+        return try resourceURLs.map { resourceURL in
+            let resource = resourceURL.standardizedFileURL
+            guard resource.pathComponents.count > root.pathComponents.count,
+                  resource.pathComponents.starts(with: root.pathComponents) else {
+                throw CrossMarketConformanceFailureV1.invalidValue
+            }
+            return "/" + resource.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
+        }.sorted()
+    }
+
+    private func productOwnedBundleResourcePaths(_ resourceURLs: [URL]) throws -> [String] {
+        let injectedBundleURL = try authenticatedInjectedUnitTestBundleURL()
+        let productOwnedURLs = resourceURLs.filter { resourceURL in
+            guard let injectedBundleURL else { return true }
+            let resource = resourceURL.standardizedFileURL
+            let injectedComponents = injectedBundleURL.pathComponents
+            // Require both containment forms: an outside alias to TestSupport
+            // remains product-owned, and an injected-path escape is not hidden.
+            guard resource.pathComponents.count > injectedComponents.count,
+                  resource.pathComponents.starts(with: injectedComponents) else {
+                return true
+            }
+            let resolvedResource = resource.resolvingSymlinksInPath()
+            let isInjectedResource = resolvedResource.pathComponents.count > injectedComponents.count
+                && resolvedResource.pathComponents.starts(with: injectedComponents)
+            return !isInjectedResource
+        }
+        return try bundleResourcePaths(productOwnedURLs)
+    }
+
+    private func bundleResourceInventory() throws -> [URL] {
+        let root = try bundleResourceRoot()
+        guard let enumerator = FileManager.default.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles]
               ) else {
-            return []
+            throw CrossMarketConformanceFailureV1.invalidValue
         }
-        return try enumerator.compactMap { item -> String? in
+        return try enumerator.compactMap { item -> URL? in
             guard let url = item as? URL,
                   try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
                 return nil
             }
-            return url.path.replacingOccurrences(of: root.path, with: "")
-        }.sorted()
+            return url
+        }.sorted { $0.path < $1.path }
     }
 }

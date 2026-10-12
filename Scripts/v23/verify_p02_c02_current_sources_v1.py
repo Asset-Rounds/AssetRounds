@@ -24,7 +24,7 @@ from p02_c02_contracts import (
     SOURCE_PATHS, ContractError, lifecycle_contract,
 )
 
-READER_VERSION = "p02-c02-current-sources-v4"
+READER_VERSION = "p02-c02-current-sources-v5"
 CURRENT_TUPLE = (4, 53, 52)
 HISTORICAL_TUPLE = (3, 4, 3)
 HISTORICAL_READER = "Scripts/v23/verify_p02_c02_contracts.py"
@@ -1387,7 +1387,7 @@ def verify_checkpoint_history(source: Mapping[str, str]) -> None:
         'destinationFrontier == checkpoint.manifest.frontier',
         'destinationTombstones == checkpoint.tombstoneIdentities',
         'destinationMutationIDs == checkpointMutationIDs',
-        'Self.rawSHA256(destination.semanticRecordsData) == checkpoint.manifest.normalizedRecordsSHA256',
+        'try Self.checkpointSemanticRecordsMatch(destination: destination, checkpoint: checkpoint)',
         'orderedFields: Self.backupRecordFields(for: destination.recordsSchemaVersion)',
     ), 'checkpoint destination identity/generation/frontier/schema/content guards')
     exact_guard(installed, 'guard export.workspaceID', '''
@@ -1416,8 +1416,57 @@ def verify_checkpoint_history(source: Mapping[str, str]) -> None:
         destinationFrontier == checkpoint.manifest.frontier,
         destinationTombstones == checkpoint.tombstoneIdentities,
         destinationMutationIDs == checkpointMutationIDs,
-        Self.rawSHA256(destination.semanticRecordsData) == checkpoint.manifest.normalizedRecordsSHA256
+        try Self.checkpointSemanticRecordsMatch(destination: destination, checkpoint: checkpoint)
     ''', 'throw ChangeJournalFailureV1.incompleteCheckpoint', 'checkpoint destination integrity')
+    # C110/C111 replaced the final inline comparison with a contextual helper.
+    # Prove its complete real owner and body, not merely the call name.
+    semantic_label = 'checkpoint contextual semantic comparison'
+    owner_code, owner_structure, owner_start = owned_depth(
+        journal, 'final class LocalChangeJournalV1', semantic_label)
+    owner_brace = owner_structure.find('{', owner_start)
+    require(owner_brace >= 0 and swift_tokens(owner_code[owner_start:owner_brace])
+            == swift_tokens('final class LocalChangeJournalV1'),
+            semantic_label + ': complete class owner header differs')
+    journal_owner = block(journal, 'final class LocalChangeJournalV1')
+    helper_code, helper_structure, helper_start = owned_depth(
+        journal_owner, 'static func checkpointSemanticRecordsMatch(', semantic_label)
+    helper_brace = helper_structure.find('{', helper_start)
+    require(helper_brace >= 0 and swift_tokens(helper_code[helper_start:helper_brace]) == swift_tokens('''
+        static func checkpointSemanticRecordsMatch(
+            destination: BackupCanonicalCheckpointBasisV1,
+            checkpoint: WorkspaceCheckpointContentV1
+        ) throws -> Bool
+    '''), semantic_label + ': complete declaration signature differs')
+    exact_body(block(journal_owner, 'static func checkpointSemanticRecordsMatch('), '''
+        guard destination.recordsSchemaVersion
+                == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+            return Self.rawSHA256(destination.semanticRecordsData)
+                == checkpoint.manifest.normalizedRecordsSHA256
+        }
+        var records = try BackupCanonicalDecoderV1().decodeRecords(destination.recordsData)
+        guard let snapshot = records.entityIdentityResolution,
+              snapshot.aliasLinks.isEmpty,
+              snapshot.consolidationReceipts.isEmpty,
+              snapshot.mutationReceipts.isEmpty else {
+            return Self.rawSHA256(destination.semanticRecordsData)
+                == checkpoint.manifest.normalizedRecordsSHA256
+        }
+        let encoder = BackupCanonicalEncoderV1()
+        guard snapshot.workspaceID == destination.workspaceIdentity.workspaceID,
+              checkpoint.manifest.workspaceID == destination.workspaceIdentity.workspaceID,
+              snapshot.generationID == destination.generationID,
+              try encoder.encodeRecords(records).data == destination.recordsData,
+              try encoder.encodeSemanticRecords(records).data == destination.semanticRecordsData else {
+            return false
+        }
+        records.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+            workspaceID: snapshot.workspaceID,
+            generationID: checkpoint.manifest.sourceGenerationID,
+            aliasLinks: [], consolidationReceipts: [], mutationReceipts: []
+        )
+        return Self.rawSHA256(try encoder.encodeSemanticRecords(records).data)
+            == checkpoint.manifest.normalizedRecordsSHA256
+    ''', semantic_label)
     created = block(journal, 'private func makeCheckpoint(')
     ordered(created, ('guard basis.workspaceIdentity == identity, basis.generationID == generationID else',
                       'try Self.validateCurrentCheckpointSchema(',

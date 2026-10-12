@@ -2315,7 +2315,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             // snapshot from the receipt; neither path invents a stored row.
             reportedBefore = try revision(from: MutationPortableExpectedRevisionV1(request.expectedRevision))
         default:
-            reportedBefore = before
+            if journalStore != nil {
+                // Durable replay reconstructs this receipt-bound CAS snapshot.
+                // Unrelated workspace rows are not part of the mutation proof.
+                reportedBefore = try revision(from: envelope.expectedRevision)
+            } else {
+                reportedBefore = before
+            }
         }
         let temporaryRelativePath: String
 #if DEBUG
@@ -2344,6 +2350,28 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
 #if DEBUG
         traceC32("effect-ready")
 #endif
+
+        let reportedOccurredAt: Date
+        if journalStore != nil {
+            // Durable replay reports the canonical receipt's decoded instant.
+            // Freeze only that informational representation before effects;
+            // adapters and receipt construction retain the original clock.
+            guard occurredAt.timeIntervalSinceReferenceDate.isFinite else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            do {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                reportedOccurredAt = try decoder.decode(
+                    Date.self,
+                    from: WorkspaceMutationCanonicalV1.data(occurredAt)
+                )
+            } catch {
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+        } else {
+            reportedOccurredAt = occurredAt
+        }
 
         let storageReservation: OwnedStorageReservationV1?
         do {
@@ -2488,7 +2516,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 return try notifyingSearchIndex(WorkspaceMutationOutcomeV1(
                     mutationID: request.mutationID,
                     commandDigest: digest,
-                    occurredAt: occurredAt,
+                    occurredAt: reportedOccurredAt,
                     before: reportedBefore,
                     after: after,
                     effect: applied
