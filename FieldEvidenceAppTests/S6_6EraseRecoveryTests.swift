@@ -502,6 +502,272 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(failure as? StoreMigrationFailure, .invalidPath)
     }
 
+    /// This callback is reached only after the real original marker producer
+    /// has returned its settled receipt and the witness captured both images.
+    /// Every scenario proves the valid projection before introducing hostility.
+    @MainActor
+    private func runOriginalMarkerProjectionControl(
+        _ label: String,
+        control: @escaping @MainActor (
+            EraseRouterOperationV1, AppLockNotificationControlStoreV1,
+            NotificationEraseRevocationV1,
+            EraseOriginalNotificationPhysicalSnapshotV1,
+            EraseOriginalNotificationPhysicalSnapshotV1, URL) throws -> Void
+    ) async throws -> Error {
+        let harness = try await makeHarness("marker-projection-" + label)
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        let oldID = coordinator.generationID
+        let preferences = PreferencesAdapterV1(defaults: harness.defaults)
+        let policy = try preferences.readReminderPolicy()
+        let notifications = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: harness.support, preferences: preferences)
+        let notificationID = UUID()
+        let request = NotificationSystemRequestV1(notification: .init(
+            requestID: UUID().uuidString.lowercased(),
+            opaqueCorrelationToken: String(repeating: "a", count: 64)),
+            fireAtUTC: Date().addingTimeInterval(600))
+        let journal = try AppLockNotificationJournalV1(operationID: notificationID,
+            targetEnabled: true, priorPolicy: policy.appLockReference(),
+            projections: [request.notification], disposition: .enablingPrepared)
+        let plan = try preferences.planAppLockSettingWrite(
+            expectedSetting: preferences.readAppLockSettingSnapshot(),
+            expectedReminderPolicy: policy, target: .init(isEnabled: true),
+            operationID: notificationID)
+        _ = try notifications.prepareControl(journal: journal,
+            priorReminderPolicy: policy, settingWrite: plan,
+            expectedPredecessor: nil)
+        let system = S66NotificationSystemProbe(requests: [request])
+        harness.defaults.set("retain-marker-projection",
+            forKey: "marker-projection-sentinel")
+        var completedCount = 0
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults, bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            notificationSystem: system,
+            admitErase: { try await owner.admitSubject($0) },
+            didCompleteErase: { _ in completedCount += 1 }))
+        service.enableOriginalColdExitWitnessForTesting = true
+        Self.retainedS6EraseServices.append((harness.root, service))
+        var calls = 0
+        service.originalNotificationMarkerProjectionControlForTesting = {
+            actualOperation, actualControl, revocation, before, actual in
+            calls += 1
+            XCTAssertTrue(actualOperation === operation)
+            let digest = try actualOperation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: actualControl, revocation: revocation,
+                    before: before, actual: actual)
+            XCTAssertEqual(digest, try XCTUnwrap(before.unchangedLeavesDigest))
+            XCTAssertEqual(actual.eraseBytes,
+                try CompatibilityCanonicalV1.encode(revocation))
+            XCTAssertNotNil(actual.eraseIdentity)
+            try control(actualOperation, actualControl, revocation,
+                before, actual, harness.support)
+        }
+        defer { service.originalNotificationMarkerProjectionControlForTesting = nil }
+        var activationFailure: Error?
+        let failure: Error
+        do {
+            _ = try await service.erase(confirmation: "ERASE",
+                coordinator: coordinator, diagnosticsStore: harness.diagnostics,
+                operation: operation,
+                activate: { [weak coordinator, weak router = owner.router] session in
+                    do {
+                        guard let coordinator, let router else {
+                            throw FixtureError.invalid
+                        }
+                        try router.activateErasePreparationSession(session,
+                            coordinator: coordinator, operation: operation)
+                    } catch { activationFailure = error }
+                })
+            XCTFail("A hostile marker projection completed Erase")
+            throw FixtureError.invalid
+        } catch { failure = error }
+        XCTAssertNil(activationFailure)
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(completedCount, 0)
+        XCTAssertEqual(system.observationCount, 0)
+        XCTAssertTrue(fileManager.fileExists(atPath:
+            harness.factory.installedGenerationURL(id: oldID).path))
+        XCTAssertEqual(harness.defaults.string(forKey: "marker-projection-sentinel"),
+            "retain-marker-projection")
+        let retained = try XCTUnwrap(EraseIntentStore(
+            applicationSupportURL: harness.support).load())
+        XCTAssertEqual(retained.phase, .sessionActivated)
+        return failure
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRepeatsSamePhaseAndRejectsForeignBindings() async throws {
+        let foreign = try await makeHarness("marker-projection-foreign-owner")
+        let coordinator = try XCTUnwrap(foreign.coordinator)
+        try await foreign.originalOwner.admit(coordinator: coordinator)
+        let foreignOperation = try foreign.originalOwner.originalOperationForInterruption()
+        let foreignControl = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: foreign.support,
+            preferences: PreferencesAdapterV1(defaults: foreign.defaults))
+        let failure = try await runOriginalMarkerProjectionControl("bindings") {
+            operation, control, revocation, before, actual, _ in
+            // This read-only proof is reusable while its same active phase and
+            // exact raw postimage still hold; it is not a consumed loan.
+            let repeated = try operation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: control, revocation: revocation,
+                    before: before, actual: actual)
+            XCTAssertEqual(repeated, try XCTUnwrap(before.unchangedLeavesDigest))
+            XCTAssertFalse(operation === foreignOperation)
+            XCTAssertThrowsError(try foreignOperation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: control, revocation: revocation,
+                    before: before, actual: actual)) {
+                XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+            XCTAssertThrowsError(try operation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: foreignControl, revocation: revocation,
+                    before: before, actual: actual)) {
+                XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+            let wrongRevocation = NotificationEraseRevocationV1(schemaVersion: 1,
+                operationID: UUID(), rootIdentity: revocation.rootIdentity)
+            try wrongRevocation.validate()
+            XCTAssertThrowsError(try operation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: control, revocation: wrongRevocation,
+                    before: before, actual: actual)) {
+                XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+            throw OriginalProjectionControlFailure.interrupted
+        }
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRefusesRetainedTupleAfterStickyUncertainty() async throws {
+        var retained: (EraseRouterOperationV1, AppLockNotificationControlStoreV1,
+            NotificationEraseRevocationV1, EraseOriginalNotificationPhysicalSnapshotV1,
+            EraseOriginalNotificationPhysicalSnapshotV1)?
+        let failure = try await runOriginalMarkerProjectionControl("uncertainty") {
+            operation, control, revocation, before, actual, _ in
+            retained = (operation, control, revocation, before, actual)
+            throw OriginalProjectionControlFailure.interrupted
+        }
+        XCTAssertEqual(failure as? OriginalProjectionControlFailure, .interrupted)
+        let actual = try XCTUnwrap(retained)
+        XCTAssertThrowsError(try actual.0
+            .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                control: actual.1, revocation: actual.2,
+                before: actual.3, actual: actual.4)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+        }
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRejectsChangedCanonicalMarkerBytes() async throws {
+        var hostileMarker: URL?
+        var hostileBytes: Data?
+        let failure = try await runOriginalMarkerProjectionControl("marker-bytes") {
+            _, _, revocation, _, actual, support in
+            let marker = support.appendingPathComponent(
+                "FieldEvidenceOperations/AppLockNotificationControlV1/"
+                    + AppLockNotificationControlStoreV1.eraseName)
+            let originalIdentity = try self.regularFileIdentity(marker)
+            let wrong = NotificationEraseRevocationV1(schemaVersion: 1,
+                operationID: UUID(), rootIdentity: revocation.rootIdentity)
+            let bytes = try CompatibilityCanonicalV1.encode(wrong)
+            XCTAssertNotEqual(bytes, actual.eraseBytes)
+            try bytes.write(to: marker)
+            try ProtectedFilePolicyV1.applyAndVerify(.journal, at: marker)
+            XCTAssertEqual(try self.regularFileIdentity(marker), originalIdentity)
+            hostileMarker = marker; hostileBytes = bytes
+        }
+        XCTAssertEqual(failure as? AppAccessContractFailureV1,
+            .notificationReconciliationRequired)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(hostileMarker)),
+            try XCTUnwrap(hostileBytes))
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRejectsIdenticalBytesOnReplacementInode() async throws {
+        var hostileMarker: URL?
+        var originalBytes: Data?
+        let failure = try await runOriginalMarkerProjectionControl("marker-inode") {
+            _, _, _, _, actual, support in
+            let marker = support.appendingPathComponent(
+                "FieldEvidenceOperations/AppLockNotificationControlV1/"
+                    + AppLockNotificationControlStoreV1.eraseName)
+            let identity = try self.regularFileIdentity(marker)
+            let bytes = try XCTUnwrap(actual.eraseBytes)
+            try bytes.write(to: marker, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.journal, at: marker)
+            XCTAssertEqual(try Data(contentsOf: marker), bytes)
+            XCTAssertNotEqual(try self.regularFileIdentity(marker), identity)
+            hostileMarker = marker; originalBytes = bytes
+        }
+        XCTAssertEqual(failure as? AppAccessContractFailureV1,
+            .notificationReconciliationRequired)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(hostileMarker)),
+            try XCTUnwrap(originalBytes))
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRejectsForeignNamespaceAndDirectoryLinkEdge() async throws {
+        var foreignNames: [URL] = []
+        let failure = try await runOriginalMarkerProjectionControl("marker-namespace") {
+            _, _, _, _, _, support in
+            let root = support.appendingPathComponent(
+                "FieldEvidenceOperations/AppLockNotificationControlV1", isDirectory: true)
+            var before = stat(), after = stat()
+            XCTAssertEqual(Darwin.lstat(root.path, &before), 0)
+            for name in ["foreign-marker-one", "foreign-marker-two"] {
+                let child = root.appendingPathComponent(name, isDirectory: true)
+                try FileManager.default.createDirectory(at: child,
+                    withIntermediateDirectories: false)
+                foreignNames.append(child)
+            }
+            XCTAssertEqual(Darwin.lstat(root.path, &after), 0)
+            XCTAssertEqual(before.st_dev, after.st_dev)
+            XCTAssertEqual(before.st_ino, after.st_ino)
+            // The namespace must refuse on either filesystem link convention.
+            // This is not an independent execution of the arithmetic guard.
+            let firstLinks = UInt64(before.st_nlink)
+            let afterLinks = UInt64(after.st_nlink)
+            XCTAssertLessThanOrEqual(firstLinks, UInt64.max - 2)
+            XCTAssertTrue(afterLinks == firstLinks || afterLinks == firstLinks + 2)
+        }
+        XCTAssertEqual(failure as? AppAccessContractFailureV1, .configurationUnknown)
+        XCTAssertEqual(foreignNames.count, 2)
+        for name in foreignNames {
+            XCTAssertTrue(fileManager.fileExists(atPath: name.path))
+        }
+    }
+
+    @MainActor
+    func testOriginalMarkerProjectionRejectsChangedPredecessorLeaf() async throws {
+        var predecessor: URL?
+        let bytes = Data("hostile-genuine-predecessor".utf8)
+        let failure = try await runOriginalMarkerProjectionControl("marker-predecessor") {
+            _, _, _, before, _, support in
+            XCTAssertTrue(before.names.contains(AppLockNotificationControlStoreV1.recordName))
+            let leaf = support.appendingPathComponent(
+                "FieldEvidenceOperations/AppLockNotificationControlV1/"
+                    + AppLockNotificationControlStoreV1.recordName)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: leaf.path))
+            try bytes.write(to: leaf)
+            try ProtectedFilePolicyV1.applyAndVerify(.journal, at: leaf)
+            predecessor = leaf
+        }
+        XCTAssertEqual(failure as? AppAccessContractFailureV1,
+            .notificationReconciliationRequired)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(predecessor)), bytes)
+    }
+
     @MainActor
     func testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified() async throws {
         var diagnosticPhase = "harness"

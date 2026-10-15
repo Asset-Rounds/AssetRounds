@@ -14629,9 +14629,27 @@ final class EraseRouterOperationV1 {
               let target = preparationWriterAllocation?.allocatedHandle else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        let notificationBindStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+            stage: "notification.bind.enter", started: notificationBindStarted)
+        defer {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.bind.exit", started: notificationBindStarted)
+        }
+#endif
         do {
+#if DEBUG
+            let notificationBeforeReproofStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.reproof.before.enter", started: notificationBeforeReproofStarted)
+#endif
             _ = try reproveOriginalEraseNotificationRootPolicy(
                 receipt, store: store, coordinator: coordinator)
+#if DEBUG
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.reproof.before.return", started: notificationBeforeReproofStarted)
+#endif
             let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
                 registry: registry, coordinator: coordinator, writer: target.token)
             let control: AppLockNotificationControlStoreV1
@@ -14648,8 +14666,17 @@ final class EraseRouterOperationV1 {
             try control.requireOriginalEraseRootPolicyBinding(receipt,
                 operation: self, store: store, registry: registry,
                 exclusion: exclusion, activity: activity)
+#if DEBUG
+            let notificationAfterReproofStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.reproof.after.enter", started: notificationAfterReproofStarted)
+#endif
             _ = try reproveOriginalEraseNotificationRootPolicy(
                 receipt, store: store, coordinator: coordinator)
+#if DEBUG
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.reproof.after.return", started: notificationAfterReproofStarted)
+#endif
             return control
         } catch {
             originalNotificationRootPolicyUncertain = true
@@ -14941,6 +14968,62 @@ final class EraseRouterOperationV1 {
             throw error
         }
     }
+
+#if DEBUG
+    /// Loan the settled original marker proof to its synchronous DEBUG witness.
+    /// This does not publish, replace, or update any retained raw observation.
+    func originalEraseMarkerUnchangedLeavesDigestForTesting(
+        control: AppLockNotificationControlStoreV1,
+        revocation: NotificationEraseRevocationV1,
+        before: EraseOriginalNotificationPhysicalSnapshotV1,
+        actual: EraseOriginalNotificationPhysicalSnapshotV1
+    ) throws -> String {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationControl === control,
+              originalAuxiliaryNotificationBefore
+                == originalNotificationRootPolicyAfter,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              let marker = originalNotificationMarkerReceipt,
+              marker.revocation == revocation,
+              let io = originalNotificationMarkerIO,
+              !originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              originalNotificationRemovalReceipt == nil,
+              originalNotificationOSAbsence == nil,
+              originalAuxiliaryNotificationAfter == nil,
+              let coordinator = preparationCoordinator,
+              let store = originalAuxiliaryStore,
+              let registry = preparationRegistry,
+              let exclusion = originalExclusion,
+              registry === exclusion.registry,
+              let target = preparationWriterAllocation?.allocatedHandle,
+              preparationWriterPhase == .installed,
+              let intent = originalAuxiliaryProjectedIntent,
+              intent.phase == .sessionActivated,
+              intent.eraseID == revocation.operationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try exclusion.revalidate()
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator, writer: target.token)
+        try marker.requireBound(control: control, operation: self,
+            store: store, registry: registry, exclusion: exclusion,
+            activity: activity)
+        try io.requireSettled()
+        let digest = try control.originalEraseMarkerUnchangedLeavesDigestForTesting(
+            marker: marker, operation: self, store: store,
+            registry: registry, exclusion: exclusion, activity: activity,
+            before: before, actual: actual)
+        try io.requireSettled()
+        try exclusion.revalidate()
+        try router.requireEraseRetirementOperation(self)
+        return digest
+    }
+#endif
 
     func requireOriginalEraseNotificationMarkerControl() throws
         -> AppLockNotificationControlStoreV1 {

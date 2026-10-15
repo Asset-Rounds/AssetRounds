@@ -34980,6 +34980,22 @@ private enum EraseSchema2ColdTempAncestryV1 {
     }
 }
 
+#if DEBUG
+// Labels and error types only: never include paths, IDs, descriptions or userInfo.
+private nonisolated func eraseSchema2ColdPrivateFirstErrorDiagnosticV1(
+    _ stage: String, error: Error, systemErrno: Int32? = nil
+) {
+    let savedErrno = errno
+    defer { errno = savedErrno }
+    let errorType = String(reflecting: type(of: error))
+    let errnoField = systemErrno.map { " errno=\($0)" } ?? ""
+    do {
+        try FileHandle.standardError.write(contentsOf: Data(
+            "V23_C192_COLD_PRIVATE_FIRST_ERROR_V1 stage=\(stage) type=\(errorType)\(errnoField)\n".utf8))
+    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
+}
+#endif
+
 private final class EraseSchema2ColdPrivateCopyWorkerV1: @unchecked Sendable {
     private let source: Int32
     private let parent: Int32
@@ -35279,7 +35295,12 @@ private final class EraseSchema2ColdPrivateCopyWorkerV1: @unchecked Sendable {
             }
             sourceDigest = before
             return true
-        } catch { return false }
+        } catch {
+#if DEBUG
+            eraseSchema2ColdPrivateFirstErrorDiagnosticV1("worker.copy", error: error)
+#endif
+            return false
+        }
     }
 
     func requireOriginalUnchanged(sourceRoot: Int32) throws {
@@ -37648,7 +37669,15 @@ final class EraseSchema2ColdPrivateSourceAttemptV1 {
             let duplicate = copiedSource
             copiedSource = -1 // never retry an ambiguous numeric descriptor
             guard Darwin.close(duplicate) == 0 else {
+#if DEBUG
+                let diagnosticErrno = errno
+#endif
                 uncertainFDs.append(duplicate)
+#if DEBUG
+                eraseSchema2ColdPrivateFirstErrorDiagnosticV1(
+                    "source-duplicate.close", error: EraseAllServiceError.recoveryRequired,
+                    systemErrno: diagnosticErrno)
+#endif
                 throw EraseAllServiceError.recoveryRequired
             }
             try copied.preparePrivateReadSidecars()
@@ -37680,6 +37709,10 @@ final class EraseSchema2ColdPrivateSourceAttemptV1 {
     func endRead(valid: Bool) throws {
         guard phase == .reading, containerObserved, valid else {
             phase = .uncertain
+#if DEBUG
+            eraseSchema2ColdPrivateFirstErrorDiagnosticV1(
+                "private-read.end", error: EraseAllServiceError.recoveryRequired)
+#endif
             throw EraseAllServiceError.recoveryRequired
         }
         try requireSource()
@@ -37714,7 +37747,15 @@ final class EraseSchema2ColdPrivateSourceAttemptV1 {
             let child = tempChild
             tempChild = -1
             guard Darwin.close(child) == 0 else {
+#if DEBUG
+                let diagnosticErrno = errno
+#endif
                 uncertainFDs.append(child)
+#if DEBUG
+                eraseSchema2ColdPrivateFirstErrorDiagnosticV1(
+                    "private-child.close", error: EraseAllServiceError.recoveryRequired,
+                    systemErrno: diagnosticErrno)
+#endif
                 throw EraseAllServiceError.recoveryRequired
             }
             guard let parentIdentity, let childIdentity,
@@ -37735,7 +37776,15 @@ final class EraseSchema2ColdPrivateSourceAttemptV1 {
             let parent = tempParent
             tempParent = -1
             guard Darwin.close(parent) == 0 else {
+#if DEBUG
+                let diagnosticErrno = errno
+#endif
                 uncertainFDs.append(parent)
+#if DEBUG
+                eraseSchema2ColdPrivateFirstErrorDiagnosticV1(
+                    "temporary-parent.close", error: EraseAllServiceError.recoveryRequired,
+                    systemErrno: diagnosticErrno)
+#endif
                 throw EraseAllServiceError.recoveryRequired
             }
             try source.withHeldOriginalRoot { descriptor in
@@ -37848,15 +37897,26 @@ extension StoreGenerationFactory {
         try await attempt.startCopy()
         try attempt.beginRead()
         let valid: Bool = autoreleasepool {
+#if DEBUG
+            var diagnosticStage = "read-model-container"
+#endif
             do {
                 let container = try openReadOnlyReleasedContainer(
                     at: attempt.modelURL, release: .v53,
                     markerMigrationID: source.manifest.migrationID,
                     observe: { attempt.observe($0) },
                     afterConstruct: { _ in try attempt.requireSource() })
+#if DEBUG
+                diagnosticStage = "semantic-validator"
+#endif
                 try validate(container.mainContext, attempt)
                 return true
-            } catch { return false }
+            } catch {
+#if DEBUG
+                eraseSchema2ColdPrivateFirstErrorDiagnosticV1(diagnosticStage, error: error)
+#endif
+                return false
+            }
         }
         try attempt.endRead(valid: valid)
         return try attempt.disposeAfterAliasDrain(source: source, intent: intent)

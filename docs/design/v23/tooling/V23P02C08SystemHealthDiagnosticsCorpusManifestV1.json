@@ -2,7 +2,7 @@
   "acceptanceCredit": false,
   "acceptanceEnabled": false,
   "adoptionEnabled": false,
-  "artifactDigest": "ce94b692f7a71b087f12a7703530abeaa10d775e1fbdef8611c4400ba220036e",
+  "artifactDigest": "bbc9218428e3bc27d4c89ff034ee5ca36a8e96fb1628a366fc4d0d9aa27c86b5",
   "authority": {
     "aggregateAcceptanceMemberships": [
       "AutonomousRequiredAcceptedSetV1"
@@ -102,6 +102,50 @@
   ],
   "exactFiveTestMethods": true,
   "exportBehaviorDelta": true,
+  "fixtureC54DiagnosticPrivacyNegativeReproof": {
+    "cardID": "V23-P03-C54",
+    "countersPreserved": true,
+    "customerDataExcluded": true,
+    "diagnosticsAreClassificationOnly": true,
+    "diagnosticsOwnCleanup": false,
+    "forbiddenDiagnosticInputs": [
+      "ENVELOPE_BYTES",
+      "PASSPHRASE",
+      "DERIVED_KEY",
+      "SALT",
+      "NONCE",
+      "PLAINTEXT_DIGEST",
+      "CUSTOMER_DIGEST",
+      "RAW_METADATA",
+      "LINKABLE_PUBLIC_ID",
+      "LINKABLE_FILENAME",
+      "SCRATCH_PATH"
+    ],
+    "lifecycleClassifications": [
+      "CANCELLATION",
+      "MEMORY_PRESSURE"
+    ],
+    "reproof": {
+      "linkableNamesAndPathsRejected": true,
+      "memoryPressureAndCancellationRemainNoncanonical": true,
+      "rawEnvelopeAndSecretMaterialRejected": true,
+      "wrongPassphraseAndDamageRemainIndistinguishable": true
+    },
+    "sharedExternalFailureCategory": "WRONG_PASSPHRASE_OR_DAMAGE",
+    "stageValues": [
+      "SEAL",
+      "OPEN",
+      "REOPEN_BEFORE_SHARE"
+    ],
+    "surfaceExclusions": {
+      "logs": true,
+      "metricKit": true,
+      "quickLook": true,
+      "search": true,
+      "spotlight": true,
+      "supportBundle": true
+    }
+  },
   "fixtureFailureCodes": [
     "BACKUP_EXPORT_FAILED",
     "BACKUP_RESTORE_FAILED",
@@ -231,7 +275,8 @@
     "scratchIsolation",
     "workflowFriction",
     "logging",
-    "resetErase"
+    "resetErase",
+    "c54DiagnosticPrivacyNegativeReproof"
   ],
   "fixtureTypedErrorMapping": {
     "cases": [

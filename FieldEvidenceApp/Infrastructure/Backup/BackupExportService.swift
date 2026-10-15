@@ -220,7 +220,7 @@ final class EraseRetainedSourceValidationV1: EraseRetainedSourceValidationAuthor
         try source.requireOriginalUnchanged()
         let targetRootIdentity = try source.requireTargetRootIdentity(
             targetID: intent.newGenerationID)
-        let targetPointer = try source.requireCurrentTargetPointer(intent: intent)
+        let targetPointer = try source.requireCurrentPointerForPrivateRead(intent: intent)
         let validation = EraseRetainedSourceValidationV1(
             intent: intent, generationFactory: generationFactory,
             controls: .cold(operation: operation, intentStore: intentStore,
@@ -487,7 +487,7 @@ final class EraseRetainedSourceValidationV1: EraseRetainedSourceValidationAuthor
                   try attempt.checkedOriginalRootIdentity() == rootIdentity,
                   try source.requireTargetRootIdentity(
                       targetID: intent.newGenerationID) == targetRootIdentity,
-                  try source.requireCurrentTargetPointer(intent: intent)
+                  try source.requireCurrentPointerForPrivateRead(intent: intent)
                     == targetPointer,
                   source.intent == intent,
                   source.preparation == preparation,

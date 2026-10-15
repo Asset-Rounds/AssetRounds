@@ -14,6 +14,17 @@ enum OriginalEraseScratchFirstErrorDiagnosticV1 {
         return DispatchTime.now().uptimeNanoseconds
     }
 
+    /// Fixed-label monotonic DEBUG data only; timing never selects authority.
+    static func emitNotificationTiming(stage: String, started: UInt64) {
+        let saved = errno
+        defer { errno = saved }
+        let time = now()
+        let elapsed = time >= started ? time - started : 0
+        let line = "V23_C05_ORIGINAL_NOTIFICATION_ROOT_DIAG_V1 stage=" + stage
+            + " uptimeNs=" + String(time) + " elapsedNs=" + String(elapsed) + "\n"
+        try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+    }
+
     private static func category(_ error: Error) -> String {
         if let value = error as? ScratchDataLeaseStoreFailureV1 {
             switch value {
@@ -1744,10 +1755,28 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             print("V23_C05_ORIGINAL_NOTIFICATION_ROOT_DIAG_V1 firstP=\(presence.rawValue)")
         }
 #endif
+#if DEBUG
+        let notificationFenceStarted = mustExistForOriginalErase
+            ? OriginalEraseScratchFirstErrorDiagnosticV1.now() : nil
+        if let notificationFenceStarted {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.fence.wait.enter", started: notificationFenceStarted)
+        }
+#endif
         let opened = try AppLockNotificationTransactionFenceV1.perform {
+#if DEBUG
+            if let notificationFenceStarted {
+                OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                    stage: "notification.fence.acquired", started: notificationFenceStarted)
+            }
+            return try Self.openRoot(applicationSupportURL.standardizedFileURL,
+                mustExistForOriginalErase: mustExistForOriginalErase,
+                originalErasePolicyIO: policyIO)
+#else
             try Self.openRoot(applicationSupportURL.standardizedFileURL,
                 mustExistForOriginalErase: mustExistForOriginalErase,
                 originalErasePolicyIO: policyIO)
+#endif
         }
         supportDescriptor = opened.support
         supportDevice = opened.device
@@ -1765,6 +1794,15 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         exclusion: StoreTemporalNormalizationExclusionV1,
         activity: GenerationTemporalActivityHandleV1
     ) throws {
+#if DEBUG
+        let notificationReceiptStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+            stage: "notification.root-receipt.reproof.enter", started: notificationReceiptStarted)
+        defer {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.root-receipt.reproof.exit", started: notificationReceiptStarted)
+        }
+#endif
         func fullFact(_ value: stat) -> String {
             "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
         }
@@ -1781,11 +1819,20 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             .appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue)
             .appendingPathComponent(Self.rootName)
         let first = try Self.originalEraseHeldNamedRootFact(authority: authority, url: url)
+#if DEBUG
+        let notificationTreeGuardStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+        OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+            stage: "notification.root-receipt.tree-guard.enter", started: notificationTreeGuardStarted)
+#endif
         guard fullFact(first) == receipt.projectedRootFact,
               try io.postRetiredTree(parent: authority.operationsDescriptor,
                 name: Self.rootName) == receipt.projectedTreeDigest else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+#if DEBUG
+        OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+            stage: "notification.root-receipt.tree-guard.return", started: notificationTreeGuardStarted)
+#endif
         let final = try Self.originalEraseHeldNamedRootFact(authority: authority, url: url)
         guard fullFact(final) == receipt.projectedRootFact else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
@@ -1992,6 +2039,81 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                 eraseIdentity: erase?.1,
                 diagnosticNodes: diagnosticNodes)
         }
+    }
+
+    /// Project only the marker edge authenticated by this original owner.
+    /// Raw snapshots remain unchanged and are re-proved around the checked walk.
+    @MainActor
+    func originalEraseMarkerUnchangedLeavesDigestForTesting(
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        before: EraseOriginalNotificationPhysicalSnapshotV1,
+        actual: EraseOriginalNotificationPhysicalSnapshotV1
+    ) throws -> String {
+        try marker.requireBound(control: self, operation: operation,
+            store: store, registry: registry, exclusion: exclusion,
+            activity: activity)
+        let first = marker.firstRootFact.split(
+            separator: "|", omittingEmptySubsequences: false)
+        let after = marker.projectedRootFact.split(
+            separator: "|", omittingEmptySubsequences: false)
+        let leaf = marker.canonicalLeafFact.split(
+            separator: "|", omittingEmptySubsequences: false)
+        guard first.count == 11, after.count == 11, leaf.count == 11,
+              Array(first.prefix(5)) == Array(after.prefix(5)),
+              let firstLinks = UInt64(first[5]),
+              let afterLinks = UInt64(after[5]) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        func snapshotFact(_ fields: [Substring]) -> String {
+            ([fields[0], fields[1], fields[2]] + Array(fields[5...10]))
+                .joined(separator: "|")
+        }
+        guard before.rootMetadata == snapshotFact(first),
+              actual.rootMetadata == snapshotFact(after),
+              before.eraseBytes == nil, before.eraseIdentity == nil,
+              !before.names.contains(Self.eraseName),
+              !before.names.contains(Self.erasePendingName),
+              actual.names == (before.names + [Self.eraseName]).sorted(),
+              marker.canonicalBytes
+                == (try CompatibilityCanonicalV1.encode(marker.revocation)),
+              actual.eraseBytes == marker.canonicalBytes,
+              actual.eraseIdentity == snapshotFact(leaf) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let normalizeAddedMarker: UInt64?
+        if afterLinks == firstLinks {
+            normalizeAddedMarker = nil
+        } else {
+            guard firstLinks < UInt64.max, afterLinks == firstLinks + 1 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            normalizeAddedMarker = firstLinks
+        }
+        try verifyRoot()
+        try postRetiredIO.requireSettled()
+        guard try originalErasePhysicalSnapshotForTesting() == actual,
+              try postRetiredIO.postRetiredTree(
+                parent: authority.operationsDescriptor, name: Self.rootName)
+                == marker.projectedTreeDigest else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let digest = try postRetiredIO.postRetiredTree(
+            parent: authority.operationsDescriptor, name: Self.rootName,
+            excluding: [Self.eraseName], ignoringDirectoryMetadata: [""],
+            normalizingSingleTargetManifestRootLinksFrom: normalizeAddedMarker)
+        guard try originalErasePhysicalSnapshotForTesting() == actual,
+              try postRetiredIO.postRetiredTree(
+                parent: authority.operationsDescriptor, name: Self.rootName)
+                == marker.projectedTreeDigest else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        try postRetiredIO.requireSettled()
+        try verifyRoot()
+        return digest
     }
 
     func originalErasePhysicalSnapshotForTesting() throws
@@ -3625,6 +3747,20 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         mustExistForOriginalErase: Bool = false,
         originalErasePolicyIO: EraseAbortCheckedSnapshotIOV1? = nil) throws
         -> (support: Int32, device: UInt64, inode: UInt64, authority: PinnedScratchRootV1) {
+#if DEBUG
+        let notificationRootStarted = mustExistForOriginalErase
+            ? OriginalEraseScratchFirstErrorDiagnosticV1.now() : nil
+        if let notificationRootStarted {
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.open-root.enter", started: notificationRootStarted)
+        }
+        defer {
+            if let notificationRootStarted {
+                OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                    stage: "notification.open-root.exit", started: notificationRootStarted)
+            }
+        }
+#endif
         var diagnosticStage = "open-root.support-open"
         do {
         let support = Darwin.open(supportURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
@@ -3720,12 +3856,21 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             let firstRoot = try originalEraseHeldNamedRootFact(
                 authority: pinned, url: root)
         diagnosticStage = "open-root.policy-observation"
+#if DEBUG
+            let notificationPolicyStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.open-root.policy-observation.enter", started: notificationPolicyStarted)
+#endif
             let observed = try ProtectedFilePolicyV1
                 .observeTemporalPolicyWithCheckedClose(.stagingDirectory,
                     at: root, retainUncertainDescriptor: {
                         retainOriginalEraseUncertainPolicyDescriptor(
                             $0, io: originalErasePolicyIO)
                     })
+#if DEBUG
+            OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(
+                stage: "notification.open-root.policy-observation.return", started: notificationPolicyStarted)
+#endif
             guard observed.device == pinned.rootDevice,
                   observed.inode == pinned.rootInode,
                   observed.mode == UInt16(firstRoot.st_mode),

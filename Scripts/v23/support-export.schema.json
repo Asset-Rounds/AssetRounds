@@ -396,6 +396,171 @@
     "exportBehaviorDelta": {
       "const": true
     },
+    "fixtureC54DiagnosticPrivacyNegativeReproof": {
+      "additionalProperties": false,
+      "properties": {
+        "cardID": {
+          "const": "V23-P03-C54"
+        },
+        "countersPreserved": {
+          "const": true
+        },
+        "customerDataExcluded": {
+          "const": true
+        },
+        "diagnosticsAreClassificationOnly": {
+          "const": true
+        },
+        "diagnosticsOwnCleanup": {
+          "const": false
+        },
+        "forbiddenDiagnosticInputs": {
+          "items": false,
+          "maxItems": 11,
+          "minItems": 11,
+          "prefixItems": [
+            {
+              "const": "ENVELOPE_BYTES"
+            },
+            {
+              "const": "PASSPHRASE"
+            },
+            {
+              "const": "DERIVED_KEY"
+            },
+            {
+              "const": "SALT"
+            },
+            {
+              "const": "NONCE"
+            },
+            {
+              "const": "PLAINTEXT_DIGEST"
+            },
+            {
+              "const": "CUSTOMER_DIGEST"
+            },
+            {
+              "const": "RAW_METADATA"
+            },
+            {
+              "const": "LINKABLE_PUBLIC_ID"
+            },
+            {
+              "const": "LINKABLE_FILENAME"
+            },
+            {
+              "const": "SCRATCH_PATH"
+            }
+          ],
+          "type": "array"
+        },
+        "lifecycleClassifications": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "CANCELLATION"
+            },
+            {
+              "const": "MEMORY_PRESSURE"
+            }
+          ],
+          "type": "array"
+        },
+        "reproof": {
+          "additionalProperties": false,
+          "properties": {
+            "linkableNamesAndPathsRejected": {
+              "const": true
+            },
+            "memoryPressureAndCancellationRemainNoncanonical": {
+              "const": true
+            },
+            "rawEnvelopeAndSecretMaterialRejected": {
+              "const": true
+            },
+            "wrongPassphraseAndDamageRemainIndistinguishable": {
+              "const": true
+            }
+          },
+          "required": [
+            "rawEnvelopeAndSecretMaterialRejected",
+            "linkableNamesAndPathsRejected",
+            "wrongPassphraseAndDamageRemainIndistinguishable",
+            "memoryPressureAndCancellationRemainNoncanonical"
+          ],
+          "type": "object"
+        },
+        "sharedExternalFailureCategory": {
+          "const": "WRONG_PASSPHRASE_OR_DAMAGE"
+        },
+        "stageValues": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "SEAL"
+            },
+            {
+              "const": "OPEN"
+            },
+            {
+              "const": "REOPEN_BEFORE_SHARE"
+            }
+          ],
+          "type": "array"
+        },
+        "surfaceExclusions": {
+          "additionalProperties": false,
+          "properties": {
+            "logs": {
+              "const": true
+            },
+            "metricKit": {
+              "const": true
+            },
+            "quickLook": {
+              "const": true
+            },
+            "search": {
+              "const": true
+            },
+            "spotlight": {
+              "const": true
+            },
+            "supportBundle": {
+              "const": true
+            }
+          },
+          "required": [
+            "logs",
+            "metricKit",
+            "supportBundle",
+            "search",
+            "spotlight",
+            "quickLook"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "cardID",
+        "stageValues",
+        "sharedExternalFailureCategory",
+        "forbiddenDiagnosticInputs",
+        "surfaceExclusions",
+        "lifecycleClassifications",
+        "diagnosticsAreClassificationOnly",
+        "diagnosticsOwnCleanup",
+        "countersPreserved",
+        "customerDataExcluded",
+        "reproof"
+      ],
+      "type": "object"
+    },
     "fixtureFailureCodes": {
       "items": false,
       "maxItems": 25,
@@ -796,8 +961,8 @@
     },
     "fixtureTopLevelFields": {
       "items": false,
-      "maxItems": 15,
-      "minItems": 15,
+      "maxItems": 16,
+      "minItems": 16,
       "prefixItems": [
         {
           "const": "schemaVersion"
@@ -843,6 +1008,9 @@
         },
         {
           "const": "resetErase"
+        },
+        {
+          "const": "c54DiagnosticPrivacyNegativeReproof"
         }
       ],
       "type": "array"
@@ -2866,6 +3034,7 @@
     "fixtureSchemaVersion",
     "fixtureIdentity",
     "fixtureTopLevelFields",
+    "fixtureC54DiagnosticPrivacyNegativeReproof",
     "fixtureFailureCodes",
     "fixtureTypedErrorMapping",
     "fixtureTypedErrorMappingPolicy",

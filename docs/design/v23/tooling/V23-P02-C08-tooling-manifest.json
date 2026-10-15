@@ -4,88 +4,88 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "c97ee83315e4482f207cc5faf730fb11e5792670921f01e6a9a9f59e024d57af",
-  "artifactSetDigest": "9b308587988734ff05a36ad9fa6979cc550417d5497dc904cbed1d882efe276e",
+  "artifactDigest": "c4a1d04279a07f8366099b15ce61ad7e3017f77a07a519a8c3254e9b9e83cb60",
+  "artifactSetDigest": "8883b006fde82e404d4c2c9fe45bab40cab660514941de678185eab963b6da36",
   "artifacts": [
     {
-      "bytes": 51056,
+      "bytes": 189514,
       "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
-      "sha256": "a4842f64ea57cdcc59af02a41454d51e9b31c1e43c9b767f37c6acae313b59ac"
+      "sha256": "3507fb51b8792ca1c5ff946f5aaf88138e42ac9fa8008b2d3a03eeec518ac8ca"
     },
     {
-      "bytes": 17140,
+      "bytes": 120384,
       "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
-      "sha256": "c3455be5df0649330d74c3f74f0c4992854e09f10b2c09e78c1292d5759c3f15"
+      "sha256": "657d69b2e45ed8906d481c9a8191b858dd3ba417fd26c8d06b4ba081f8a3e90d"
     },
     {
-      "bytes": 13466,
+      "bytes": 16810,
       "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
-      "sha256": "5b512111d3e56dd571272b51e58165cacb13b1b4d033b48319fef491402205b3"
+      "sha256": "fc987aec1bb0da07b75171f7ff16362b9b6dc22c447a7c7007c7f4a438dca968"
     },
     {
-      "bytes": 10328,
+      "bytes": 12785,
       "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
-      "sha256": "5c45e3d384ae32627e75a1c49dbafdd1c806e7eccd7fa1324ad7e79541c466f5"
+      "sha256": "ac9a0c7fdfbc6fd7603ae7a280c3dccad245c299eb9d280014b6986268704cdf"
     },
     {
-      "bytes": 8778,
+      "bytes": 16969,
       "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
-      "sha256": "154113360527b2f5de2c2207d37cba7bc6eec7e518c2a65a9f071232c04ca5c4"
+      "sha256": "9c24c7579400c0c7e0e9f57e61620c11c962030c3b735d9b4567eb84749ca094"
     },
     {
-      "bytes": 62865,
+      "bytes": 969576,
       "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
-      "sha256": "9d5e477b2978943552539d91059ad52d8c85b89a1242d3fb6ac4fa0b12d8335e"
+      "sha256": "93eed80f52ed3b2e660e6babc794a6a7c7796451917346f9426435323e97af98"
     },
     {
-      "bytes": 10632,
+      "bytes": 21188,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
-      "sha256": "93aaaea6f4747c8d72c6503b3d6fdc995ba0da19dbdea2f20e165265d61a534d"
+      "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
     },
     {
-      "bytes": 78418,
+      "bytes": 777110,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "bd0058db42eb227fbb5743666da85a8a4a1e8b1311e6251be71913262679b579"
+      "sha256": "e7ffbdd65bc2e5867e6ec7b44e1b945174a0fa4acf39a648831828495c254e00"
     },
     {
-      "bytes": 35611,
+      "bytes": 114705,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
-      "sha256": "d8dece23b146325285cb014e125b7ca7d5dc6b3745609907da471f13c9eaf372"
+      "sha256": "556ddc1035c3520d8b58a6a8e7d1dd1ca21d69fda5956516d1bd282c9f05cadc"
     },
     {
-      "bytes": 37869,
+      "bytes": 45225,
       "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
-      "sha256": "426a0643e09bc7449252c73daaf54edd060fd37c6e3789436dd74fc53e5ae29e"
+      "sha256": "5cc15018101e38766e11e413aadd9f135ce537fc440a003dfa6324eb7c9410a9"
     },
     {
-      "bytes": 34747,
+      "bytes": 252900,
       "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
-      "sha256": "54a1bc625242109731568d5ec820d20efa760e9f98c95d77f91272c42d11e860"
+      "sha256": "b9b65b5b44b2cfee992563dbd53fb0e60c0dde30229ba7fd82b6885e98731eb6"
     },
     {
-      "bytes": 26609,
+      "bytes": 49316,
       "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
-      "sha256": "38635bbc254023e66347abdf43670e0ab737b981652ddebaaa72952658d3cfc5"
+      "sha256": "322cbfb35fe5e51124cba34aec492ffa57d3038e92644139f73aa956409f0a93"
     },
     {
-      "bytes": 30879,
+      "bytes": 133529,
       "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
-      "sha256": "56bd52362f9ca8c5216ff3980d7821188d16af28b566daba595a02c41e33ecc6"
+      "sha256": "6cd601905a5f62eefc016cc32f6f5e6fcca26220ce0aaf0ca827178ce84d374b"
     },
     {
-      "bytes": 57434,
+      "bytes": 93494,
       "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
-      "sha256": "e377ca50f25267829312f8659e3c90e9b48c0e26dd5ed10c525bcf3733a96226"
+      "sha256": "4d16566b8221943d16c4d80ef09e641819e57fc27be89299d408026699814cf1"
     },
     {
-      "bytes": 7324,
+      "bytes": 8453,
       "path": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
-      "sha256": "e02ff6a40ccbf9721b4eeb0a9638aa03f280ce8bc227bb1d79b86a300bc1f9b7"
+      "sha256": "bd0b21469f46155179190e20e4a77b4d316dffa3838a05a2de3070e0d11611e9"
     },
     {
-      "bytes": 49514,
+      "bytes": 50915,
       "path": "Scripts/v23/p02_c08_contracts.py",
-      "sha256": "76918981be922ebb3bbdcabdf74bdb60698372e8923a4d1a0982fc2075857dfe"
+      "sha256": "42c417864c0cc1f7bef33dccc161e9182bc133a34e6567d37856fe7f547eb7a6"
     },
     {
       "bytes": 1343,
@@ -93,9 +93,9 @@
       "sha256": "14fe65f41cdfce0f78e21fb6061e5cc77706aa3ff0782b36baa2ea0beb17c9d8"
     },
     {
-      "bytes": 30581,
+      "bytes": 268766,
       "path": "Scripts/v23/verify_p02_c08_contracts.py",
-      "sha256": "46434919f3b39ad74839017f0b1598a32ea2038d4bfb9ba551327d9b659a2857"
+      "sha256": "be9e2eaba753c5fb94eeb1ffd994c62009739a6e23b1f9139de7800029c6f6f7"
     },
     {
       "bytes": 88129,
@@ -113,9 +113,9 @@
       "sha256": "d6b60129056d1ed2c074d75f5c20491da91f3f089ea0e6057cd71ed495130cdb"
     },
     {
-      "bytes": 77220,
+      "bytes": 81493,
       "path": "Scripts/v23/support-export.schema.json",
-      "sha256": "9cb14d077e5f42795d5451077910430aa097151c370b23ee63c62d362d0d845c"
+      "sha256": "5e3037f12f03dfba06c75a717c27d95a0d84af85770588009cdad470d13b5c74"
     },
     {
       "bytes": 28441,
@@ -133,9 +133,9 @@
       "sha256": "e07f7bea8d79c1b48c716075fd4fa8ce029ba87ad7bd2836c0d76614539719eb"
     },
     {
-      "bytes": 26057,
+      "bytes": 27278,
       "path": "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
-      "sha256": "afe39fc34bf4a93d16e81acbc0784eb5e795d1ce1ecb679a6ae7675a2d2efa82"
+      "sha256": "f99a48477d2d5ee37c1772d8fadb17d65c1feac51344b3f69949a651d2d7c21a"
     }
   ],
   "authority": {

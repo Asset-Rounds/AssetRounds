@@ -1820,6 +1820,177 @@ private actor KernelConformanceSearchSourceV1: SearchCanonicalProjectionSourceV1
     }
 }
 
+#if DEBUG
+/// Fixed R01 observations only. Each closure keeps the incumbent call operands
+/// together; diagnostics never read model/authority state or retain an Error.
+@MainActor
+private enum KernelConformanceR01DiagnosticV1 {
+    enum Stage: String {
+        case nodeOpen = "node-open"
+        case firstSign = "first-sign"
+        case checkpointPrepare = "checkpoint-prepare"
+        case checkpointExport = "checkpoint-export"
+        case checkpointActivate = "checkpoint-activate"
+        case checkpointImport = "checkpoint-import"
+        case timeZoneMutation = "time-zone-mutation"
+        case cursor = "cursor"
+        case page = "page"
+        case resolutionPrepare = "resolution-prepare"
+        case resolutionInstall = "resolution-install"
+        case replay = "replay"
+        case deliveryResume = "delivery-resume"
+        case recovery = "recovery"
+        case recoveryResume = "recovery-resume"
+        case projection = "projection"
+        case sourceHistory = "source-history"
+        case postConvergence = "post-convergence"
+    }
+    enum Schedule: String {
+        case compatibility
+        case firstTwo = "first-two"
+        case secondTwo = "second-two"
+        case firstThree = "first-three"
+        case secondThree = "second-three"
+        case otherCount = "other-count"
+        static func category(replicaCount: Int, firstRun: Bool) -> Self {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            switch (replicaCount, firstRun) {
+            case (2, true): return .firstTwo
+            case (2, false): return .secondTwo
+            case (3, true): return .firstThree
+            case (3, false): return .secondThree
+            default: return .otherCount
+            }
+        }
+    }
+    enum Node: String {
+        case none, compatibility
+        case a = "replica-a"
+        case b = "replica-b"
+        case c = "replica-c"
+        case other
+        static func category(_ label: String) -> Self {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            switch label {
+            case "A": return .a
+            case "B": return .b
+            case "C": return .c
+            default: return .other
+            }
+        }
+    }
+    private enum Event: String { case enter, returned, refusal }
+
+    static func call<Value>(
+        _ stage: Stage, schedule: Schedule, node: Node = .none, peer: Node = .none,
+        operation: () throws -> Value
+    ) rethrows -> Value {
+        emit(.enter, stage: stage, schedule: schedule, node: node, peer: peer)
+        do {
+            let value = try operation()
+            emit(.returned, stage: stage, schedule: schedule, node: node, peer: peer)
+            return value
+        } catch {
+            emit(.refusal, stage: stage, schedule: schedule, node: node, peer: peer,
+                 error: error)
+            throw error
+        }
+    }
+
+    static func callAsync<Value>(
+        _ stage: Stage, schedule: Schedule, node: Node = .none,
+        operation: @MainActor () async throws -> Value
+    ) async rethrows -> Value {
+        emit(.enter, stage: stage, schedule: schedule, node: node, peer: .none)
+        do {
+            let value = try await operation()
+            emit(.returned, stage: stage, schedule: schedule, node: node, peer: .none)
+            return value
+        } catch {
+            emit(.refusal, stage: stage, schedule: schedule, node: node, peer: .none,
+                 error: error)
+            throw error
+        }
+    }
+
+    private static func emit(
+        _ event: Event, stage: Stage, schedule: Schedule, node: Node, peer: Node,
+        error: Error? = nil
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let errorLabel: String
+        if let failure = error as? WorkspaceMutationFailureV1 {
+            switch failure {
+            case .writerInvalidated: errorLabel = "mutation.writer-invalidated"
+            case .wrongWriterInstance: errorLabel = "mutation.wrong-writer-instance"
+            case .wrongWorkspace: errorLabel = "mutation.wrong-workspace"
+            case .wrongGeneration: errorLabel = "mutation.wrong-generation"
+            case .staleWorkspaceRevision: errorLabel = "mutation.stale-workspace-revision"
+            case .staleEntityRevision: errorLabel = "mutation.stale-entity-revision"
+            case .mutationIDQuarantined: errorLabel = "mutation.id-quarantined"
+            case .idempotencyCapacityReached: errorLabel = "mutation.idempotency-capacity"
+            case .revisionOverflow: errorLabel = "mutation.revision-overflow"
+            case .unsupportedCommand: errorLabel = "mutation.unsupported-command"
+            case .invalidCommand: errorLabel = "mutation.invalid-command"
+            case .invalidEnvelope: errorLabel = "mutation.invalid-envelope"
+            case .invalidReceipt: errorLabel = "mutation.invalid-receipt"
+            case .invalidReversal: errorLabel = "mutation.invalid-reversal"
+            case .receiptHistoryCorrupt: errorLabel = "mutation.receipt-history-corrupt"
+            case .sequenceCollision: errorLabel = "mutation.sequence-collision"
+            case .storageAdmissionFailed: errorLabel = "mutation.storage-admission-failed"
+            case .persistenceFailed: errorLabel = "mutation.persistence-failed"
+            }
+        } else if let failure = error as? ChangeJournalFailureV1 {
+            switch failure {
+            case .incompatibleVersion: errorLabel = "journal.incompatibleVersion"
+            case .invalidValue: errorLabel = "journal.invalidValue"
+            case .invalidDigest: errorLabel = "journal.invalidDigest"
+            case .limitExceeded: errorLabel = "journal.limitExceeded"
+            case .duplicateValue: errorLabel = "journal.duplicateValue"
+            case .noncanonicalOrder: errorLabel = "journal.noncanonicalOrder"
+            case .wrongWorkspace: errorLabel = "journal.wrongWorkspace"
+            case .wrongGeneration: errorLabel = "journal.wrongGeneration"
+            case .unknownCheckpoint: errorLabel = "journal.unknownCheckpoint"
+            case .unknownCursor: errorLabel = "journal.unknownCursor"
+            case .staleCursor: errorLabel = "journal.staleCursor"
+            case .discontinuousBatch: errorLabel = "journal.discontinuousBatch"
+            case .tamperedBatch: errorLabel = "journal.tamperedBatch"
+            case .missingContent: errorLabel = "journal.missingContent"
+            case .unresolvedConflict: errorLabel = "journal.unresolvedConflict"
+            case .invalidReversal: errorLabel = "journal.invalidReversal"
+            case .incompleteCheckpoint: errorLabel = "journal.incompleteCheckpoint"
+            }
+        } else if let failure = error as? KernelConformanceFixtureFailureV1 {
+            switch failure {
+            case .missingArtifact: errorLabel = "fixture.missing-artifact"
+            case .invalidArtifact: errorLabel = "fixture.invalid-artifact"
+            case .incompleteCoverage: errorLabel = "fixture.incomplete-coverage"
+            }
+        } else if let failure = error as? EraseAllServiceError {
+            switch failure {
+            case .contextHasChanges: errorLabel = "erase.context-has-changes"
+            case .invalidAuthority: errorLabel = "erase.invalid-authority"
+            case .invalidConfirmation: errorLabel = "erase.invalid-confirmation"
+            case .recoveryRequired: errorLabel = "erase.recovery-required"
+            case .injectedFailure: errorLabel = "erase.injected-failure"
+            }
+        } else if let failure = error as? MutationJournalFailureV1 {
+            switch failure {
+            case .injected: errorLabel = "mutation-journal.injected"
+            }
+        } else {
+            errorLabel = error == nil ? "none" : "other-error"
+        }
+        let line = "V23_KERNEL_R01_DIAG_V1 event=\(event.rawValue) stage=\(stage.rawValue) schedule=\(schedule.rawValue) node=\(node.rawValue) peer=\(peer.rawValue) error=\(errorLabel)\n"
+        do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+        catch { /* Diagnostic transport never replaces the original outcome. */ }
+    }
+}
+
+#endif
 @MainActor
 private final class KernelConformanceReplicaNodeV1 {
     let label: String
@@ -2304,12 +2475,46 @@ final class KernelConformanceProductionHarnessV1 {
         )
         let support = isolatedFaultRoot("compatibility-bounds")
         defer { try? FileManager.default.removeItem(at: support) }
+#if DEBUG
+        let node = try KernelConformanceR01DiagnosticV1.call(
+            .nodeOpen, schedule: .compatibility, node: .compatibility
+        ) {
+            try KernelConformanceReplicaNodeV1(
+                label: "compatibility", applicationSupportURL: support,
+                identity: identity, limits: limits, profile: profile
+            )
+        }
+#else
         let node = try KernelConformanceReplicaNodeV1(
             label: "compatibility", applicationSupportURL: support,
             identity: identity, limits: limits, profile: profile
         )
+#endif
         let siteID = Self.fixedUUID(label: "K", slot: 602)
         let firstSignMutationID = try MutationIDV1(rawValue: Self.fixedUUID(label: "K", slot: 607))
+#if DEBUG
+        _ = try KernelConformanceR01DiagnosticV1.call(
+            .firstSign, schedule: .compatibility, node: .compatibility
+        ) {
+            try node.coordinator.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "Bounds Site", address: nil, timeZoneID: "UTC"),
+                    assetID: Self.fixedUUID(label: "K", slot: 603),
+                    assetLabel: "Bounds Asset", packID: profile.package.packID,
+                    packSchemaVersion: profile.package.schemaVersion,
+                    packContentVersion: profile.package.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_700_060_000),
+                    initialPlacementMutationID: firstSignMutationID,
+                    initialPlacementEventID: Self.fixedUUID(label: "K", slot: 605),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: Self.fixedUUID(label: "K", slot: 606)
+                    )
+                )),
+                mutationID: firstSignMutationID
+            )
+        }
+#else
         _ = try node.coordinator.workspaceWriter.execute(
             .createFirstSign(.init(
                 siteID: siteID,
@@ -2327,17 +2532,53 @@ final class KernelConformanceProductionHarnessV1 {
             )),
             mutationID: firstSignMutationID
         )
+#endif
+#if DEBUG
+        let checkpoint = try KernelConformanceR01DiagnosticV1.call(
+            .checkpointPrepare, schedule: .compatibility, node: .compatibility
+        ) {
+            try node.journal.prepareCheckpoint(
+                supplement: .init(contentEntries: [], reversalEligibility: [
+                    node.coordinator.workspaceWriter.firstSignReversalEligibility(targetMutationID: firstSignMutationID)
+                ])
+            )
+        }
+#else
         let checkpoint = try node.journal.prepareCheckpoint(
             supplement: .init(contentEntries: [], reversalEligibility: [
                 node.coordinator.workspaceWriter.firstSignReversalEligibility(targetMutationID: firstSignMutationID)
             ])
         )
+#endif
+#if DEBUG
+        _ = try KernelConformanceR01DiagnosticV1.call(
+            .checkpointActivate, schedule: .compatibility, node: .compatibility
+        ) {
+            try node.journal.activatePreparedCheckpoint(checkpoint)
+        }
+#else
         _ = try node.journal.activatePreparedCheckpoint(checkpoint)
+#endif
         let timeZones = [
             "America/New_York", "America/Chicago",
             "America/Denver", "America/Los_Angeles",
         ]
         for index in timeZones.indices {
+#if DEBUG
+            _ = try KernelConformanceR01DiagnosticV1.call(
+                .timeZoneMutation, schedule: .compatibility, node: .compatibility
+            ) {
+                try node.coordinator.workspaceWriter.execute(
+                    .updateSiteTimeZone(.init(
+                        siteID: siteID, timeZoneID: timeZones[index],
+                        confirmedAt: Date(timeIntervalSince1970: 1_700_060_100 + Double(index))
+                    )),
+                    mutationID: try MutationIDV1(
+                        rawValue: Self.fixedUUID(label: "K", slot: 610 + index)
+                    )
+                )
+            }
+#else
             _ = try node.coordinator.workspaceWriter.execute(
                 .updateSiteTimeZone(.init(
                     siteID: siteID, timeZoneID: timeZones[index],
@@ -2347,16 +2588,36 @@ final class KernelConformanceProductionHarnessV1 {
                     rawValue: Self.fixedUUID(label: "K", slot: 610 + index)
                 )
             )
+#endif
         }
+#if DEBUG
+        var cursor = try KernelConformanceR01DiagnosticV1.call(
+            .cursor, schedule: .compatibility, node: .compatibility
+        ) {
+            try node.journal.initialCursor(
+                consumerReplicaID: ReplicaID(rawValue: Self.fixedUUID(label: "D", slot: 620)),
+                checkpointID: checkpoint.manifest.checkpointID
+            )
+        }
+#else
         var cursor = try node.journal.initialCursor(
             consumerReplicaID: ReplicaID(rawValue: Self.fixedUUID(label: "D", slot: 620)),
             checkpointID: checkpoint.manifest.checkpointID
         )
+#endif
         var observedItemMaximum = 0
         var observedByteMaximum = 0
         var firstBatch: ChangeBatchV1?
         while true {
+#if DEBUG
+            let batch = try KernelConformanceR01DiagnosticV1.call(
+                .page, schedule: .compatibility, node: .compatibility
+            ) {
+                try node.journal.page(after: cursor)
+            }
+#else
             let batch = try node.journal.page(after: cursor)
+#endif
             if firstBatch == nil { firstBatch = batch }
             let bytes = try batch.canonicalData(limits: limits).count
             observedItemMaximum = max(observedItemMaximum, batch.changes.count)
@@ -4647,6 +4908,11 @@ final class KernelConformanceProductionHarnessV1 {
         profile: WorkspacePackageLifecycleProfileV1,
         exercisePostConvergence: Bool
     ) async throws -> KernelConformanceReplicaRunV1 {
+#if DEBUG
+        let r01ScheduleForTesting = KernelConformanceR01DiagnosticV1.Schedule.category(
+            replicaCount: replicas.count, firstRun: exercisePostConvergence
+        )
+#endif
         let workspaceID = WorkspaceID(rawValue: Self.fixedUUID(label: "W", slot: 1))
         let limits = try ChangeJournalLimitsV1(
             maximumChangesPerBatch: 1,
@@ -4662,6 +4928,21 @@ final class KernelConformanceProductionHarnessV1 {
                 workspaceID: workspaceID,
                 replicaID: ReplicaID(rawValue: Self.fixedUUID(label: label, slot: 1))
             )
+#if DEBUG
+            nodes[label] = try KernelConformanceR01DiagnosticV1.call(
+                .nodeOpen, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try KernelConformanceReplicaNodeV1(
+                    label: label,
+                    applicationSupportURL: root.appendingPathComponent(
+                        "r01-\(runLabel)-\(label)", isDirectory: true
+                    ),
+                    identity: identity,
+                    limits: limits,
+                    profile: profile
+                )
+            }
+#else
             nodes[label] = try KernelConformanceReplicaNodeV1(
                 label: label,
                 applicationSupportURL: root.appendingPathComponent(
@@ -4671,6 +4952,7 @@ final class KernelConformanceProductionHarnessV1 {
                 limits: limits,
                 profile: profile
             )
+#endif
         }
         var checkpoints: [String: WorkspaceCheckpointPreparationV1] = [:]
         var exports: [String: (export: WorkspaceCheckpointExportV1, packageData: Data)] = [:]
@@ -4678,14 +4960,42 @@ final class KernelConformanceProductionHarnessV1 {
             guard let node = nodes[label] else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage(label)
             }
+#if DEBUG
+            let preparation = try KernelConformanceR01DiagnosticV1.call(
+                .checkpointPrepare, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.prepareCheckpoint(
+                    supplement: .init(contentEntries: [], reversalEligibility: [])
+                )
+            }
+#else
             let preparation = try node.journal.prepareCheckpoint(
                 supplement: .init(contentEntries: [], reversalEligibility: [])
             )
+#endif
             checkpoints[label] = preparation
+#if DEBUG
+            exports[label] = try KernelConformanceR01DiagnosticV1.call(
+                .checkpointExport, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.exportPreparedCheckpoint(
+                    preparation, packageRelativePath: "kernel/\(label)-checkpoint.fecp"
+                )
+            }
+#else
             exports[label] = try node.journal.exportPreparedCheckpoint(
                 preparation, packageRelativePath: "kernel/\(label)-checkpoint.fecp"
             )
+#endif
+#if DEBUG
+            _ = try KernelConformanceR01DiagnosticV1.call(
+                .checkpointActivate, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.activatePreparedCheckpoint(preparation)
+            }
+#else
             _ = try node.journal.activatePreparedCheckpoint(preparation)
+#endif
         }
         for source in replicas {
             guard let transported = exports[source] else {
@@ -4695,9 +5005,19 @@ final class KernelConformanceProductionHarnessV1 {
                 guard let node = nodes[destination] else {
                     throw KernelConformanceFixtureFailureV1.incompleteCoverage(destination)
                 }
+#if DEBUG
+                _ = try KernelConformanceR01DiagnosticV1.call(
+                    .checkpointImport, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(destination), peer: KernelConformanceR01DiagnosticV1.Node.category(source)
+                ) {
+                    try node.journal.installImportedCheckpoint(
+                        export: transported.export, packageData: transported.packageData
+                    )
+                }
+#else
                 _ = try node.journal.installImportedCheckpoint(
                     export: transported.export, packageData: transported.packageData
                 )
+#endif
             }
         }
         let requiredIndices = try Self.requiredTokenIndices(
@@ -4729,12 +5049,39 @@ final class KernelConformanceProductionHarnessV1 {
                         rawValue: Self.fixedUUID(label: label, slot: 14)
                     )
                 ))
+#if DEBUG
+                outcomes["\(label)1"] = try KernelConformanceR01DiagnosticV1.call(
+                    .firstSign, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+                ) {
+                    try node.coordinator.workspaceWriter.execute(
+                        command,
+                        mutationID: firstSignMutationID
+                    )
+                }
+#else
                 outcomes["\(label)1"] = try node.coordinator.workspaceWriter.execute(
                     command,
                     mutationID: firstSignMutationID
                 )
+#endif
             }
             if maximum >= 2 {
+#if DEBUG
+                outcomes["\(label)2"] = try KernelConformanceR01DiagnosticV1.call(
+                    .timeZoneMutation, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+                ) {
+                    try node.coordinator.workspaceWriter.execute(
+                        .updateSiteTimeZone(SiteTimeZoneMutationV1(
+                            siteID: Self.fixedUUID(label: label, slot: 10),
+                            timeZoneID: "UTC",
+                            confirmedAt: Date(timeIntervalSince1970: 1_700_001_100)
+                        )),
+                        mutationID: try MutationIDV1(
+                            rawValue: Self.fixedUUID(label: label, slot: 102)
+                        )
+                    )
+                }
+#else
                 outcomes["\(label)2"] = try node.coordinator.workspaceWriter.execute(
                     .updateSiteTimeZone(SiteTimeZoneMutationV1(
                         siteID: Self.fixedUUID(label: label, slot: 10),
@@ -4745,6 +5092,7 @@ final class KernelConformanceProductionHarnessV1 {
                         rawValue: Self.fixedUUID(label: label, slot: 102)
                     )
                 )
+#endif
             }
         }
         var batches: [String: ChangeBatchV1] = [:]
@@ -4757,12 +5105,31 @@ final class KernelConformanceProductionHarnessV1 {
                 guard let destinationNode = nodes[destination] else {
                     throw KernelConformanceFixtureFailureV1.incompleteCoverage(destination)
                 }
+#if DEBUG
+                var cursor = try KernelConformanceR01DiagnosticV1.call(
+                    .cursor, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(source), peer: KernelConformanceR01DiagnosticV1.Node.category(destination)
+                ) {
+                    try sourceNode.journal.initialCursor(
+                        consumerReplicaID: destinationNode.coordinator.replicaID,
+                        checkpointID: checkpoint.manifest.checkpointID
+                    )
+                }
+#else
                 var cursor = try sourceNode.journal.initialCursor(
                     consumerReplicaID: destinationNode.coordinator.replicaID,
                     checkpointID: checkpoint.manifest.checkpointID
                 )
+#endif
                 for index in 1...maximum {
+#if DEBUG
+                    let batch = try KernelConformanceR01DiagnosticV1.call(
+                        .page, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(source), peer: KernelConformanceR01DiagnosticV1.Node.category(destination)
+                    ) {
+                        try sourceNode.journal.page(after: cursor)
+                    }
+#else
                     let batch = try sourceNode.journal.page(after: cursor)
+#endif
                     guard batch.changes.count == 1 else {
                         throw KernelConformanceFixtureFailureV1.incompleteCoverage(
                             "\(source)\(index)>\(destination)"
@@ -4786,6 +5153,21 @@ final class KernelConformanceProductionHarnessV1 {
         guard competitors.count == min(2, replicas.count) else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("resolution-inputs")
         }
+#if DEBUG
+        let resolution = try KernelConformanceR01DiagnosticV1.call(
+            .resolutionPrepare, schedule: r01ScheduleForTesting, node: .none
+        ) {
+            try ConflictResolutionBasisV1(
+                subject: .workspace(workspaceID),
+                policy: policy,
+                competitors: competitors,
+                causalFrontier: try ConflictCausalFrontierV1(
+                    baseRevision: 0, baseSemanticSHA256: nil, observedInputs: competitors
+                ),
+                disposition: .stableIDAppendUnion
+            )
+        }
+#else
         let resolution = try ConflictResolutionBasisV1(
             subject: .workspace(workspaceID),
             policy: policy,
@@ -4795,20 +5177,45 @@ final class KernelConformanceProductionHarnessV1 {
             ),
             disposition: .stableIDAppendUnion
         )
+#endif
         for delivery in deliveries {
             if delivery.hasPrefix("RESOLUTION>") {
                 let destination = String(delivery.dropFirst("RESOLUTION>".count))
                 guard let node = nodes[destination] else {
                     throw KernelConformanceFixtureFailureV1.incompleteCoverage(delivery)
                 }
+#if DEBUG
+                try KernelConformanceR01DiagnosticV1.call(
+                    .resolutionInstall, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(destination)
+                ) {
+                    try node.journal.installConflictResolution(resolution)
+                }
+#else
                 try node.journal.installConflictResolution(resolution)
+#endif
             } else {
                 guard let destination = delivery.split(separator: ">").last.map(String.init),
                       let node = nodes[destination], let batch = batches[delivery] else {
                     throw KernelConformanceFixtureFailureV1.incompleteCoverage(delivery)
                 }
+#if DEBUG
+                _ = try KernelConformanceR01DiagnosticV1.call(
+                    .replay, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(destination)
+                ) {
+                    try node.journal.replayResult(batch)
+                }
+#else
                 _ = try node.journal.replayResult(batch)
+#endif
+#if DEBUG
+                _ = try KernelConformanceR01DiagnosticV1.call(
+                    .deliveryResume, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(destination)
+                ) {
+                    try node.journal.resumeStagedBatches()
+                }
+#else
                 _ = try node.journal.resumeStagedBatches()
+#endif
             }
         }
         var normalized: [KernelConformanceNormalizedReplicaProjectionV1] = []
@@ -4821,10 +5228,42 @@ final class KernelConformanceProductionHarnessV1 {
             guard let node = nodes[label] else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage(label)
             }
+#if DEBUG
+            try KernelConformanceR01DiagnosticV1.call(
+                .recovery, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.recoverInterruptedWork()
+            }
+#else
             try node.journal.recoverInterruptedWork()
+#endif
+#if DEBUG
+            _ = try KernelConformanceR01DiagnosticV1.call(
+                .recoveryResume, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.resumeStagedBatches()
+            }
+#else
             _ = try node.journal.resumeStagedBatches()
+#endif
+#if DEBUG
+            let projection = try KernelConformanceR01DiagnosticV1.call(
+                .projection, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.journal.semanticProjection(unresolvedConflicts: nil)
+            }
+#else
             let projection = try node.journal.semanticProjection(unresolvedConflicts: nil)
+#endif
+#if DEBUG
+            let history = try KernelConformanceR01DiagnosticV1.call(
+                .sourceHistory, schedule: r01ScheduleForTesting, node: KernelConformanceR01DiagnosticV1.Node.category(label)
+            ) {
+                try node.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+            }
+#else
             let history = try node.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+#endif
             let content = try Set(history.receipts.flatMap {
                 try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)
                     .contentDependencyIDs
@@ -4872,9 +5311,19 @@ final class KernelConformanceProductionHarnessV1 {
             guard let primary = nodes[replicas[0]] else {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("post-convergence")
             }
+#if DEBUG
+            post = try await KernelConformanceR01DiagnosticV1.callAsync(
+                .postConvergence, schedule: r01ScheduleForTesting, node: .category(replicas[0])
+            ) {
+                try await Self.exercisePostConvergenceLifecycle(
+                    primary, profile: profile, cleanupOwners: eraseCleanupOwners
+                )
+            }
+#else
             post = try await Self.exercisePostConvergenceLifecycle(
                 primary, profile: profile, cleanupOwners: eraseCleanupOwners
             )
+#endif
         } else {
             post = nil
         }

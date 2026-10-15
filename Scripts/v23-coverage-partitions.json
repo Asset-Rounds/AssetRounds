@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "1902d0870587cccdf374311631b986763be0c428",
+  "generatedAtHead": "2b353a0229cb3797779a2441a16e115b21307b88",
   "sweepOrder": [
     "S01",
     "S02",
@@ -386,7 +386,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 2278.1,
+      "estimatedSeconds": 2638.1,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -452,6 +452,12 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalEraseJournalRecoveryRejectsCompletedReuse",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalEraseJournalRecoveryRejectsForeignFenceBeforeBody",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalEraseJournalRecoveryRejectsWrongAllocationBeforeBody",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRefusesRetainedTupleAfterStickyUncertainty",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRejectsChangedCanonicalMarkerBytes",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRejectsChangedPredecessorLeaf",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRejectsForeignNamespaceAndDirectoryLinkEdge",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRejectsIdenticalBytesOnReplacementInode",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalMarkerProjectionRepeatsSamePhaseAndRejectsForeignBindings",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalPointerRefusesChangedSourceSiblingBeforeFirstEffect",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalPointerRefusesRetainedPrivateTargetPreflightAliasBeforeEffect",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPinnedEmptyGenerationCreationRejectsReplacementBeforeSQLiteWrite",

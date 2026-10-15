@@ -247,6 +247,37 @@ SIGNPOST_INTERVALS = [
     "IMPORT_PARSE", "MUTATION_COMMIT", "REPORT_RENDER", "RESTORE",
     "SEARCH_REBUILD", "SCRATCH_LEASE", "STORE_OPEN", "SUPPORT_EXPORT",
 ]
+# C54's existing negative fixture reproof belongs to the closed C08 corpus.
+# These expectations come from its diagnostic/privacy authority, not the fixture.
+C54_DIAGNOSTIC_PRIVACY_NEGATIVE_REPROOF = {
+    "cardID": "V23-P03-C54",
+    "stageValues": ["SEAL", "OPEN", "REOPEN_BEFORE_SHARE"],
+    "sharedExternalFailureCategory": "WRONG_PASSPHRASE_OR_DAMAGE",
+    "forbiddenDiagnosticInputs": [
+        "ENVELOPE_BYTES", "PASSPHRASE", "DERIVED_KEY", "SALT", "NONCE",
+        "PLAINTEXT_DIGEST", "CUSTOMER_DIGEST", "RAW_METADATA",
+        "LINKABLE_PUBLIC_ID", "LINKABLE_FILENAME", "SCRATCH_PATH",
+    ],
+    "surfaceExclusions": {
+        "logs": True,
+        "metricKit": True,
+        "supportBundle": True,
+        "search": True,
+        "spotlight": True,
+        "quickLook": True,
+    },
+    "lifecycleClassifications": ["CANCELLATION", "MEMORY_PRESSURE"],
+    "diagnosticsAreClassificationOnly": True,
+    "diagnosticsOwnCleanup": False,
+    "countersPreserved": True,
+    "customerDataExcluded": True,
+    "reproof": {
+        "rawEnvelopeAndSecretMaterialRejected": True,
+        "linkableNamesAndPathsRejected": True,
+        "wrongPassphraseAndDamageRemainIndistinguishable": True,
+        "memoryPressureAndCancellationRemainNoncanonical": True,
+    },
+}
 PROHIBITED_TOKENS = [
     "customerText", "customerMedia", "customerNote", "address",
     "preciseLocation", "entityID", "workspaceID", "localPath", "secret",
@@ -912,8 +943,9 @@ def corpus_contract() -> dict[str, Any]:
             "schemaVersion", "fixtureIdentity", "clock", "bounds", "metricCompatibility",
             "health", "failureCodes", "unknownFailure", "typedErrorMapping",
             "supportExport", "storeCases", "scratchIsolation", "workflowFriction",
-            "logging", "resetErase",
+            "logging", "resetErase", "c54DiagnosticPrivacyNegativeReproof",
         ],
+        "fixtureC54DiagnosticPrivacyNegativeReproof": C54_DIAGNOSTIC_PRIVACY_NEGATIVE_REPROOF,
         "fixtureFailureCodes": FAILURE_CODES,
         "fixtureTypedErrorMapping": TYPED_ERROR_MAPPING,
         "fixtureTypedErrorMappingPolicy": TYPED_ERROR_MAPPING_POLICY,

@@ -43556,7 +43556,7 @@ private extension EraseIntentStore {
               [Self.intentName, Self.nextName,
                Self.preparationName, Self.preparationNextName,
                Self.rosterName, Self.rosterNextName,
-               Self.auxiliaryRosterName,
+               Self.auxiliaryRosterName, Self.auxiliaryRosterNextName,
                Self.originalRetiredCommitmentName,
                Self.originalRetiredStageIdentityName].contains(name),
               maximumBytes > 0 else {

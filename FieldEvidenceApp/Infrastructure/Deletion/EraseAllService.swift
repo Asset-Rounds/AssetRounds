@@ -2518,6 +2518,9 @@ final class EraseAllService {
             operation: operation)
     }
 
+    var originalNotificationMarkerProjectionControlForTesting:
+        EraseOriginalNotificationMarkerProjectionControlForTestingV1?
+
     var originalSourceProjectionControlForTesting: (@MainActor (
         StoreRestoreGenerationAuthority.OriginalEraseDebugSourceProjectionV1,
         EraseRouterOperationV1) throws -> Void)?
@@ -2674,6 +2677,49 @@ final class EraseAllService {
         site: PreIntentRefusalSiteForTesting, error: Error
     ) {
         print("V23_ERASE_PREINTENT_REFUSAL_V1 site=\(site.rawValue) case=\(preIntentFailureCaseForTesting(error))")
+    }
+
+    private enum PreIntentCallStepForTesting: String {
+        case preparedInstalledNames = "prepared.installed-names"
+        case preparedCurrentGeneration = "prepared.current-generation"
+        case preparedRetiredIDs = "prepared.retired-ids"
+        case preparedSourceLedger = "prepared.source-ledger"
+        case preparedTargetSession = "prepared.target-session-and-arguments"
+        case sourceLedgerOperands = "source-ledger.required-operands"
+        case sourceLedgerRead = "source-ledger.read-and-equality"
+        case discardReproof = "discard.before-effect-reproof"
+        case discardSourceLedger = "discard.source-ledger-read-and-equality"
+        case discardTargetIdentity = "discard.target-identity"
+        case discardTarget = "discard.factory-target-and-arguments"
+        case rollbackOwnerChecks = "rollback.owner-checks"
+        case rollbackLoadIntent = "rollback.load-intent"
+        case rollbackCompareIntent = "rollback.compare-intent"
+        case rollbackLoadPreparation = "rollback.load-preparation"
+        case rollbackComparePreparation = "rollback.compare-preparation"
+        case rollbackDiscardPreparation = "rollback.discard-preparation"
+        case rollbackRemovePreparation = "rollback.remove-preparation"
+        case rollbackRemoveEmptyRoot = "rollback.remove-empty-root"
+        case rollbackAbortProof = "rollback.abort-proof"
+        case rollbackDisposeAllocations = "rollback.dispose-allocations"
+        case rollbackRequireDisposed = "rollback.require-disposed"
+    }
+
+    /// Closed labels and error cases only. Never refetch state or retain an
+    /// error/owner beyond its existing catch while attributing the actual call.
+    private static func reportPreIntentCallRefusalForTesting(
+        step: PreIntentCallStepForTesting, error: Error
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        print("V23_ERASE_PREINTENT_CALL_REFUSAL_V1 step=\(step.rawValue) case=\(preIntentFailureCaseForTesting(error))")
+    }
+
+    private static func reportPreIntentRollbackRefusalForTesting(
+        step: PreIntentCallStepForTesting, original: Error, rollback: Error
+    ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        print("V23_ERASE_PREINTENT_ROLLBACK_REFUSAL_V1 step=\(step.rawValue) original=\(preIntentFailureCaseForTesting(original)) secondary=\(preIntentFailureCaseForTesting(rollback))")
     }
 
     private func reportSchema2ColdPForwardFailure(_ error: Error) {
@@ -3898,15 +3944,30 @@ final class EraseAllService {
                 }
                 erasePreparedRollbackStateForTesting = "attempted"
 #endif
-                try operation.requirePreparationRollback()
 #if DEBUG
+                do {
+                    try operation.requirePreparationRollback()
+                } catch {
+                    Self.reportPreIntentRollbackRefusalForTesting(
+                        step: .rollbackOwnerChecks, original: originalFailure, rollback: error)
+                    throw error
+                }
                 erasePreparedRollbackStateForTesting = "completed"
+                var rollbackCallStep = PreIntentCallStepForTesting.rollbackLoadIntent
+#else
+                try operation.requirePreparationRollback()
 #endif
                 var ownsUnjournaledGeneration = true
                 var aborted: AbortedEraseAdmissionReceiptV1?
                 if let intentStore {
                     do {
+#if DEBUG
+                        rollbackCallStep = .rollbackLoadIntent
+#endif
                         if let stored = try intentStore.load() {
+#if DEBUG
+                            rollbackCallStep = .rollbackCompareIntent
+#endif
                             guard let frozenIntent,
                                   stored == frozenIntent else {
                                 throw EraseAllServiceError.recoveryRequired
@@ -3914,26 +3975,48 @@ final class EraseAllService {
                             ownsUnjournaledGeneration = false
                         }
                     } catch {
+#if DEBUG
+                        Self.reportPreIntentRollbackRefusalForTesting(
+                            step: rollbackCallStep, original: originalFailure, rollback: error)
+#endif
                         traceEraseOriginalFailure(error)
                         throw EraseAllServiceError.recoveryRequired
                     }
                 }
                 do {
+#if DEBUG
+                    rollbackCallStep = .rollbackLoadPreparation
+#endif
                     if ownsUnjournaledGeneration,
                        let intentStore,
                        let preparation = try intentStore.loadPreparation() {
+#if DEBUG
+                        rollbackCallStep = .rollbackComparePreparation
+#endif
                         guard preparation == frozenPreparation
                                 || preparation == initialPreparation else {
                             throw EraseAllServiceError.recoveryRequired
                         }
+#if DEBUG
+                        rollbackCallStep = .rollbackDiscardPreparation
+#endif
                         try discardPreparation(
                             preparation,
                             authority: generationAuthority
                         )
+#if DEBUG
+                        rollbackCallStep = .rollbackRemovePreparation
+#endif
                         try intentStore.removePreparation(expected: preparation)
                     }
                     if ownsUnjournaledGeneration {
+#if DEBUG
+                        rollbackCallStep = .rollbackRemoveEmptyRoot
+#endif
                         try auxiliary.removeEraseRootIfEmpty()
+#if DEBUG
+                        rollbackCallStep = .rollbackAbortProof
+#endif
                         aborted = abortedAdmissionIfProven(
                             subject: subject,
                             reservation: reservation,
@@ -3946,12 +4029,29 @@ final class EraseAllService {
                         )
                     }
                 } catch {
+#if DEBUG
+                    Self.reportPreIntentRollbackRefusalForTesting(
+                        step: rollbackCallStep, original: originalFailure, rollback: error)
+#endif
                     traceEraseOriginalFailure(error)
                     throw EraseAllServiceError.recoveryRequired
                 }
                 operation.endPreparationServiceFrame()
+#if DEBUG
+                do {
+                    rollbackCallStep = .rollbackDisposeAllocations
+                    try operation.disposeFailedPreparationAllocations()
+                    rollbackCallStep = .rollbackRequireDisposed
+                    try operation.requireFailedPreparationDisposed()
+                } catch {
+                    Self.reportPreIntentRollbackRefusalForTesting(
+                        step: rollbackCallStep, original: originalFailure, rollback: error)
+                    throw error
+                }
+#else
                 try operation.disposeFailedPreparationAllocations()
                 try operation.requireFailedPreparationDisposed()
+#endif
                 if let aborted {
                     provenNoEffectAfterIntentAttempt = true
                     deliverProvenAbortedAdmission(aborted)
@@ -7074,6 +7174,42 @@ private extension EraseAllService {
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+#if DEBUG
+        let expected = Set(
+            (intent.generationIDsToDelete + [intent.newGenerationID])
+                .map(Self.canonical)
+        )
+        var callStep = PreIntentCallStepForTesting.preparedInstalledNames
+        do {
+            guard try { () throws -> Bool in
+                callStep = .preparedInstalledNames
+                return Set(try authority.installedGenerationNames()) == expected
+            }(), try { () throws -> Bool in
+                callStep = .preparedCurrentGeneration
+                return try generationFactory.currentGenerationID(authority: authority)
+                    == intent.oldGenerationID
+            }(), try { () throws -> Bool in
+                callStep = .preparedRetiredIDs
+                return try authority.retiredGenerationIDs() == priorRetiredIDs(intent)
+            }() else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if intent.schemaVersion == 2 {
+                callStep = .preparedSourceLedger
+                try requireSourceLedgerBinding(intent, authority: authority)
+                callStep = .preparedTargetSession
+                _ = try validatedEmptySession(
+                    id: intent.newGenerationID,
+                    identity: try targetIdentity(intent),
+                    expectedEmptyLedger: try expectedEmptyLedger(intent),
+                    authority: authority
+                )
+            }
+        } catch {
+            Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
+            throw error
+        }
+#else
         let expected = Set(
             (intent.generationIDsToDelete + [intent.newGenerationID])
                 .map(Self.canonical)
@@ -7094,6 +7230,7 @@ private extension EraseAllService {
                 authority: authority
             )
         }
+#endif
     }
 
     private struct OriginalRecoveryCopiedContentV1 {
@@ -10739,6 +10876,25 @@ private extension EraseAllService {
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+#if DEBUG
+        var callStep = PreIntentCallStepForTesting.sourceLedgerOperands
+        do {
+            guard let oldPointer = intent.oldPointer,
+                  let expected = intent.sourceLedger else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            callStep = .sourceLedgerRead
+            guard try generationFactory.currentGenerationDeletionLedgerProof(
+                expectedPointer: oldPointer,
+                authority: authority
+            ) == expected else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } catch {
+            Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
+            throw error
+        }
+#else
         guard let oldPointer = intent.oldPointer,
               let expected = intent.sourceLedger,
               try generationFactory.currentGenerationDeletionLedgerProof(
@@ -10747,6 +10903,7 @@ private extension EraseAllService {
               ) == expected else {
             throw EraseAllServiceError.invalidAuthority
         }
+#endif
     }
 
     func requirePublishedEmptySession(
@@ -10772,6 +10929,39 @@ private extension EraseAllService {
         authority: StoreRestoreGenerationAuthority,
         reproveBeforeDestructiveEffect: (@MainActor () throws -> Void)? = nil
     ) throws {
+#if DEBUG
+        var callStep = PreIntentCallStepForTesting.discardReproof
+        do {
+            try reproveBeforeDestructiveEffect?()
+            callStep = .discardSourceLedger
+            guard try generationFactory.currentGenerationDeletionLedgerProof(
+                expectedPointer: preparation.oldPointer,
+                authority: authority
+            ) == preparation.sourceLedger else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            callStep = .discardTargetIdentity
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(
+                    rawValue: preparation.targetWorkspaceID
+                ),
+                replicaID: ReplicaID(rawValue: preparation.targetReplicaID)
+            )
+            callStep = .discardTarget
+            try generationFactory.discardPreparedEmptyEraseGeneration(
+                expectedOldPointer: preparation.oldPointer,
+                targetGenerationID: preparation.targetGenerationID,
+                targetIdentity: identity,
+                expectedEmptyLedger: try emptyLedgerProof(),
+                authority: authority,
+                diagnosticPhase: eraseFactoryPhaseDiagnostic,
+                reproveBeforeDestructiveEffect: reproveBeforeDestructiveEffect
+            )
+        } catch {
+            Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
+            throw error
+        }
+#else
         try reproveBeforeDestructiveEffect?()
         guard try generationFactory.currentGenerationDeletionLedgerProof(
             expectedPointer: preparation.oldPointer,
@@ -10794,6 +10984,7 @@ private extension EraseAllService {
             diagnosticPhase: eraseFactoryPhaseDiagnostic,
             reproveBeforeDestructiveEffect: reproveBeforeDestructiveEffect
         )
+#endif
     }
 
     func inject(_ point: EraseAllFailurePoint) throws {
@@ -11001,6 +11192,12 @@ struct V949ColdSourceReadbackV1: Equatable {
     }
 }
 #endif
+
+typealias EraseOriginalNotificationMarkerProjectionControlForTestingV1 = @MainActor (
+    EraseRouterOperationV1, AppLockNotificationControlStoreV1,
+    NotificationEraseRevocationV1,
+    EraseOriginalNotificationPhysicalSnapshotV1,
+    EraseOriginalNotificationPhysicalSnapshotV1) throws -> Void
 
 /// DEBUG-only source-bound observation for the two S6 checked cold exits.
 /// The callback is invoked by the original Search actor immediately before
@@ -12197,8 +12394,10 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         }
     }
 
+    @MainActor
     func afterOriginalNotificationRevocation(
-        _ revocation: NotificationEraseRevocationV1
+        _ revocation: NotificationEraseRevocationV1,
+        controlForTesting: EraseOriginalNotificationMarkerProjectionControlForTestingV1? = nil
     ) throws {
         var c53Boundary: EraseFirstRefusalDiagnosticV1.Boundary = .notificationAfterBeginGuard
         do {
@@ -12219,6 +12418,12 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
                 .originalErasePhysicalSnapshotForTesting()
             EraseOriginalNotificationPhysicalSnapshotV1.reportExistingLeavesForTesting(
                 before: notificationBeforeEffect, after: actual)
+            try controlForTesting?(operation, notificationControl, revocation,
+                notificationBeforeEffect, actual)
+            let projectedUnchangedLeavesDigest = try operation
+                .originalEraseMarkerUnchangedLeavesDigestForTesting(
+                    control: notificationControl, revocation: revocation,
+                    before: notificationBeforeEffect, actual: actual)
             guard EraseFirstRefusalDiagnosticV1.observe(
                     actual.rootDevice == notificationBeforeEffect.rootDevice,
                     .notificationExistingRootDevice, first: &c53Boundary),
@@ -12226,7 +12431,7 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
                     actual.rootInode == notificationBeforeEffect.rootInode,
                     .notificationExistingRootInode, first: &c53Boundary),
                   EraseFirstRefusalDiagnosticV1.observe(
-                    actual.unchangedLeavesDigest
+                    projectedUnchangedLeavesDigest
                         == notificationBeforeEffect.unchangedLeavesDigest,
                     .notificationExistingLeaves, first: &c53Boundary),
                   EraseFirstRefusalDiagnosticV1.observe(
@@ -15346,7 +15551,9 @@ private extension EraseAllService {
                         }, afterBegin: { revocation in
 #if DEBUG
                             try self.originalColdExitFrame?
-                                .afterOriginalNotificationRevocation(revocation)
+                                .afterOriginalNotificationRevocation(revocation,
+                                    controlForTesting: self
+                                        .originalNotificationMarkerProjectionControlForTesting)
 #endif
                         }, observedOwnedRefusal: { revocation, owned,
                             observedOwned in
