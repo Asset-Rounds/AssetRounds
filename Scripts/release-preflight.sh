@@ -869,13 +869,36 @@ PY
 # evidence without asserting a native, hosted, accepted, or release result.
 python -B "$p05_c01_generator" --check >/dev/null
 p05_c01_self_test="$(python -B "$p05_c01_generator" --self-test --json)"
-p05_c01_verifier_result="$(python -B "$p05_c01_verifier" --complete --json)"
-python -B - "$p05_c01_ledger" "$p05_c01_corpus" "$p05_c01_self_test" "$p05_c01_verifier_result" <<'PY'
+if [[ "${V23_P05_C01_HISTORICAL_COORDINATION+x}" == "x" ]]; then
+  p05_c01_verification_scope="CURRENT_SOURCE_WITH_AUTHENTICATED_HISTORICAL_ALLOCATION"
+  if
+  p05_c01_verifier_result="$(python -B "$p05_c01_verifier" --current-source --json)"
+  then
+    :
+  else
+    p05_c01_verifier_exit=$?
+    printf 'C01 verifier failure scope=%s exit=%s\n%s\n' "$p05_c01_verification_scope" "$p05_c01_verifier_exit" "$p05_c01_verifier_result" >&2
+    exit "$p05_c01_verifier_exit"
+  fi
+else
+  p05_c01_verification_scope="HISTORICAL_CARD_ATTEMPT_STATIC"
+  if
+  p05_c01_verifier_result="$(python -B "$p05_c01_verifier" --complete --json)"
+  then
+    :
+  else
+    p05_c01_verifier_exit=$?
+    printf 'C01 verifier failure scope=%s exit=%s\n%s\n' "$p05_c01_verification_scope" "$p05_c01_verifier_exit" "$p05_c01_verifier_result" >&2
+    exit "$p05_c01_verifier_exit"
+  fi
+fi
+python -B - "$p05_c01_ledger" "$p05_c01_corpus" "$p05_c01_self_test" "$p05_c01_verifier_result" "$p05_c01_verification_scope" <<'PY'
 import json, sys
 ledger, corpus, generated, verified = (json.loads(x) for x in (open(sys.argv[1]).read(), open(sys.argv[2]).read(), sys.argv[3], sys.argv[4]))
 assert ledger['schema'] == 'V23P05C01ExactCodeCandidateGateV1'
 assert corpus['schema'] == 'V23P05C01ExactCodeCandidateGateCorpusV1'
 assert ledger['card']['id'] == corpus['cardID'] == 'V23-P05-C01'
+assert ledger['candidate']['status'] == 'PROVISIONAL_STATIC_ONLY'
 assert [x['memberCount'] for x in ledger['selectorRows']] == [19,40,65,15,132,11,72]
 assert len(ledger['provisionalEvidence']['orderedMemberIDs']) == 132
 assert ledger['provisionalEvidence']['acceptedCount'] == 0
@@ -887,7 +910,59 @@ assert len(ledger['logicalAcceptanceLanes']) == 5 and len(ledger['readOnlyBindin
 assert all(v is False for k,v in ledger['flags'].items() if k != 'requiresAcceptedS10_6')
 assert ledger['flags']['requiresAcceptedS10_6'] is True
 assert generated['result'] == 'PASS' and generated['protocol'] == 'MANIFEST_LAST_ATOMIC_REPLACE'
-assert verified['cardID'] == 'V23-P05-C01' and verified['result'] == 'PASS_STATIC_PROVISIONAL'
+assert verified['cardID'] == 'V23-P05-C01'
+if sys.argv[5] == 'CURRENT_SOURCE_WITH_AUTHENTICATED_HISTORICAL_ALLOCATION':
+    assert verified['result'] == 'PASS_CURRENT_SOURCE_STATIC'
+    assert verified['verificationScope'] == sys.argv[5]
+    assert verified['historicalCardAttemptResult'] == 'NOT_EVALUATED'
+    assert verified['historicalExecutionReplayed'] is False
+    assert verified['mutationAuthorizationGranted'] is False
+    assert verified['committedMutationAuthorizationChecked'] is False
+    assert 'counts' not in verified
+    allocation = verified['historicalAllocation']
+    assert allocation['result'] == 'AUTHENTICATED_ALLOCATION_ONLY'
+    assert allocation['historicalExecutionReplayed'] is False and allocation['mutationAuthorizationGranted'] is False
+    assert len(allocation['orderedPathFence']) == len(set(allocation['orderedPathFence'])) == 14
+    assert allocation['existingPathCount'] == 2 and allocation['newPathCount'] == 12
+    observed = generated['observedSelfTest']
+    assert observed['verificationScope'] == sys.argv[5]
+    assert observed['candidateAndAuthorityRole'] == 'HISTORICAL_INPUT_IDENTITY_ONLY'
+    assert observed['sourceRowsRole'] == 'CURRENT_SOURCE_BYTES_NOT_HISTORICAL_EXECUTION'
+    assert observed['inputProvenance']['historicalAllocation'] == allocation
+    assert observed['inputProvenance']['historicalExecutionReplayed'] is False
+    current = verified['currentWorktreeCounts']
+    assert current['comparison'] == 'OBSERVED_HEAD_TO_INDEX_WORKTREE_AND_UNTRACKED'
+    assert current['committedMutationAuthorizationChecked'] is False
+    assert current['changedPathCount'] == len(current['changedPaths'])
+    expected_allowed_mutation_paths = [
+        'Scripts/release-preflight.sh',
+        'FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift',
+        'Scripts/v23/p05_c01_contracts.py',
+        'Scripts/v23/generate_p05_c01_contracts.py',
+        'Scripts/v23/verify_p05_c01_contracts.py',
+        'docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateContractV1.json',
+        'docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateEvidenceReceiptV1.json',
+        'docs/design/v23/tooling/V23P05C01BrandImpactManifestV1.json',
+        'docs/design/v23/tooling/V23-P05-C01-tooling-manifest.json',
+        'docs/design/v23/tooling/V23P04C26OrganicFindabilityContractV1.json',
+        'docs/design/v23/tooling/V23P04C26OrganicFindabilityEvidenceReceiptV1.json',
+        'docs/design/v23/tooling/V23P04C26BrandImpactManifestV1.json',
+        'docs/design/v23/tooling/V23-P04-C26-tooling-manifest.json',
+        'docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.json',
+        'docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json',
+        'docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json',
+        'docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json',
+    ]
+    assert current['allowedMutationPaths'] == expected_allowed_mutation_paths
+    assert len(current['allowedMutationPaths']) == len(set(current['allowedMutationPaths'])) == 17
+    assert set(current['changedPaths']) <= set(current['allowedMutationPaths'])
+    assert current['unownedChangedPathCount'] == current['frozenChangedPathCount'] == current['missingFencedPathCount'] == 0
+    assert current['unownedChangedPaths'] == current['frozenChangedPaths'] == current['missingFencedPaths'] == []
+else:
+    assert sys.argv[5] == 'HISTORICAL_CARD_ATTEMPT_STATIC'
+    assert verified['result'] == 'PASS_STATIC_PROVISIONAL'
+assert verified['finalHashesSealed'] is False
+assert verified['flagsAllFalse'] is True and verified['requiresAcceptedS10_6'] is True
 assert verified['sourceReady'] is True and verified['failures'] == []
 assert [x['memberCount'] for x in verified['selectorRows']] == [19,40,65,15,132,11,72]
 PY
@@ -1276,6 +1351,15 @@ jq -e '
     and .productWrites == 0
     and .publicWrites == 0
   )
+  and ([.expectedDispositions[] | select(.case == "INTERRUPTED_GENERATION")] == [
+    {
+      "acceptedArtifactCount": 0,
+      "case": "INTERRUPTED_GENERATION",
+      "disposition": "ZERO_PARTIAL_OR_COMPLETE",
+      "productWrites": 0,
+      "publicWrites": 0
+    }
+  ])
   and .hostileCases == [
     "ARBITRARY_NONEMPTY_METADATA",
     "PLATFORM_LIMIT_OVERFLOW",

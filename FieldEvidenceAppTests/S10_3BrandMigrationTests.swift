@@ -258,9 +258,12 @@ final class S10_3BrandMigrationTests: XCTestCase {
         // salvage (owner decisions 14 and 18) then added the maintenance "View diagnostics" and
         // "Save photos and reports" copy (F776F6B2…52EF held at 779b21f1); the per-file delta is in
         // the same JSON record.
+        // C248 changes only the DEBUG observer field to process-local elapsed
+        // seconds. Its versioned diagnostic delta preserves the prior pin and
+        // exact per-file literals in that record; projected visual copy is unchanged.
         XCTAssertEqual(
             literalDigest,
-            "D6638A7571332E437BDFCC92004E80F49111FF3A2E251B721DC0087638B6B8BA",
+            "1460CB04B45D88D45458E81FFE78A020CAE1AC588F9AD816E6E857ACE1ACE74E",
             "Released copy, accessibility identifiers, symbols, or fixed product facts drifted"
         )
         let delta = try json("docs/design/v23/integration/s10-3-copy-freeze-delta-v23.json")

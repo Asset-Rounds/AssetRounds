@@ -1,59 +1,43 @@
-# Active integration brief — RESUMED, 2026-10-15 UTC
-- Exact current8Swift fullmodule0/errors0 in298.427s, genuine Sol6.1/xhigh DATA42 PASS. Rootrecord/append0/DATA17 PASS; actualL169/current156claims. Final20-path checkpoint/next3783-method sweepplan prepared for independent review; all57nativePENDING. No main/gate credit.
-- Goal: verified Phase1 V23/S10 merge, then fullV23. SourceReady=false; releaseReady=false.
-- Root alone integrates/commits/pushes/dispatches and operates native/evidence effects.
-- Sol6.1/xhigh helpers, useful disjoint lanes up to10 plusRoot; individual Fast tier unexposed.
-- Preserve all owner drafts, untracked work, originals, failures, partials, HOLDs and consumed questions.
-- Candidate base/integration2b353a0229cb3797779a2441a16e115b21307b88; mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6. Future checkpoint SHA comes from actual commit/Git refs.
-- Five gates0/5OPEN; no signing/distribution/accounts/settings/PR/force/history rewriting.
-- Last hosted DEVELOPMENT38209578400 COMPLETE failure:3341PASS/379FAIL/51UNKNOWN/6SKIP;3777methods/38parts.
-- Affected77=33PASS/44FAIL; prior38044191566=3336PASS/389FAIL/46UNKNOWN/6SKIP.
-- Last hosted sole collector CLOSED401b7a/session98768; no second collector or unchanged retry.
-- Fixed evidence root ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-20261012.
-- HistoricalL167/168 preserved; actualL169/3766824/00141d2b/current156claims/key48bfc registered+recorded. Exact wholeprefix/old155claimfacts conserved, DATA4644/cd7940 PASS. Never re-register/re-record/re-append/reset.
-- Source/coordination stay Dropbox; active evidence root fixed; no emptyroot or consumedquestion reset.
-- Official GitHub Xcode26.6/17F113 SDK26.5/23F81a iOS26.2/23C54.
-- Primary DEVELOPMENT Xcode27/27A266a Swift6.4 SDK27/24A430 iOS26.2/23C54.
-- Priorowned5 fullmodulecompile0/342.868s DATA22775/b9a10262 is exact historicalscope only.
-- Consumed currentnative38 CLOSED natural5409.726s timeout1:19PASS/1FAIL/18unresolved; DATA47566/44d4e275.
-- One interrupted/17unstarted unresolved; knownfailure EveryInterruption/afterPreparedWrite offset2; innerguardUNKNOWN.
-- Native41 sole83355 CLOSED1: timeout5410.739s/native-15;19PASS3FAIL19UNKNOWN(1interrupted18unstarted); completeDATA48613/6b6bb10f PASS; record+append0; scopedphysicalDATA12530 PASS; no retry.
-- W216 owned11/sixSwift fullmodule0/compilererrors0 DATA76377 PASS; captureDATA40858/request+reader/registrationDATA68681 PASS; binding600b250/ready0578ff0; no rebuild or native replay.
-- Current14/8Swift/3783methods/38parts/exact57: CI395+45/DATA26833 PASS, Source/coupling and fullmodule0/DATA6715 PASS. Old fourcompilererrors remain historical. Checkpoint20=CODE14+sixMD; all57runtimePENDING nextfullhosted; SourceReadyfalse.
-- StrictC54 Source5 producer/verifier/generatedschema/corpus/manifest PASS43697/f67f5c4e; fixture8453/bd0b unchanged.
-- Three failed historicalCLI originals retained; latest5854/1661c478 missing oldV2 source literal; DATA18995/c7b304d0.
-- Existing approved currentAPI3 handles exactfive rebound literals; historical main predicates stay exact.
-- Root selected18 hostility cases plus supportedgenerator9 check both0; genuineDATA60969/58068899 PASS.
-- C54 fence27 differs from APIclosed27; selected checks grant no fullCLI/current3/wholeSource/CI/native credit.
-- Historical c232 Source11 point passed2826/11/2815 DATA37912/35539a1c; current corrected c234 point DATA13743 PASS.
-- Historical c232 scope retained; corrected c234 point/INITIAL6/APFS/STABLE/LOGICAL/PHYSICAL genuine DATA allPASS.
-- CI440/API3/full156 reused; L162438 retained. C235 COPY37952/config39439 DATA PASS; compile soleoriginal CLOSED0/session88190; old HOLD retained.
-- W212PartsStock5/W210S9C15/C28+G01v2 remain Sourceonly/nativepending, separate from boundedcurrentbatch.
-- Floorauthor6613/b10fb3b5 and independent7533/98782d71: retain30; fullfuturepeakUNKNOWN; no threshold/policy change.
-- Decision37 remains narrowly historical C160owned7/manifest23 only; currentSource11 has unchanged30 setup guards.
-- Historical quiet/restart capacity points preserved; latest primary14.95GiB/external21.35GiB. Fixed primaryE/L169 remains; external temporary courier150 is not a lifecycle cutover. Native floors unchanged; future M4 >30GiB/admission required.
-- Postboot all2826x3 Source hashes/modes match;8478 file+836dir changes only dev16777233→16777232; UUIDs unchanged.
-- FailedAPI DATA8880 preserved failure-only; corrected verifier/manifest Source2+route15 PASS; newCI440 genuine DATA PASS.
-- Restartdone/currentphysicalDATA19306 PASS2826/11/2815/418x2; API6pubtailerror preserved/reprovedexistingcopies, no native.
-- C129 archiveDATA32025/e60a3970 and fourcloud271151902B DATA135610/f54c7e00 PASS; external/cloudfour retained.
-- C129 exactone oldDD physicalduplicate retiredonce0 under Source+PLAN12110/2b929b62; actualDATA23778/eef5363b PASS.
-- ObservedC129 freegain888180736B(~0.827GiB), expectedallocation888082432B; exclusivityUNKNOWN; no30 qualification.
-- C129 all441controls/13siblings/originalfailures/HOLDs retained; restore would require fresh physicalidentity/admission.
-- Earlier C153/T179/optional27/C11 successfulcleanup and cloud originals remain preserved; do not redelete.
-- C111 completearchiveDATA52253/32ae7baf and fullcloudDATA54238/4bdb293a PASS; four315357589B originals retained.
-- M4 hostremote-control:env_e_6acda4db465483298fdf348a7b9b5c76; chat01a12bb7-3a96-7461-af37-c7839e6950d2; capture01a13c91 COMPLETED/errornull/24471+24475+24478 all0; completeRootreceived/peeridle; old73766separate lastlive/no restart.
-- M4 Search full2826/head7ee/three reviewed changes; Xcode26.6/17F113 SDK26.5/23F81a runtime26.2/23C54.
-- M4 context57281 DATA43572/b9aa018b observational only; importedbytecode instructionbinding UNESTABLISHED.
-- M4 fourparent/fourteeninput DATA26986/17bd1df8 and three realreservation publication DATA14751/63b472d1 PASS.
-- M4 canonicalrecipe Sourcecoupling PASS7969/0f4f442f; actualRoot Auth15 emittedonce11006/2dae3819, never reissue/reset.
-- Historical M4 cohort57 COMPLETE:31PASS17PASS9=8PASS1FAIL/error0; actualDATA26040/732928b2 retained. Later corrected9 PASS has its own Source scope; it does not execute current erase57.
-- Corrected9 SourcePASS; actualM4 point17+sixprobes DATA51502/0009bc68 PASS; one400B new9 reservation issued/uploaded/sent.
-- Decision40 approved oneC237 INCOMPLETE DEVELOPMENT checkpoint aftercompile/CI/reviews; all57nativePENDING nextnewheadfullpinnedDEVELOPMENT; allgates/ownerreviewunchanged.
-- Card135owneronly; minimumruntime/physicalprotection deferred/releaseblocking; fullV23/AppStoreowneractions remain.
-- M4 four deliveries0 and corrected9=9PASS/0FAIL/0ERROR once; genuine complete DATA57619/ea78dceb passed.
-- M4 original producers recovered: intake173102B/48files completed0; genuine DATA9657/1848e0af; freshSource/BUILD still due.
-- M4 old7retirement/89720failure/oldUNKNOWNs retained. Corrected96362 source DATA37024PASS:both2826/14/2812/staged0. COPY98809 parserexit1 retained; distinct samecarrier COPY0reported. Point5actualcells/qualification/AppAuth/build due.
-- C111 exactone DD removed once0 after genuine Source+PLAN13877; observed+974643200B; effectDATA19842/6813484a PASS.
-- C111 external/cloudfour315357589B retained; original14P4F/HOLD/Source166UNKNOWN preserved; no future oldDD use.
-- Current durable continuation: .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c239-root-final-compiled20-documents-and-full-sweep-plan-v199/ROOT_CURRENT_C239_FULLMODULE0_RECORDED169_FINAL20_CHECKPOINT_PREPARED_V199.json.
-- Details: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md, MERGE_READINESS.md, PERFORMANCE_WORKFLOW.md, STORAGE_MAP.md.
+# Active integration brief — 2026-10-15 UTC
+- Goal: verified Phase1 V23/S10 merge ASAP, then fullV23; SourceReady=false/releaseReady=false.
+- Integration codex/v23-s10-integration-20260910 publishedHEAD3f89232b175a4217aba4a968ddf5c49127426c09.
+- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged; allfive mergegates0/5OPEN.
+- Rootalone integrates/stages/commits/pushes/dispatches/native/evidence/storage effects; helpersSol6.1/xhigh.
+- Preserve ownerconfig/drafts/untracked/frozenhistory/originals/failures/partials/HOLDs/consumedquestions.
+- No PR/mergecommit/force/historyrewrite/signing/distribution/accounts/settings/broadstage.
+- Last hosted38682846798 COMPLETE:3342PASS384FAIL6SKIP;1interrupted+50notstarted=51unresolved.
+- Solecollector84453/session67909 natural0; complete independentDATA sealed. Neverreplay/restart.
+- Historical77=33PASS44FAIL;57=1PASS56FAIL;all6newmarkersFAIL. No app failure cleared by tooling.
+- S12 strict no-rebuild refusal/Products313 conserved; actual rebuild/infrastructure cause UNKNOWN.
+- Fixed M4E ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015 unchanged.
+- Bulk8.85GB originals stayM4; required small originals verified external; allhistorical roots preserved.
+- Official GitHub Xcode26.6+iOS26.2/23C54 pinned; primary27DEVELOPMENT only, no acceptance transfer.
+- OWNER APPROVED C253 hosted-first DEVELOPMENT policy2026-10-15; exact V2 policy now inAGENTS.
+- First application frozen C25132Source/sevenSwift/current442/3785methods38parts/affected39.
+- Independent Sol6.1/xhigh final37 checkpoint review PASS for INCOMPLETE DEVELOPMENT publication only.
+- Payload37=32Source+AGENTS+ACTIVE_BRIEF/CURRENT_INTEGRATION/VERIFICATION_DUE/STORAGE_MAP.
+- Owner .codex/config.toml and every other draft/untracked leaf excluded; index unstaged at thispoint.
+- Source32/current397+45=442PASS independentDATA and current761dependency proof retained.
+- App/test-module compile UNVERIFIED; compiler-error total UNKNOWN; native39 PENDING.
+- Next mandatory exact-newhead pinned GitHub full DEVELOPMENT sweep compiles before testfanout.
+- Complete3785/38 plan includes all39 and historical57/77 once; tests/budgets/coverage unchanged.
+- Broad feedback on meaningful changedpayload is authorized; historical individual failures are not reset.
+- Actual commit/headquestion/dispatch/runID/collector/results PENDING; bind actualSHA only after it exists.
+- Review: c241-independent-preflight-current-source-and-controls-review-v1/c251-final37-owner-approved-incomplete-development-checkpoint-candidate-review-v1/REVIEW.md (6086/876124b8).
+- Existing dispatcher selection v23-shared-coverage-d50x --kind development; ordinary own build/setup/Products.
+- No separate local39/direct17/acquisition reconstruction solely to duplicate mandatory hostedfeedback.
+- M4 ordinaryfallback v2/v3/v4 and exact49 ZIP preserved DORMANT; no transfer/materialization occurred.
+- Private recorder39/module39 SourcePASS and current47 actual+DATA PASS; original2tempErrors preserved.
+- M4 clean hosted checkout prepared: ~/Library/Caches/AssetRounds-secondary-20261011/c253-hosted-first-current37-dispatch-source-v1.
+- M4 checkout3f/2826 clean; available103669899264B at preparation point; fresh newhead dispatchadmission due.
+- OldC243two-owned checkout/author intact; never use olddirty2 as current32 or rebase oldGLOBALHOLD.
+- C240/C243 globalHOLDs/15originalsctimechanges remain; innerDATA never grants globalSourceFreeze/native.
+- C254 future34/eightSwift SourcePASS/readersPASS/current399+45=444PASS+independentDATA; native7PENDING.
+- C254 fouroldSwiftData crash fixes UNPROVEN; keep isolated from frozen32.
+- C255 lowercase missing-alt fixture SourcePASS/DEBUG+Release syntax/current5reader+DATA PASS;native5PENDING.
+- C255 prior5FAILs retained; isolated from frozen32.
+- C252 diagnostic fiveSwift+verifier SourcePASS/currenthardeningPASS; furtherchecks/compile pending.
+- C252 instrumentation-only diagnostic exception NOTapproved; excluded from C253 and thispayload.
+- Allsameheadgates/coldqualification/genuineownerreview/exact-main/fullV23/data safety remain required.
+- Durable: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c253-owner-approved-hosted-first-policy-and-c251-final37-checkpoint-preparation-v1/ROOT_CURRENT_APPROVED_C253_C251_FINAL37_PREPARATION.json.
+- Details: CURRENT_INTEGRATION,VERIFICATION_DUE,MERGE_READINESS,PERFORMANCE_WORKFLOW,STORAGE_MAP.

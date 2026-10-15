@@ -9935,6 +9935,89 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertEqual([len(unit) for unit in units][:-1], [2] * (len(units) - 1))
         self.assertEqual(sum(units, []), heavy)
 
+    def test_default_regeneration_spills_new_methods_from_full_owner_without_repacking(self):
+        script = load_partition_script()
+        cap = CI.SHARED_MAX_PARTITION_METHODS
+        existing = ['FieldEvidenceAppTests/FullOwnerTests/test%03d' % index for index in range(cap)]
+        other = 'FieldEvidenceAppTests/OtherOwnerTests/testPrior'
+        added = ['FieldEvidenceAppTests/FullOwnerTests/testNewA',
+                 'FieldEvidenceAppTests/FullOwnerTests/testNewB']
+        source = {'schema': CI.SHARED_PARTITIONS_SCHEMA, 'sourceCensusHead': 'a' * 40,
+                  'generatedAtHead': 'b' * 40, 'sweepOrder': ['S01', 'S02'],
+                  'partitions': [
+                      {'id': 'S01', 'tier': 'D50C', 'estimatedSeconds': float(cap), 'selectors': existing},
+                      {'id': 'S02', 'tier': 'D50C', 'estimatedSeconds': 100.0, 'selectors': [other]}]}
+        original = copy.deepcopy(source)
+        discovered = existing + [other] + added
+        timings = {'schema': script.TIMINGS_SCHEMA, 'defaultSeconds': 1.0, 'seconds': {}}
+        with mock.patch.object(CI, 'discover_unit_test_methods', return_value=discovered):
+            value = script.regenerate(CI, self.root, source, 'c' * 40, timings)
+            self.assertEqual(value, script.regenerate(CI, self.root, source, 'c' * 40, timings))
+            self.assertEqual(value, script.regenerate(CI, self.root, value, 'c' * 40, timings))
+        rows = {row['id']: row for row in value['partitions']}
+        self.assertEqual(source, original)
+        self.assertEqual(rows['S01'], source['partitions'][0])
+        self.assertEqual(rows['S02']['selectors'], sorted([other] + added, key=script.method_key))
+        self.assertEqual((rows['S02']['tier'], rows['S02']['estimatedSeconds']), ('D50C', 102.0))
+        self.assertEqual(value['sweepOrder'], source['sweepOrder'])
+        self.assertEqual(set(rows), {'S01', 'S02'})
+        CI.validate_coverage_partitions(value, discovered)
+
+    def test_default_regeneration_owner_cap_boundaries_keep_old_members_and_budget_guards(self):
+        script = load_partition_script()
+        cap = CI.SHARED_MAX_PARTITION_METHODS
+        other = 'FieldEvidenceAppTests/OtherOwnerTests/testPrior'
+        for old_count, new_count in ((cap - 2, 2), (cap - 1, 2), (cap - 1, cap + 2)):
+            with self.subTest(old_count=old_count, new_count=new_count):
+                existing = ['FieldEvidenceAppTests/BoundaryOwnerTests/test%03d' % index
+                            for index in range(old_count)]
+                added = ['FieldEvidenceAppTests/BoundaryOwnerTests/testNew%03d' % index
+                         for index in range(new_count)]
+                source = {'schema': CI.SHARED_PARTITIONS_SCHEMA, 'sourceCensusHead': 'a' * 40,
+                          'generatedAtHead': 'b' * 40, 'sweepOrder': ['S01', 'S02'],
+                          'partitions': [
+                              {'id': 'S01', 'tier': 'D50C', 'estimatedSeconds': float(old_count),
+                               'selectors': existing},
+                              {'id': 'S02', 'tier': 'D50C', 'estimatedSeconds': 100.0, 'selectors': [other]}]}
+                original = copy.deepcopy(source)
+                discovered = existing + [other] + added
+                timings = {'schema': script.TIMINGS_SCHEMA, 'defaultSeconds': 1.0, 'seconds': {}}
+                with mock.patch.object(CI, 'discover_unit_test_methods', return_value=discovered):
+                    value = script.regenerate(CI, self.root, source, 'c' * 40, timings)
+                rows = {row['id']: row for row in value['partitions']}
+                available = cap - old_count
+                self.assertEqual(source, original)
+                self.assertEqual(rows['S01']['selectors'], existing + added[:available])
+                self.assertEqual((rows['S01']['tier'], rows['S01']['estimatedSeconds']),
+                                 ('D50C', float(cap)))
+                # Every pre-existing selector stays in its exact partition; only additions spill.
+                owners = {selector: row['id'] for row in value['partitions'] for selector in row['selectors']}
+                self.assertTrue(all(owners[selector] == 'S01' for selector in existing))
+                self.assertEqual(owners[other], 'S02')
+                self.assertEqual(value['sweepOrder'][:2], source['sweepOrder'])
+                self.assertEqual(sorted(owners), sorted(discovered))
+                self.assertEqual(sum(len(row['selectors']) for row in value['partitions']), len(discovered))
+                self.assertTrue(all(len(row['selectors']) <= cap for row in value['partitions']))
+                self.assertTrue(all(row['tier'] == 'D50C' for row in value['partitions']))
+                if new_count == cap + 2:
+                    # One slot goes to the class owner; the remaining cap+1 methods use
+                    # existing capped chunks. The one-method tail chooses the lighter old row.
+                    self.assertEqual(rows['S03']['selectors'], added[1:cap + 1])
+                    self.assertEqual(rows['S02']['selectors'],
+                                     sorted([other, added[-1]], key=script.method_key))
+                    self.assertEqual(value['sweepOrder'], ['S01', 'S02', 'S03'])
+                else:
+                    self.assertEqual(rows['S02']['selectors'],
+                                     sorted([other] + added[available:], key=script.method_key))
+                    self.assertEqual(set(rows), {'S01', 'S02'})
+                CI.validate_coverage_partitions(value, discovered)
+        # Capacity handling must not repack old methods or silently upgrade a time budget.
+        source['partitions'][0]['estimatedSeconds'] = 2999.0
+        with mock.patch.object(CI, 'discover_unit_test_methods', return_value=discovered):
+            with self.assertRaisesRegex(SystemExit, 'fit the test budget'):
+                script.regenerate(CI, self.root, source, 'c' * 40,
+                                  dict(timings, defaultSeconds=60.0))
+
     def test_known_slow_solo_tier_is_derived_kept_alone_and_read_from_legacy_sources(self):
         script = load_partition_script()
         base = self.value()

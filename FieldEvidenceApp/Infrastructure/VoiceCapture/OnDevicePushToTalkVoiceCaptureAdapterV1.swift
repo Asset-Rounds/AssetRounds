@@ -4,6 +4,35 @@ import Foundation
 import Speech
 import UIKit
 
+/// Session-local awake intervals. The private origin is never serialized or reported.
+struct VoiceCaptureElapsedTimingV1: Sendable {
+    private let startedAt: SuspendingClock.Instant
+
+    init(startedAt: SuspendingClock.Instant) {
+        self.startedAt = startedAt
+    }
+
+    func rawDuration(at instant: SuspendingClock.Instant = .now) -> Duration {
+        max(.zero, startedAt.duration(to: instant))
+    }
+
+    func admitsFinalCallback(
+        maximumDurationSeconds: UInt64,
+        at instant: SuspendingClock.Instant = .now
+    ) -> Bool {
+        rawDuration(at: instant) <= .seconds(maximumDurationSeconds)
+    }
+
+    func reportedDurationSeconds(
+        maximumDurationSeconds: UInt64,
+        at instant: SuspendingClock.Instant = .now
+    ) -> UInt64 {
+        let bounded = min(rawDuration(at: instant), .seconds(maximumDurationSeconds))
+        let components = bounded.components
+        return UInt64(components.seconds) + (components.attoseconds > 0 ? 1 : 0)
+    }
+}
+
 /// The concrete iOS edge for C45.  It owns one explicit, memory-only
 /// push-to-talk session and reports transcript updates back to the caller.
 /// It never writes audio, calls a network service, or adopts a root route.
@@ -36,7 +65,7 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
         let recognizer: SFSpeechRecognizer
         let request: SFSpeechAudioBufferRecognitionRequest
         let audioEngine: AVAudioEngine
-        let startedUptime: TimeInterval
+        let elapsedTiming: VoiceCaptureElapsedTimingV1
         var recognitionTask: SFSpeechRecognitionTask?
         var callbackSequence: UInt64 = 0
         var tapInstalled = false
@@ -47,13 +76,13 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
             recognizer: SFSpeechRecognizer,
             request: SFSpeechAudioBufferRecognitionRequest,
             audioEngine: AVAudioEngine,
-            startedUptime: TimeInterval
+            elapsedTiming: VoiceCaptureElapsedTimingV1
         ) {
             self.context = context
             self.recognizer = recognizer
             self.request = request
             self.audioEngine = audioEngine
-            self.startedUptime = startedUptime
+            self.elapsedTiming = elapsedTiming
         }
     }
 
@@ -184,7 +213,7 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
             recognizer: recognizer,
             request: request,
             audioEngine: AVAudioEngine(),
-            startedUptime: ProcessInfo.processInfo.systemUptime
+            elapsedTiming: VoiceCaptureElapsedTimingV1(startedAt: .now)
         )
         pendingSessionIDs.remove(context.sessionID)
         activeCapture = session
@@ -346,11 +375,12 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
 
                 if result.isFinal {
                     do {
-                        let rawDurationSeconds = rawElapsedSeconds(for: session)
                         // Never admit a late final callback based on a clamped
-                        // display duration. The raw monotonic duration is the
-                        // authoritative 60-second boundary.
-                        guard rawDurationSeconds <= Double(contextMaximumSeconds(session)),
+                        // display duration. The raw awake duration includes
+                        // audio setup and post-stop recognition latency.
+                        guard session.elapsedTiming.admitsFinalCallback(
+                            maximumDurationSeconds: contextMaximumSeconds(session)
+                        ),
                               transcript.utf8.count <= VoiceStructuringLimitsV1.maximumTranscriptUTF8Bytes else {
                             throw VoiceCaptureFailureV1.captureRejected
                         }
@@ -542,16 +572,9 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
         return session.callbackSequence
     }
 
-    private func rawElapsedSeconds(for session: ActiveCapture) -> TimeInterval {
-        max(0, ProcessInfo.processInfo.systemUptime - session.startedUptime)
-    }
-
     private func reportedElapsedSeconds(for session: ActiveCapture) -> UInt64 {
-        UInt64(
-            min(
-                Double(contextMaximumSeconds(session)),
-                rawElapsedSeconds(for: session).rounded(.up)
-            )
+        session.elapsedTiming.reportedDurationSeconds(
+            maximumDurationSeconds: contextMaximumSeconds(session)
         )
     }
 

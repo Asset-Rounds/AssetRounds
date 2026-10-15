@@ -106,7 +106,8 @@
       "head": "2952775307a182d183461f81157af6cb3819be69",
       "tree": "36b3c5f0993519aa703a341f6e650989dc5f1102"
     },
-    "canonicalResultSHA256": "93c836df76bfd792e8d7ccf6fa6c4aa60c81492a47bc9bd65257e896f8bbca59",
+    "candidateAndAuthorityRole": "HISTORICAL_INPUT_IDENTITY_ONLY",
+    "canonicalResultSHA256": "879d9ef62eac024896c18fab378450066e5375479f81e9124e6b633e79bf6007",
     "cardID": "V23-P05-C01",
     "commands": [
       {
@@ -114,24 +115,142 @@
         "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"
       },
       {
-        "command": "python -B Scripts/v23/verify_p05_c01_contracts.py --complete --json",
-        "mode": "COMPLETE_STATIC_PROVISIONAL"
+        "command": "python -B Scripts/v23/verify_p05_c01_contracts.py --current-source --json",
+        "mode": "CURRENT_SOURCE_WITH_AUTHENTICATED_HISTORICAL_ALLOCATION"
       }
     ],
+    "inputProvenance": {
+      "cardHistoryCommit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "cardHistoryManifestSHA256": "09757e0727bf62917d1b25b0558fcbb2ef2c33dfcd4cbb66a3878ec40b4a07e3",
+      "cardHistorySourceRows": [
+        {
+          "byteCount": 340,
+          "copy": "blobs/03C23506919733DD.json",
+          "gitBlobOID": "2e8d194fbb52f0bdcc1bd420af4c254638eb9a49",
+          "path": "Scripts/ci-selection.json",
+          "sha256": "03c23506919733dde0174448e446d26df4753c505be242587886f142d281314f"
+        },
+        {
+          "byteCount": 23068,
+          "copy": "blobs/BCD64E2A42752D28.yml",
+          "gitBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+          "path": ".github/workflows/ios-ci.yml",
+          "sha256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7"
+        },
+        {
+          "byteCount": 1009,
+          "copy": "blobs/9191E22EF1485AF2.yml",
+          "gitBlobOID": "41ddf4caef03d8ac0041eb2d7a9da96266dfa19d",
+          "path": ".github/workflows/v23-controller.yml",
+          "sha256": "9191e22ef1485af2dc3dd6a1f0201fe16fe2e6f884bed89fc701f1b4eb4b817b"
+        },
+        {
+          "byteCount": 5758,
+          "copy": "blobs/EE00DD9C894CFDC3.yml",
+          "gitBlobOID": "d0a1b108b9b11e7c3d31cb65ff9a718587e7dc33",
+          "path": ".github/workflows/v23-worker.yml",
+          "sha256": "ee00dd9c894cfdc353b53e52813498c81a7a6d5486920931eec2cbe1caca2f51"
+        },
+        {
+          "byteCount": 3060,
+          "copy": "blobs/F5634CF788AFE809.py",
+          "gitBlobOID": "b5b49853485fbbfc35878f926db5d7eb499a965c",
+          "path": "Scripts/v23/controller.py",
+          "sha256": "f5634cf788afe80911db6dbedff53464b23556eff5eef4037a7f625343738b35"
+        },
+        {
+          "byteCount": 47899,
+          "copy": "blobs/64F2A2D6975AE17C.py",
+          "gitBlobOID": "d24d453bb0c4460ad2090b73157e673486d83659",
+          "path": "Scripts/v23/controller_contracts.py",
+          "sha256": "64f2a2d6975ae17cdab96ca1ddaa78feb5eeb8990325ee632c01f1cd79ccb977"
+        },
+        {
+          "byteCount": 781,
+          "copy": "blobs/0539566B34917618.xctestplan",
+          "gitBlobOID": "213268188de10f7e5b919272410c9cb501f09e09",
+          "path": "TestPlans/V23-ReleaseCandidate.xctestplan",
+          "sha256": "0539566b34917618f575650d256a2ae125fea6e8c31365c07871c52556f4b606"
+        }
+      ],
+      "coordinationInputFiles": [
+        {
+          "byteCount": 1274,
+          "name": "commit-30a5be02.api.json",
+          "sha256": "d04c20c55e95bd45a6cfd7815fbf304c960438b845981eed152b22c69d44c233"
+        },
+        {
+          "byteCount": 2282,
+          "name": "tree-fd478fc2.api.json",
+          "sha256": "aaac0c16b6fcaf16cb90ebf007caa5ed12d98a78b0265f66f1f4b02fb2ccca02"
+        },
+        {
+          "byteCount": 142508,
+          "name": "tree-f176a142.api.json",
+          "sha256": "e1b8134f604312c6ec471ec663ae2d4d917c331d82b8c4dea622b066a11a30ee"
+        },
+        {
+          "byteCount": 63695,
+          "name": "V23-P04-to-V23-P05-C01-static-preparation-boundary-v1.json",
+          "sha256": "73b6688e918cde7e9d7bfd334cf30d9ecea6d5cfabd20076b71732c90726ef14"
+        },
+        {
+          "byteCount": 9184,
+          "name": "V23-P05-C01-owner-authorized-path-allocation-v1.json",
+          "sha256": "927ce4c7219550377dd2a7cd7787a761eb6b35cdf6144ce8629fd06823898a9e"
+        }
+      ],
+      "currentRemoteObservationIsAuthority": false,
+      "historicalAllocation": {
+        "allocationDigest": "d05fdbb6e8e06bf65087749d40e8d544ea9cc9e83528935cfbf4705bfb97c18d",
+        "appBaseHead": "2952775307a182d183461f81157af6cb3819be69",
+        "appBaseTree": "36b3c5f0993519aa703a341f6e650989dc5f1102",
+        "attemptID": 1,
+        "byteCount": 9184,
+        "cardID": "V23-P05-C01",
+        "existingPathCount": 2,
+        "file": "V23-P05-C01-owner-authorized-path-allocation-v1.json",
+        "gitBlobOID": "420826d4016eb9441ce0750a91fc6f71bc9aa1cf",
+        "historicalExecutionReplayed": false,
+        "mutationAuthorizationGranted": false,
+        "newPathCount": 12,
+        "orderedPathFence": [
+          "Scripts/release-preflight.sh",
+          "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+          "Release/V23P05C01ExactCodeCandidateGateV1.json",
+          "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift",
+          "FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json",
+          "FieldEvidenceAppUITests/V23_P05_C01ExactCodeCandidateGateUITests.swift",
+          "Scripts/v23/p05_c01_contracts.py",
+          "Scripts/v23/generate_p05_c01_contracts.py",
+          "Scripts/v23/verify_p05_c01_contracts.py",
+          "Scripts/v23/exact-code-candidate-gate.schema.json",
+          "docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateContractV1.json",
+          "docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateEvidenceReceiptV1.json",
+          "docs/design/v23/tooling/V23P05C01BrandImpactManifestV1.json",
+          "docs/design/v23/tooling/V23-P05-C01-tooling-manifest.json"
+        ],
+        "result": "AUTHENTICATED_ALLOCATION_ONLY",
+        "sha256": "927ce4c7219550377dd2a7cd7787a761eb6b35cdf6144ce8629fd06823898a9e"
+      },
+      "historicalExecutionReplayed": false,
+      "mode": "AUTHENTICATED_HISTORICAL_INPUTS"
+    },
     "schema": "V23P05C01ObservedSelfTestV1",
     "scripts": {
-      "generatorSHA256": "82a35a9207b3be724d7f1dbf2769e7af71f878441394a8dddef048891e136dca",
-      "verifierSHA256": "583f885c9343b5af80f747221415f3f1589d6389c48ec02ccf3cd533a3662208"
+      "contractsSHA256": "f0a8fbd8fcafc5499e8caeddcd1dc134fd190c8b369b617db714728e31fddaf8",
+      "generatorSHA256": "3ff05fdfd2ef530add894ca711b4fe69f7e9f035b6f6826b1e24b638f3822953",
+      "verifierSHA256": "4039871dbe4020e40471d68c97424ef77830a4e8cd45cbf6aacd642ebfad393e"
     },
     "sourceRows": [
       {
         "path": "Scripts/release-preflight.sh",
-        "sha256": "ead4fd9344e8ccd2dd0d030962638d0acc50e79a93dccd5f82f1bd7eb8bf3c43",
+        "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
         "status": "SOURCE_PRESENT"
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "abd8c05f42abb2dfd7de6d79e602207c58bdec1988b4d1d5d9ad0169a9039a08",
+        "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -141,7 +260,7 @@
       },
       {
         "path": "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift",
-        "sha256": "c05952b611f626b53ddac9061d1cedffc0f50cf44b39dd9d3155bb4a366b9736",
+        "sha256": "99b039e40d2cc0f754316d6dc3ebaba6a4a87b1f46410241147a2d6ea2d8d663",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -154,7 +273,9 @@
         "sha256": "3686bab1dbbd8d4d1dbde03f0b4b4a3e7f51b171cf9a624523524db7befae9e2",
         "status": "SOURCE_PRESENT"
       }
-    ]
+    ],
+    "sourceRowsRole": "CURRENT_SOURCE_BYTES_NOT_HISTORICAL_EXECUTION",
+    "verificationScope": "CURRENT_SOURCE_WITH_AUTHENTICATED_HISTORICAL_ALLOCATION"
   },
   "productSHA256": "93973031405870341fbfd8709a878df89044c6465a4a4da1bd05f22113db720e",
   "provisionalDisposition": "PASS_STATIC_PROVISIONAL",
@@ -179,12 +300,12 @@
   "sourceRows": [
     {
       "path": "Scripts/release-preflight.sh",
-      "sha256": "ead4fd9344e8ccd2dd0d030962638d0acc50e79a93dccd5f82f1bd7eb8bf3c43",
+      "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
       "status": "SOURCE_PRESENT"
     },
     {
       "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-      "sha256": "abd8c05f42abb2dfd7de6d79e602207c58bdec1988b4d1d5d9ad0169a9039a08",
+      "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -194,7 +315,7 @@
     },
     {
       "path": "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift",
-      "sha256": "c05952b611f626b53ddac9061d1cedffc0f50cf44b39dd9d3155bb4a366b9736",
+      "sha256": "99b039e40d2cc0f754316d6dc3ebaba6a4a87b1f46410241147a2d6ea2d8d663",
       "status": "SOURCE_PRESENT"
     },
     {

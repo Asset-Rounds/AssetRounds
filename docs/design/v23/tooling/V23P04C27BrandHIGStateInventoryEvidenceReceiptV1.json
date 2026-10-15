@@ -152,7 +152,7 @@
     ]
   },
   "cardID": "V23-P04-C27",
-  "contractDigest": "31f5f6a1467d99a50a9b860f5bc642f91d34c76ac26b1119eda9d133eab4b311",
+  "contractDigest": "55778b82153b0350ecd949267376b8175040257182607440bade21f47faaf5b1",
   "generatorInterruptionProtocol": {
     "deterministicRerun": true,
     "protocol": "MANIFEST_LAST_ATOMIC_REPLACE",
@@ -195,7 +195,7 @@
       "changedPathCount": 14,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 0
+      "unownedChangedPathCount": 1324
     },
     "selectors": [
       "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",
@@ -208,12 +208,12 @@
     "sourceRows": [
       {
         "path": "Scripts/release-preflight.sh",
-        "sha256": "19d4106abb5d1f848e6356749444b8b733ac2b38f9491035eb0d60c046f8f96a",
+        "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
         "status": "SOURCE_PRESENT"
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "6741c88f680092ffefc10efd6736e4490297ece984de7b7fc9b55f48cfb455dc",
+        "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -223,7 +223,7 @@
       },
       {
         "path": "FieldEvidenceAppTests/V9_90BrandHIGStateInventoryTests.swift",
-        "sha256": "ab3f2f2c449559b019e5dcc57e5f048d0d29fb1dcb388e850f335a9a2506475f",
+        "sha256": "b32a3439a61d7cbe7bb9bbd9191ff26dfc2eb8cac3cb94343affdde487daaf5f",
         "status": "SOURCE_PRESENT"
       },
       {

@@ -35,11 +35,16 @@ def self_test():
     return {'result':'PASS','protocol':'MANIFEST_LAST_ATOMIC_REPLACE','observedSelfTest':c.observation(),'rows':rows}
 def main():
     parser=argparse.ArgumentParser(); group=parser.add_mutually_exclusive_group(required=True); group.add_argument('--apply',action='store_true'); group.add_argument('--check',action='store_true'); group.add_argument('--self-test',action='store_true'); parser.add_argument('--json',action='store_true'); args=parser.parse_args()
+    current_remote = c.observe_current_coordination_remote()
     if args.self_test:
-        result=self_test(); print(json.dumps(result,sort_keys=True,indent=2) if args.json else 'C01 generator self-test PASS'); return
+        result=self_test()
+        if current_remote is not None: result['currentCoordinationRemoteObservation'] = current_remote
+        print(json.dumps(result,sort_keys=True,indent=2) if args.json else 'C01 generator self-test PASS'); return
     docs=c.documents(); drift=[p for p,v in docs.items() if not (c.ROOT/p).is_file() or (c.ROOT/p).read_bytes()!=c.pretty(v)]
     if args.check:
         if drift: raise SystemExit('C01 artifact drift:'+','.join(drift))
-        print(json.dumps({'cardID':c.CARD,'result':'PASS_STATIC_PROVISIONAL','drift':[]},sort_keys=True) if args.json else 'PASS_STATIC_PROVISIONAL'); return
+        result={'cardID':c.CARD,'result':'PASS_STATIC_PROVISIONAL','drift':[]}
+        if current_remote is not None: result['currentCoordinationRemoteObservation'] = current_remote
+        print(json.dumps(result,sort_keys=True) if args.json else 'PASS_STATIC_PROVISIONAL'); return
     write(docs,c.ROOT,os.environ.get('V23_P05_C01_INTERRUPT_AT')); print('C01 generator apply PASS_STATIC_PROVISIONAL generated=4')
 if __name__=='__main__': main()

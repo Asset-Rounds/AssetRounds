@@ -24519,12 +24519,17 @@ struct StoreGenerationFactory {
     }
 
 #if DEBUG
+    private static let coldOpenDiagnosticOrigin = SuspendingClock.now
+
     private func coldOpenDiagnostic(_ phase: String) {
         guard coldOpenDiagnosticForTesting || coldOpenFixedDiagnosticsForTesting else { return }
-        let uptime = String(format: "%.6f", ProcessInfo.processInfo.systemUptime)
+        let elapsed = max(Duration.zero, Self.coldOpenDiagnosticOrigin.duration(to: .now))
+        let elapsedSeconds = String(format: "%.6f", elapsed / .seconds(1))
+        let timestamp = String(format: "%.6f", Date().timeIntervalSince1970)
         FileHandle.standardError.write(Data(
             ("StoreGenerationFactory cold-open phase=" + phase
-                + " uptimeSeconds=" + uptime + "\n").utf8
+                + " diagnosticVersion=2 elapsedSinceDiagnosticOriginSeconds=" + elapsedSeconds
+                + " timestampUnixSeconds=" + timestamp + "\n").utf8
         ))
     }
 #endif

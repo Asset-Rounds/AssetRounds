@@ -96,6 +96,50 @@ private enum C45 {
         XCTFail("presentation did not suspend", file: file, line: line)
     }
 
+    func testV23P04C45H01RawAwakeBoundaryRejectsLateFinalDespiteClampedReport() throws {
+        let origin = SuspendingClock.now
+        let timing = VoiceCaptureElapsedTimingV1(startedAt: origin)
+        let maximum: UInt64 = 60
+        for elapsed in [Duration.zero, .nanoseconds(1), .seconds(59) + .milliseconds(999), .seconds(60)] {
+            XCTAssertTrue(timing.admitsFinalCallback(
+                maximumDurationSeconds: maximum,
+                at: origin.advanced(by: elapsed)
+            ))
+        }
+        let late = origin.advanced(by: .seconds(60) + .nanoseconds(1))
+        XCTAssertFalse(timing.admitsFinalCallback(maximumDurationSeconds: maximum, at: late))
+        XCTAssertEqual(timing.rawDuration(at: late), .seconds(60) + .nanoseconds(1))
+        XCTAssertEqual(timing.reportedDurationSeconds(maximumDurationSeconds: maximum, at: late), 60)
+        XCTAssertEqual(timing.reportedDurationSeconds(maximumDurationSeconds: maximum, at: origin), 0)
+        XCTAssertEqual(timing.reportedDurationSeconds(
+            maximumDurationSeconds: maximum, at: origin.advanced(by: .nanoseconds(1))
+        ), 1)
+        XCTAssertEqual(timing.reportedDurationSeconds(
+            maximumDurationSeconds: maximum, at: origin.advanced(by: .seconds(1) + .nanoseconds(1))
+        ), 2)
+        let beforeOrigin = origin.advanced(by: .seconds(-1))
+        XCTAssertEqual(timing.rawDuration(at: beforeOrigin), .zero)
+        XCTAssertEqual(timing.reportedDurationSeconds(maximumDurationSeconds: maximum, at: beforeOrigin), 0)
+    }
+
+    func testV23P04C45I01SessionOriginIncludesSetupAndPostStopCallbackLatency() throws {
+        let origin = SuspendingClock.now
+        let timing = VoiceCaptureElapsedTimingV1(startedAt: origin)
+        let engineStarted = origin.advanced(by: .seconds(2))
+        let stopped = origin.advanced(by: .seconds(59))
+        let finalCallback = stopped.advanced(by: .seconds(1) + .nanoseconds(1))
+        XCTAssertEqual(timing.rawDuration(at: engineStarted), .seconds(2))
+        XCTAssertEqual(timing.rawDuration(at: stopped), .seconds(59))
+        XCTAssertTrue(timing.admitsFinalCallback(maximumDurationSeconds: 60, at: stopped))
+        XCTAssertLessThan(engineStarted.duration(to: finalCallback), .seconds(60))
+        XCTAssertEqual(timing.rawDuration(at: finalCallback), .seconds(60) + .nanoseconds(1))
+        XCTAssertFalse(timing.admitsFinalCallback(maximumDurationSeconds: 60, at: finalCallback))
+        XCTAssertEqual(timing.reportedDurationSeconds(maximumDurationSeconds: 60, at: finalCallback), 60)
+        XCTAssertTrue(timing.admitsFinalCallback(
+            maximumDurationSeconds: 60, at: origin.advanced(by: .seconds(60))
+        ))
+    }
+
     func testV23P04C45G01ExplicitOnDeviceCaptureStructuresThenRequiresPerFieldReview() async throws {
         let (coordinator, capture, scratch, review) = try coordinator(); let context = try C45.context()
         let start = try await coordinator.start(context)

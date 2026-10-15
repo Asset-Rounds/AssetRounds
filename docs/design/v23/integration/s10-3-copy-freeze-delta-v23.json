@@ -38,8 +38,8 @@
         "sha256": "5CDFCFAA51AF9289B1D97B78B2B1A35668B3F1DDA5EA0D6CB0D66D34DD8D2E44"
       },
       "candidate": {
-        "base_commit": "779b21f1fd523be01c36782677466de2606e7e86",
-        "sha256": "D6638A7571332E437BDFCC92004E80F49111FF3A2E251B721DC0087638B6B8BA"
+        "base_commit": "3f89232b175a4217aba4a968ddf5c49127426c09",
+        "sha256": "1460CB04B45D88D45458E81FFE78A020CAE1AC588F9AD816E6E857ACE1ACE74E"
       }
     },
     "s10_4_projected_literals": {
@@ -457,6 +457,23 @@
             "\"s2.maintenance.view-diagnostics\""
           ],
           "removed": []
+        }
+      ]
+    },
+    {
+      "from": "3f89232b175a4217aba4a968ddf5c49127426c09",
+      "to": "candidate (C248 private elapsed-duration privacy correction; Root standing reversible authority)",
+      "cause": "DEBUG observer schema version2 replaces the raw system-uptime diagnostic field with observerElapsedSeconds measured from a private in-process SuspendingClock origin. UTC event correlation, phase/event/state/opt-in/finalAcceptanceEligible=false behavior remain. No product copy, accessibility identifier, native navigation, import, or projected S10 visual Source changes. Exact test algorithm reproduces prior literal digest D6638A7571332E437BDFCC92004E80F49111FF3A2E251B721DC0087638B6B8BA and final 1460CB04B45D88D45458E81FFE78A020CAE1AC588F9AD816E6E857ACE1ACE74E; import and S10.4 projected digests remain unchanged. Historical/accepted pins and every prior segment are preserved. No runtime or privacy signoff is claimed.",
+      "import_changes": [],
+      "literal_changes": [
+        {
+          "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+          "added": [
+            "\"observerElapsedSeconds\""
+          ],
+          "removed": [
+            "\"uptimeSeconds\""
+          ]
         }
       ]
     }

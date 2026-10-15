@@ -21,8 +21,9 @@ working tree the output is deterministic.
 
 Without --repack, existing assignments are kept. Methods no longer present at
 the checkout are dropped (and empty partitions removed). A new method joins the
-partition that already owns its class; a new class joins the least-loaded
-partition that stays within the packing target, otherwise it opens a new
+partition that already owns its class until its method cap is reached. Only
+overflowing new methods, or a new class, join the least-loaded partition that
+stays within the packing target, otherwise they open a new
 partition. A new class whose estimate exceeds the target is split into chunks
 that each fit it. A new method never joins a known-slow solo partition of its
 class; it is placed like a new class.
@@ -248,10 +249,12 @@ def regenerate(native, root, source, generated_at_head, timings=None, repack_all
         owner = owner_by_class.get(class_name)
         # A known-slow solo keeps its method alone (and its D90S budget); new methods of
         # its class are placed like a new class instead.
+        unassigned = new_classes[class_name]
         if owner is not None and not (len(by_id[owner]["selectors"]) == 1 and load(by_id[owner]) > target):
-            by_id[owner]["selectors"].extend(new_classes[class_name])
-            continue
-        for members in class_units(native, new_classes[class_name], estimate.__getitem__, float(target)):
+            available = max(0, native.SHARED_MAX_PARTITION_METHODS - len(by_id[owner]["selectors"]))
+            by_id[owner]["selectors"].extend(unassigned[:available])
+            unassigned = unassigned[available:]
+        for members in class_units(native, unassigned, estimate.__getitem__, float(target)):
             cost = sum(estimate[selector] for selector in members)
             candidates = sorted((load(row), row["id"]) for row in rows
                                 if load(row) + cost <= target

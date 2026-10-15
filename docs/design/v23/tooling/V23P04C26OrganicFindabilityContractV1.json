@@ -143,7 +143,7 @@
       "changedPathCount": 16,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 0
+      "unownedChangedPathCount": 1332
     },
     "selectors": [
       "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",
@@ -161,12 +161,12 @@
       },
       {
         "path": "Scripts/release-preflight.sh",
-        "sha256": "bd4d60d96405dd38e1a2b96bd349643d78d0209943f1147803adc21a5b6b7e29",
+        "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
         "status": "SOURCE_PRESENT"
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "5ad2b80691805a31f154b7dac17f37c05fdd61d402f98d7fdd80eaa7dce6792a",
+        "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
         "status": "SOURCE_PRESENT"
       },
       {

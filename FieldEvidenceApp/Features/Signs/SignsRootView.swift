@@ -28,6 +28,7 @@ struct SignsRootView: View {
         "iphone-17-ios-26.2-current"
     private static let recheckNavigationObservationSeam =
         "s10.4.current.reduce-transparency/recheck-due-native-back"
+    private static let recheckNavigationObservationOrigin = SuspendingClock.now
 
     private enum RecheckNavigationObservationEvent: String {
         case issueAppear = "issue_appear"
@@ -348,6 +349,11 @@ struct SignsRootView: View {
             return
         }
 
+        let observerElapsed = max(
+            Duration.zero,
+            Self.recheckNavigationObservationOrigin.duration(to: .now)
+        )
+        let observerElapsedSeconds = observerElapsed / .seconds(1)
         let record: [String: Any] = [
             "activeIssuePresent": true,
             "activeIssueRecheckDue": true,
@@ -362,8 +368,8 @@ struct SignsRootView: View {
             "seam": Self.recheckNavigationObservationSeam,
             "timestampUnixSeconds": Date().timeIntervalSince1970,
             "token": Self.recheckNavigationObservationToken,
-            "uptimeSeconds": processInfo.systemUptime,
-            "version": 1,
+            "observerElapsedSeconds": observerElapsedSeconds,
+            "version": 2,
         ]
         guard let data = try? JSONSerialization.data(
             withJSONObject: record,

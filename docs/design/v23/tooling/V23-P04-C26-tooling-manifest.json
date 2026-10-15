@@ -116,20 +116,20 @@
     "changedPathCount": 16,
     "missingPathCount": 0,
     "s10ReservationOverlapCount": 0,
-    "unownedChangedPathCount": 0
+    "unownedChangedPathCount": 1332
   },
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C26OrganicFindabilityContractV1.json",
-      "sha256": "1776bd275b5ed29b95c92d765c9495a853d8a5c7eb3df62a5116092777914ed0"
+      "sha256": "8d80bb0bdf139540a0d575dff8a0ebefc4f134e866e24851db27ebb61b2dc5f4"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C26OrganicFindabilityEvidenceReceiptV1.json",
-      "sha256": "d9ce36152fb68600057a5ea370260b95a8b18f4c5a589003b20049bc591e1294"
+      "sha256": "07a1c77953083000197e77e24e56a2779ddd731d44128e828d7577d7b994cf4b"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C26BrandImpactManifestV1.json",
-      "sha256": "66a3d481444571728e6d7ea028a3f90a21a75f0d60796cd1ccfc9484175f50c9"
+      "sha256": "d3e238540452189ceb33f3be8836ebda49f1b2535b0e32fd31a3f3f6895adf22"
     }
   ],
   "finalHashesSealed": false,
@@ -162,12 +162,12 @@
     },
     {
       "path": "Scripts/release-preflight.sh",
-      "sha256": "bd4d60d96405dd38e1a2b96bd349643d78d0209943f1147803adc21a5b6b7e29",
+      "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
       "status": "SOURCE_PRESENT"
     },
     {
       "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-      "sha256": "5ad2b80691805a31f154b7dac17f37c05fdd61d402f98d7fdd80eaa7dce6792a",
+      "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
       "status": "SOURCE_PRESENT"
     },
     {

@@ -22950,7 +22950,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "activeIssuePresent", "activeIssueRecheckDue", "currentCount",
             "diagnosticOnly", "event", "finalAcceptanceEligible", "newCount",
             "oldCount", "pid", "profile", "seam", "timestampUnixSeconds",
-            "token", "uptimeSeconds", "version",
+            "token", "observerElapsedSeconds", "version",
         ]
         for key in recordKeys {
             XCTAssertEqual(
@@ -22970,12 +22970,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\"newCount\": newCount.map { $0 as Any } ?? NSNull()",
             "\"oldCount\": oldCount.map { $0 as Any } ?? NSNull()",
             "\"currentCount\": path.count",
+            "\"observerElapsedSeconds\": observerElapsedSeconds",
+            "\"version\": 2",
             "options: [.sortedKeys]",
             "print(\"S10_4_RECHECK_NAV_OBSERVATION \\(line)\")",
         ] {
             XCTAssertEqual(observerLogger.components(separatedBy: exact).count - 1, 1, exact)
         }
+        XCTAssertEqual(
+            observerConstants.components(separatedBy:
+                "private static let recheckNavigationObservationOrigin = SuspendingClock.now"
+            ).count - 1,
+            1
+        )
+        for exact in [
+            "Self.recheckNavigationObservationOrigin.duration(to: .now)",
+            "let observerElapsedSeconds = observerElapsed / .seconds(1)",
+            "\"timestampUnixSeconds\": Date().timeIntervalSince1970",
+        ] {
+            XCTAssertEqual(observerLogger.components(separatedBy: exact).count - 1, 1, exact)
+        }
         let observerSource = observerBlocks.joined(separator: "\n")
+        XCTAssertFalse(observerSource.contains("systemUptime"))
+        XCTAssertFalse(observerSource.contains("mach_absolute_time"))
         for prohibited in [
             "@State", "Binding", "NavigationStack(path: $path)", "path.append(",
             "path.removeLast(", "path = NavigationPath", "Task {", ".tap(",
@@ -28423,12 +28440,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(blocks.count, 5, file: file, line: line)
         XCTAssertEqual(
             Data(blocks.joined().utf8).sha256,
-            "B48ED929C473AC7E2C19C1873F5F6957943D22AA3CA146D6960E915E075C287E",
+            "E2E2A7E7F4EC63C220F7DF0270F47A6CAD6B7B0F1CBC7C3AB49DDCA2DD03FEB1",
             file: file,
             line: line
         )
-        // The five DEBUG observer blocks are unchanged (B48ED929…287E). The remaining source
-        // is re-pinned for V23 (S10.4 E: A70196AB…52A6): SignsRootView now receives its
+        // C248 changes only the DEBUG elapsed field/origin and schema version. The prior
+        // five-block pin B48ED929…287E is preserved in the paired Source/provenance proof;
+        // the remaining Source is byte-identical to the existing V23 pin below.
+        // V23 history (S10.4 E: A70196AB…52A6): SignsRootView now receives its
         // coordinators from ProductionSignWorkflow instead of constructing them.
         XCTAssertEqual(
             Data(projected.utf8).sha256,

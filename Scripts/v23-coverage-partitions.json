@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "2b353a0229cb3797779a2441a16e115b21307b88",
+  "generatedAtHead": "3f89232b175a4217aba4a968ddf5c49127426c09",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1201,7 +1201,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 866.2,
+      "estimatedSeconds": 986.2,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1356,7 +1356,9 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementRefusesWrongControlNameAndRetainsIntent",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerCompletesAndRefusesForeignReceiptAndBinding",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesChangedCurrentPointerWithoutCompletion",
-        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion"
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion",
+        "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45H01RawAwakeBoundaryRejectsLateFinalDespiteClampedReport",
+        "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45I01SessionOriginIncludesSetupAndPostStopCallbackLatency"
       ]
     },
     {

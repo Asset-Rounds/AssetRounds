@@ -98,16 +98,16 @@
     }
   ],
   "schema": "V23P04C45StructuredVoiceCaptureToolingV1",
-  "sourceReady": true,
+  "sourceReady": false,
   "sourceRows": [
     {
       "path": "FieldEvidenceApp/Info.plist",
-      "sha256": "b9cfeba997aebc6503f63e3234d447643c3139101ac11c43cb3a84a938fdb40f",
+      "sha256": "579090e69b95432e4a6a34beaa94e020919d46a73b20d273d5f8cac826f3e631",
       "status": "SOURCE_PRESENT"
     },
     {
       "path": "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift",
-      "sha256": "46e9d97e0d6540cca1cfb4bb9783193ab5144246b1247c58cfc5803494e5c148",
+      "sha256": "45d3dfc04086500dad2542a0fd24dbac9cd5835d6f974f1771c2790c1f8ae0f5",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -117,7 +117,7 @@
     },
     {
       "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
-      "sha256": "03d56670fa477ce24e561bb32c59c67ca162bfcad5f0195aabc2f647c3f3b638",
+      "sha256": "4271e23449ccfd87da43408845654fbd81b4e90ae57d5b0ce423d571ea2a3180",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -127,7 +127,7 @@
     },
     {
       "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
-      "sha256": "d217fbe0f59eaf7c9ddf56db38fa5a86370f6378c00123a8c800a9722f284e73",
+      "sha256": "8aabac1e934f05f4c770bdb908cf7a67b1eb5d22d587c719e35a814843d15b49",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -137,8 +137,8 @@
     },
     {
       "path": "FieldEvidenceAppUITests/V23_P04_C45StructuredVoiceCaptureUITests.swift",
-      "sha256": "8f849bd7f438bfe7a70511ad88806b4698bb983a871c9a563d3f8453eeab2b78",
-      "status": "SOURCE_PRESENT"
+      "sha256": null,
+      "status": "SOURCE_MISSING"
     }
   ]
 }
