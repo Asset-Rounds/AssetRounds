@@ -28,7 +28,10 @@ struct IncumbentFileDetectionV1: Codable, Equatable, Sendable {
               observedVersion == release.versionValue,
               rowCount > 0, rowCount <= release.budget.maximumRowCount else {
             throw observedHeaders == release.orderedHeaders
-                ? IncumbentFileContractFailureV1.unsupportedVersion
+                ? (observedVersion == release.versionValue
+                    && rowCount > release.budget.maximumRowCount
+                    ? IncumbentFileContractFailureV1.budgetExceeded
+                    : IncumbentFileContractFailureV1.unsupportedVersion)
                 : IncumbentFileContractFailureV1.headerMismatch
         }
         self.releaseID = release.releaseID; self.releaseSHA256 = release.releaseSHA256
@@ -468,7 +471,7 @@ enum IncumbentDelimitedTextSafetyV1 {
                                  expectedDataRows: Int?) throws -> [[String]] {
         guard !data.isEmpty, UInt64(data.count) <= release.budget.maximumByteCount,
               let text = String(data: data, encoding: .utf8), Data(text.utf8) == data,
-              text == text.precomposedStringWithCanonicalMapping,
+              Data(text.precomposedStringWithCanonicalMapping.utf8) == data,
               text.unicodeScalars.allSatisfy({ scalar in
                   let allowedLayoutControl = scalar.value == 0x09
                     || scalar.value == 0x0a || scalar.value == 0x0d

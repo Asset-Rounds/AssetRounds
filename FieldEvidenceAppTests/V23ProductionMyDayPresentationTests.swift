@@ -2,6 +2,9 @@ import Combine
 import Foundation
 import SwiftData
 import XCTest
+#if DEBUG
+import Darwin
+#endif
 
 @testable import FieldEvidenceApp
 
@@ -201,6 +204,19 @@ struct V23ProductionMyDayPresentationHarness {
             at: root.appendingPathComponent("Library/Caches", isDirectory: true),
             withIntermediateDirectories: true)
         let router = StartupRouter(applicationSupportURL: support)
+#if DEBUG
+        if name == "round-publication-revocation" {
+            router.originalOpenFixedDiagnosticsForTesting = true
+            var didReportStartupFailure = false
+            router.startupFailureDiagnosticForTesting = { diagnostic in
+                guard !didReportStartupFailure else { return }
+                didReportStartupFailure = true
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                print("V23 production-startup first-failure \(diagnostic)")
+            }
+        }
+#endif
         let session: ProductionAppAccessSessionV1
         do {
             session = try await ProductionCompositionRoot.makeAppAccessSession(

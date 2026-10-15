@@ -2645,6 +2645,21 @@ final class EraseAllService {
         case inventoryNonOriginalDrain = "inventory.non-original-drain"
         case inventorySourceAllocations = "inventory.source-allocations"
         case inventoryReaderAccounting = "inventory.reader-accounting"
+        case sourceReaderPreparationOrigin = "source-reader.preparation-origin"
+        case sourceReaderPreparationFreshAllocation = "source-reader.preparation-fresh-allocation"
+        case sourceReaderPreparationAcquiringOrigin = "source-reader.preparation-acquiring-origin"
+        case sourceReaderPreparationAcquiring = "source-reader.preparation-acquiring"
+        case sourceReaderPreparationRegistry = "source-reader.preparation-registry"
+        case sourceReaderPreparationPublicationAbsent = "source-reader.preparation-publication-absent"
+        case sourceReaderPreparationPublishedToken = "source-reader.preparation-published-token"
+        case sourceReaderPreparationSettledToken = "source-reader.preparation-settled-token"
+        case sourceReaderRouterCensusBinding = "source-reader.router-census-binding"
+        case sourceReaderRouterInstalledCensus = "source-reader.router-installed-census"
+        case sourceReaderInventoryRegisterOperation = "source-reader.inventory-register-operation"
+        case sourceReaderInventoryAcquireOperation = "source-reader.inventory-acquire-operation"
+        case sourceReaderInventoryRetainUnique = "source-reader.inventory-retain-unique"
+        case sourceReaderInventoryContainsAllocation = "source-reader.inventory-contains-allocation"
+        case sourceReaderInventoryNoC05Activity = "source-reader.inventory-no-c05-activity"
     }
 
     /// Only fixed cases are emitted; error values, identifiers and payloads
@@ -2676,6 +2691,8 @@ final class EraseAllService {
     static func reportPreIntentRefusalForTesting(
         site: PreIntentRefusalSiteForTesting, error: Error
     ) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
         print("V23_ERASE_PREINTENT_REFUSAL_V1 site=\(site.rawValue) case=\(preIntentFailureCaseForTesting(error))")
     }
 
@@ -3392,6 +3409,8 @@ final class EraseAllService {
 #if DEBUG
         var sourceLedgerFactory = generationFactory
         sourceLedgerFactory.coldOpenDiagnosticForTesting = erasePhaseDiagnosticForTesting != nil
+        sourceLedgerFactory.coldOpenFixedDiagnosticsForTesting =
+            sourceLedgerFactory.coldOpenFixedDiagnosticsForTesting || erasePhaseDiagnosticForTesting != nil
 #else
         let sourceLedgerFactory = generationFactory
 #endif
@@ -10884,13 +10903,23 @@ private extension EraseAllService {
                 throw EraseAllServiceError.invalidAuthority
             }
             callStep = .sourceLedgerRead
-            guard try generationFactory.currentGenerationDeletionLedgerProof(
+            var sourceLedgerFactory = generationFactory
+            sourceLedgerFactory.coldOpenFixedDiagnosticsForTesting =
+                sourceLedgerFactory.coldOpenFixedDiagnosticsForTesting || erasePhaseDiagnosticForTesting != nil
+            // Keep the tree observer nil: enabling it adds throwing metadata
+            // observations in protectGeneration, beyond this fixed-label cut.
+            traceErasePhase("prepared.source-ledger.read.begin")
+            guard try sourceLedgerFactory.currentGenerationDeletionLedgerProof(
                 expectedPointer: oldPointer,
                 authority: authority
             ) == expected else {
                 throw EraseAllServiceError.invalidAuthority
             }
+            traceErasePhase("prepared.source-ledger.read.complete")
         } catch {
+            if case .sourceLedgerRead = callStep {
+                traceErasePhase("prepared.source-ledger.read.refused")
+            }
             Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
             throw error
         }

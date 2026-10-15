@@ -1,43 +1,49 @@
 # Active integration brief — 2026-10-15 UTC
-- Goal: verified Phase1 V23/S10 merge ASAP, then fullV23; SourceReady=false/releaseReady=false.
-- Integration codex/v23-s10-integration-20260910 publishedHEAD3f89232b175a4217aba4a968ddf5c49127426c09.
-- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged; allfive mergegates0/5OPEN.
-- Rootalone integrates/stages/commits/pushes/dispatches/native/evidence/storage effects; helpersSol6.1/xhigh.
-- Preserve ownerconfig/drafts/untracked/frozenhistory/originals/failures/partials/HOLDs/consumedquestions.
-- No PR/mergecommit/force/historyrewrite/signing/distribution/accounts/settings/broadstage.
-- Last hosted38682846798 COMPLETE:3342PASS384FAIL6SKIP;1interrupted+50notstarted=51unresolved.
-- Solecollector84453/session67909 natural0; complete independentDATA sealed. Neverreplay/restart.
-- Historical77=33PASS44FAIL;57=1PASS56FAIL;all6newmarkersFAIL. No app failure cleared by tooling.
-- S12 strict no-rebuild refusal/Products313 conserved; actual rebuild/infrastructure cause UNKNOWN.
-- Fixed M4E ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015 unchanged.
-- Bulk8.85GB originals stayM4; required small originals verified external; allhistorical roots preserved.
-- Official GitHub Xcode26.6+iOS26.2/23C54 pinned; primary27DEVELOPMENT only, no acceptance transfer.
-- OWNER APPROVED C253 hosted-first DEVELOPMENT policy2026-10-15; exact V2 policy now inAGENTS.
-- First application frozen C25132Source/sevenSwift/current442/3785methods38parts/affected39.
-- Independent Sol6.1/xhigh final37 checkpoint review PASS for INCOMPLETE DEVELOPMENT publication only.
-- Payload37=32Source+AGENTS+ACTIVE_BRIEF/CURRENT_INTEGRATION/VERIFICATION_DUE/STORAGE_MAP.
-- Owner .codex/config.toml and every other draft/untracked leaf excluded; index unstaged at thispoint.
-- Source32/current397+45=442PASS independentDATA and current761dependency proof retained.
-- App/test-module compile UNVERIFIED; compiler-error total UNKNOWN; native39 PENDING.
-- Next mandatory exact-newhead pinned GitHub full DEVELOPMENT sweep compiles before testfanout.
-- Complete3785/38 plan includes all39 and historical57/77 once; tests/budgets/coverage unchanged.
-- Broad feedback on meaningful changedpayload is authorized; historical individual failures are not reset.
-- Actual commit/headquestion/dispatch/runID/collector/results PENDING; bind actualSHA only after it exists.
-- Review: c241-independent-preflight-current-source-and-controls-review-v1/c251-final37-owner-approved-incomplete-development-checkpoint-candidate-review-v1/REVIEW.md (6086/876124b8).
-- Existing dispatcher selection v23-shared-coverage-d50x --kind development; ordinary own build/setup/Products.
-- No separate local39/direct17/acquisition reconstruction solely to duplicate mandatory hostedfeedback.
-- M4 ordinaryfallback v2/v3/v4 and exact49 ZIP preserved DORMANT; no transfer/materialization occurred.
-- Private recorder39/module39 SourcePASS and current47 actual+DATA PASS; original2tempErrors preserved.
-- M4 clean hosted checkout prepared: ~/Library/Caches/AssetRounds-secondary-20261011/c253-hosted-first-current37-dispatch-source-v1.
-- M4 checkout3f/2826 clean; available103669899264B at preparation point; fresh newhead dispatchadmission due.
-- OldC243two-owned checkout/author intact; never use olddirty2 as current32 or rebase oldGLOBALHOLD.
-- C240/C243 globalHOLDs/15originalsctimechanges remain; innerDATA never grants globalSourceFreeze/native.
-- C254 future34/eightSwift SourcePASS/readersPASS/current399+45=444PASS+independentDATA; native7PENDING.
-- C254 fouroldSwiftData crash fixes UNPROVEN; keep isolated from frozen32.
-- C255 lowercase missing-alt fixture SourcePASS/DEBUG+Release syntax/current5reader+DATA PASS;native5PENDING.
-- C255 prior5FAILs retained; isolated from frozen32.
-- C252 diagnostic fiveSwift+verifier SourcePASS/currenthardeningPASS; furtherchecks/compile pending.
-- C252 instrumentation-only diagnostic exception NOTapproved; excluded from C253 and thispayload.
-- Allsameheadgates/coldqualification/genuineownerreview/exact-main/fullV23/data safety remain required.
-- Durable: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c253-owner-approved-hosted-first-policy-and-c251-final37-checkpoint-preparation-v1/ROOT_CURRENT_APPROVED_C253_C251_FINAL37_PREPARATION.json.
-- Details: CURRENT_INTEGRATION,VERIFICATION_DUE,MERGE_READINESS,PERFORMANCE_WORKFLOW,STORAGE_MAP.
+- Goal: verified Phase1 V23/S10 merge, then full V23. SourceReady=false; releaseReady=false.
+- Integration branch: codex/v23-s10-integration-20260910; published HEAD7dab04e11c4c3d85ef06f631a673724e9de2cde6.
+- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged; all five gates OPEN(0/5).
+- Root alone integrates, stages, commits, pushes, dispatches and operates native/evidence/storage effects.
+- Helpers GPT-6.1 Sol/xhigh, useful disjoint scopes, up to10 plusRoot; reuse existing contexts.
+- Preserve owner config/drafts/untracked/frozen history/originals/failures/partials/HOLDs/consumed questions.
+- No PR, merge commit, force/history rewrite, signing/distribution/accounts/settings or broad staging.
+- Official GitHub Xcode26.6/17F113 + SDK26.5/23F81a + iOS26.2/23C54; primary27 DEVELOPMENT only.
+- Published C253 owner-approved hosted-first timing allows reviewed INCOMPLETE DEVELOPMENT checkpoints; gates unchanged.
+- Mandatory7dab full DEVELOPMENT run38745487390/attempt1/3785methods/38partitions is COMPLETE/FAIL.
+- Producer app+test build PASS/0SwiftErrors on7dab only; all38 consumers closed(3success35failure).
+- SAME solecollector70513/session12327 naturally CLOSED0/emptyerr. Never restart/replay/duplicatecollector.
+- Complete available DATA PASSa5efd63a; exact independent outcome DATA PASS927d485a, both Sol6.1/xhigh.
+- Current reconciled:3352PASS/376FAIL/6SKIP/1Interrupted/50NotStarted; all3785 exact keys accounted for.
+- Raw3352PASS/370FAIL/7Interrupted/50NotStarted/6SKIP preserved; six actual current structured crashes explain delta.
+- Baseline38682846798:3342PASS/384FAIL/6SKIP/1Interrupted/50NotStarted. Current20F→P/12P→F, both addedC45 PASS.
+- Affected39=31PASS8FAIL; historical57=1PASS56FAIL;77=33PASS44FAIL; allsixmarkers FAIL. Sets overlap.
+- Future union200 current82P118F;275=250P25F;106=101P5F;graph21=19P2F;new17=7P10F; nonadditive.
+- All39 admissions join; strict after/no-rebuild37PASS/S12REFUSAL. Matching hashes never waive strict refusal.
+- Required-evidence34PASS/4FAIL: S12 empty report/Info gap; S28/S31/S32 omit six explicitSKIPs. All retained.
+- Producer+3consumer checkpoints present/35absent; no bulk/physical/provider/cold qualification transferred.
+- S12 whole-group3000s timeout during clone(1555.468s elapsed);1interrupted+50notstarted; fullclonefitUNKNOWN.
+- S05 markers preempted by prepared-ledger registry.uncertain-owner; inner predicate remainsUNKNOWN.
+- C257 five erase-related Swift afterimages diagnostic-only; existing marker callback unchanged; no focused retry authority.
+- Primary Source37 is imported, unstaged/uncommitted/unpublished:17Swift/3Python/17JSON, exact reviewedW256.
+- W256: .codex-temp/resume-20261002/worktrees/c256-reviewed-fixture-and-ownership-family-composition-7dab-v1.
+- Meaningful reviewed fixtures/ownership/report-number-kind corrections plus bounded DEBUG diagnostic companions.
+- Source37 app/test-module compile UNVERIFIED/compiler-errorsUNKNOWN; all affected native PENDING on mandatory newhead sweep.
+- Current C271 full399+45 newly executed allPASS; complete DATAda83250e; no reused old45 substitution.
+- C266 readers0/0/0 retain exact scoped DATAfdd7b26c; unchanged156/API51 genuine reuse, no duplicate checks.
+- C264443PASS1FAIL preserved; setup mechanism supported, exclusivecauseUNKNOWN; C267399PASS retains own scope.
+- C26212 logical derivatives usable; original globalindexFAILED/HOLD/actorUNKNOWN. C263 fresh3 PASS doesnothealC262.
+- C240/C243 global15ctimeHOLD preserved; C42declaredUITest missing/Viewunwired/sourceReadyfalse; C52oldfence limits retained.
+- Actual42=37Source+fiveMD; independent NONAUTHOR Sol6.1/xhigh final INCOMPLETE C253 publication review PASSce304366.
+- Future own pinned full3785/40 plan preserves orderedcensus/allaffected once, max5 and existing per-consumer budgets.
+- S12 split23/1/50(S12/S39/S40), sameD50C3000; aggregate maximum+6000test/+7200total sec; no method-fit claim.
+- Future SHA/question/dispatch/Products/results PENDING until actual; next own build app+testmodules before all40 consumers.
+- No successive unchecked publication, overlapping subset retry, waived assertion/coverage/budget or gate promotion.
+- M4 fixedE: ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015; allhistory preserved.
+- M4 clean source: ~/Library/Caches/AssetRounds-secondary-20261011/c253-hosted-first-current37-dispatch-source-v1.
+- M4 acknowledged receipt/hold(cursor81); bulk originals stayM4/~86.80GiB pointfree, fresh>30GiB admission before dispatch.
+- Small C275 courier/extraction external; all1413 members verified. Source/coordination Dropbox; historical archives stayonline-only.
+- Two read-only helper lanes investigate new regressions without expanding current frozen Source37.
+- Next: final42 candidate review, fresh refs/index/explicitstage/linear incomplete checkpoint, bind actual newhead, one hosted sweep.
+- Full five gates/coldqualification/RUI1/genuine ownerreview/exactmain/fullV23/data safety/release obligations remain due.
+- Payload: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c276-final42-incomplete-development-checkpoint-admission-v1/ACTUAL_FINAL42_INCOMPLETE_DEVELOPMENT_PAYLOAD_BINDINGS.json.
+- Current durable continuation: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c276-final42-incomplete-development-checkpoint-admission-v1/ROOT_CURRENT_C276_FINAL42_INDEPENDENT_REVIEW_PASS_PUBLICATION_PENDING.json.
+- Detail: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md, MERGE_READINESS.md, PERFORMANCE_WORKFLOW.md, STORAGE_MAP.md.

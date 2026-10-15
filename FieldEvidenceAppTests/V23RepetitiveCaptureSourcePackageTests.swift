@@ -1,6 +1,9 @@
 import Foundation
 import CoreFoundation
 import XCTest
+#if DEBUG
+import Darwin
+#endif
 
 @testable import FieldEvidenceApp
 
@@ -631,8 +634,19 @@ final class RepetitiveCaptureSourcePackageFixture {
             backupSchemaVersion: 4, consumedEvaluationRootIDs: [],
             declaredPayloadByteCount: recordsData.count, entries: [entry],
             exportedAt: Self.date, packs: [], source: decodedSource)
+#if DEBUG
+        let encodedManifestData = try BackupCanonicalEncoderV1().encodeManifest(manifest).data
+        if phaseTrace != nil {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            print("C36_PACKAGE_ENCODING_SIZES_V1 encodedRecordsBytes=\(encodedRecords.count) recordsMemberBytes=\(recordsData.count) entryDeclaredBytes=\(entry.byteCount) manifestDeclaredPayloadBytes=\(manifest.declaredPayloadByteCount) entryCount=\(manifest.entries.count) manifestEncodedBytes=\(encodedManifestData.count)")
+        }
+        try encodedManifestData.write(
+            to: directory.appendingPathComponent("manifest.json"), options: .atomic)
+#else
         try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(
             to: directory.appendingPathComponent("manifest.json"), options: .atomic)
+#endif
         return directory
     }
 

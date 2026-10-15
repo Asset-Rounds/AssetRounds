@@ -2815,10 +2815,10 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   '    ) {',
   ('@MainActor\nfinal class EraseAllService {',),
   1,
-  238,
-  '24d99f957d051b373148c110e5bf2923f4f79a70d3ed7b500154f1ecec28c38b',
+  306,
+  '51cecb1a35fc70aab395d1f145090527258f310174fe18951069365fe2b95563',
   ('if DEBUG',),
-  (('print', 125, ('if DEBUG',)),),
+  (('print', 193, ('if DEBUG',)),),
   (),
   ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
    'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
@@ -2882,12 +2882,12 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   '    ) async throws -> EraseAllOutcome {',
   ('@MainActor\nfinal class EraseAllService {',),
   1,
-  44368,
-  'b71deb255ad5a11e8168ee654f62ba4a0bdcdfdba92be57a68e0817065703a05',
+  44541,
+  '6ae35744b23beebd506ca588dcd4edb6ad642cf33b2905f17dc3d89263b8475a',
   (),
   (('optionalTry', 8722, ('if DEBUG',)),
-   ('optionalTry', 12510, ('if DEBUG',)),
-   ('print', 37346, ('if DEBUG',))),
+   ('optionalTry', 12683, ('if DEBUG',)),
+   ('print', 37519, ('if DEBUG',))),
   ('guard !originalEraseFrameActive, !postRetiredServiceAbandoned,',
    'throw EraseAllServiceError.invalidAuthority',
    'guard confirmation == Self.requiredConfirmation else {',
@@ -3919,17 +3919,21 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
  '    ) throws {',
  ('private extension EraseAllService {',),
  1,
- 1242,
- '4257fca0f28699c70eb60ea175bd7f2c90c18e8875dcf61358b358a29b356466',
+ 1907,
+ 'b4875e865c97fdde569568da6991020a94ea6d38df16402a12771a6a2b993ffe',
  (),
  (),
  ('guard let oldPointer = intent.oldPointer,',
-  'let expected = intent.sourceLedger',
-  'guard try generationFactory.currentGenerationDeletionLedgerProof(',
-  'throw EraseAllServiceError.invalidAuthority',
-  'throw error'),
- ('Whole DEBUG/Release declaration; required operands, exact ledger equality and same Factory '
-  'call/error preserved; underlying first guard remains unknown.',)),
+ 'let expected = intent.sourceLedger',
+ 'var sourceLedgerFactory = generationFactory',
+ 'sourceLedgerFactory.coldOpenFixedDiagnosticsForTesting =',
+ 'guard try sourceLedgerFactory.currentGenerationDeletionLedgerProof(',
+ 'try generationFactory.currentGenerationDeletionLedgerProof(',
+ 'throw EraseAllServiceError.invalidAuthority',
+ 'throw error'),
+ ('Whole DEBUG/Release declaration; direct same-provider/inventory diagnostic value copy, unchanged '
+ 'pointer/authority/equality and typed error; tree observer omitted/nil; first guard remains unobserved '
+ 'until an authorized diagnostic original.',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  '    func discardPreparation(\n'
  '        _ preparation: ErasePreparationV2,\n'
@@ -3999,7 +4003,36 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   'originalNotificationRootPolicyUncertain = true',
   'throw error'),
  ('Complete actual named diagnostic caller preserves literal/enum arguments, checked operations and original '
-  'failure',)))
+  'failure',)),
+('FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift',
+ '    @MainActor\n'
+ '    private func runOriginalMarkerProjectionControl(\n'
+ '        _ label: String,\n'
+ '        control: @escaping @MainActor (\n'
+ '            EraseRouterOperationV1, AppLockNotificationControlStoreV1,\n'
+ '            NotificationEraseRevocationV1,\n'
+ '            EraseOriginalNotificationPhysicalSnapshotV1,\n'
+ '            EraseOriginalNotificationPhysicalSnapshotV1, URL) throws -> Void\n'
+ '    ) async throws -> Error {',
+ ('final class S6_6EraseRecoveryTests: XCTestCase {',),
+ 1,
+ 5923,
+ 'dd0b38f9b06f7c1ea988386b254f08740ba88bbb77a63424a2e9976fa6c8fb62',
+ (),
+ (('print', 3191, ('if DEBUG',)),),
+ ('try await owner.admit(coordinator: coordinator)',
+  'let operation = try owner.originalOperationForInterruption()',
+  'let service = try owner.configure(EraseAllService(',
+  'service.erasePhaseDiagnosticForTesting = { phase in',
+  'defer { service.erasePhaseDiagnosticForTesting = previousPhaseDiagnostic }',
+  'calls += 1',
+  'XCTAssertEqual(calls, 1)',
+  'XCTAssertEqual(completedCount, 0)',
+  'XCTAssertEqual(system.observationCount, 0)',
+  'let retained = try XCTUnwrap(EraseIntentStore(',
+  'return failure'),
+ ('Complete genuine six-marker helper; DEBUG fixed diagnostic opt-in only, all real '
+  'owner/callback/hostile/assertion/error behavior retained; no functional retry authority.',)))
 
 CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift',
   'OriginalEraseScratchFirstErrorDiagnosticV1.emit(',
@@ -4299,7 +4332,7 @@ CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/Owned
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentCallRefusalForTesting(',
  161,
- 762,
+ 1427,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentCallRefusalForTesting(',
@@ -4314,22 +4347,22 @@ CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/Owned
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 39091,
+ 39264,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 40291,
+ 40464,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 42540,
+ 42713,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 43225,
+ 43398,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift',
  'OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(',
@@ -4680,15 +4713,15 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 58, 139, None),
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 58, 249, None),
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 61, 1099, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'emit', 96, 37855, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'emit', 96, 38028, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 88, 753, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 88, 1161, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 91, 125, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 91, 193, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 92, 593, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 94, 369, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 95, 1271, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 95, 2043, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 96, 37346, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 96, 37519, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
   'print',
   None,
@@ -4844,7 +4877,7 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentCallRefusalForTesting',
  161,
- 762,
+ 1427,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentCallRefusalForTesting',
@@ -4859,22 +4892,22 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 39091,
+ 39264,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 40291,
+ 40464,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 42540,
+ 42713,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 43225,
+ 43398,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 158, 202, None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 159, 226, None),
@@ -4938,7 +4971,8 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
 ('FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift', 'emitNotificationTiming', 165, 1243, None),
 ('FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift', 'emitNotificationTiming', 165, 1571, None),
 ('FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift', 'emitNotificationTiming', 165, 2850, None),
-('FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift', 'emitNotificationTiming', 165, 3176, None))
+('FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift', 'emitNotificationTiming', 165, 3176, None),
+('FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift', 'print', 166, 3191, None))
 
 
 def _current_c08_hardening_conditions(code: str, position: int) -> tuple[str, ...]:
@@ -5082,7 +5116,7 @@ def _current_c08_hardening_callers(
     require(type(CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS) is tuple and
             CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS == symbols and
             type(CURRENT_C08_HARDENING_REFERENCES) is tuple and
-            len(CURRENT_C08_HARDENING_REFERENCES) == 148,
+            len(CURRENT_C08_HARDENING_REFERENCES) == 149,
             "current C08 hardening: protected reference policy census differs")
     primary = tuple(path for path in EXISTING_PATHS + NEW_SOURCE_PATHS
                     if path.endswith(".swift"))
@@ -5166,7 +5200,7 @@ def verify_current_source_hardening() -> None:
  '\n'
  '    Scope is the original fourteen whole Swift inputs and all fifteen presence\n'
  '    bindings, plus five exact supporting Source inputs. The 107 optional-try\n'
- '    and 48 print sites have complete declaration/owner/conditional/caller\n'
+ '    and 49 print sites have complete declaration/owner/conditional/caller\n'
  '    bindings; there are no file, DEBUG or callee-name exceptions. Preexisting\n'
  '    non-try stderr emissions were outside the historical output predicate and\n'
  '    remain UNVERIFIED, with no additional exemption or privacy claim here.\n'
@@ -5187,7 +5221,7 @@ def verify_current_source_hardening() -> None:
             len(set(paths + support)) == 20,
             "current C08 hardening: complete supporting-input closure differs")
     require(type(CURRENT_C08_HARDENING_DECLARATIONS) is tuple and
-            len(CURRENT_C08_HARDENING_DECLARATIONS) == 166 and
+            len(CURRENT_C08_HARDENING_DECLARATIONS) == 167 and
             type(CURRENT_C08_HARDENING_CALLERS) is tuple and
             len(CURRENT_C08_HARDENING_CALLERS) == 82,
             "current C08 hardening: closed declaration/caller policy census differs")
@@ -5287,8 +5321,8 @@ def verify_current_source_hardening() -> None:
     require(sum(len(value) for (relative, kind), value in expected.items()
                 if kind == "optionalTry") == 107 and
             sum(len(value) for (relative, kind), value in expected.items()
-                if kind == "print") == 48,
-            'current C08 hardening: complete current 107/48 event census differs')
+                if kind == "print") == 49,
+            'current C08 hardening: complete current 107/49 event census differs')
     _current_c08_hardening_callers(texts, codes, frames)
 
 

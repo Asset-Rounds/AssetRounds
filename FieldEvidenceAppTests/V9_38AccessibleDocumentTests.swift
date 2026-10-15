@@ -193,7 +193,7 @@ private enum C24AccessibleDocumentTestSupport {
                 decorative: true
             ),
             try node(
-                nodeID: "missingAlt",
+                nodeID: "missing-alt",
                 role: .figure,
                 parentNodeID: "section",
                 order: 4,
@@ -509,7 +509,7 @@ final class V9_38AccessibleDocumentTests: XCTestCase {
         let decorative = try XCTUnwrap(english.nodes.first { $0.nodeID == "decorative" })
         XCTAssertTrue(decorative.decorative)
         XCTAssertNil(decorative.alternateText)
-        let missingAlt = try XCTUnwrap(english.nodes.first { $0.nodeID == "missingAlt" })
+        let missingAlt = try XCTUnwrap(english.nodes.first { $0.nodeID == "missing-alt" })
         XCTAssertNil(missingAlt.alternateText)
         XCTAssertEqual(missingAlt.alternateTextProvenance, .notProvided)
 
@@ -534,6 +534,16 @@ final class V9_38AccessibleDocumentTests: XCTestCase {
     }
 
     func testV23P03C24H01CycleOrphanOrderHeaderPrivacyAndForgedClaimsFailClosed() throws {
+        XCTAssertThrowsError(try C24AccessibleDocumentTestSupport.node(
+            nodeID: "missingAlt",
+            role: .figure,
+            parentNodeID: "section",
+            order: 4,
+            alternateTextProvenance: .notProvided
+        )) {
+            XCTAssertEqual($0 as? AccessibleDocumentFailureV1, .invalidValue)
+        }
+
         let base = try C24AccessibleDocumentTestSupport.tree()
         let exactCustomerSafeLink = try XCTUnwrap(
             base.nodes.first(where: { $0.nodeID == "paragraph" })?.evidenceLinks.first

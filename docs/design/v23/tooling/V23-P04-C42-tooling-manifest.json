@@ -119,11 +119,11 @@
     },
     {
       "path": "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowContractV1.json",
-      "sha256": "0e5937358dcd14106d0b9d1009ea1641780f4c406821da08e837605ae001dc1d"
+      "sha256": "c680d9e20d4e1a145306240a2da92655a78cb057eba156815cde68181872bd23"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowEvidenceReceiptV1.json",
-      "sha256": "f5c16dc7e85d5afe2513c3082c6e4b925d1ec7d42124be9938ba7210023fe512"
+      "sha256": "d08668a1fb26a5fcd81c417c204b9d2b3005fffd2dccc3a22f2f5558e09f0bf5"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C42BrandImpactManifestV1.json",
@@ -228,17 +228,17 @@
   "sourceRows": [
     {
       "path": "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
-      "sha256": "4fb403104ee5b17e7b6029ed4c950876beb119dad6674fc432c43030986279d5",
+      "sha256": "32f83e6612f48e0ed5fd808d4d9f8fe7b7b5b5cbed70b29de3344960c0bbbf24",
       "status": "SOURCE_PRESENT"
     },
     {
       "path": "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
-      "sha256": "f21b659f70c454cb84a186999ef3925f63741deaf725e5724887bbb6b71165bf",
+      "sha256": "e6b85684f06fff7b2440ffac2cbb650ee43f3a620d40d70189bd6dc42cb46ed0",
       "status": "SOURCE_PRESENT"
     },
     {
       "path": "FieldEvidenceApp/Domain/Contacts/OperationalContactContractsV1.swift",
-      "sha256": "3d1f48846e5e47726ae5068dc49127ba4e660637fa39cc980f1c5dd6637c482d",
+      "sha256": "37f42e7c77e62a747b59214b052ffe2e076f604d83e303d3cf06c7f2b4f9f82f",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -263,7 +263,7 @@
     },
     {
       "path": "FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift",
-      "sha256": "14ca2b8417be0f43dab57c80bb72b1c3c0b39ec531938db3c479e5710e732748",
+      "sha256": "6389fde9b3bdb2337f280a9b99b0d5cf07907185ede28a4fcbe259e52cf3081d",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -273,8 +273,8 @@
     },
     {
       "path": "FieldEvidenceAppUITests/V23_P04_C42PartyContactSiteRoleWorkflowUITests.swift",
-      "sha256": "02bd32b850b01b623565736a621a6cc8ca9c1de135059e9f6e262eb5c8a6f5a1",
-      "status": "SOURCE_PRESENT"
+      "sha256": null,
+      "status": "SOURCE_MISSING"
     }
   ],
   "successor": {

@@ -25,6 +25,54 @@ final class S3_3FinalizationTests: XCTestCase {
             try ReportSnapshotEncoderV1().decode(fixture),
             goldenSnapshot()
         )
+
+        // Optional assurance must retain numeric schema/revision/count values
+        // when its domain JSON is embedded in the legacy report tree.
+        let assuranceFixture = try C13EvidenceAssuranceTestSupportV1.makeFixture()
+        for links in [[assuranceFixture.customerLink],
+                      [assuranceFixture.customerLink, assuranceFixture.internalOnlyCustomerLink]] {
+            let preview = try AssuranceProjectionPreviewV1(
+                previewID: C13EvidenceAssuranceTestSupportV1.id(51_990 + links.count),
+                workspaceID: assuranceFixture.workspaceID,
+                audience: .customerReport,
+                snapshotSHA256: encoded.sha256,
+                projectionVersion: assuranceFixture.customerPreview.projectionVersion,
+                links: links,
+                createdAt: assuranceFixture.customerPreview.createdAt
+            )
+            var snapshot = goldenSnapshot()
+            snapshot.assurance = try ReportEvidenceAssuranceProjectionV1(
+                preview: preview,
+                visibilities: [assuranceFixture.routineVisibility,
+                               assuranceFixture.internalOnlyVisibility]
+            )
+            let encoder = ReportSnapshotEncoderV1()
+            let encodedWithAssurance = try encoder.encode(snapshot)
+            let decoded = try encoder.decode(encodedWithAssurance.data)
+            XCTAssertEqual(decoded, snapshot)
+            XCTAssertEqual(decoded.assurance?.schemaVersion, 1)
+            XCTAssertEqual(decoded.assurance?.omissionCount, links.count - 1)
+            XCTAssertEqual(try encoder.encode(decoded), encodedWithAssurance)
+
+            let document = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: encodedWithAssurance.data) as? [String: Any])
+            // Establish that the mutation writer itself preserves valid bytes.
+            let validReserialized = try JSONSerialization.data(
+                withJSONObject: document, options: [.sortedKeys, .withoutEscapingSlashes])
+            XCTAssertEqual(validReserialized, encodedWithAssurance.data)
+            XCTAssertEqual(try encoder.decode(validReserialized), snapshot)
+            for key in ["schemaVersion", "omissionCount"] {
+                var hostileDocument = document
+                var hostileAssurance = try XCTUnwrap(document["assurance"] as? [String: Any])
+                hostileAssurance[key] = key == "schemaVersion" || links.count == 2
+                hostileDocument["assurance"] = hostileAssurance
+                let hostileBytes = try JSONSerialization.data(
+                    withJSONObject: hostileDocument, options: [.sortedKeys, .withoutEscapingSlashes])
+                XCTAssertThrowsError(try encoder.decode(hostileBytes)) { error in
+                    XCTAssertEqual(error as? ReportSnapshotEncodingErrorV1, .noncanonicalData)
+                }
+            }
+        }
     }
 
     @MainActor

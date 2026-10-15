@@ -211,6 +211,7 @@ private struct C37RejectingMaterializer: ImportWorkspaceCommandMaterializingV1 {
 }
 
 @MainActor private final class C37BulkHarness {
+    let container: ModelContainer
     let context: ModelContext
     let adapter: C37WriterAdapter
     let writer: WorkspaceWriterV1
@@ -226,6 +227,7 @@ private struct C37RejectingMaterializer: ImportWorkspaceCommandMaterializingV1 {
             ModelConfiguration("C37-C08", schema: schema, isStoredInMemoryOnly: true,
                                allowsSave: true, cloudKitDatabase: .none)
         ])
+        self.container = container
         context = container.mainContext
         context.autosaveEnabled = false
         let identity = try WorkspaceReplicaIdentityV1(

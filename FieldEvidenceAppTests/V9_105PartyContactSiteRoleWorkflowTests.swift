@@ -106,6 +106,36 @@ private struct C42IDSource: ApplicationIDSource {
             contactCoordinator: contact, query: query))
     }
 
+    /// Seed the existing Site owner through the ordinary canonical writer before
+    /// any scenario journal fault is installed. Role mutations never create Sites.
+    func seedSite(_ siteID: UUID) throws -> Int {
+        let before = try rows(MutationReceiptRow.self).count
+        let setup = try make()
+        let mutationID = try C42.mutation(1_001)
+        _ = try setup.writer.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "C42 seed site", address: nil, timeZoneID: "UTC"),
+                assetID: C42.id(1_000),
+                assetLabel: "C42 seed asset",
+                packID: "c42.seed",
+                packSchemaVersion: 1,
+                packContentVersion: 1,
+                createdAt: C42.now,
+                initialPlacementMutationID: mutationID,
+                initialPlacementEventID: C42.id(1_002),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                    rawValue: C42.id(1_003)
+                )
+            )),
+            mutationID: mutationID
+        )
+        XCTAssertEqual(try rows(Site.self).filter { $0.id == siteID }.count, 1)
+        let seeded = try rows(MutationReceiptRow.self).count
+        XCTAssertEqual(seeded, before + 1)
+        return seeded
+    }
+
     func expected(_ writer: WorkspaceWriterV1, kind: WorkspaceEntityKindV1,
                   id: UUID, revision: UInt64) throws -> WorkspaceExpectedRevisionV1 {
         let current = try writer.currentRevision()
@@ -142,9 +172,10 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
             "V23-P04-C42-I01", "V23-P04-C42-R01"
         ])
         let store = try C42Store("golden")
-        let bundle = try store.make()
         let partyID = C42.id(10), phoneID = C42.id(11), emailID = C42.id(12)
         let siteID = C42.id(13), roleID = C42.id(14)
+        let seedReceiptCount = try store.seedSite(siteID)
+        let bundle = try store.make()
         let partyPreview = try await bundle.workflow.previewCreateParty(
             workspaceID: store.session.workspaceID, partyID: partyID, kind: .organization,
             displayName: "Synthetic Service Co", profileDescriptor: "Operational contact",
@@ -203,15 +234,16 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
             partyRevisions: [party], contactRevisions: contacts, siteRoleEvents: roles)
         XCTAssertEqual(history.contactRevisions.filter(\.preferred).count, 2)
         XCTAssertEqual(history.siteRoleEvents.count, 1)
-        XCTAssertEqual(try store.rows(MutationReceiptRow.self).count, 4)
+        XCTAssertEqual(try store.rows(MutationReceiptRow.self).count, seedReceiptCount + 4)
     }
 
     @MainActor
     func testV23P04C42A01EditsLifecyclePreferenceReversalAndPresentationLabels() async throws {
         let store = try C42Store("alternate")
-        let bundle = try store.make()
         let partyID = C42.id(30), firstID = C42.id(31), secondID = C42.id(32)
         let siteID = C42.id(33), roleID = C42.id(34)
+        _ = try store.seedSite(siteID)
+        let bundle = try store.make()
         let create = try await bundle.workflow.previewCreateParty(workspaceID: store.session.workspaceID,
             partyID: partyID, kind: .person, displayName: "Original Name", effectiveAt: C42.now,
             expectedRevision: store.expected(bundle.writer, kind: .serviceParty, id: partyID, revision: 0),
@@ -412,8 +444,10 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
     @MainActor
     func testV23P04C42I01EffectBeforeReceiptRecoveryIsReceiptFirstAndExactlyOnce() async throws {
         let store = try C42Store("interrupt")
-        let faulted = try store.make(failure: .init(failOnceAt: .afterEffectBeforeReceipt))
         let partyID = C42.id(70)
+        let siteID = C42.id(74), roleID = C42.id(75)
+        _ = try store.seedSite(siteID)
+        let faulted = try store.make(failure: .init(failOnceAt: .afterEffectBeforeReceipt))
         let preview = try await faulted.workflow.previewCreateParty(
             workspaceID: store.session.workspaceID, partyID: partyID, kind: .organization,
             displayName: "Interrupted Party", effectiveAt: C42.now,
@@ -460,7 +494,6 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
             .recoverContact(contactPreview))
         XCTAssertEqual(contactFirst, contactReplay)
 
-        let siteID = C42.id(74), roleID = C42.id(75)
         let roleFaulted = try store.make(failure: .init(failOnceAt: .afterEffectBeforeReceipt))
         let rolePreview = try await roleFaulted.workflow.previewAppendSiteRole(
             workspaceID: store.session.workspaceID, eventID: roleID, siteID: siteID,
@@ -516,8 +549,9 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
     @MainActor
     func testV23P04C42R01RebuildHistoryFreezesEmbeddedSnapshotsAndPreservesNamespaces() async throws {
         let store = try C42Store("rebuild")
-        let bundle = try store.make()
         let partyID = C42.id(80), contactID = C42.id(81), siteID = C42.id(82), roleID = C42.id(83)
+        _ = try store.seedSite(siteID)
+        let bundle = try store.make()
         let create = try await bundle.workflow.previewCreateParty(workspaceID: store.session.workspaceID,
             partyID: partyID, kind: .person, displayName: "Historic Name", effectiveAt: C42.now,
             expectedRevision: store.expected(bundle.writer, kind: .serviceParty, id: partyID, revision: 0),

@@ -304,9 +304,19 @@ def _load_hydrated_paths() -> tuple[tuple[str, ...], tuple[str, ...]]:
     return existing, hydrated_new
 
 
-EXISTING_PATHS, _HYDRATED_NEW_PATHS = _load_hydrated_paths()
-PATH_FENCE = EXISTING_PATHS + _HYDRATED_NEW_PATHS
-MANIFEST_INPUT_PATHS = tuple(path for path in PATH_FENCE if path != MANIFEST_PATH)
+def __getattr__(name: str) -> tuple[str, ...]:
+    """Read historical path metadata freshly; source-only checks need no fence."""
+    if name not in ("EXISTING_PATHS", "_HYDRATED_NEW_PATHS", "PATH_FENCE", "MANIFEST_INPUT_PATHS"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    existing, hydrated_new = _load_hydrated_paths()
+    path_fence = existing + hydrated_new
+    return {"EXISTING_PATHS": existing, "_HYDRATED_NEW_PATHS": hydrated_new,
+            "PATH_FENCE": path_fence,
+            "MANIFEST_INPUT_PATHS": tuple(path for path in path_fence if path != MANIFEST_PATH)}[name]
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | {"EXISTING_PATHS", "_HYDRATED_NEW_PATHS", "PATH_FENCE", "MANIFEST_INPUT_PATHS"})
 
 
 def _text(root: Path, relative: str) -> str:
@@ -412,7 +422,8 @@ def _assert_coordination_state() -> None:
     transition = _coordination_json(_TRANSITION_RELATIVE)
     ledger = _coordination_json(_LEDGER_RELATIVE)
     projection = _coordination_json(_PROJECTION_RELATIVE)
-    _load_hydrated_paths()
+    existing, hydrated_new = _load_hydrated_paths()
+    PATH_FENCE = existing + hydrated_new
     if context.get("repository") != {"appBaseHead": BASE_HEAD, "appBaseTree": BASE_TREE} or context.get("registerOrdinal") != REGISTER_ORDINAL or context.get("title") != TITLE or context.get("lineage") != "EXACT_WITH_GENERATION_REBIND":
         raise ValueError("C08 context metadata differs")
     if context.get("expectedArtifacts") != list(PATH_FENCE) or context.get("persistentChangeMode") != "PERSISTENT_OR_PRODUCT_DELTA":
@@ -454,6 +465,8 @@ def _authority_pins_ready() -> bool:
 
 
 def assert_scaffold(root: Path) -> None:
+    EXISTING_PATHS, _HYDRATED_NEW_PATHS = _load_hydrated_paths()
+    PATH_FENCE = EXISTING_PATHS + _HYDRATED_NEW_PATHS
     if (len(EXISTING_PATHS), len(_HYDRATED_NEW_PATHS), len(PATH_FENCE), len(set(PATH_FENCE))) != (EXPECTED_EXISTING_PATH_COUNT, EXPECTED_NEW_PATH_COUNT, EXPECTED_FENCE_PATH_COUNT, EXPECTED_FENCE_PATH_COUNT):
         raise ValueError("C08 fence cardinality or uniqueness differs")
     if _HYDRATED_NEW_PATHS != NEW_PATHS or PATH_FENCE != EXISTING_PATHS + NEW_PATHS:
@@ -641,6 +654,7 @@ def assert_source_contracts(root: Path) -> tuple[str, ...]:
 
 
 def authority() -> dict[str, Any]:
+    _load_hydrated_paths()
     return {"cardID": CARD, "attemptID": 1, "registerOrdinal": REGISTER_ORDINAL, "title": TITLE, "appBaseHead": BASE_HEAD, "appBaseTree": BASE_TREE, "candidateHead": CANDIDATE_HEAD, "candidateTree": CANDIDATE_TREE, "coordinationHead": COORDINATION_HEAD, "coordinationOriginHead": COORDINATION_ORIGIN_HEAD, "coordinationTree": COORDINATION_TREE, "coordinationSequence": SEQUENCE, "coordinationCASSequence": SEQUENCE, "contextDigest": CONTEXT_DIGEST, "pathFenceDigest": FENCE_DIGEST, "prerequisiteDigest": PREREQUISITE_DIGEST, "hydrationTransitionDigest": HYDRATION_TRANSITION_DIGEST, "coordinationLedgerDigest": COORDINATION_LEDGER_DIGEST, "coordinationProjectionDigest": COORDINATION_PROJECTION_DIGEST, "priorLedgerDigest": PRIOR_LEDGER_DIGEST, "frozenS10ReservationDigest": FROZEN_S10_RESERVATION_DIGEST, "sourcePins": dict(SOURCE_PINS), "directPrerequisiteCards": list(DIRECT_PREREQUISITES), "optionalCapabilityProviders": list(OPTIONAL_CAPABILITY_PROVIDERS), "expectedExistingPathCount": EXPECTED_EXISTING_PATH_COUNT, "expectedNewPathCount": EXPECTED_NEW_PATH_COUNT, "expectedFencePathCount": EXPECTED_FENCE_PATH_COUNT, "existingPathCount": EXPECTED_EXISTING_PATH_COUNT, "newPathCount": EXPECTED_NEW_PATH_COUNT, "fencePathCount": EXPECTED_FENCE_PATH_COUNT, "authorizedOverlapCount": AUTHORIZED_OVERLAP_COUNT, "unauthorizedOverlapCount": UNAUTHORIZED_OVERLAP_COUNT, "s10ReservationOverlapCount": S10_RESERVATION_OVERLAP_COUNT, "priorFenceCount": PRIOR_FENCE_COUNT, "priorOwnedPathCount": PRIOR_OWNED_PATH_COUNT, "s10ReservedPathCount": S10_RESERVED_PATH_COUNT, "finalHashesSealed": FINAL_HASHES_SEALED}
 
 
@@ -670,6 +684,7 @@ def semantics(selectors_value: tuple[str, ...]) -> dict[str, Any]:
 
 
 def schema_document(selectors_value: tuple[str, ...]) -> dict[str, Any]:
+    _load_hydrated_paths()
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://assetrounds.invalid/v23/import-bulk-engine.schema.json", "title": "V23-P04-C08 import bulk engine", "type": "object", "additionalProperties": False, "properties": {"schema": {"const": "IMPORT_BULK_ENGINE_V1"}, "schemaVersion": {"const": SCHEMA_VERSION}, "cardID": {"const": CARD}, "ordinal": {"const": REGISTER_ORDINAL}, "selectors": {"const": list(selectors_value)}, "authorityContracts": {"const": list(AUTHORITY_CONTRACTS)}, "persistentKinds": {"const": list(PERSISTENT_KINDS)}, "rowDispositions": {"const": list(ROW_DISPOSITIONS)}, "executionStates": {"const": list(EXECUTION_STATES)}, "lifecycle": {"const": list(LIFECYCLE)}, "forbidden": {"const": list(FORBIDDEN)}, "semantics": {"const": semantics(selectors_value)}, "sourceReady": {"type": "boolean"}, "physicalLockedState": {"const": "REQUIRED_PENDING_OWNER"}, "uiAdoptionSkipped": {"const": True}, "uiAcceptanceCredit": {"const": False}, "statusFlags": {"const": dict(FLAGS)}, "finalHashesSealed": {"const": FINAL_HASHES_SEALED}, "provisional": {"const": not FINAL_HASHES_SEALED}}, "required": ["schema", "schemaVersion", "cardID", "ordinal", "selectors", "authorityContracts", "persistentKinds", "rowDispositions", "executionStates", "lifecycle", "forbidden", "semantics", "sourceReady", "physicalLockedState", "uiAdoptionSkipped", "uiAcceptanceCredit", "statusFlags", "finalHashesSealed", "provisional"]}
 
 
@@ -712,6 +727,9 @@ def _manifest_row(root: Path, path: str, rendered: dict[str, bytes]) -> dict[str
 
 def outputs(root: Path) -> dict[str, bytes]:
     assert_scaffold(root)
+    EXISTING_PATHS, _HYDRATED_NEW_PATHS = _load_hydrated_paths()
+    PATH_FENCE = EXISTING_PATHS + _HYDRATED_NEW_PATHS
+    MANIFEST_INPUT_PATHS = tuple(path for path in PATH_FENCE if path != MANIFEST_PATH)
     status = source_status(root)
     selectors_value = assert_source_contracts(root) if status["hydrated"] else bound_selectors(root)
     rendered: dict[str, bytes] = {SCHEMA_PATH: pretty(schema_document(selectors_value)), CONTRACT_PATH: pretty(contract_document(root, selectors_value)), EVIDENCE_PATH: pretty(evidence_document(root, selectors_value)), BRAND_PATH: pretty(brand_document(root, selectors_value))}
@@ -733,6 +751,7 @@ def _self_parse() -> None:
 
 
 if __name__ == "__main__":
+    _load_hydrated_paths()
     _self_parse()
     status = source_status(ROOT)
     print(json.dumps({"cardID": CARD, "sourceReady": status["sourceReady"], "sourceStatus": status["status"], "sourceReason": status["reason"], "sourceMissing": status["missingPaths"], "finalHashesSealed": FINAL_HASHES_SEALED, "fencePathCount": EXPECTED_FENCE_PATH_COUNT, "newPathCount": EXPECTED_NEW_PATH_COUNT, "authorizedOverlapCount": AUTHORIZED_OVERLAP_COUNT, "unauthorizedOverlapCount": UNAUTHORIZED_OVERLAP_COUNT, "s10ReservationOverlapCount": S10_RESERVATION_OVERLAP_COUNT}, sort_keys=True, indent=2))

@@ -107,6 +107,7 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
 }
 
 @MainActor private final class C08Stack {
+    let container: ModelContainer
     let context: ModelContext
     let adapter: C08WriterAdapter
     let writer: WorkspaceWriterV1
@@ -128,6 +129,7 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let models = PersistentSchemaV45.models + [ImportMappingProfileRowV1.self, BulkSessionRowV1.self, BulkCommitReceiptRowV1.self]
         let schema = Schema(models, version: PersistentSchemaV45.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C08ImportBulk", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+        self.container = container
         context = container.mainContext
         context.autosaveEnabled = false
         let workspaceID = C08.workspace(), generationID = C08.id(980_090)

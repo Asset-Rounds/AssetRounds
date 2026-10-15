@@ -203,7 +203,7 @@
       "verificationSHA256": "c8a47d028fc0e64725967701e1d4d7b1a5ac48b07c6912ef5a023f9c5df7cee2"
     }
   ],
-  "contractDigest": "8d80bb0bdf139540a0d575dff8a0ebefc4f134e866e24851db27ebb61b2dc5f4",
+  "contractDigest": "53a5106a33391bd2d92a58dc283444169801081908da90bf710b0950ec96ada9",
   "generatorInterruptionProtocol": {
     "deterministicRerun": true,
     "protocol": "MANIFEST_LAST_ATOMIC_REPLACE",
@@ -247,7 +247,7 @@
       "changedPathCount": 16,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 1332
+      "unownedChangedPathCount": 1333
     },
     "selectors": [
       "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",
@@ -270,7 +270,7 @@
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
+        "sha256": "77159ae06759037f8e4e1b686bcd9108b0c41a74e589afb6f62f23f47a0566e8",
         "status": "SOURCE_PRESENT"
       },
       {

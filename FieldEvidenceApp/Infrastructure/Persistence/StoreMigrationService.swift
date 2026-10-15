@@ -19033,10 +19033,24 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         private var checkedClosed = Set<Int32>()
         private var closeUncertain = false
         func requireCertainDescriptors() throws {
-            guard !closeUncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard !closeUncertain else {
+#if DEBUG
+                let savedErrno = errno
+                GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.release-descriptors-certain", line: #line, errorNumber: nil)
+                errno = savedErrno
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
         }
         func closeOwnedDescriptorsChecked(permanentData: OriginalEraseWriterPermanentCloseDataV1? = nil) throws {
-            guard completedSchema2Scope == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard completedSchema2Scope == nil else {
+#if DEBUG
+                let savedErrno = errno
+                GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.release-close-origin", line: #line, errorNumber: nil)
+                errno = savedErrno
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
             try requireCertainDescriptors()
             for descriptor in [original, temporary] where descriptor >= 0 && !checkedClosed.contains(descriptor) {
                 checkedClosed.insert(descriptor)
@@ -19045,6 +19059,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 permanentData?.returned(descriptor: descriptor, result: closeResult, savedErrno: closeErrno)
                 guard closeResult == 0 else {
                     closeUncertain = true
+#if DEBUG
+                    let savedErrno = errno
+                    GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.release-close-result", line: #line, errorNumber: nil)
+                    errno = savedErrno
+#endif
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
                 }
                 try permanentData?.consume(descriptor: descriptor)
@@ -19099,8 +19118,22 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         var completed = false
         init(token: GenerationLeaseTokenV1) { self.token = token }
         func closeOwnedDescriptorsChecked(permanentData: OriginalEraseWriterPermanentCloseDataV1? = nil) throws {
-            guard completedSchema2Scope == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-            guard !closeUncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard completedSchema2Scope == nil else {
+#if DEBUG
+                let savedErrno = errno
+                GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.publication-close-origin", line: #line, errorNumber: nil)
+                errno = savedErrno
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard !closeUncertain else {
+#if DEBUG
+                let savedErrno = errno
+                GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.publication-close-certain", line: #line, errorNumber: nil)
+                errno = savedErrno
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
             if let replacement {
                 do { try replacement.closeOwnedDescriptorsChecked(permanentData: permanentData) }
                 catch { closeUncertain = true; throw error }
@@ -19109,6 +19142,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 originalCloseAttempted = true
                 guard Darwin.close(original) == 0 else {
                     closeUncertain = true
+#if DEBUG
+                    let savedErrno = errno
+                    GenerationLeaseRegistryV1.reportFailure(operation: "source-reader.publication-close-result", line: #line, errorNumber: nil)
+                    errno = savedErrno
+#endif
                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
                 }
             }
@@ -24264,6 +24302,11 @@ extension GenerationLeaseRegistryV1 {
         // DEBUG fallback effects, so it must occur only AFTER SH admission.
         try validateTemporalActivityIdentity(descriptor)
         guard flock(descriptor, (exclusive ? LOCK_EX : LOCK_SH) | LOCK_NB) == 0 else {
+#if DEBUG
+            let savedErrno = errno
+            Self.reportFailure(operation: "source-reader.temporal-flock", line: #line, errorNumber: nil)
+            errno = savedErrno
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         do { try validateTemporalActivityDescriptor(descriptor, observationOnly: exclusive) }
@@ -24562,6 +24605,11 @@ extension GenerationLeaseRegistryV1 {
               operationsIdentity == other.operationsIdentity,
               leaseIdentity == other.leaseIdentity,
               mutationLockIdentity == other.mutationLockIdentity else {
+#if DEBUG
+            let savedErrno = errno
+            Self.reportFailure(operation: "source-reader.shared-registry-identity", line: #line, errorNumber: nil)
+            errno = savedErrno
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
     }
@@ -25611,9 +25659,22 @@ final class GenerationLeaseAllocationAttemptV1 {
         }
     }
     func acquireReaderForErasePreparation(operation expected: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {
+#if DEBUG
+        do { try requireNotCompletedStartupOrigin() }
+        catch {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationOrigin, error: error)
+            throw error
+        }
+#else
         try requireNotCompletedStartupOrigin()
+#endif
         guard !coldPreparationAcquisitionStarted, !preparationAcquisitionStarted, !freshAdoptionAcquisitionStarted,
               !closed, !sealedForRetirement, token == nil, handle == nil else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationFreshAllocation, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try expected.requirePreparationReaderAllocation(self, registry: registry)
@@ -25622,9 +25683,22 @@ final class GenerationLeaseAllocationAttemptV1 {
         catch { sealedForRetirement = true; throw error }
     }
     fileprivate func requirePreparationAcquiring(_ expected: EraseRouterOperationV1) throws {
+#if DEBUG
+        do { try requireNotCompletedStartupOrigin() }
+        catch {
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationAcquiringOrigin, error: error)
+            throw error
+        }
+#else
         try requireNotCompletedStartupOrigin()
+#endif
         guard !coldPreparationAcquisitionStarted, preparationAcquisitionStarted, !freshAdoptionAcquisitionStarted,
               preparationOperation === expected, !closed, !sealedForRetirement else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationAcquiring, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try expected.requirePreparationReaderAllocation(self, registry: registry)
@@ -30598,7 +30672,13 @@ extension GenerationLeaseRegistryV1 {
     @MainActor
     fileprivate func publishPreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         operation: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {
-        guard allocation.registry === self else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard allocation.registry === self else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationRegistry, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         try allocation.requirePreparationAcquiring(operation)
         let handle = try withExclusiveGenerationMutationLock {
             try allocation.requirePreparationAcquiring(operation)
@@ -30620,7 +30700,13 @@ extension GenerationLeaseRegistryV1 {
             allocation.token = token
             let record = FreshAdoptionReplacement(token: token)
             let id = ObjectIdentifier(allocation)
-            guard preparationReaderPublications[id] == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard preparationReaderPublications[id] == nil else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationPublicationAbsent, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
             preparationReaderPublications[id] = record
             try captureFreshAdoptionReplacementLocked(record, observed: observed,
                 replacement: RegistryStateV1(leases: observed.leases + [token]))
@@ -30629,6 +30715,10 @@ extension GenerationLeaseRegistryV1 {
             let current = try observeTemporalRegistryLocked()
             try operation.requirePreparationLeaseCensus(current.leases, registry: self)
             guard current.leases.filter({ $0.leaseID == token.leaseID }) == [token] else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationPublishedToken, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             let handle = try GenerationLeaseHandleV1(registry: self, publishedReaderToken: token)
@@ -30643,6 +30733,10 @@ extension GenerationLeaseRegistryV1 {
             let observed = try observeTemporalRegistryLocked()
             try operation.requirePreparationLeaseCensus(observed.leases, registry: self)
             guard observed.leases.filter({ $0.leaseID == handle.token.leaseID }) == [handle.token] else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationSettledToken, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             try record.closeOwnedDescriptorsChecked()

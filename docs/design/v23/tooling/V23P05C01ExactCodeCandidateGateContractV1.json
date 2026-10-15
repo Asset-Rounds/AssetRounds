@@ -108,7 +108,7 @@
       "tree": "36b3c5f0993519aa703a341f6e650989dc5f1102"
     },
     "candidateAndAuthorityRole": "HISTORICAL_INPUT_IDENTITY_ONLY",
-    "canonicalResultSHA256": "879d9ef62eac024896c18fab378450066e5375479f81e9124e6b633e79bf6007",
+    "canonicalResultSHA256": "16f262756acd1c06836216d6ffd913149312b3d05142b89c3167868951735d9e",
     "cardID": "V23-P05-C01",
     "commands": [
       {
@@ -251,7 +251,7 @@
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
+        "sha256": "77159ae06759037f8e4e1b686bcd9108b0c41a74e589afb6f62f23f47a0566e8",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -296,7 +296,7 @@
     },
     {
       "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-      "sha256": "15987b322d59ac8307464505ee9deb94f88e15d6a82fc6ab8ab056d54bcacfea",
+      "sha256": "77159ae06759037f8e4e1b686bcd9108b0c41a74e589afb6f62f23f47a0566e8",
       "status": "SOURCE_PRESENT"
     },
     {

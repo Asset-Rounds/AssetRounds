@@ -4,8 +4,8 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "c4a1d04279a07f8366099b15ce61ad7e3017f77a07a519a8c3254e9b9e83cb60",
-  "artifactSetDigest": "8883b006fde82e404d4c2c9fe45bab40cab660514941de678185eab963b6da36",
+  "artifactDigest": "822bd504b7f5be68d684a8d9b15841721ba70f4f54619b875985a8fa55835777",
+  "artifactSetDigest": "671efdf8a19181d4efafa9abd0b5201f5fe231e427348586706c956cb30453e7",
   "artifacts": [
     {
       "bytes": 189514,
@@ -43,9 +43,9 @@
       "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
     },
     {
-      "bytes": 777110,
+      "bytes": 779409,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "e7ffbdd65bc2e5867e6ec7b44e1b945174a0fa4acf39a648831828495c254e00"
+      "sha256": "5e07f12c1415c6b8350e5bbbbafab9f9d3621609cd29fa6b956f93466046b039"
     },
     {
       "bytes": 114705,
@@ -58,9 +58,9 @@
       "sha256": "5cc15018101e38766e11e413aadd9f135ce537fc440a003dfa6324eb7c9410a9"
     },
     {
-      "bytes": 252900,
+      "bytes": 253583,
       "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
-      "sha256": "b9b65b5b44b2cfee992563dbd53fb0e60c0dde30229ba7fd82b6885e98731eb6"
+      "sha256": "295b2286d618f31339f5d966188adc2923dc4dc38cf7b36d19affef2f15c986b"
     },
     {
       "bytes": 49316,
@@ -93,9 +93,9 @@
       "sha256": "14fe65f41cdfce0f78e21fb6061e5cc77706aa3ff0782b36baa2ea0beb17c9d8"
     },
     {
-      "bytes": 268766,
+      "bytes": 270499,
       "path": "Scripts/v23/verify_p02_c08_contracts.py",
-      "sha256": "be9e2eaba753c5fb94eeb1ffd994c62009739a6e23b1f9139de7800029c6f6f7"
+      "sha256": "0d03bf7860a08b5c7d86652ccc98ff5f514907d33e1fb734352ab9df19b8eab4"
     },
     {
       "bytes": 88129,

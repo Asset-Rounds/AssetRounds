@@ -12086,5 +12086,104 @@ class ColdSharedWorkerBoundaryTests(unittest.TestCase):
             self.assertEqual((events, args), ([], []))
 
 
+class C08SourceOnlyMetadataPortabilityTests(unittest.TestCase):
+    def load_contracts(self, name="c08_source_only_metadata_fixture"):
+        spec = importlib.util.spec_from_file_location(name, ROOT / "Scripts/v23/p04_c08_contracts.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_source_only_import_and_current_contracts_work_without_coordination_metadata(self):
+        real_is_file = Path.is_file
+        coordination_checks = []
+
+        def missing_coordination(path):
+            if path.name == "BootstrapPathFenceV1.json":
+                coordination_checks.append(path)
+                return False
+            return real_is_file(path)
+
+        with mock.patch.object(Path, "is_file", autospec=True, side_effect=missing_coordination), \
+                mock.patch.object(subprocess, "run", side_effect=AssertionError("source checks must not run Git")):
+            contracts = self.load_contracts()
+            with mock.patch.object(contracts, "_load_hydrated_paths",
+                                   side_effect=AssertionError("source checks must not hydrate metadata")):
+                self.assertEqual(contracts.assert_source_contracts(ROOT), contracts.EXPECTED_SELECTORS)
+                self.assertEqual(len(contracts.source_rows(ROOT)), len(contracts.IMPLEMENTATION_PATHS))
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    for relative in contracts.IMPLEMENTATION_PATHS:
+                        destination = root / relative
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_bytes((ROOT / relative).read_bytes())
+                    self.assertEqual(contracts.assert_source_contracts(root), contracts.EXPECTED_SELECTORS)
+                    tests = root / contracts.IMPLEMENTATION_PATHS[5]
+                    tests.write_text(tests.read_text(encoding="utf-8") + "\nfunc c254ForbiddenSave() { context.save() }\n",
+                                     encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "C08 forbidden direct ModelContext save"):
+                        contracts.assert_source_contracts(root)
+                    tests.unlink()
+                    with self.assertRaisesRegex(ValueError, "C08 source lanes missing:"):
+                        contracts.assert_source_contracts(root)
+            self.assertEqual(coordination_checks, [])
+
+    def test_historical_metadata_attributes_authority_and_cli_still_require_fresh_sealed_inputs(self):
+        real_is_file = Path.is_file
+
+        def missing_coordination(path):
+            return False if path.name == "BootstrapPathFenceV1.json" else real_is_file(path)
+
+        names = ("EXISTING_PATHS", "_HYDRATED_NEW_PATHS", "PATH_FENCE", "MANIFEST_INPUT_PATHS")
+        with mock.patch.object(Path, "is_file", autospec=True, side_effect=missing_coordination), \
+                mock.patch.object(subprocess, "run", side_effect=AssertionError("missing metadata must refuse before Git")):
+            contracts = self.load_contracts()
+            self.assertTrue(set(names) <= set(dir(contracts)))
+            for name in names:
+                with self.subTest(attribute=name), self.assertRaisesRegex(ValueError, "C08 coordination fence unavailable"):
+                    getattr(contracts, name)
+                self.assertNotIn(name, vars(contracts))
+            consumers = (
+                ("authority", lambda: contracts.authority()),
+                ("common", lambda: contracts.common()),
+                ("scaffold", lambda: contracts.assert_scaffold(ROOT)),
+                ("coordination-state", lambda: contracts._assert_coordination_state()),
+                ("schema", lambda: contracts.schema_document(contracts.EXPECTED_SELECTORS)),
+                ("contract", lambda: contracts.contract_document(ROOT, contracts.EXPECTED_SELECTORS)),
+                ("evidence", lambda: contracts.evidence_document(ROOT, contracts.EXPECTED_SELECTORS)),
+                ("brand", lambda: contracts.brand_document(ROOT, contracts.EXPECTED_SELECTORS)),
+                ("outputs", lambda: contracts.outputs(ROOT)),
+                ("all-outputs", lambda: contracts.all_outputs(ROOT)),
+                ("module-cli", lambda: self.load_contracts("__main__")),
+            )
+            for name, consumer in consumers:
+                with self.subTest(consumer=name), self.assertRaisesRegex(ValueError, "C08 coordination fence unavailable"):
+                    consumer()
+            with mock.patch.object(contracts, "_coordination_json", return_value={}):
+                for name in names:
+                    with self.subTest(corrupt=name), self.assertRaisesRegex(ValueError, "C08 context identity or seal differs"):
+                        getattr(contracts, name)
+            # Disposable tuple projection proves lookup compatibility and absence of a cached grant.
+            # The actual loader and all original seal/path/S10 checks above remain unmodified.
+            existing = ("inherited-fixture",)
+            new = (contracts.MANIFEST_PATH, "new-fixture")
+            expected = {"EXISTING_PATHS": existing, "_HYDRATED_NEW_PATHS": new,
+                        "PATH_FENCE": existing + new,
+                        "MANIFEST_INPUT_PATHS": ("inherited-fixture", "new-fixture")}
+            with mock.patch.object(contracts, "_load_hydrated_paths", return_value=(existing, new)) as loader:
+                for name, value in expected.items():
+                    self.assertEqual(getattr(contracts, name), value)
+                    self.assertIsInstance(getattr(contracts, name), tuple)
+                self.assertEqual(loader.call_count, 8)
+            with mock.patch.object(contracts, "_load_hydrated_paths",
+                                   side_effect=[(existing, new), ValueError("C08 context identity or seal differs")]) as loader:
+                self.assertEqual(contracts.PATH_FENCE, existing + new)
+                with self.assertRaisesRegex(ValueError, "C08 context identity or seal differs"):
+                    contracts.PATH_FENCE
+                self.assertEqual(loader.call_count, 2)
+            with mock.patch.object(contracts, "_load_hydrated_paths", side_effect=AssertionError("unknown attribute must not hydrate")):
+                with self.assertRaises(AttributeError):
+                    getattr(contracts, "C254_UNKNOWN_METADATA")
+
+
 if __name__ == "__main__":
     unittest.main()

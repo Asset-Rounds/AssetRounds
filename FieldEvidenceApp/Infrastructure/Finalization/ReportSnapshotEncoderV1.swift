@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 enum C34NavigationReportSnapshotEncoderBoundaryV1 {
@@ -1387,7 +1388,10 @@ extension CanonicalJSONV1 {
     private static func canonicalValue(_ value: Any) -> CanonicalJSONValueV1 {
         switch value {
         case let value as String: return .string(value)
-        case let value as Bool: return .bool(value)
+        // NSNumber also bridges integer zero and one to Bool. Preserve the
+        // JSON token's actual kind before converting nested domain values.
+        case let value as NSNumber where CFGetTypeID(value) == CFBooleanGetTypeID():
+            return .bool(value.boolValue)
         case let value as NSNumber: return .integer(value.intValue)
         case let value as [Any]: return .array(value.map(canonicalValue))
         case let value as [String: Any]:

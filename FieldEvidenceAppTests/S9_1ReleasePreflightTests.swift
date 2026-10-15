@@ -2244,6 +2244,23 @@ extension S9_1ReleasePreflightTests {
         let valid = try c26Sources()
         XCTAssertTrue(try c26Validate(valid))
 
+        // The producer's compact UTF-8/LF contract preserves literal slashes.
+        let slashContent: [String: Any] = [
+            "headline": "Draft / only",
+            "description": "pass/fail",
+            "limitations": ["No / authority"],
+        ]
+        let slashCanonicalBytes = Data((#"{"description":"pass/fail","headline":"Draft / only","limitations":["No / authority"]}"# + "\n").utf8)
+        let slashDigest = c26Digest(slashCanonicalBytes)
+        XCTAssertEqual(try c26CanonicalDigest(slashContent), slashDigest)
+        let slashRoundTrip = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: slashCanonicalBytes) as? [String: Any]
+        )
+        XCTAssertEqual(try c26CanonicalDigest(slashRoundTrip), slashDigest)
+        var tamperedSlashContent = slashRoundTrip
+        tamperedSlashContent["description"] = "pass-fail"
+        XCTAssertNotEqual(try c26CanonicalDigest(tamperedSlashContent), slashDigest)
+
         var stale = valid
         var staleClaims = try XCTUnwrap(stale.acquisition["claims"] as? [[String: Any]])
         var staleBinding = try XCTUnwrap(staleClaims[0]["acceptanceBinding"] as? [String: Any])
@@ -3110,7 +3127,7 @@ extension S9_1ReleasePreflightTests {
     }
 
     private func c26CanonicalDigest(_ value: [String: Any]) throws -> String {
-        var bytes = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        var bytes = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes])
         bytes.append(0x0A)
         return c26Digest(bytes)
     }

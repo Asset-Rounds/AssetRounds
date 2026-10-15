@@ -16424,6 +16424,10 @@ final class EraseRouterOperationV1 {
         guard let router, preparationServiceFrame, preparationRegistry === registry,
               let source = preparationSourceWriter, preparationWriterPhase != .installing,
               preparationFailureWitness == nil else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderRouterCensusBinding, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try router.requireEraseRetirementOperation(self)
@@ -16433,6 +16437,10 @@ final class EraseRouterOperationV1 {
                   let session = preparationTargetSession,
                   coordinator.workspaceWriter === writer, coordinator.modelContext === session.modelContext,
                   coordinator.generationID == session.generationID else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderRouterInstalledCensus, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             // Genuine recovery may construct a target reader after the fixed

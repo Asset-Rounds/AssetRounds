@@ -37,14 +37,22 @@ private struct C44Files: ApplicationFileAuthorityV1 { func temporaryRelativePath
         context = container.mainContext; context.autosaveEnabled = false
         let reference = try LocalActorReferenceV1(actorReferenceID: C44.id(2), workspaceID: workspaceID, displayName: "C44 recorder")
         actor = try ActorSnapshotV1(snapshotID: C44.id(3), workspaceID: workspaceID, actor: reference, responsibility: .recordedBy, displayNameAtTime: "C44 recorder", capturedAt: C44.now)
-        context.insert(try ActorSnapshotRow(actor))
         let item = try WorkPacketItemV1(itemID: "C44-WORK", kind: .inspection, expectedRevision: 1, itemSHA256: String(repeating: "a", count: 64))
         let manifest = try WorkPacketManifestV1(manifestID: C44.id(7), packetID: C44.id(8), packetVersion: 1, workspaceID: workspaceID, items: [item], packageReleases: [], creationBasis: .explicitLocalSelection, creator: actor, createdAt: C44.now, mutationID: C44.mutation(9))
         subject = try WorkResourceSubjectV1(workspaceID: workspaceID, kind: .workPacket, subjectID: manifest.manifestID.uuidString, subjectRevision: manifest.revision, subjectSHA256: manifest.manifestSHA256)
-        context.insert(try WorkPacketManifestRow(manifest)); try context.save()
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: C44.id(4)))
+        let ids = C44IDs()
+        do {
+            // Seed real receipts and revisions before arming the CSV import fault.
+            let seedJournal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: C44.id(5))
+            let seedWriter = try WorkspaceWriterV1(identity: identity, generationID: C44.id(5), initialRevision: seedJournal.currentRevision(writerInstanceID: C44.id(6)), clock: C44Clock(), idSource: ids, fileAuthority: C44Files(), adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: seedJournal)
+            defer { seedWriter.invalidate() }
+            _ = try seedWriter.execute(.applyPartyAccountability(.appendActorSnapshot(actor)), mutationID: C44.mutation(10_000))
+            let mutation = try WorkPacketMutationV1(workspaceID: workspaceID, expectedRevision: 0, mutationID: manifest.mutationID, postImage: .appendManifest(manifest))
+            _ = try seedWriter.execute(.applyWorkPacket(mutation), mutationID: manifest.mutationID)
+        }
         let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: C44.id(5), failureInjection: failure)
-        writer = try WorkspaceWriterV1(identity: identity, generationID: C44.id(5), initialRevision: journal.currentRevision(writerInstanceID: C44.id(6)), clock: C44Clock(), idSource: C44IDs(), fileAuthority: C44Files(), adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        writer = try WorkspaceWriterV1(identity: identity, generationID: C44.id(5), initialRevision: journal.currentRevision(writerInstanceID: C44.id(6)), clock: C44Clock(), idSource: ids, fileAuthority: C44Files(), adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
         lifecycle = PartsStockLifecycleAdapterV1(modelContext: context)
     }
 

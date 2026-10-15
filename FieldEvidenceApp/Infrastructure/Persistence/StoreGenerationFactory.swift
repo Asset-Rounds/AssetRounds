@@ -6677,7 +6677,13 @@ private extension StoreGenerationFactory {
             FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.inventory-enter\n".utf8))
         }
         #endif
+#if DEBUG
+        coldOpenDiagnostic("current-inventory-before")
+#endif
         try eraseReaderRetirementInventory?.requireUnsealed()
+#if DEBUG
+        coldOpenDiagnostic("current-inventory-after")
+#endif
         #if DEBUG
         if originalRetainedEraseOperation != nil {
             FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.inventory-complete\n".utf8))
@@ -6709,6 +6715,9 @@ private extension StoreGenerationFactory {
             FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.manifest-enter\n".utf8))
         }
         #endif
+#if DEBUG
+        coldOpenDiagnostic("current-manifest-before")
+#endif
         let manifest = try store.loadManifest(
             targetGenerationID: generationID,
             expectedDigest: pointer.generationManifestSHA256
@@ -6724,6 +6733,9 @@ private extension StoreGenerationFactory {
             FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.manifest-complete\n".utf8))
         }
         #endif
+#if DEBUG
+        coldOpenDiagnostic("current-manifest-after")
+#endif
         observeManifest?(manifest)
 #if DEBUG
         observeSourceTreeStage?("after-manifest")
@@ -12823,7 +12835,13 @@ final class EraseReaderRetirementInventoryV1 {
             try coldPreparationOperation.registerRegistry(registry, factory: factory, inventory: self)
         }
         if preparationWasBound {
-            guard let preparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard let preparationOperation else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderInventoryRegisterOperation, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
             try preparationOperation.registerPreparationRegistry(registry, factory: factory, inventory: self)
         }
         guard freshOwnerWasBound else { return }
@@ -12833,6 +12851,10 @@ final class EraseReaderRetirementInventoryV1 {
 
     fileprivate func requireUnsealed() throws {
         guard !admissionClosed, sealedWitness == nil else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .inventoryAdmission, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
     }
@@ -12842,6 +12864,10 @@ final class EraseReaderRetirementInventoryV1 {
     func retainAllocation(_ allocation: GenerationLeaseAllocationAttemptV1) throws {
         try requireUnsealed()
         guard !allocations.contains(where: { $0 === allocation }) else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderInventoryRetainUnique, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         if freshOwnerWasBound {
@@ -12862,6 +12888,10 @@ final class EraseReaderRetirementInventoryV1 {
         -> GenerationLeaseHandleV1 {
         try requireUnsealed()
         guard allocations.contains(where: { $0 === allocation }) else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderInventoryContainsAllocation, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         if schema2ColdCompletedWasBound {
@@ -12883,6 +12913,10 @@ final class EraseReaderRetirementInventoryV1 {
             return try allocation.acquireReaderForColdErasePreparation(operation: coldPreparationOperation)
         }
         guard frozenC05ReaderActivity == nil else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderInventoryNoC05Activity, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         if freshOwnerWasBound {
@@ -12890,7 +12924,13 @@ final class EraseReaderRetirementInventoryV1 {
             return try allocation.acquireReaderForEraseFreshAdoption(adoption: freshOwner)
         }
         if preparationWasBound {
-            guard let preparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard let preparationOperation else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderInventoryAcquireOperation, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
             return try allocation.acquireReaderForErasePreparation(operation: preparationOperation)
         }
         return try allocation.acquireReader()
@@ -24523,6 +24563,8 @@ struct StoreGenerationFactory {
 
     private func coldOpenDiagnostic(_ phase: String) {
         guard coldOpenDiagnosticForTesting || coldOpenFixedDiagnosticsForTesting else { return }
+        let savedErrno = errno
+        defer { errno = savedErrno }
         let elapsed = max(Duration.zero, Self.coldOpenDiagnosticOrigin.duration(to: .now))
         let elapsedSeconds = String(format: "%.6f", elapsed / .seconds(1))
         let timestamp = String(format: "%.6f", Date().timeIntervalSince1970)
@@ -25000,10 +25042,12 @@ struct StoreGenerationFactory {
         observeSourceTreeStage: (@MainActor (String) -> Void)? = nil
     ) throws -> DeletionLedgerProofV2 {
 #if DEBUG
+        coldOpenDiagnostic("current-ledger.pointer-before")
         observeSourceTreeStage?("before-pointer")
 #endif
         let pointer = try requireCurrentPointer(expectedPointer, authority: authority)
 #if DEBUG
+        coldOpenDiagnostic("current-ledger.pointer-after")
         observeSourceTreeStage?("after-pointer")
 #endif
         let session = try openValidatedV3Current(
@@ -31763,7 +31807,14 @@ fileprivate final class StoreGenerationLeaseRegistryProvider: @unchecked Sendabl
         if let retainedRegistry {
             return retainedRegistry
         }
-        guard completedSchema2Constructor == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard completedSchema2Constructor == nil else {
+#if DEBUG
+            let savedErrno = errno
+            print("V23_ERASE_PREINTENT_REFUSAL_V1 site=source-reader.provider-constructor case=registry.uncertain-owner")
+            errno = savedErrno
+#endif
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         let registry = try GenerationLeaseRegistryV1(
             applicationSupportURL: applicationSupportURL
         )

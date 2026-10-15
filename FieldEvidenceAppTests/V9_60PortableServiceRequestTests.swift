@@ -710,6 +710,35 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
             recordedAt: Date(timeIntervalSince1970: 1_700_000_200)
         )
         try link.validate()
+        XCTAssertThrowsError(try ServiceRequestCanonicalWorkPreviewV1(
+            target: target,
+            choice: link.choice,
+            canonicalWorkID: link.canonicalWorkID,
+            canonicalWorkRevision: link.canonicalWorkRevision,
+            canonicalWorkSHA256: C52PortableServiceRequestTestSupport.digest("h")
+        )) { error in
+            XCTAssertEqual(error as? ServiceRequestFailureV1, .invalidDigest)
+        }
+        XCTAssertThrowsError(try ServiceRequestWorkLinkEventV1(
+            eventID: link.eventID,
+            workspaceID: workspace,
+            request: request,
+            target: target,
+            choice: .activity(
+                activityID: C52PortableServiceRequestTestSupport.uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5322"),
+                expectedRevision: 1,
+                semanticSHA256: C52PortableServiceRequestTestSupport.digest("g")
+            ),
+            canonicalWorkID: link.canonicalWorkID,
+            canonicalWorkRevision: link.canonicalWorkRevision,
+            canonicalWorkSHA256: link.canonicalWorkSHA256,
+            kind: .link,
+            revision: link.revision,
+            mutationID: mutationID,
+            recordedAt: link.recordedAt
+        )) { error in
+            XCTAssertEqual(error as? ServiceRequestFailureV1, .invalidDigest)
+        }
         let identity = try WorkspaceEntityIdentityV1(
             kind: .serviceRequestWorkLinkEvent,
             id: link.eventID
@@ -1078,11 +1107,11 @@ final class V9_60PortableServiceRequestTests: XCTestCase {
             choice: .activity(
                 activityID: C52PortableServiceRequestTestSupport.uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5362"),
                 expectedRevision: 1,
-                semanticSHA256: C52PortableServiceRequestTestSupport.digest("g")
+                semanticSHA256: C52PortableServiceRequestTestSupport.digest("a")
             ),
             canonicalWorkID: C52PortableServiceRequestTestSupport.uuid("8B5F1E6D-0A24-4C3F-9F91-7E0D6B2A5363"),
             canonicalWorkRevision: 1,
-            canonicalWorkSHA256: C52PortableServiceRequestTestSupport.digest("h")
+            canonicalWorkSHA256: C52PortableServiceRequestTestSupport.digest("b")
         )
         let workPlan = try coordinator.previewWorkConversion(
             request: try linkedRecord.reference,

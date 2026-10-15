@@ -553,6 +553,22 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             admitErase: { try await owner.admitSubject($0) },
             didCompleteErase: { _ in completedCount += 1 }))
         service.enableOriginalColdExitWitnessForTesting = true
+#if DEBUG
+        let previousPhaseDiagnostic = service.erasePhaseDiagnosticForTesting
+        service.erasePhaseDiagnosticForTesting = { phase in
+            switch phase {
+            case "prepared.source-ledger.read.begin",
+                 "prepared.source-ledger.read.complete",
+                 "prepared.source-ledger.read.refused":
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                print("V23_ERASE_PREPARED_SOURCE_LEDGER_DIAG_V1 phase=\(phase)")
+            default:
+                break
+            }
+        }
+        defer { service.erasePhaseDiagnosticForTesting = previousPhaseDiagnostic }
+#endif
         Self.retainedS6EraseServices.append((harness.root, service))
         var calls = 0
         service.originalNotificationMarkerProjectionControlForTesting = {
