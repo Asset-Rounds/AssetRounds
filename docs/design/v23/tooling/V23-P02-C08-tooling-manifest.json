@@ -4,8 +4,8 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "73d08836b3ae7d103c033cfdb383c4760dfe6740bf5ee230080c24781858979c",
-  "artifactSetDigest": "06d8d7c4ee5a5626bb3eee793dd02b1778a35c66c05fa75b4d0db4a0e67ab4d7",
+  "artifactDigest": "09b3cef507446da5a046271219191118de3a0e751805bd8ba807dc45fe648737",
+  "artifactSetDigest": "ffbfaeb37a35a55c5236103a03299da647add1fea98872f8ec238cc7034e4db2",
   "artifacts": [
     {
       "bytes": 189514,
@@ -68,9 +68,9 @@
       "sha256": "322cbfb35fe5e51124cba34aec492ffa57d3038e92644139f73aa956409f0a93"
     },
     {
-      "bytes": 133529,
+      "bytes": 133594,
       "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
-      "sha256": "6cd601905a5f62eefc016cc32f6f5e6fcca26220ce0aaf0ca827178ce84d374b"
+      "sha256": "3525e083dc33cf49d9a0bc1de4097a83482f1b7875c5f72ccd3429c5424e2157"
     },
     {
       "bytes": 93494,

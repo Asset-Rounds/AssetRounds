@@ -3410,6 +3410,8 @@ final class V9_15AppLockLifecycleTests: XCTestCase {
                     XCTAssertTrue(covered)
                     await assertReadDenied(gate)
                     await assertConfigurationAuthenticationProofDenied(gate, trigger: trigger)
+                } else {
+                    await fulfillment(of: [earlyCompletion], timeout: 0.05)
                 }
                 observesEarlyCompletion = false
                 await gate.sceneBecameActive()

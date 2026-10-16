@@ -676,9 +676,9 @@ final class S2PersistenceLedgerTests: XCTestCase {
 
     @MainActor
     func testPendingEraseAndRestoreRootsRouteToTheirExactMaintenanceReasons() async throws {
-        let cases: [(directoryName: String, expectedReason: StartupMaintenanceReason, expectedSteps: [StartupStep])] = [
-            ("FieldEvidenceErase", .eraseInconsistent, [.erase]),
-            ("FieldEvidenceRestore", .restoreInconsistent, [.erase, .restore]),
+        let cases: [(directoryName: String, intentFileName: String, expectedReason: StartupMaintenanceReason, expectedSteps: [StartupStep])] = [
+            ("FieldEvidenceErase", "pending.json", .eraseInconsistent, [.erase]),
+            ("FieldEvidenceRestore", "restore.json", .restoreInconsistent, [.erase, .restore]),
         ]
 
         for testCase in cases {
@@ -691,7 +691,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
                 withIntermediateDirectories: true
             )
             try Data("pending".utf8).write(
-                to: pendingRoot.appendingPathComponent("pending.json", isDirectory: false)
+                to: pendingRoot.appendingPathComponent(testCase.intentFileName, isDirectory: false)
             )
 
             var observedSteps: [StartupStep] = []

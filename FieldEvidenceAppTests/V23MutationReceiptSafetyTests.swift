@@ -1479,13 +1479,14 @@ extension V23MutationReceiptSafetyTests {
 extension V23MutationReceiptSafetyTests {
     func testReviewedDraftAdapterDeniesPreparedConflictWithoutClassificationProof() throws {
         let fixture = try ReviewedResolutionTestFixtureV1.preparedConflictResolution()
-        let harness = try ReceiptSafetyHarness(workspaceID: fixture.checkpoint.workspaceID) {
-            $0.insert(try FieldDraftCheckpointRow(fixture.checkpoint))
-        }
+        let harness = try ReceiptSafetyHarness(workspaceID: fixture.checkpoint.workspaceID) { _ in }
         defer { harness.removeFiles() }
+        let before = try harness.writer.currentRevision()
+        // This unjournaled checkpoint is hostile adapter input, not a journal bootstrap baseline.
+        harness.context.insert(try FieldDraftCheckpointRow(fixture.checkpoint))
+        try harness.context.save()
         XCTAssertEqual(try MyDayPlanningDraftCodecV1.validateCheckpointPayload(fixture.checkpoint).phase,
                        .preparedCommit)
-        let before = try harness.writer.currentRevision()
         let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
         XCTAssertThrowsError(try adapter.apply(.applyFieldDraft(fixture.mutation),
             occurredAt: fixture.checkpoint.updatedAt, temporaryRelativePath: "reviewed-denial")) {

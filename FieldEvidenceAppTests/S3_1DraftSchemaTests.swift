@@ -431,9 +431,47 @@ final class S3_1DraftSchemaTests: XCTestCase {
         context.rollback()
         XCTAssertNil(draft.note)
 
-        // Deliberate persisted corruption must not become a continuation proof.
-        draft.recordRevisionRootID = UUID()
+        // Construct the hostile root through the model's initializer; the
+        // production root remains immutable after construction.
+        let corrupt = WorkflowRecord(
+            id: draft.id, assetID: draft.assetID, packetID: draft.packetID,
+            issueID: draft.issueID, parentRecordID: draft.parentRecordID,
+            recordRevisionRootID: UUID(), revisesRecordID: draft.revisesRecordID,
+            evidenceSourceRecordID: draft.evidenceSourceRecordID,
+            revisionKind: .original, stage: .check, state: .draft, draftStepKey: .wide,
+            startedAt: draft.startedAt, completedAt: draft.completedAt,
+            observedAtUTC: draft.observedAtUTC, timeZoneID: draft.timeZoneID,
+            utcOffsetMinutes: draft.utcOffsetMinutes,
+            localDate: draft.localDate, localTime: draft.localTime,
+            afterDarkAcknowledgementKey: draft.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: draft.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: draft.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: draft.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: draft.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: draft.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: draft.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: draft.safePositionAcknowledgementAccepted,
+            packID: draft.packID, packSchemaVersion: draft.packSchemaVersion,
+            packContentVersion: draft.packContentVersion,
+            pdfTemplateID: draft.pdfTemplateID, pdfTemplateVersion: draft.pdfTemplateVersion,
+            outcomeKey: draft.outcomeKey, couldNotVerifyKey: draft.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: draft.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: draft.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: draft.workPerformedLocalDate,
+            workDescription: draft.workDescription, note: draft.note,
+            finalizationMutationID: draft.finalizationMutationID)
+        // Persist deletion before reinserting the same unique logical ID, so
+        // this fixture does not depend on upsert or read the deleted alias.
+        context.delete(draft)
         try context.save()
+        context.insert(corrupt)
+        try context.save()
+        let persistedCorrupt = try context.fetch(FetchDescriptor<WorkflowRecord>())
+        XCTAssertEqual(persistedCorrupt.count, 1)
+        XCTAssertEqual(persistedCorrupt.map(\.id), [corrupt.id])
+        XCTAssertEqual(persistedCorrupt.map(\.recordRevisionRootID), [corrupt.recordRevisionRootID])
+        XCTAssertEqual(persistedCorrupt.map(\.state), [WorkflowState.draft.rawValue])
+        XCTAssertNotEqual(corrupt.recordRevisionRootID, corrupt.id)
         let corruptBefore = try lineageState(in: context)
         XCTAssertEqual(try fixture.coordinator.accessDecision(assetID: fixture.ids.asset,
             requestedStage: .recheck, issueID: UUID()), .blockInvalidRequest)
