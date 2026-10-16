@@ -36,7 +36,7 @@ final class S3_3FinalizationTests: XCTestCase {
                 workspaceID: assuranceFixture.workspaceID,
                 audience: .customerReport,
                 snapshotSHA256: encoded.sha256,
-                projectionVersion: assuranceFixture.customerPreview.projectionVersion,
+                projectionVersion: "c13_evidence_assurance_v1",
                 links: links,
                 createdAt: assuranceFixture.customerPreview.createdAt
             )

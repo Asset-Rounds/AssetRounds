@@ -13,7 +13,8 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     func testUnavailableAndInsufficientCapacityWriteNothingThenRetryOnce() async throws {
         for fault in CapacityFault.allCases {
             let applicationSupport = try makeTemporaryDirectory(label: "capacity-\(fault)")
-            defer { try? fileManager.removeItem(at: applicationSupport) }
+            // The current owner, runner and context still alias this private store.
+            // Retain its root instead of unlinking a live SQLite container.
             var shouldFail = true
             let capacity = StoragePreflightService { _ in
                 if shouldFail {
@@ -27,10 +28,12 @@ final class S3_5FailureIntegrityTests: XCTestCase {
                 }
                 return StoragePreflightService.evidenceAcceptanceRequiredBytes
             }
-            let harness = try makeDraftHarness(
+            let fixture = try makeDraftHarness(
                 applicationSupportURL: applicationSupport,
                 storagePreflight: capacity
             )
+            defer { closeCurrentWriter(fixture.owner) }
+            let harness = fixture.harness
 
             do {
                 _ = try await harness.coordinator.importCandidate(
@@ -68,12 +71,14 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     func testEvidenceWriteMoveAndDatabaseFailuresPreserveWideThenRetry() async throws {
         for fault in EvidenceFault.allCases {
             let applicationSupport = try makeTemporaryDirectory(label: "evidence-\(fault)")
-            defer { try? fileManager.removeItem(at: applicationSupport) }
-            let harness = try await makeHarnessWithAcceptedWide(
+            // Retain the root while the current fixture has live store aliases.
+            let fixture = try await makeHarnessWithAcceptedWide(
                 applicationSupportURL: applicationSupport
             )
+            defer { closeCurrentWriter(fixture.owner) }
+            let harness = fixture.harness
             let prior = try evidenceAuthority(in: harness)
-            let faulted = faultedEvidenceCoordinator(for: fault, harness: harness)
+            let faulted = try faultedEvidenceCoordinator(for: fault, fixture: fixture)
             let source = try makePNG(seed: 73)
             let createdAt = Date(timeIntervalSince1970: 1_768_510_102)
             var activeID: UUID?
@@ -137,10 +142,12 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     func testSnapshotIntentAndModelSaveFailuresPreserveAuthorityThenRetry() async throws {
         for fault in FinalizationFault.precommitCases {
             let applicationSupport = try makeTemporaryDirectory(label: "finalize-\(fault)")
-            defer { try? fileManager.removeItem(at: applicationSupport) }
-            let harness = try await makeReadyHarness(applicationSupportURL: applicationSupport)
+            // Retain the root while the current fixture has live store aliases.
+            let fixture = try await makeReadyHarness(applicationSupportURL: applicationSupport)
+            defer { closeCurrentWriter(fixture.owner) }
+            let harness = fixture.harness
             let prior = try evidenceAuthority(in: harness)
-            let faulted = faultedFinalizationCoordinator(for: fault, harness: harness)
+            let faulted = try faultedFinalizationCoordinator(for: fault, fixture: fixture)
             let identifiers = makeIdentifiers()
             let completedAt = Date(timeIntervalSince1970: 1_768_510_103)
             let snapshotAt = Date(timeIntervalSince1970: 1_768_510_104)
@@ -190,12 +197,99 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     @MainActor
     func testPostSaveIntentFailureLeavesRecoverableAuthorityAndRetryIsDuplicateFree() async throws {
         let applicationSupport = try makeTemporaryDirectory(label: "post-save")
-        defer { try? fileManager.removeItem(at: applicationSupport) }
-        let harness = try await makeReadyHarness(applicationSupportURL: applicationSupport)
+        let session = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupport
+        ).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let owner = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
+        )
+        defer {
+            do { try owner.invalidateAndReleaseWriter() }
+            catch { XCTFail("Current post-save recovery fixture writer close failed: \(error)") }
+            // Writer close does not drain retained session/context/container aliases.
+            // Keep this private root instead of unlinking live SQLite files.
+        }
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        let observedAt = Date(timeIntervalSince1970: 1_768_510_100)
+        _ = try owner.workspaceWriter.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(
+                    id: siteID,
+                    label: "North Campus",
+                    address: "10 Main",
+                    timeZoneID: "America/New_York"
+                ),
+                assetID: assetID,
+                assetLabel: "Monument Sign",
+                packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion,
+                createdAt: observedAt,
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )),
+            mutationID: placementMutationID
+        )
+        let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+        let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+        let runner = try CheckRunnerCoordinator(
+            modelContext: context,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile
+        )
+        runner.configureCapture(generationRootURL: session.generationRootURL)
+        let draft = try runner.beginCheck(
+            assetID: asset.id,
+            timeZoneID: nil,
+            isTimeZoneConfirmed: false,
+            afterDarkAccepted: true,
+            safePositionAccepted: true,
+            observedAt: observedAt
+        )
+        let wide = try await runner.importCandidate(
+            assetID: asset.id,
+            sourceData: try makePNG(seed: 31),
+            createdAt: Date(timeIntervalSince1970: 1_768_510_101)
+        )
+        _ = try await runner.accept(candidate: wide, assetID: asset.id)
+        let close = try await runner.importCandidate(
+            assetID: asset.id,
+            sourceData: try makePNG(seed: 79),
+            createdAt: Date(timeIntervalSince1970: 1_768_510_102)
+        )
+        _ = try await runner.accept(candidate: close, assetID: asset.id)
+        XCTAssertEqual(draft.draftStepKey, WorkflowDraftStep.outcome.rawValue)
+        let harness = FailureHarness(
+            session: session,
+            context: context,
+            pack: pack,
+            asset: asset,
+            draft: draft,
+            coordinator: runner
+        )
         let prior = try evidenceAuthority(in: harness)
-        let faulted = faultedFinalizationCoordinator(
-            for: .databaseCommittedIntent,
-            harness: harness
+        let storeInjection = FinalizationIntentStoreFailureInjection(
+            failOnceAt: .intentPhaseWrite(.databaseCommitted)
+        )
+        let faultedRunner = try CheckRunnerCoordinator(
+            modelContext: context,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile,
+            finalizationStoreFailureInjection: storeInjection
+        )
+        faultedRunner.configureCapture(generationRootURL: session.generationRootURL)
+        let faulted = FaultedCoordinator(
+            coordinator: faultedRunner,
+            removeFailure: { storeInjection.removeFailure() }
         )
         let identifiers = makeIdentifiers()
         let completedAt = Date(timeIntervalSince1970: 1_768_510_105)
@@ -224,7 +318,9 @@ final class S3_5FailureIntegrityTests: XCTestCase {
 
         let recovery = FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: dependencies.writer,
+            lifecycleProfileRegistry: registry
         )
         let summary = try await recovery.reconcile()
         XCTAssertEqual(summary.recoveredDraftRecordIDs, [])
@@ -253,87 +349,144 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     private func makeDraftHarness(
         applicationSupportURL: URL,
         storagePreflight: StoragePreflightService = StoragePreflightService()
-    ) throws -> FailureHarness {
+    ) throws -> CurrentFailureFixture {
         let session = try StoreGenerationFactory(
             applicationSupportURL: applicationSupportURL
         ).openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
-        let site = Site(
-            label: "North Campus",
-            address: "10 Main",
-            timeZoneID: "America/New_York"
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let owner = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
         )
-        let asset = Asset(
-            siteID: site.id,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: "Monument Sign"
-        )
-        context.insert(site)
-        context.insert(asset)
-        try context.save()
-        let coordinator = CheckRunnerCoordinator(
-            modelContext: context,
-            signPack: pack,
-            storagePreflight: storagePreflight
-        )
-        coordinator.configureCapture(generationRootURL: session.generationRootURL)
-        let draft = try coordinator.beginCheck(
-            assetID: asset.id,
-            timeZoneID: nil,
-            isTimeZoneConfirmed: false,
-            afterDarkAccepted: true,
-            safePositionAccepted: true,
-            observedAt: Date(timeIntervalSince1970: 1_768_510_100)
-        )
-        return FailureHarness(
-            session: session,
-            context: context,
-            pack: pack,
-            asset: asset,
-            draft: draft,
-            coordinator: coordinator
-        )
+        do {
+            let siteID = UUID()
+            let assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            let observedAt = Date(timeIntervalSince1970: 1_768_510_100)
+            _ = try owner.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(
+                        id: siteID,
+                        label: "North Campus",
+                        address: "10 Main",
+                        timeZoneID: "America/New_York"
+                    ),
+                    assetID: assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: observedAt,
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: UUID(),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )),
+                mutationID: placementMutationID
+            )
+            let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+            let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+            let coordinator = try CheckRunnerCoordinator(
+                modelContext: context,
+                packageLifecycleDependencies: dependencies,
+                packageLifecycleProfile: profile,
+                storagePreflight: storagePreflight
+            )
+            coordinator.configureCapture(generationRootURL: session.generationRootURL)
+            let draft = try coordinator.beginCheck(
+                assetID: asset.id,
+                timeZoneID: nil,
+                isTimeZoneConfirmed: false,
+                afterDarkAccepted: true,
+                safePositionAccepted: true,
+                observedAt: observedAt
+            )
+            let harness = FailureHarness(
+                session: session,
+                context: context,
+                pack: pack,
+                asset: asset,
+                draft: draft,
+                coordinator: coordinator
+            )
+            return CurrentFailureFixture(
+                harness: harness,
+                owner: owner,
+                dependencies: dependencies,
+                profile: profile
+            )
+        } catch {
+            closeCurrentWriter(owner)
+            throw error
+        }
     }
 
     @MainActor
     private func makeHarnessWithAcceptedWide(
         applicationSupportURL: URL
-    ) async throws -> FailureHarness {
-        let harness = try makeDraftHarness(applicationSupportURL: applicationSupportURL)
-        let wide = try await harness.coordinator.importCandidate(
-            assetID: harness.asset.id,
-            sourceData: try makePNG(seed: 31),
-            createdAt: Date(timeIntervalSince1970: 1_768_510_101)
-        )
-        _ = try await harness.coordinator.accept(candidate: wide, assetID: harness.asset.id)
-        return harness
+    ) async throws -> CurrentFailureFixture {
+        let fixture = try makeDraftHarness(applicationSupportURL: applicationSupportURL)
+        let harness = fixture.harness
+        do {
+            let wide = try await harness.coordinator.importCandidate(
+                assetID: harness.asset.id,
+                sourceData: try makePNG(seed: 31),
+                createdAt: Date(timeIntervalSince1970: 1_768_510_101)
+            )
+            _ = try await harness.coordinator.accept(candidate: wide, assetID: harness.asset.id)
+            return fixture
+        } catch {
+            closeCurrentWriter(fixture.owner)
+            throw error
+        }
     }
 
     @MainActor
     private func makeReadyHarness(
         applicationSupportURL: URL
-    ) async throws -> FailureHarness {
-        let harness = try await makeHarnessWithAcceptedWide(
+    ) async throws -> CurrentFailureFixture {
+        let fixture = try await makeHarnessWithAcceptedWide(
             applicationSupportURL: applicationSupportURL
         )
-        let close = try await harness.coordinator.importCandidate(
-            assetID: harness.asset.id,
-            sourceData: try makePNG(seed: 79),
-            createdAt: Date(timeIntervalSince1970: 1_768_510_102)
-        )
-        _ = try await harness.coordinator.accept(candidate: close, assetID: harness.asset.id)
-        XCTAssertEqual(harness.draft.draftStepKey, WorkflowDraftStep.outcome.rawValue)
-        return harness
+        let harness = fixture.harness
+        do {
+            let close = try await harness.coordinator.importCandidate(
+                assetID: harness.asset.id,
+                sourceData: try makePNG(seed: 79),
+                createdAt: Date(timeIntervalSince1970: 1_768_510_102)
+            )
+            _ = try await harness.coordinator.accept(candidate: close, assetID: harness.asset.id)
+            XCTAssertEqual(harness.draft.draftStepKey, WorkflowDraftStep.outcome.rawValue)
+            return fixture
+        } catch {
+            closeCurrentWriter(fixture.owner)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func closeCurrentWriter(
+        _ owner: StoreSessionCoordinator,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        do { try owner.invalidateAndReleaseWriter() }
+        catch {
+            XCTFail("Current failure-integrity fixture writer close failed: \(error)", file: file, line: line)
+        }
+        // Releasing the writer does not drain the fixture's store aliases.
+        // Its private application-support root remains retained.
     }
 
     @MainActor
     private func faultedEvidenceCoordinator(
         for fault: EvidenceFault,
-        harness: FailureHarness
-    ) -> FaultedCoordinator {
+        fixture: CurrentFailureFixture
+    ) throws -> FaultedCoordinator {
+        let harness = fixture.harness
         let storeInjection: EvidenceBundleStoreFailureInjection?
         let saveInjection: CheckRunnerCoordinatorFailureInjection?
         switch fault {
@@ -347,9 +500,10 @@ final class S3_5FailureIntegrityTests: XCTestCase {
             storeInjection = nil
             saveInjection = CheckRunnerCoordinatorFailureInjection(failOnceAt: .evidenceModelSave)
         }
-        let coordinator = CheckRunnerCoordinator(
+        let coordinator = try CheckRunnerCoordinator(
             modelContext: harness.context,
-            signPack: harness.pack,
+            packageLifecycleDependencies: fixture.dependencies,
+            packageLifecycleProfile: fixture.profile,
             evidenceStoreFailureInjection: storeInjection,
             evidenceSaveFailureInjection: saveInjection
         )
@@ -366,8 +520,9 @@ final class S3_5FailureIntegrityTests: XCTestCase {
     @MainActor
     private func faultedFinalizationCoordinator(
         for fault: FinalizationFault,
-        harness: FailureHarness
-    ) -> FaultedCoordinator {
+        fixture: CurrentFailureFixture
+    ) throws -> FaultedCoordinator {
+        let harness = fixture.harness
         let storeInjection: FinalizationIntentStoreFailureInjection?
         let serviceInjection: FinalizationServiceFailureInjection?
         switch fault {
@@ -387,9 +542,10 @@ final class S3_5FailureIntegrityTests: XCTestCase {
             storeInjection = .init(failOnceAt: .intentPhaseWrite(.databaseCommitted))
             serviceInjection = nil
         }
-        let coordinator = CheckRunnerCoordinator(
+        let coordinator = try CheckRunnerCoordinator(
             modelContext: harness.context,
-            signPack: harness.pack,
+            packageLifecycleDependencies: fixture.dependencies,
+            packageLifecycleProfile: fixture.profile,
             finalizationStoreFailureInjection: storeInjection,
             finalizationServiceFailureInjection: serviceInjection
         )
@@ -586,6 +742,14 @@ private enum FinalizationFault {
         .snapshotPromotedIntent,
         .modelSave,
     ]
+}
+
+@MainActor
+private struct CurrentFailureFixture {
+    let harness: FailureHarness
+    let owner: StoreSessionCoordinator
+    let dependencies: WorkspacePackageLifecycleDependenciesV1
+    let profile: WorkspacePackageLifecycleProfileV1
 }
 
 @MainActor

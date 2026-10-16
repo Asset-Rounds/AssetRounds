@@ -2,6 +2,9 @@ import Darwin
 import Foundation
 import SwiftData
 import XCTest
+#if DEBUG
+import Dispatch
+#endif
 
 @testable import FieldEvidenceApp
 
@@ -1823,7 +1826,7 @@ final class FrozenBeginFixture {
     /// Installs one production-shaped parent/child commit using this fixture's
     /// authenticated ENTRY, durable Begin, genuine normalized JPEG promotion,
     /// and receipts written through the production writer and draft adapter.
-    func persistCurrentPhotoApplicationFixture() async throws -> CurrentPhotoApplicationFixture {
+    func persistCurrentPhotoApplicationFixture(fifoProbeSourceFile: StaticString = #fileID, fifoProbeSourceLine: UInt = #line) async throws -> CurrentPhotoApplicationFixture {
         let attachmentStaging = try DraftAttachmentStagingAdapterV1(
             applicationSupportURL: root, workspaceID: workspaceID)
         let service = try ProductionCheckRunnerItemDraftServiceV1(session: coordinator,
@@ -2086,22 +2089,57 @@ final class FrozenBeginFixture {
         var fifoBefore = stat()
         XCTAssertEqual(Darwin.lstat(fifoSource.path, &fifoBefore), 0)
         let fifoCompleted = XCTestExpectation(description: "Raw source FIFO rejects without a writer")
+#if DEBUG
+        print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=queued uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
         let fifoPublication = Task { @MainActor in
+#if DEBUG
+            print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=task-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            // This defer runs after the original fulfillment defer below.
+            defer {
+                print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=fulfilled uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            }
+#endif
             defer { fifoCompleted.fulfill() }
             do {
                 _ = try await service.publishRawPhoto(parentDraftID: bound.draftID,
                     childDraftID: childDraftID, sourceURL: fifoSource)
+#if DEBUG
+                print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=service-return uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
                 XCTFail("A FIFO source must fail without blocking or publishing a raw stage")
             } catch {
+#if DEBUG
+                let fifoCaughtKind: String
+                if let failure = error as? DraftAttachmentStagingFailureV1 {
+                    fifoCaughtKind = failure == .unsafePath
+                        ? "DraftAttachmentStagingFailureV1.unsafePath"
+                        : "DraftAttachmentStagingFailureV1.other"
+                } else if error is CancellationError {
+                    fifoCaughtKind = "CancellationError"
+                } else {
+                    fifoCaughtKind = "otherError"
+                }
+                print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=service-catch errorKind=\(fifoCaughtKind) uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
                 XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .unsafePath)
             }
         }
         let fifoCompletion = await XCTWaiter.fulfillment(of: [fifoCompleted], timeout: 5)
+#if DEBUG
+        print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=waiter-return resultRaw=\(fifoCompletion.rawValue) uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
         XCTAssertEqual(fifoCompletion, .completed)
         // Unblock the old faulty open after the assertion, allowing subsequent
         // state/preservation checks to run even if this regression returns.
         let fifoRescue = Darwin.open(fifoSource.path, O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+#if DEBUG
+        print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=rescue-await-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
         await fifoPublication.value
+#if DEBUG
+        print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=rescue-await-done uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+#endif
         if fifoRescue >= 0 { Darwin.close(fifoRescue) }
         var fifoAfter = stat()
         XCTAssertEqual(Darwin.lstat(fifoSource.path, &fifoAfter), 0)

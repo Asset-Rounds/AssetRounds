@@ -1,40 +1,44 @@
-# Active integration brief — 2026-10-15 UTC
-- Goal: verified Phase1 V23/S10 merge, then full V23. SourceReady=false; releaseReady=false.
-- Published integration4c25b7588e29d105d9648370f7b27845b30c168b; branch codex/v23-s10-integration-20260910.
-- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6; allfivegatesOPEN0/5.
-- Root alone Git/integration/native/dispatch/evidence/storage; helpers gpt-6.1-sol/xhigh.
-- Preserve ownerconfig/drafts/untracked/frozenhistory/alloriginals/failures/partials/HOLDs/consumedquestions.
-- OfficialGitHub26.6/17F113 SDK26.5/23F81a runtime26.2/23C54; primary27 DEVELOPMENT only.
-- C253 hosted-first approval AGENTS97–107; no successive unchecked checkpoints or gate change.
-- COMPLETE current4c25/run38791899119/attempt1:3382PASS/354FAIL/6SKIP/3Interrupted/40NotStarted=3785.
-- SoleM4collector23598/session51456 naturallyCLOSED0/emptyerr; no replay/cancel/duplicate.
-- Genuine independent Sol6.1/xhigh CONTROL DATA ccd8e5d9 and OUTCOME DATA22049ed7 PASS authentication only.
-- Comparedwith7dab:35F→P/13P→F/8NotStarted→P/2NotStarted→Interrupted;22fewerFAIL/30morePASS/43unresolved.
-- Current39=36P3F;57=1P56F;77=33P44F;all6markersFAIL;new17=17P. Groups overlap.
-- Current200=104P96F;275=251P24F;106=100P6F;graph21=19P2F; all13regression messages retained in exactmap.
-- Producer116618568400 compiled published4c25 with0SwiftErrors/685warnings; no Source23 compile credit.
-- Admissions41PASS;requiredEvidence36PASS5FAIL(S28/S31/S32/S39/S40);nativecheckpoint3PASS38FAIL.
-- Consumerfingerprints38PASS2FAIL(S39/S40). No coldqualification/Productsbulk/device or gate credit.
-- Canonical courier2480members/2479native rows verified; additive original summary+custody received/authenticated.
-- Working extraction: /Volumes/EXTERNAL/AssetRounds-resume-20261002/hosted38791899119-canonical-complete-courier-20261015-v1.
-- Originalfour+summarycouriers stable in Dropbox secondary-mac-20261011; allbulk staysfixedM4E.
-- FixedE: ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015 onM4.
-- Preserve ledger3rows978B/0eb1624e,claim204B/b02da7ff; retain41sets/logs/manifests; max5/budgetsunchanged.
-- M4thread01a12bb7-3a96-7461-af37-c7839e6950d2 reachable via read_thread(hostIdomitted); no owner action currently.
-- Prospective Source23=11Swift+12JSON importedPRIMARY byC305; exact4c25preimages/afterimages/inversecheck PASS.
-- Outside2803raw/FULL10/index/ownerconfig/fiveMD/patch/480untracked names conserved during import.
-- Corrections: C40lifetime,Draftnegativehistory,PDFrootretention,materialambiguity,authenticatedvoice replay/singlecodec,
-- realjournalcontrols,DEBUGfirstthrowlabels and S5_2actualwriterbinding; everychangedSwift Source+grammarPASS.
-- CurrentSource23 full399+45=444PASS; genuineDATA5acfe3c2. Source23 app type/modulecompile/native UNVERIFIED/PENDING.
-- Currentreader/effective-operand51/156reuse proofs retained; no unchanged suite repeat solely for records.
-- ReviewedV6 ownpinnedbuild/full3785/40/direct47 plan unchanged; completeCI/import receipt62d510e3 joined.
-- Finalproposedownedpayload=23Source+fiveMD=28; stageexactownedpaths only, ownerconfig excluded.
-- Next: actualstagedpayload/tree and sameindependent INCOMPLETE checkpointreview; thenRootlinearcommit/nonforcepush.
-- Newactualhead must matchreviewedpayload before mandatoryownpinnedapp+testmodulebuild and fullsweepfanout.
-- Futurehead/actualquestion/dispatch/Products/results PENDING untilactual; everydeferredaffectedselectorPENDING.
-- FutureW301S3_5/S3_7 Source+grammarPASS,generatedclosure/compile/nativepending; outsidecurrent23.
-- S39/S40read-onlytimingproves watchdog/partialsequences, nodominantfunction or lawful performancepatch; causesremainopen.
-- Primary~15GiB/external16.64GiB; noappbuildadmission/cleanup/historicalhydration; oldcacheassessment foundno usefulsafe removal.
-- Durable: .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c308-source23-final28-incomplete-development-checkpoint-v1/ROOT_CURRENT_C308_FINAL28_RECORDS_READY_FOR_EXACT_STAGING_AND_INDEPENDENT_CANDIDATE_REVIEW.json.
-- Mainneeds allfivegates/coldqualification/RUI1/independent+genuineownerreview/exactmain; fullV23/data safety/release duties remain.
-- Details: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md, MERGE_READINESS.md, PERFORMANCE_WORKFLOW.md, STORAGE_MAP.md.
+# Active integration brief — 2026-10-16 UTC
+- Goal: verified Phase 1 V23/S10 merge, then full V23. SourceReady=false; releaseReady=false.
+- Published integration: 1c9e4fa40a3a47fc0c41ff74b6ef8a742e49225a; tree44ce; parent4c25.
+- Branch: codex/v23-s10-integration-20260910. Main/originmain b1d04ae unchanged; gates 0/5.
+- Root alone integrates, stages, commits, pushes and dispatches. Helpers: gpt-6.1-sol/xhigh, up to10 plusRoot.
+- Preserve owner config/drafts/untracked work, all originals, consumed questions, failures, partials and HOLDs.
+- Official GitHub: Xcode26.6/17F113, SDK26.5/23F81a, iOS26.2/23C54; primary27 is DEVELOPMENT only.
+- C253 hosted-first permission: AGENTS97–107; next own-head app/test-module build and full sweep mandatory.
+- COMPLETE published1c9e/run38831495467/attempt1:3384PASS,353FAIL,6SKIP,2Interrupted,40NotStarted=3785.
+- Genuine Sol6.1/xhigh complete CONTROL+OUTCOME DATA81bd3591 authenticates those results;42 unresolved.
+- Its own producer compiled with0SwiftErrors/686warnings. This proves no future Source21 compile/runtime result.
+- Versus4c25:15FAIL→PASS,14PASS→FAIL,1Interrupted→PASS; names/messages retained, no inferred cause.
+- Direct47=40P7F; inherited57=1P56F;77=33P44F;all6marker testsFAIL. Groups overlap; do not add them.
+- SAME sole collector83615/session56081 naturally CLOSED0; dispatcher83498 CLOSED0. Never restart or duplicate.
+- Fixed M4 evidence root: ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015.
+- Ledger1304B/fourrows/db1d6696 and claim204B/1f51c845 retained; old978B prefix preserved.
+- Complete app courier2421members is retained under external/c366; all raw logs and original refusals preserved.
+- M4 thread01a12bb7-3a96-7461-af37-c7839e6950d2 reachable via read_thread without hostId; no owner action due.
+- Current unpublished correction: EXACT21 Source=9Swift+1Python+11JSON, now imported into primary Dropbox.
+- C377 exact1c9e paired patch passed isolated and primary apply--check/apply/reverse-check; all21 raw refs match.
+- C377 conserved every outside2805 tracked raw/FULL10 frame and primary index; final26 now explicitly staged.
+- Preserve first isolated --no-checkout empty-index setup refusal; corrected only new isolated C378 index population.
+- Core C326v3 retains same-context pre-intent ledger proof while keeping owner/census/current-pointer/reproof checks.
+- Its five-Swift Source review63b847f9 and grammar pass are scoped; old setupHOLD/parser failures stay preserved.
+- S3_3/S3_5/S3_7 genuine writer/first-sign/tombstone fixtures preserve existing assertions; C331 diagnostics preserve5s.
+- C343 current closed-policy reader SourcePASS7e15853e;169declarations/84callers/151references, real raw pins.
+- C348 currentC08 threeAPIs/generatedP04 PASS; C346 C02positive+51PASS has reviewed narrow current-input reuse.
+- C349 actual21/full2826 maps650f/e968 and coupling6bfef5de PASS; unchanged complete3785/40 coverage.
+- Known minimum23 selectors and all inherited groups occur once;23 is not an exhaustive causal closure or subset run.
+- C358 actual399/399+45/45 PASS, zeroFAIL/ERROR/SKIP; allfour current scoped readers natural0/emptyerr.
+- C367 same operator42826/parent42857 naturally CLOSED0;156PASS=3positive+153intendedrefusals, no recorded error.
+- Complete444/readers courier90members and156 courier563members safely received as external/c375 and/c376.
+- Genuine combined C372 DATA2831253f PASS authenticates all444/readers/156; no blocking DATA findings.
+- C351 five-source binding and C359 M4 context-port Source reviews PASS; original helper/156IDs/operands unchanged.
+- C371 next existing-C310 full3785/40 plan has independent PASS905c6198; actualhead/setup/question/dispatch PENDING.
+- Next: independent exact26 INCOMPLETE checkpoint candidate review, then Root-only linear publication.
+- Then Root-only linear publish and own pinned module build/full3785/40; no successive unchecked checkpoint.
+- Source21 app/test-module compilation and every affected app selector remain UNVERIFIED/PENDING until that run.
+- Separate C370 S4_3 fixture-only root-retention correction remains isolated; SourcePASS/grammar only; do not add to21.
+- Primary/external tight; current external15.12GiB point after intake. Heavy originals/Products/fixtures stay M4.
+- No deletion, historical archive hydration or evidence-root cutover. Sparse C378 is only an apply-check checkout.
+- Durable: .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c380-source21-final26-incomplete-development-staged-candidate-v1/ROOT_CURRENT_C380_EXACT26_STAGED_INCOMPLETE_DEVELOPMENT_CANDIDATE_REVIEW_PENDING.json.
+- Main requires allfive gates, cold qualification, RUI1, independent/genuineowner review and exact-main verification.
+- Details: CURRENT_INTEGRATION, MERGE_READINESS, VERIFICATION_DUE, PERFORMANCE_WORKFLOW and STORAGE_MAP.

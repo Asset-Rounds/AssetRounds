@@ -156,20 +156,20 @@
     "changedPathCount": 14,
     "missingPathCount": 0,
     "s10ReservationOverlapCount": 0,
-    "unownedChangedPathCount": 1328
+    "unownedChangedPathCount": 1331
   },
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.json",
-      "sha256": "2d9f4628a65a2bf8d78b0c33389fcb9bed02a6c4d4babc43cb5147f3b74e192a"
+      "sha256": "434702123667c19a3cad927ea5d129c7bdadf0f20ea5f546d6192497b30427ef"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json",
-      "sha256": "3a3cde9757d64fa0ad6a533df4aebcb38ade904fe190bd64dd44e71b0750ebe0"
+      "sha256": "064eb8540efc05815aa8c7be5a674dd8c9bef5e315270a063f6da2b6206fe7cb"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json",
-      "sha256": "040a5b57718ddd8b1f147761b9b2b556698e9006a9c36f4a39d489e7ada92098"
+      "sha256": "f0fb67b6c079242e1b3e9b9685b7eb7cfc05aacd1a98d5b7499c544e2e4debd1"
     }
   ],
   "finalHashesSealed": false,

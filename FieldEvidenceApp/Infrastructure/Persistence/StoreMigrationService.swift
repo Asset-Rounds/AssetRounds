@@ -30835,6 +30835,35 @@ extension GenerationLeaseRegistryV1 {
 
 
 extension GenerationLeaseRegistryV1 {
+    /// Read-only proof for the actual original pre-intent source. Complete
+    /// token/owner census stays private and is checked on both sides of the
+    /// synchronous retained-context read. No token is allocated or published.
+    @MainActor
+    func withOriginalPreIntentRetainedLedgerProof(
+        operation: EraseRouterOperationV1,
+        source: GenerationLeaseHandleV1,
+        _ readLedger: () throws -> Void
+    ) throws {
+        try withNoMigrationReservation {
+            try operation.requireOriginalPreIntentRetainedLedgerSource(
+                source, registry: self)
+            let before = try observeTemporalRegistryLocked()
+            try operation.requirePreparationLeaseCensus(before.leases,
+                registry: self)
+            try validateActiveLocked(source.token, requiredRole: .writer)
+            try readLedger()
+            let after = try observeTemporalRegistryLocked()
+            try operation.requirePreparationLeaseCensus(after.leases,
+                registry: self)
+            try validateActiveLocked(source.token, requiredRole: .writer)
+            guard before.leases == after.leases else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try operation.requireOriginalPreIntentRetainedLedgerSource(
+                source, registry: self)
+        }
+    }
+
     @MainActor
     fileprivate func publishPreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         operation: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {

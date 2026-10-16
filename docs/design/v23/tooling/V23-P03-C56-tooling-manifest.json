@@ -1,6 +1,6 @@
 {
-  "artifactDigest": "856a8e2399deec69375b6518234b2f7a36487576ce2f5b9e4e2e1b1c302d9460",
-  "artifactSetDigest": "a5dce08a790f626052bba6338841a00c7311d8575d969d34a40952c60f49e7e3",
+  "artifactDigest": "33372d178ce8b76935b34bbd1b3adb14de9272afc6b7bb1a01b3384eea8e97d5",
+  "artifactSetDigest": "faa57fefdfa9bbf9a0c2c4bcbb292d6ecc1b2ba971f8d4671b536782a995f15f",
   "authority": {
     "appBaseHead": "dc59c04251eef2d6574a152b846c0cade2ab2caf",
     "appBaseTree": "308c809d842a54bbfaf8fa3dfce6d5cd520ab54a",
@@ -356,9 +356,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 2745767,
+      "byteCount": 2747280,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
-      "sha256": "d70e49cbd61005da4a72c63b27bc34a3c0e49e3afac922299045713cd178342e",
+      "sha256": "42bd4ae1cd1164b9afe59f31bd20d2199ab80230b2315a57abc1d88d359dc4f2",
       "status": "SEALED_SOURCE"
     },
     {
@@ -518,9 +518,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 50920,
+      "byteCount": 68589,
       "path": "FieldEvidenceAppTests/V9_20KernelConformanceTests.swift",
-      "sha256": "ea35ae9213d7fc42fc16752a921336d98dc7151181ff15ec0f4d3c17bf2461af",
+      "sha256": "231bd633d6b9a564c0e19719ae5ca551885db5c8f39aa2bfe3caeb9e2f62a0a8",
       "status": "SEALED_SOURCE"
     },
     {
@@ -770,9 +770,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 779409,
+      "byteCount": 784048,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "5e07f12c1415c6b8350e5bbbbafab9f9d3621609cd29fa6b956f93466046b039",
+      "sha256": "acf3cb517a19bdf33c31c7bbfa98b4dd8bb0e41db60eea99c61175ad4b33f685",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1346,9 +1346,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 1746620,
+      "byteCount": 1750362,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
-      "sha256": "07d4145d98f309a6964d5e20b3d88980f10982722ed5a675563a902e4f218adc",
+      "sha256": "ca50895977ed01b678c5e3303a6b5e82111213c661e0c7cad8fd9b236faeb760",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1400,9 +1400,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 28202,
+      "byteCount": 35706,
       "path": "FieldEvidenceAppTests/S3_5FailureIntegrityTests.swift",
-      "sha256": "b488ba4d2abc06d564f60392a882c4c11c786fa59715f7981faae22011a73b2d",
+      "sha256": "4ee6e7500daf0ea8aaff4c64b50960e2557e8f7b83989eab6dc9d8ad24ca70df",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1546,7 +1546,7 @@
     {
       "byteCount": 120171,
       "path": "docs/design/v23/tooling/V23-P03-C36-tooling-manifest.json",
-      "sha256": "060877bed2726fe8e19060d5f6049f8a02b17925708775b4887ef119cf588e51",
+      "sha256": "12cd0b745c466507db79b7717bd8099dece9e9178e58f2eec3989c8eaf1102ac",
       "status": "SEALED_SOURCE"
     },
     {

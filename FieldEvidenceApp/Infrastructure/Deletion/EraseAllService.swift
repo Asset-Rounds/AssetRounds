@@ -3126,6 +3126,28 @@ final class EraseAllService {
 #endif
     }
 
+#if DEBUG
+    /// Focused behavior coverage borrows a real configured original owner.
+    /// The ordinary baseline was observed before Router admission; only the
+    /// configured Factory creates the actual authority for this framed proof.
+    /// This scope opens no reader, publishes no Erase intent and creates no target.
+    func withOriginalPreIntentLedgerOperandsForTesting<Value>(
+        coordinator: StoreSessionCoordinator,
+        operation: EraseRouterOperationV1,
+        expectedPointer: RestorePointerIdentityV1,
+        expectedLedger: DeletionLedgerProofV2,
+        _ body: (StoreGenerationFactory, StoreRestoreGenerationAuthority,
+                 RestorePointerIdentityV1, DeletionLedgerProofV2) throws -> Value
+    ) throws -> Value {
+        try operation.requireLiveExecution(coordinator: coordinator)
+        try generationFactory.requireEraseReaderInventory(operation.inventory)
+        try operation.beginPreparationServiceFrame(coordinator: coordinator)
+        defer { operation.endPreparationServiceFrame() }
+        let authority = try generationFactory.makeRestoreGenerationAuthority()
+        return try body(generationFactory, authority, expectedPointer, expectedLedger)
+    }
+#endif
+
     func erase(
         confirmation: String,
         coordinator: StoreSessionCoordinator,
@@ -3749,7 +3771,8 @@ final class EraseAllService {
                     authority: generationAuthority
                 )
             }
-            try requirePreparedPresence(intent, authority: generationAuthority)
+            try requirePreparedPresence(intent, authority: generationAuthority,
+                originalOperation: operation, coordinator: coordinator)
             try auxiliary.requireNoRestoreIntent()
 
             try inject(.beforePreparedWrite)
@@ -4021,7 +4044,9 @@ final class EraseAllService {
 #endif
                         try discardPreparation(
                             preparation,
-                            authority: generationAuthority
+                            authority: generationAuthority,
+                            originalOperation: operation,
+                            coordinator: coordinator
                         )
 #if DEBUG
                         rollbackCallStep = .rollbackRemovePreparation
@@ -7191,7 +7216,9 @@ private extension EraseAllService {
 
     func requirePreparedPresence(
         _ intent: EraseIntentV1,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        originalOperation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator
     ) throws {
 #if DEBUG
         let expected = Set(
@@ -7215,7 +7242,8 @@ private extension EraseAllService {
             }
             if intent.schemaVersion == 2 {
                 callStep = .preparedSourceLedger
-                try requireSourceLedgerBinding(intent, authority: authority)
+                try requireSourceLedgerBinding(intent, authority: authority,
+                    originalOperation: originalOperation, coordinator: coordinator)
                 callStep = .preparedTargetSession
                 _ = try validatedEmptySession(
                     id: intent.newGenerationID,
@@ -7241,7 +7269,8 @@ private extension EraseAllService {
             throw EraseAllServiceError.invalidAuthority
         }
         if intent.schemaVersion == 2 {
-            try requireSourceLedgerBinding(intent, authority: authority)
+            try requireSourceLedgerBinding(intent, authority: authority,
+                    originalOperation: originalOperation, coordinator: coordinator)
             _ = try validatedEmptySession(
                 id: intent.newGenerationID,
                 identity: try targetIdentity(intent),
@@ -10935,6 +10964,37 @@ private extension EraseAllService {
 #endif
     }
 
+    func requireSourceLedgerBinding(
+        _ intent: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority,
+        originalOperation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+#if DEBUG
+        var callStep = PreIntentCallStepForTesting.sourceLedgerOperands
+#endif
+        do {
+            guard intent.schemaVersion == 2,
+                  let pointer = intent.oldPointer,
+                  pointer.generationID == intent.oldGenerationID,
+                  let ledger = intent.sourceLedger else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+#if DEBUG
+            callStep = .sourceLedgerRead
+#endif
+            try originalOperation.requireOriginalPreIntentRetainedSourceLedger(
+                expectedPointer: pointer, expectedLedger: ledger,
+                coordinator: coordinator, factory: generationFactory,
+                authority: authority)
+        } catch {
+#if DEBUG
+            Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
+#endif
+            throw error
+        }
+    }
+
     func requirePublishedEmptySession(
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority,
@@ -11014,6 +11074,51 @@ private extension EraseAllService {
             reproveBeforeDestructiveEffect: reproveBeforeDestructiveEffect
         )
 #endif
+    }
+
+    /// This overload is only the original pre-intent rollback. The genuine
+    /// preparation exists even if an injected fault preceded frozenIntent.
+    func discardPreparation(
+        _ preparation: ErasePreparationV2,
+        authority: StoreRestoreGenerationAuthority,
+        originalOperation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+#if DEBUG
+        var callStep = PreIntentCallStepForTesting.discardSourceLedger
+#endif
+        do {
+            let reprove: @MainActor () throws -> Void = {
+                try originalOperation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: preparation.oldPointer,
+                    expectedLedger: preparation.sourceLedger,
+                    coordinator: coordinator, factory: self.generationFactory,
+                    authority: authority)
+            }
+            try reprove()
+#if DEBUG
+            callStep = .discardTargetIdentity
+#endif
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: preparation.targetWorkspaceID),
+                replicaID: ReplicaID(rawValue: preparation.targetReplicaID))
+#if DEBUG
+            callStep = .discardTarget
+#endif
+            try generationFactory.discardPreparedEmptyEraseGeneration(
+                expectedOldPointer: preparation.oldPointer,
+                targetGenerationID: preparation.targetGenerationID,
+                targetIdentity: identity,
+                expectedEmptyLedger: try emptyLedgerProof(),
+                authority: authority,
+                diagnosticPhase: eraseFactoryPhaseDiagnostic,
+                reproveBeforeDestructiveEffect: reprove)
+        } catch {
+#if DEBUG
+            Self.reportPreIntentCallRefusalForTesting(step: callStep, error: error)
+#endif
+            throw error
+        }
     }
 
     func inject(_ point: EraseAllFailurePoint) throws {

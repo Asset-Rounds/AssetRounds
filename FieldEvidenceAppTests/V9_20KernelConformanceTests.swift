@@ -211,6 +211,9 @@ final class V9_20KernelConformanceTests: XCTestCase {
     }
 
     func testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority() async throws {
+#if DEBUG
+        try await exerciseOriginalPreIntentRetainedLedgerControls()
+#endif
         let manifests = try KernelConformanceFixtureShapeV1.allCases.map {
             try KernelConformanceFixtureHarnessV1.loadManifest($0)
         }
@@ -243,6 +246,18 @@ final class V9_20KernelConformanceTests: XCTestCase {
         let receipts = try await harness.exerciseProductionFaultBoundaries(boundaries.sorted())
         XCTAssertEqual(receipts.count, 53)
         XCTAssertEqual(Set(receipts.map(\.boundary)), boundaries)
+        // Both faults run before durable P; the first is before frozenIntent
+        // is constructed. Their real rollback must keep the tuple from the
+        // actual preparation, not depend on a manufactured intent.
+        for boundary in ["ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+                         "ERASE_BEFORE_PREPARED_WRITE"] {
+            let rollback = try XCTUnwrap(receipts.first { $0.boundary == boundary })
+            XCTAssertEqual(rollback.visibleFailure, "injectedFailure")
+            XCTAssertTrue(rollback.coldRecoverySucceeded)
+            XCTAssertTrue(rollback.noPartialAuthority)
+            XCTAssertEqual(rollback.residualIntentCount, 0)
+            XCTAssertEqual(rollback.orphanPathCount, 0)
+        }
         for receipt in receipts {
             XCTAssertFalse(receipt.family.isEmpty, receipt.boundary)
             XCTAssertFalse(receipt.visibleFailure.isEmpty, receipt.boundary)
@@ -952,3 +967,254 @@ extension V9_20KernelConformanceTests {
         XCTAssertEqual(receipt.mutationAuthorityCount, 0)
     }
 }
+
+#if DEBUG
+@MainActor
+private extension V9_20KernelConformanceTests {
+    func exerciseOriginalPreIntentRetainedLedgerControls() async throws {
+        let original = try await C326RetainedLedgerControlFixture(label: "original", seedDeletion: true)
+        let foreign = try await C326RetainedLedgerControlFixture(label: "foreign")
+        // No checked full owner drain is claimed for a still-live Router,
+        // operation, access session or the deliberately unaccounted reader.
+        C326RetainedLedgerControlFixture.retainedUntilHostTermination += [original, foreign]
+        try original.service.withOriginalPreIntentLedgerOperandsForTesting(
+            coordinator: original.coordinator, operation: original.operation,
+            expectedPointer: original.baselinePointer, expectedLedger: original.baselineLedger
+        ) { factory, authority, pointer, ledger in
+            try foreign.service.withOriginalPreIntentLedgerOperandsForTesting(
+                coordinator: foreign.coordinator, operation: foreign.operation,
+                expectedPointer: foreign.baselinePointer, expectedLedger: foreign.baselineLedger
+            ) { foreignFactory, foreignAuthority, foreignPointer, foreignLedger in
+                let revision = try original.coordinator.workspaceWriter.currentRevision()
+                // The operand producer used the ordinary current-reader proof.
+                // Accepting that exact tuple proves semantic equivalence.
+                XCTAssertNoThrow(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                XCTAssertEqual(try original.coordinator.workspaceWriter.currentRevision(), revision)
+                XCTAssertThrowsError(try foreign.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: foreign.coordinator, factory: factory, authority: authority))
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: foreignFactory, authority: authority))
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: foreignAuthority))
+                let changedPointer = RestorePointerIdentityV1(
+                    generationID: pointer.generationID,
+                    generationManifestSHA256: pointer.generationManifestSHA256 == String(repeating: "a", count: 64)
+                        ? String(repeating: "b", count: 64) : String(repeating: "a", count: 64),
+                    knownReplicaIDs: Set(pointer.knownReplicaIDs),
+                    workspaceID: pointer.workspaceID, replicaID: pointer.replicaID)
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: changedPointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                let changedLedger = try DeletionLedgerProofV2(
+                    entryCount: ledger.entryCount + 1, canonicalSHA256: ledger.canonicalSHA256)
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: changedLedger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                do {
+                    // Deliberate unsaved negative only; never a fixture seed
+                    // after writer acquisition or a canonical model save.
+                    let context = original.coordinator.modelContext
+                    context.insert(Site(id: UUID(), label: "Uncommitted negative",
+                        address: nil, timeZoneID: "UTC",
+                        createdAt: Date(timeIntervalSince1970: 1_700_000_000)))
+                    defer { context.rollback() }
+                    XCTAssertTrue(context.hasChanges)
+                    XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                        expectedPointer: pointer, expectedLedger: ledger,
+                        coordinator: original.coordinator, factory: factory, authority: authority))
+                }
+                XCTAssertFalse(original.coordinator.modelContext.hasChanges)
+                XCTAssertNoThrow(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                // A clean ModelContext is not a cached ledger proof. Use the
+                // established retained-ledger tamper control against a row
+                // created by the genuine writer/deletion service before Erase.
+                let context = original.coordinator.modelContext
+                let ledgerRow = try XCTUnwrap(try context.fetch(
+                    FetchDescriptor<DeletionLedgerRow>()).first)
+                let deletedAt = ledgerRow.deletedAt
+                let ledgerBytes = try DeletionLedgerStore(context: context).snapshot().canonicalData()
+                do {
+                    defer {
+                        ledgerRow.deletedAt = deletedAt
+                        do { try context.save() }
+                        catch { XCTFail("retained-ledger control restoration failed") }
+                    }
+                    ledgerRow.deletedAt = deletedAt.addingTimeInterval(1)
+                    try context.save()
+                    XCTAssertFalse(context.hasChanges)
+                    XCTAssertNotEqual(try DeletionLedgerStore(context: context).snapshot().canonicalData(), ledgerBytes)
+                    XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                        expectedPointer: pointer, expectedLedger: ledger,
+                        coordinator: original.coordinator, factory: factory, authority: authority)) {
+                        XCTAssertEqual($0 as? StoreGenerationFailure, .dataPointerInvalid)
+                    }
+                }
+                XCTAssertFalse(context.hasChanges)
+                XCTAssertEqual(try DeletionLedgerStore(context: context).snapshot().canonicalData(), ledgerBytes)
+                XCTAssertNoThrow(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: factory, authority: authority))
+                // Same support path is insufficient: this independent provider
+                // may not borrow the configured original owner's identity.
+                let samePathFactory = StoreGenerationFactory(applicationSupportURL: original.support)
+                XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: pointer, expectedLedger: ledger,
+                    coordinator: original.coordinator, factory: samePathFactory, authority: authority))
+                foreign.operation.endPreparationServiceFrame()
+                XCTAssertThrowsError(try foreign.operation.requireOriginalPreIntentRetainedSourceLedger(
+                    expectedPointer: foreignPointer, expectedLedger: foreignLedger,
+                    coordinator: foreign.coordinator, factory: foreignFactory, authority: foreignAuthority))
+            }
+        }
+        // Both preparation frames have ended. This fresh ordinary provider
+        // has no preparation inventory, so its successful reader allocation
+        // cannot depend on registerPreparationRegistry or the framed publisher.
+        let extraFactory = StoreGenerationFactory(applicationSupportURL: original.support)
+        let extra = try extraFactory.openOrBootstrapCurrent()
+        original.unaccountedReader = extra
+        let extraEpoch = try XCTUnwrap(extra.generationEpoch)
+        let extraToken = try XCTUnwrap(extra.readerLeaseToken)
+        XCTAssertEqual(extraToken.role, .reader)
+        XCTAssertEqual(extraToken.epoch, extraEpoch)
+        XCTAssertEqual(extra.generationID, original.baselinePointer.generationID)
+        XCTAssertEqual(extraEpoch.generationID, original.baselinePointer.generationID)
+        XCTAssertEqual(extraEpoch.generationManifestSHA256,
+            original.baselinePointer.generationManifestSHA256)
+        // Setup above must succeed before this expected failure is reached.
+        // Full token/owner census rejects the retained extra same-epoch reader;
+        // an epoch-only set would miss it. Do not reconcile or delete its owner.
+        try original.service.withOriginalPreIntentLedgerOperandsForTesting(
+            coordinator: original.coordinator, operation: original.operation,
+            expectedPointer: original.baselinePointer, expectedLedger: original.baselineLedger
+        ) { factory, authority, pointer, ledger in
+            XCTAssertThrowsError(try original.operation.requireOriginalPreIntentRetainedSourceLedger(
+                expectedPointer: pointer, expectedLedger: ledger,
+                coordinator: original.coordinator, factory: factory, authority: authority)) {
+                XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+        }
+    }
+}
+
+/// Two bounded genuine control fixtures. Their real Router admission publishes
+/// no Erase intent or target and mints no synthetic authority. Retention is narrow;
+/// neither a dropped Swift reference nor an asynchronous delete is a drain.
+@MainActor
+private final class C326RetainedLedgerControlFixture {
+    static var retainedUntilHostTermination: [C326RetainedLedgerControlFixture] = []
+    let support: URL
+    let router: StartupRouter
+    let access: ProductionAppAccessSessionV1
+    let coordinator: StoreSessionCoordinator
+    let operation: EraseRouterOperationV1
+    let service: EraseAllService
+    let defaults: UserDefaults
+    let baselinePointer: RestorePointerIdentityV1
+    let baselineLedger: DeletionLedgerProofV2
+    var unaccountedReader: StoreGenerationSession?
+
+    init(label: String, seedDeletion: Bool = false) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V9_20-retained-ledger-\(label)-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: registry)
+        guard let defaults = UserDefaults(suiteName: "V9_20-retained-ledger-\(UUID().uuidString)") else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("retained-ledger-defaults")
+        }
+        let access = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: C326RetainedLedgerAuthentication())
+        try router.bindStartupAccessGate(access.gate)
+        try await router.startIfNeeded(accessGate: access.gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("retained-ledger-ready")
+        }
+        if seedDeletion {
+            // Canonical fixture seed happens before Erase captures the source.
+            // Both the asset and its tombstone use the actual sole writer.
+            let siteID = UUID(), assetID = UUID()
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "Ledger control site", address: nil, timeZoneID: "UTC"),
+                assetID: assetID, assetLabel: "Ledger control asset",
+                packID: profile.package.packID,
+                packSchemaVersion: profile.package.schemaVersion,
+                packContentVersion: profile.package.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                initialPlacementMutationID: mutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: mutationID)
+            try await coordinator.awaitSearchIndexLifecycle()
+            let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
+            _ = try await WholeSignDeletionService(modelContext: coordinator.modelContext,
+                lifecycleDependencies: dependencies).delete(assetID: assetID)
+        }
+        // Observe the ordinary current-reader baseline before Router admission
+        // binds any preparation inventory. Only exact pointer/ledger values
+        // escape this scope; its reader, Factory and authority do not authorize
+        // or substitute for the later configured same-owner retained proof.
+        let (baselinePointer, baselineLedger) = try autoreleasepool {
+            () throws -> (RestorePointerIdentityV1, DeletionLedgerProofV2) in
+            let ordinaryFactory = StoreGenerationFactory(applicationSupportURL: support)
+            let ordinaryAuthority = try ordinaryFactory.makeRestoreGenerationAuthority()
+            let current = try ordinaryFactory.currentGenerationPointerV3(
+                expectedGenerationID: coordinator.generationID, authority: ordinaryAuthority)
+            let pointer = RestorePointerIdentityV1(
+                generationID: try XCTUnwrap(UUID(uuidString: current.generationID)),
+                generationManifestSHA256: current.generationManifestSHA256,
+                knownReplicaIDs: Set(try current.knownReplicaIDs.map { try XCTUnwrap(UUID(uuidString: $0)) }),
+                workspaceID: try XCTUnwrap(UUID(uuidString: current.workspaceID)),
+                replicaID: try XCTUnwrap(UUID(uuidString: current.replicaID)))
+            let ledger = try ordinaryFactory.currentGenerationDeletionLedgerProof(
+                expectedPointer: pointer, authority: ordinaryAuthority)
+            return (pointer, ledger)
+        }
+        let ticket = try await router.beginEraseOperation(coordinator: coordinator,
+            accessGate: access.gate)
+        let operation = try router.eraseRetirementOperation(for: ticket)
+        let service = try router.configureEraseService(EraseAllService(
+            applicationSupportURL: support, cachesDirectoryURL: caches,
+            temporaryDirectoryURL: temporary), operation: operation)
+        self.support = support
+        self.router = router
+        self.access = access
+        self.coordinator = coordinator
+        self.operation = operation
+        self.service = service
+        self.defaults = defaults
+        self.baselinePointer = baselinePointer
+        self.baselineLedger = baselineLedger
+    }
+}
+
+private actor C326RetainedLedgerAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 { .authenticated }
+    func cancel(attemptID: UUID) {}
+}
+#endif

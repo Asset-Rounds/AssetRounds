@@ -12,11 +12,13 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
     @MainActor
     func testOneWideRequiredViewObstructedCreatesExactIncompleteAuthorityAndReplays() async throws {
         let applicationSupport = try makeTemporaryDirectory("golden")
-        defer { try? fileManager.removeItem(at: applicationSupport) }
-        let harness = try await makeHarness(
+        // Retain this private root while the current fixture has live store aliases.
+        let fixture = try await makeCurrentHarness(
             applicationSupportURL: applicationSupport,
             acceptsWide: true
         )
+        defer { closeCurrentWriter(fixture.owner) }
+        let harness = fixture.harness
         let selection = CheckOutcomeSelection.couldNotVerify(
             reasonKey: "required_view_obstructed",
             note: "Tree branches blocked the close view."
@@ -72,11 +74,13 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
     @MainActor
     func testZeroPhotoCaptureUnavailableAndInvalidSelectionsFailClosed() async throws {
         let applicationSupport = try makeTemporaryDirectory("zero-photo")
-        defer { try? fileManager.removeItem(at: applicationSupport) }
-        let harness = try await makeHarness(
+        // Retain this private root while the current fixture has live store aliases.
+        let fixture = try await makeCurrentHarness(
             applicationSupportURL: applicationSupport,
             acceptsWide: false
         )
+        defer { closeCurrentWriter(fixture.owner) }
+        let harness = fixture.harness
         let invalidSelections: [CheckOutcomeSelection] = [
             .couldNotVerify(reasonKey: " required_view_obstructed", note: nil),
             .couldNotVerify(reasonKey: "not_in_registry", note: nil),
@@ -98,7 +102,8 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
         let invalidService = try FinalizationService(
             modelContext: harness.context,
             signPack: harness.pack,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: fixture.owner.workspaceWriter
         )
         let invalidIdentifiers = makeIdentifiers()
         do {
@@ -218,14 +223,92 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
     @MainActor
     func testPostSaveCNVJournalRecoversAndReplayCreatesNoDuplicate() async throws {
         let applicationSupport = try makeTemporaryDirectory("recovery")
-        defer { try? fileManager.removeItem(at: applicationSupport) }
+        // The session, contexts and runner still alias this private store.
+        // Writer release is not proof of full drain; retain the root.
         let injection = FinalizationIntentStoreFailureInjection(
             failOnceAt: .intentPhaseWrite(.databaseCommitted)
         )
-        let harness = try await makeHarness(
-            applicationSupportURL: applicationSupport,
-            acceptsWide: true,
+        let session = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupport
+        ).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: pack
+        )
+        let profileRegistry = try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [profile]
+        )
+        let storeCoordinator = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: profileRegistry
+        )
+        defer {
+            do { try storeCoordinator.invalidateAndReleaseWriter() }
+            catch { XCTFail("CNV recovery fixture writer release failed: \(error)") }
+        }
+        let dependencies = try storeCoordinator.packageLifecycleDependencies(
+            profileRegistry: profileRegistry
+        )
+        let siteID = UUID()
+        let assetID = UUID()
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try storeCoordinator.workspaceWriter.execute(
+            .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(
+                    id: siteID,
+                    label: "North Campus",
+                    address: "10 Main",
+                    timeZoneID: "America/New_York"
+                ),
+                assetID: assetID,
+                assetLabel: "Monument Sign",
+                packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_768_700_000),
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )),
+            mutationID: placementMutationID
+        )
+        let site = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID }
+        )
+        let asset = try XCTUnwrap(
+            context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID }
+        )
+        let coordinator = try CheckRunnerCoordinator(
+            modelContext: context,
+            packageLifecycleDependencies: dependencies,
+            packageLifecycleProfile: profile,
             finalizationStoreFailureInjection: injection
+        )
+        coordinator.configureCapture(generationRootURL: session.generationRootURL)
+        let draft = try coordinator.beginCheck(
+            assetID: asset.id,
+            timeZoneID: nil,
+            isTimeZoneConfirmed: false,
+            afterDarkAccepted: true,
+            safePositionAccepted: true,
+            observedAt: Date(timeIntervalSince1970: 1_768_700_000)
+        )
+        let candidate = try await coordinator.importCandidate(
+            assetID: asset.id,
+            sourceData: try makePNG(seed: 37),
+            createdAt: Date(timeIntervalSince1970: 1_768_700_001)
+        )
+        _ = try await coordinator.accept(candidate: candidate, assetID: asset.id)
+        let harness = CNVHarness(
+            session: session,
+            context: context,
+            pack: pack,
+            site: site,
+            asset: asset,
+            draft: draft,
+            coordinator: coordinator
         )
         let selection = CheckOutcomeSelection.couldNotVerify(
             reasonKey: "required_view_obstructed",
@@ -256,7 +339,9 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
 
         let summary = try await FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            generationRootURL: harness.session.generationRootURL,
+            workspaceWriter: storeCoordinator.workspaceWriter,
+            lifecycleProfileRegistry: profileRegistry
         ).reconcile()
         XCTAssertEqual(summary.completedRecordIDs, [harness.draft.id])
         XCTAssertTrue(summary.recoveredDraftRecordIDs.isEmpty)
@@ -276,6 +361,102 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Issue>()), 0)
         withExtendedLifetime(harness.session) {}
+    }
+
+    @MainActor
+    private func makeCurrentHarness(
+        applicationSupportURL: URL,
+        acceptsWide: Bool
+    ) async throws -> CurrentCNVFixture {
+        let session = try StoreGenerationFactory(
+            applicationSupportURL: applicationSupportURL
+        ).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let owner = try StoreSessionCoordinator(
+            validatingSession: session,
+            lifecycleProfileRegistry: registry
+        )
+        do {
+            let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+            let siteID = UUID()
+            let assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            _ = try owner.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(
+                        id: siteID,
+                        label: "North Campus",
+                        address: "10 Main",
+                        timeZoneID: "America/New_York"
+                    ),
+                    assetID: assetID,
+                    assetLabel: "Monument Sign",
+                    packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_768_700_000),
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: UUID(),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+                )),
+                mutationID: placementMutationID
+            )
+            let site = try XCTUnwrap(context.fetch(FetchDescriptor<Site>()).first { $0.id == siteID })
+            let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+            let coordinator = try CheckRunnerCoordinator(
+                modelContext: context,
+                packageLifecycleDependencies: dependencies,
+                packageLifecycleProfile: profile
+            )
+            coordinator.configureCapture(generationRootURL: session.generationRootURL)
+            let draft = try coordinator.beginCheck(
+                assetID: asset.id,
+                timeZoneID: nil,
+                isTimeZoneConfirmed: false,
+                afterDarkAccepted: true,
+                safePositionAccepted: true,
+                observedAt: Date(timeIntervalSince1970: 1_768_700_000)
+            )
+            if acceptsWide {
+                let candidate = try await coordinator.importCandidate(
+                    assetID: asset.id,
+                    sourceData: try makePNG(seed: 37),
+                    createdAt: Date(timeIntervalSince1970: 1_768_700_001)
+                )
+                _ = try await coordinator.accept(candidate: candidate, assetID: asset.id)
+            }
+            let harness = CNVHarness(
+                session: session,
+                context: context,
+                pack: pack,
+                site: site,
+                asset: asset,
+                draft: draft,
+                coordinator: coordinator
+            )
+            return CurrentCNVFixture(harness: harness, owner: owner)
+        } catch {
+            closeCurrentWriter(owner)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func closeCurrentWriter(
+        _ owner: StoreSessionCoordinator,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        do { try owner.invalidateAndReleaseWriter() }
+        catch {
+            XCTFail("Current CNV fixture writer close failed: \(error)", file: file, line: line)
+        }
+        // Writer release does not prove a full session/context/container drain.
+        // Preserve the private root through those aliases and error paths.
     }
 
     @MainActor
@@ -463,6 +644,12 @@ final class S3_7CouldNotVerifyTests: XCTestCase {
         }
         return output as Data
     }
+}
+
+@MainActor
+private struct CurrentCNVFixture {
+    let harness: CNVHarness
+    let owner: StoreSessionCoordinator
 }
 
 @MainActor

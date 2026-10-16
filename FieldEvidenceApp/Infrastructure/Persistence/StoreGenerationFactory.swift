@@ -25088,8 +25088,41 @@ struct StoreGenerationFactory {
               !coordinator.modelContext.hasChanges else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        _ = try requireCurrentPointer(oldPointer, authority: authority)
-        guard try deletionLedgerProof(in: coordinator.modelContext) == expected else {
+        try requireRetainedEraseSourceLedger(
+            expectedPointer: oldPointer, expectedLedger: expected,
+            coordinator: coordinator, authority: authority)
+    }
+
+    /// Operand form for the actual original pre-intent owner. Its caller
+    /// supplies the live operation and locked source/census proof; this helper
+    /// neither opens another reader nor grants operation/retirement authority.
+    @MainActor
+    func requireOriginalPreIntentRetainedSourceLedger(
+        expectedPointer: RestorePointerIdentityV1,
+        expectedLedger: DeletionLedgerProofV2,
+        coordinator: StoreSessionCoordinator,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        guard coordinator.generationID == expectedPointer.generationID,
+              coordinator.generationRootURL.standardizedFileURL
+                == installedGenerationURL(id: expectedPointer.generationID),
+              !coordinator.modelContext.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireRetainedEraseSourceLedger(
+            expectedPointer: expectedPointer, expectedLedger: expectedLedger,
+            coordinator: coordinator, authority: authority)
+    }
+
+    @MainActor
+    private func requireRetainedEraseSourceLedger(
+        expectedPointer: RestorePointerIdentityV1,
+        expectedLedger: DeletionLedgerProofV2,
+        coordinator: StoreSessionCoordinator,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        _ = try requireCurrentPointer(expectedPointer, authority: authority)
+        guard try deletionLedgerProof(in: coordinator.modelContext) == expectedLedger else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }

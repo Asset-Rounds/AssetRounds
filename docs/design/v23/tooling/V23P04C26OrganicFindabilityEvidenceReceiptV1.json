@@ -203,7 +203,7 @@
       "verificationSHA256": "c8a47d028fc0e64725967701e1d4d7b1a5ac48b07c6912ef5a023f9c5df7cee2"
     }
   ],
-  "contractDigest": "ad5a533015c47f6ba548013083ec2bfc9a0af7343291d52464aa39917711bf71",
+  "contractDigest": "0e9b67fd0ec662f06ae79ebc83555468887fcb0d4c5fa722d5254ce94e1bf542",
   "generatorInterruptionProtocol": {
     "deterministicRerun": true,
     "protocol": "MANIFEST_LAST_ATOMIC_REPLACE",
@@ -247,7 +247,7 @@
       "changedPathCount": 16,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 1336
+      "unownedChangedPathCount": 1339
     },
     "selectors": [
       "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",

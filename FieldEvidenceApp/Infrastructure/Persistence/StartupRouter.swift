@@ -12290,6 +12290,68 @@ final class EraseRouterOperationV1 {
         }
     }
 
+    /// The original pre-intent frame still owns its source, without EX or a
+    /// published P roster. Keep that state distinct from the post-P method.
+    func requireOriginalPreIntentRetainedLedgerSource(
+        _ source: GenerationLeaseHandleV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard preparationSourceWriter === source,
+              preparationRegistry === registry,
+              source.token.role == .writer else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requirePreparationRollback()
+        try source.requireExactRegistry(registry)
+    }
+
+    func requireOriginalPreIntentRetainedSourceLedger(
+        expectedPointer: RestorePointerIdentityV1,
+        expectedLedger: DeletionLedgerProofV2,
+        coordinator: StoreSessionCoordinator,
+        factory: StoreGenerationFactory,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        guard let router, preparationCoordinator === coordinator,
+              let configured = preparationFactory,
+              configured.sharesRegistryProvider(with: factory),
+              let registry = preparationRegistry,
+              let source = preparationSourceWriter,
+              source.token.epoch.generationID == expectedPointer.generationID,
+              try factory.makeGenerationLeaseRegistry() === registry,
+              authority.matchesMutationRegistryForOriginalErase(registry) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try factory.requireEraseReaderInventory(inventory)
+        try registry.withOriginalPreIntentRetainedLedgerProof(
+            operation: self, source: source) {
+            try router.requireOriginalPreIntentLedgerSource(self,
+                coordinator: coordinator)
+            let session = try coordinator.requireOriginalEraseOpeningAuthority(
+                factory: factory)
+            guard session.modelContext === coordinator.modelContext,
+                  session.generationID == expectedPointer.generationID,
+                  session.generationEpoch == source.token.epoch,
+                  session.workspaceID.rawValue == expectedPointer.workspaceID else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try factory.requireOriginalPreIntentRetainedSourceLedger(
+                expectedPointer: expectedPointer, expectedLedger: expectedLedger,
+                coordinator: coordinator, authority: authority)
+            // Re-fetch the live writer/fence proof; a pre-read success is not
+            // cached authorization for the end of this synchronous G interval.
+            guard try coordinator.requireOriginalEraseOpeningAuthority(
+                factory: factory) === session else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try factory.requireOriginalPreIntentRetainedSourceLedger(
+                expectedPointer: expectedPointer, expectedLedger: expectedLedger,
+                coordinator: coordinator, authority: authority)
+            try router.requireOriginalPreIntentLedgerSource(self,
+                coordinator: coordinator)
+        }
+    }
+
     /// Original P keeps the old Coordinator and its EX-bound writer. Reprove
     /// the published first auxiliary image and read the ledger through that
     /// exact retained context; a fresh current-reader allocation would try
@@ -19970,6 +20032,18 @@ extension StartupRouter {
               operationOwnedWriter?.coordinator === coordinator,
               state.sourceGenerationID == coordinator.generationID,
               temporalNormalizationOperation == nil, temporalColdOperation == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
+    fileprivate func requireOriginalPreIntentLedgerSource(
+        _ value: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        try requireLiveEraseService(value, coordinator: coordinator)
+        let state = try awaitlessValidateEraseTicket(value.ticket)
+        guard state.source.modelContext === coordinator.modelContext,
+              operationOwnedWriter?.writer === coordinator.workspaceWriter else {
             throw AppAccessContractFailureV1.staleAttempt
         }
     }

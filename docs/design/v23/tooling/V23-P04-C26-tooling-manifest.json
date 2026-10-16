@@ -116,20 +116,20 @@
     "changedPathCount": 16,
     "missingPathCount": 0,
     "s10ReservationOverlapCount": 0,
-    "unownedChangedPathCount": 1336
+    "unownedChangedPathCount": 1339
   },
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C26OrganicFindabilityContractV1.json",
-      "sha256": "ad5a533015c47f6ba548013083ec2bfc9a0af7343291d52464aa39917711bf71"
+      "sha256": "0e9b67fd0ec662f06ae79ebc83555468887fcb0d4c5fa722d5254ce94e1bf542"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C26OrganicFindabilityEvidenceReceiptV1.json",
-      "sha256": "52944326212ce4df4e173629b904885cb134358c26a541c25c772528c4af4daf"
+      "sha256": "e18352c167e3cc3f956e283d026f3527a45c777c36592d21f4f7a60c409739ff"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C26BrandImpactManifestV1.json",
-      "sha256": "55be496812d3448bddf59cead8412ac0beddd62a6ba37fed671b25dd52526862"
+      "sha256": "3d9d8e4b144cb94ed7f75a19d614dba9b98f3728ee7dbfccabbd7d13618d4bb1"
     }
   ],
   "finalHashesSealed": false,
