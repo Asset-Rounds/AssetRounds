@@ -223,7 +223,9 @@ final class S5_2RecheckOutcomeTests: XCTestCase {
 
         let summary = try await FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.generationRootURL
+            generationRootURL: harness.generationRootURL,
+            workspaceWriter: harness.fixture.lifecycleDependencies.writer,
+            lifecycleProfileRegistry: harness.fixture.storeCoordinator.lifecycleProfileRegistry
         ).reconcile()
         XCTAssertEqual(summary.completedRecordIDs.count, 1)
         XCTAssertTrue(summary.recoveredDraftRecordIDs.isEmpty)

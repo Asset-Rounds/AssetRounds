@@ -1,49 +1,40 @@
 # Active integration brief — 2026-10-15 UTC
 - Goal: verified Phase1 V23/S10 merge, then full V23. SourceReady=false; releaseReady=false.
-- Integration branch: codex/v23-s10-integration-20260910; published HEAD7dab04e11c4c3d85ef06f631a673724e9de2cde6.
-- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged; all five gates OPEN(0/5).
-- Root alone integrates, stages, commits, pushes, dispatches and operates native/evidence/storage effects.
-- Helpers GPT-6.1 Sol/xhigh, useful disjoint scopes, up to10 plusRoot; reuse existing contexts.
-- Preserve owner config/drafts/untracked/frozen history/originals/failures/partials/HOLDs/consumed questions.
-- No PR, merge commit, force/history rewrite, signing/distribution/accounts/settings or broad staging.
-- Official GitHub Xcode26.6/17F113 + SDK26.5/23F81a + iOS26.2/23C54; primary27 DEVELOPMENT only.
-- Published C253 owner-approved hosted-first timing allows reviewed INCOMPLETE DEVELOPMENT checkpoints; gates unchanged.
-- Mandatory7dab full DEVELOPMENT run38745487390/attempt1/3785methods/38partitions is COMPLETE/FAIL.
-- Producer app+test build PASS/0SwiftErrors on7dab only; all38 consumers closed(3success35failure).
-- SAME solecollector70513/session12327 naturally CLOSED0/emptyerr. Never restart/replay/duplicatecollector.
-- Complete available DATA PASSa5efd63a; exact independent outcome DATA PASS927d485a, both Sol6.1/xhigh.
-- Current reconciled:3352PASS/376FAIL/6SKIP/1Interrupted/50NotStarted; all3785 exact keys accounted for.
-- Raw3352PASS/370FAIL/7Interrupted/50NotStarted/6SKIP preserved; six actual current structured crashes explain delta.
-- Baseline38682846798:3342PASS/384FAIL/6SKIP/1Interrupted/50NotStarted. Current20F→P/12P→F, both addedC45 PASS.
-- Affected39=31PASS8FAIL; historical57=1PASS56FAIL;77=33PASS44FAIL; allsixmarkers FAIL. Sets overlap.
-- Future union200 current82P118F;275=250P25F;106=101P5F;graph21=19P2F;new17=7P10F; nonadditive.
-- All39 admissions join; strict after/no-rebuild37PASS/S12REFUSAL. Matching hashes never waive strict refusal.
-- Required-evidence34PASS/4FAIL: S12 empty report/Info gap; S28/S31/S32 omit six explicitSKIPs. All retained.
-- Producer+3consumer checkpoints present/35absent; no bulk/physical/provider/cold qualification transferred.
-- S12 whole-group3000s timeout during clone(1555.468s elapsed);1interrupted+50notstarted; fullclonefitUNKNOWN.
-- S05 markers preempted by prepared-ledger registry.uncertain-owner; inner predicate remainsUNKNOWN.
-- C257 five erase-related Swift afterimages diagnostic-only; existing marker callback unchanged; no focused retry authority.
-- Primary Source37 is imported, unstaged/uncommitted/unpublished:17Swift/3Python/17JSON, exact reviewedW256.
-- W256: .codex-temp/resume-20261002/worktrees/c256-reviewed-fixture-and-ownership-family-composition-7dab-v1.
-- Meaningful reviewed fixtures/ownership/report-number-kind corrections plus bounded DEBUG diagnostic companions.
-- Source37 app/test-module compile UNVERIFIED/compiler-errorsUNKNOWN; all affected native PENDING on mandatory newhead sweep.
-- Current C271 full399+45 newly executed allPASS; complete DATAda83250e; no reused old45 substitution.
-- C266 readers0/0/0 retain exact scoped DATAfdd7b26c; unchanged156/API51 genuine reuse, no duplicate checks.
-- C264443PASS1FAIL preserved; setup mechanism supported, exclusivecauseUNKNOWN; C267399PASS retains own scope.
-- C26212 logical derivatives usable; original globalindexFAILED/HOLD/actorUNKNOWN. C263 fresh3 PASS doesnothealC262.
-- C240/C243 global15ctimeHOLD preserved; C42declaredUITest missing/Viewunwired/sourceReadyfalse; C52oldfence limits retained.
-- Actual42=37Source+fiveMD; independent NONAUTHOR Sol6.1/xhigh final INCOMPLETE C253 publication review PASSce304366.
-- Future own pinned full3785/40 plan preserves orderedcensus/allaffected once, max5 and existing per-consumer budgets.
-- S12 split23/1/50(S12/S39/S40), sameD50C3000; aggregate maximum+6000test/+7200total sec; no method-fit claim.
-- Future SHA/question/dispatch/Products/results PENDING until actual; next own build app+testmodules before all40 consumers.
-- No successive unchecked publication, overlapping subset retry, waived assertion/coverage/budget or gate promotion.
-- M4 fixedE: ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015; allhistory preserved.
-- M4 clean source: ~/Library/Caches/AssetRounds-secondary-20261011/c253-hosted-first-current37-dispatch-source-v1.
-- M4 acknowledged receipt/hold(cursor81); bulk originals stayM4/~86.80GiB pointfree, fresh>30GiB admission before dispatch.
-- Small C275 courier/extraction external; all1413 members verified. Source/coordination Dropbox; historical archives stayonline-only.
-- Two read-only helper lanes investigate new regressions without expanding current frozen Source37.
-- Next: final42 candidate review, fresh refs/index/explicitstage/linear incomplete checkpoint, bind actual newhead, one hosted sweep.
-- Full five gates/coldqualification/RUI1/genuine ownerreview/exactmain/fullV23/data safety/release obligations remain due.
-- Payload: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c276-final42-incomplete-development-checkpoint-admission-v1/ACTUAL_FINAL42_INCOMPLETE_DEVELOPMENT_PAYLOAD_BINDINGS.json.
-- Current durable continuation: /Users/rentamac/Library/CloudStorage/Dropbox/AssetRounds/.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c276-final42-incomplete-development-checkpoint-admission-v1/ROOT_CURRENT_C276_FINAL42_INDEPENDENT_REVIEW_PASS_PUBLICATION_PENDING.json.
-- Detail: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md, MERGE_READINESS.md, PERFORMANCE_WORKFLOW.md, STORAGE_MAP.md.
+- Published integration4c25b7588e29d105d9648370f7b27845b30c168b; branch codex/v23-s10-integration-20260910.
+- Main/originmain b1d04ae5e684aa9c6807af655089efa1df8a7ed6; allfivegatesOPEN0/5.
+- Root alone Git/integration/native/dispatch/evidence/storage; helpers gpt-6.1-sol/xhigh.
+- Preserve ownerconfig/drafts/untracked/frozenhistory/alloriginals/failures/partials/HOLDs/consumedquestions.
+- OfficialGitHub26.6/17F113 SDK26.5/23F81a runtime26.2/23C54; primary27 DEVELOPMENT only.
+- C253 hosted-first approval AGENTS97–107; no successive unchecked checkpoints or gate change.
+- COMPLETE current4c25/run38791899119/attempt1:3382PASS/354FAIL/6SKIP/3Interrupted/40NotStarted=3785.
+- SoleM4collector23598/session51456 naturallyCLOSED0/emptyerr; no replay/cancel/duplicate.
+- Genuine independent Sol6.1/xhigh CONTROL DATA ccd8e5d9 and OUTCOME DATA22049ed7 PASS authentication only.
+- Comparedwith7dab:35F→P/13P→F/8NotStarted→P/2NotStarted→Interrupted;22fewerFAIL/30morePASS/43unresolved.
+- Current39=36P3F;57=1P56F;77=33P44F;all6markersFAIL;new17=17P. Groups overlap.
+- Current200=104P96F;275=251P24F;106=100P6F;graph21=19P2F; all13regression messages retained in exactmap.
+- Producer116618568400 compiled published4c25 with0SwiftErrors/685warnings; no Source23 compile credit.
+- Admissions41PASS;requiredEvidence36PASS5FAIL(S28/S31/S32/S39/S40);nativecheckpoint3PASS38FAIL.
+- Consumerfingerprints38PASS2FAIL(S39/S40). No coldqualification/Productsbulk/device or gate credit.
+- Canonical courier2480members/2479native rows verified; additive original summary+custody received/authenticated.
+- Working extraction: /Volumes/EXTERNAL/AssetRounds-resume-20261002/hosted38791899119-canonical-complete-courier-20261015-v1.
+- Originalfour+summarycouriers stable in Dropbox secondary-mac-20261011; allbulk staysfixedM4E.
+- FixedE: ~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015 onM4.
+- Preserve ledger3rows978B/0eb1624e,claim204B/b02da7ff; retain41sets/logs/manifests; max5/budgetsunchanged.
+- M4thread01a12bb7-3a96-7461-af37-c7839e6950d2 reachable via read_thread(hostIdomitted); no owner action currently.
+- Prospective Source23=11Swift+12JSON importedPRIMARY byC305; exact4c25preimages/afterimages/inversecheck PASS.
+- Outside2803raw/FULL10/index/ownerconfig/fiveMD/patch/480untracked names conserved during import.
+- Corrections: C40lifetime,Draftnegativehistory,PDFrootretention,materialambiguity,authenticatedvoice replay/singlecodec,
+- realjournalcontrols,DEBUGfirstthrowlabels and S5_2actualwriterbinding; everychangedSwift Source+grammarPASS.
+- CurrentSource23 full399+45=444PASS; genuineDATA5acfe3c2. Source23 app type/modulecompile/native UNVERIFIED/PENDING.
+- Currentreader/effective-operand51/156reuse proofs retained; no unchanged suite repeat solely for records.
+- ReviewedV6 ownpinnedbuild/full3785/40/direct47 plan unchanged; completeCI/import receipt62d510e3 joined.
+- Finalproposedownedpayload=23Source+fiveMD=28; stageexactownedpaths only, ownerconfig excluded.
+- Next: actualstagedpayload/tree and sameindependent INCOMPLETE checkpointreview; thenRootlinearcommit/nonforcepush.
+- Newactualhead must matchreviewedpayload before mandatoryownpinnedapp+testmodulebuild and fullsweepfanout.
+- Futurehead/actualquestion/dispatch/Products/results PENDING untilactual; everydeferredaffectedselectorPENDING.
+- FutureW301S3_5/S3_7 Source+grammarPASS,generatedclosure/compile/nativepending; outsidecurrent23.
+- S39/S40read-onlytimingproves watchdog/partialsequences, nodominantfunction or lawful performancepatch; causesremainopen.
+- Primary~15GiB/external16.64GiB; noappbuildadmission/cleanup/historicalhydration; oldcacheassessment foundno usefulsafe removal.
+- Durable: .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c308-source23-final28-incomplete-development-checkpoint-v1/ROOT_CURRENT_C308_FINAL28_RECORDS_READY_FOR_EXACT_STAGING_AND_INDEPENDENT_CANDIDATE_REVIEW.json.
+- Mainneeds allfivegates/coldqualification/RUI1/independent+genuineownerreview/exactmain; fullV23/data safety/release duties remain.
+- Details: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md, MERGE_READINESS.md, PERFORMANCE_WORKFLOW.md, STORAGE_MAP.md.

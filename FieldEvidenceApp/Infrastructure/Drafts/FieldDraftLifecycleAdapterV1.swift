@@ -284,6 +284,60 @@ extension FieldDraftLifecycleAdapterV1 {
         try journal.receipt(mutationID: mutationID)
     }
 
+    func reviewedVoiceFieldEvidence(
+        predecessor: FieldDraftCheckpointV1,
+        generationID: UUID,
+        mutationID: MutationIDV1
+    ) throws -> FieldDraftCommittedEvidenceV1? {
+        try predecessor.validate()
+        try writer.validateFieldDraftReadContext(context)
+        let revision = try writer.currentRevision()
+        guard revision.workspaceID == predecessor.workspaceID else {
+            throw FieldDraftFailureV1.wrongWorkspace
+        }
+        guard revision.generationID == generationID else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        // This validates the live lease, complete journal, physical terminal
+        // images and quarantine before either an original or nil is trusted.
+        let original = try writer.fieldDraftEvidence(mutationID: mutationID)
+        guard let current = try currentCheckpoint(
+            workspaceID: predecessor.workspaceID,
+            draftID: predecessor.draftID
+        ), current.state == .active,
+           current.scope == predecessor.scope,
+           current.purpose == predecessor.purpose,
+           current.codec == predecessor.codec,
+           current.baseCanonicalRevision == predecessor.baseCanonicalRevision,
+           current.draftRevision >= predecessor.draftRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        // A checked absence grants no mutation permission: normal apply still
+        // requires its exact current predecessor and canonical CAS/read-back.
+        guard let original else { return nil }
+        // A replay additionally proves the overwritten-field basis from its
+        // actual historical predecessor, never from the later physical tip.
+        guard let predecessorOriginal = try writer.fieldDraftEvidence(
+            mutationID: predecessor.mutationID
+        ), reviewedVoiceCheckpoint(predecessorOriginal.mutation.postImage) == predecessor else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return original
+    }
+
+    private func reviewedVoiceCheckpoint(
+        _ postImage: FieldDraftMutationPayloadV1
+    ) -> FieldDraftCheckpointV1? {
+        switch postImage {
+        case let .createCheckpoint(value), let .reviseCheckpoint(value): return value
+        case let .resolveConflict(value): return value.successorCheckpoint
+        case let .publishReadyStage(value): return value.successorCheckpoint
+        case let .applyCommitTerminal(value, _): return value.committedCheckpoint
+        case let .applyDiscardTerminal(value): return value.discardedCheckpoint
+        default: return nil
+        }
+    }
+
     func validatePackageUpgradeSource(_ checkpoint: FieldDraftCheckpointV1) throws {
         try PackageEvolutionDraftBoundaryV1.validateSource(checkpoint)
         guard let durable = try currentCheckpoint(

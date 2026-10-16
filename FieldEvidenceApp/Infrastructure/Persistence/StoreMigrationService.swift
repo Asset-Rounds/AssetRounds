@@ -76,6 +76,74 @@ private enum C25TargetClosedErrorDiagnosticV1 {
 }
 #endif
 
+#if DEBUG
+/// Failure-only fixed stages. This state holds no owner, token or filesystem data.
+private enum PreparedReaderThrowDiagnosticV1 {
+    enum Stage: String {
+        case noMigrationLockEntry = "reservation.lock-entry"
+        case noMigrationReservation = "reservation.require-none"
+        case noMigrationBody = "reservation.body"
+        case noMigrationBodyReturned = "reservation.body-returned"
+        case mutationActivity = "mutation.shared-activity"
+        case mutationCriticalSection = "mutation.critical-section"
+        case lockEntry = "lock.process-entry"
+        case lockFlock = "lock.flock-exclusive"
+        case lockVerifyBefore = "lock.verify-before"
+        case lockOperation = "lock.body"
+        case lockVerifyAfter = "lock.verify-after"
+        case verifyColdRetirement = "verify.cold-schema2-retirement-sticky"
+        case verifyRestoreTerminal = "verify.restore-source-terminal"
+        case verifyOriginalRetainedSticky = "verify.original-retained-sticky-group"
+        case verifyOriginalAdmission = "verify.original-erase-admission"
+        case verifyAbandonedForColdRestart = "verify.abandoned-for-cold-restart"
+        case verifyC05Mutation = "verify.c05-cold-mutation-sticky"
+        case verifySchema2MutationClose = "verify.schema2-cold-mutation-close-group"
+        case publisherRegistry = "publisher.registry"
+        case publisherAllocationBeforeFirstLock = "publisher.allocation-before-first-lock"
+        case publisherFirstLockEntry = "publisher.first-lock.entry"
+        case publisherFirstAllocation = "publisher.first-lock.allocation-entry"
+        case publisherFirstReservation = "publisher.first-lock.require-no-reservation"
+        case publisherFirstObserve = "publisher.first-lock.observe-before"
+        case publisherFirstCensus = "publisher.first-lock.census-before"
+        case publisherLeaseLimit = "publisher.first-lock.lease-limit"
+        case publisherOwnerLimit = "publisher.first-lock.owner-limit"
+        case publisherMakeToken = "publisher.first-lock.make-token"
+        case publisherUniqueToken = "publisher.first-lock.unique-token"
+        case publisherPublicationAbsent = "publisher.first-lock.publication-absent"
+        case publisherCaptureReplacement = "publisher.first-lock.capture-replacement"
+        case publisherReplacementPresent = "publisher.first-lock.replacement-present"
+        case publisherFinishReplacement = "publisher.first-lock.finish-replacement"
+        case publisherObservePublished = "publisher.first-lock.observe-published"
+        case publisherPublishedCensus = "publisher.first-lock.census-published"
+        case publisherPublishedToken = "publisher.first-lock.published-token"
+        case publisherMakeHandle = "publisher.first-lock.make-handle"
+        case publisherFirstAllocationReturn = "publisher.first-lock.allocation-return"
+        case publisherFirstBodyReturned = "publisher.first-lock.body-returned"
+        case publisherAllocationAfterFirstLock = "publisher.first-lock.returned-allocation"
+        case publisherSettlementLockEntry = "publisher.settlement-lock.entry"
+        case publisherSettlementAllocation = "publisher.settlement-lock.allocation"
+        case publisherSettlementRecord = "publisher.settlement-lock.record-present"
+        case publisherSettlementObserve = "publisher.settlement-lock.observe"
+        case publisherSettlementCensus = "publisher.settlement-lock.census"
+        case publisherSettledToken = "publisher.settlement-lock.settled-token"
+        case publisherCloseDescriptors = "publisher.settlement-lock.close-owned-descriptors"
+        case publisherFinalAllocation = "publisher.settlement-lock.returned-allocation"
+        case publisherSettlementBodyReturned = "publisher.settlement-lock.body-returned"
+    }
+
+    static func emit(stage: Stage, error: any Error) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let line = "V23_PREPARED_READER_THROW_V1 stage=\(stage.rawValue) category=\(C25TargetClosedErrorDiagnosticV1.category(error))"
+        do {
+            try FileHandle.standardError.write(contentsOf: Data((line + "\n").utf8))
+        } catch {
+            // Diagnostic transport never replaces the actual checked error.
+        }
+    }
+}
+#endif
+
 enum EraseSchema2ColdPointerCutV1: Equatable {
     case old
     case target
@@ -21258,10 +21326,31 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
     func withNoMigrationReservation<T>(_ operation: () throws -> T) throws -> T {
+#if DEBUG
+        var diagnosticStage: PreparedReaderThrowDiagnosticV1.Stage = .noMigrationLockEntry
+        do {
+            return try withExclusiveGenerationMutationLock {
+                diagnosticStage = .noMigrationReservation
+                try requireNoMigrationReservationLocked()
+                diagnosticStage = .noMigrationBody
+                do {
+                    defer { diagnosticStage = .noMigrationBodyReturned }
+                    return try operation()
+                } catch {
+                    diagnosticStage = .noMigrationBody
+                    throw error
+                }
+            }
+        } catch {
+            PreparedReaderThrowDiagnosticV1.emit(stage: diagnosticStage, error: error)
+            throw error
+        }
+#else
         try withExclusiveGenerationMutationLock {
             try requireNoMigrationReservationLocked()
             return try operation()
         }
+#endif
     }
 
     /// Only this exact operation owner may act inside its durable reservation.
@@ -21402,12 +21491,28 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     func withExclusiveGenerationMutationLock<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {
+#if DEBUG
+        var diagnosticStage: PreparedReaderThrowDiagnosticV1.Stage = .mutationActivity
+        do {
+            let activity = try acquireTemporalWriterRegistrationActivity()
+            defer { activity.close() }
+            diagnosticStage = .mutationCriticalSection
+            return try withExclusiveGenerationMutationLock(
+                verifyAfterOperation: true,
+                operation
+            )
+        } catch {
+            PreparedReaderThrowDiagnosticV1.emit(stage: diagnosticStage, error: error)
+            throw error
+        }
+#else
         let activity = try acquireTemporalWriterRegistrationActivity()
         defer { activity.close() }
         return try withExclusiveGenerationMutationLock(
             verifyAfterOperation: true,
             operation
         )
+#endif
     }
 
     /// The only EX-preserving G entry is private and consumes an actual live
@@ -21626,6 +21731,36 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         verifyAfterOperation: Bool,
         _ operation: () throws -> Value
     ) throws -> Value {
+#if DEBUG
+        var diagnosticStage: PreparedReaderThrowDiagnosticV1.Stage = .lockEntry
+        do {
+            Self.processMutationLock.lock()
+            defer { Self.processMutationLock.unlock() }
+            diagnosticStage = .lockFlock
+            if generationMutationLockDepth == 0 {
+                guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                    throw Self.identityFailure(errorNumber: errno)
+                }
+            }
+            generationMutationLockDepth += 1
+            defer {
+                generationMutationLockDepth -= 1
+                if generationMutationLockDepth == 0 {
+                    _ = flock(mutationLockDescriptor, LOCK_UN)
+                }
+            }
+            diagnosticStage = .lockVerifyBefore
+            try verify()
+            diagnosticStage = .lockOperation
+            let result = try operation()
+            diagnosticStage = .lockVerifyAfter
+            if verifyAfterOperation { try verify() }
+            return result
+        } catch {
+            PreparedReaderThrowDiagnosticV1.emit(stage: diagnosticStage, error: error)
+            throw error
+        }
+#else
         Self.processMutationLock.lock()
         defer { Self.processMutationLock.unlock() }
         if generationMutationLockDepth == 0 {
@@ -21644,6 +21779,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         let result = try operation()
         if verifyAfterOperation { try verify() }
         return result
+#endif
     }
 
     func loadPruneIntent() throws -> GenerationPruneIntentV1? {
@@ -22423,8 +22559,20 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
     private func verify(causalIO: EraseAbortCheckedSnapshotIOV1? = nil) throws {
+#if DEBUG
+        guard !coldSchema2RetirementUncertain else {
+            PreparedReaderThrowDiagnosticV1.emit(stage: .verifyColdRetirement,
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+            throw Self.uncertainOwnerFailure()
+        }
+#else
         guard !coldSchema2RetirementUncertain else { throw Self.uncertainOwnerFailure() }
+#endif
         guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+#if DEBUG
+            PreparedReaderThrowDiagnosticV1.emit(stage: .verifyRestoreTerminal,
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw Self.uncertainOwnerFailure()
         }
         guard !originalEraseRetainedReaderAbsenceUncertain,
@@ -22433,17 +22581,31 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
               !originalErasePointerEffectUncertain,
               !originalErasePhysicalTransitionUncertain,
               originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty else {
+#if DEBUG
+            PreparedReaderThrowDiagnosticV1.emit(stage: .verifyOriginalRetainedSticky,
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw Self.uncertainOwnerFailure()
         }
 #if DEBUG
-        try requireOriginalEraseAdmission()
+        do { try requireOriginalEraseAdmission() }
+        catch {
+            PreparedReaderThrowDiagnosticV1.emit(stage: .verifyOriginalAdmission, error: error)
+            throw error
+        }
         guard eraseAbandonmentLock.withLock({ !eraseAbandonedForColdRestart }) else {
+            PreparedReaderThrowDiagnosticV1.emit(stage: .verifyAbandonedForColdRestart,
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
             throw Self.uncertainOwnerFailure()
         }
 #endif
         if let causalIO { return try verifySelectedControlCausalV1(io: causalIO) }
         if isEraseC05ColdOwner {
             guard !eraseC05ColdMutationUncertain else {
+#if DEBUG
+                PreparedReaderThrowDiagnosticV1.emit(stage: .verifyC05Mutation,
+                    error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
                 throw Self.uncertainOwnerFailure()
             }
             // The exact cold owner already holds every directory/control FD.
@@ -22476,6 +22638,10 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
                   !eraseSchema2ColdMutationUncertain,
                   coldSchema2NamespaceCloseAttempt == nil else {
+#if DEBUG
+                PreparedReaderThrowDiagnosticV1.emit(stage: .verifySchema2MutationClose,
+                    error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
                 throw Self.uncertainOwnerFailure()
             }
             // The operation already retains the exact opened controls. Do not
@@ -30672,6 +30838,117 @@ extension GenerationLeaseRegistryV1 {
     @MainActor
     fileprivate func publishPreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         operation: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {
+#if DEBUG
+        var diagnosticStage: PreparedReaderThrowDiagnosticV1.Stage = .publisherRegistry
+        do {
+        diagnosticStage = .publisherRegistry
+        guard allocation.registry === self else {
+#if DEBUG
+            EraseAllService.reportPreIntentRefusalForTesting(
+                site: .sourceReaderPreparationRegistry, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        diagnosticStage = .publisherAllocationBeforeFirstLock
+        try allocation.requirePreparationAcquiring(operation)
+        diagnosticStage = .publisherFirstLockEntry
+        let handle = try withExclusiveGenerationMutationLock {
+            diagnosticStage = .publisherFirstAllocation
+            try allocation.requirePreparationAcquiring(operation)
+            diagnosticStage = .publisherFirstReservation
+            try requireNoMigrationReservationLocked()
+            diagnosticStage = .publisherFirstObserve
+            let observed = try observeTemporalRegistryLocked()
+            diagnosticStage = .publisherFirstCensus
+            try operation.requirePreparationLeaseCensus(observed.leases, registry: self)
+            diagnosticStage = .publisherLeaseLimit
+            guard observed.leases.count < Self.maximumActiveLeaseCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            let owners = Set(observed.leases.map(\.ownerID))
+            diagnosticStage = .publisherOwnerLimit
+            guard owners.contains(ownerID) || owners.count < Self.maximumOwnerCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            diagnosticStage = .publisherMakeToken
+            let token = try GenerationLeaseTokenV1(leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.epoch, role: .reader, acquiredAt: now())
+            diagnosticStage = .publisherUniqueToken
+            guard !observed.leases.contains(where: { $0.leaseID == token.leaseID }), allocation.token == nil else {
+                throw GenerationLeaseRegistryFailureV1.duplicateLease
+            }
+            allocation.token = token
+            let record = FreshAdoptionReplacement(token: token)
+            let id = ObjectIdentifier(allocation)
+            diagnosticStage = .publisherPublicationAbsent
+            guard preparationReaderPublications[id] == nil else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationPublicationAbsent, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            preparationReaderPublications[id] = record
+            diagnosticStage = .publisherCaptureReplacement
+            try captureFreshAdoptionReplacementLocked(record, observed: observed,
+                replacement: RegistryStateV1(leases: observed.leases + [token]))
+            diagnosticStage = .publisherReplacementPresent
+            guard let attempt = record.replacement else { throw Self.identityFailure() }
+            diagnosticStage = .publisherFinishReplacement
+            try finishTemporalReplacementLocked(attempt)
+            diagnosticStage = .publisherObservePublished
+            let current = try observeTemporalRegistryLocked()
+            diagnosticStage = .publisherPublishedCensus
+            try operation.requirePreparationLeaseCensus(current.leases, registry: self)
+            diagnosticStage = .publisherPublishedToken
+            guard current.leases.filter({ $0.leaseID == token.leaseID }) == [token] else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationPublishedToken, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            diagnosticStage = .publisherMakeHandle
+            let handle = try GenerationLeaseHandleV1(registry: self, publishedReaderToken: token)
+            allocation.handle = handle // before outer G/post-admission can throw
+            diagnosticStage = .publisherFirstAllocationReturn
+            try allocation.requirePreparationAcquiring(operation)
+            diagnosticStage = .publisherFirstBodyReturned
+            return handle
+        }
+        diagnosticStage = .publisherAllocationAfterFirstLock
+        try allocation.requirePreparationAcquiring(operation)
+        diagnosticStage = .publisherSettlementLockEntry
+        try withExclusiveGenerationMutationLock {
+            diagnosticStage = .publisherSettlementAllocation
+            try allocation.requirePreparationAcquiring(operation)
+            diagnosticStage = .publisherSettlementRecord
+            guard let record = preparationReaderPublications[ObjectIdentifier(allocation)] else { throw Self.identityFailure() }
+            diagnosticStage = .publisherSettlementObserve
+            let observed = try observeTemporalRegistryLocked()
+            diagnosticStage = .publisherSettlementCensus
+            try operation.requirePreparationLeaseCensus(observed.leases, registry: self)
+            diagnosticStage = .publisherSettledToken
+            guard observed.leases.filter({ $0.leaseID == handle.token.leaseID }) == [handle.token] else {
+#if DEBUG
+                EraseAllService.reportPreIntentRefusalForTesting(
+                    site: .sourceReaderPreparationSettledToken, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            diagnosticStage = .publisherCloseDescriptors
+            try record.closeOwnedDescriptorsChecked()
+            preparationReaderPublications.removeValue(forKey: ObjectIdentifier(allocation))
+        diagnosticStage = .publisherSettlementBodyReturned
+        }
+        diagnosticStage = .publisherFinalAllocation
+        try allocation.requirePreparationAcquiring(operation)
+        return handle
+        } catch {
+            PreparedReaderThrowDiagnosticV1.emit(stage: diagnosticStage, error: error)
+            throw error
+        }
+#else
         guard allocation.registry === self else {
 #if DEBUG
             EraseAllService.reportPreIntentRefusalForTesting(
@@ -30744,6 +31021,7 @@ extension GenerationLeaseRegistryV1 {
         }
         try allocation.requirePreparationAcquiring(operation)
         return handle
+#endif
     }
 
     /// The original Erase operation has already retained the exact EX/G

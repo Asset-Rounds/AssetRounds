@@ -546,6 +546,14 @@ struct VoiceReviewedFieldDraftCheckpointEffectV1: Equatable, Sendable {
 @MainActor
 protocol VoiceReviewedFieldDraftReceiptReadingV1: AnyObject {
     func reviewedVoiceFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
+
+    /// Presence and absence both require the live draft context and complete
+    /// journal validation. The original envelope supplies the past successor.
+    func reviewedVoiceFieldEvidence(
+        predecessor: FieldDraftCheckpointV1,
+        generationID: UUID,
+        mutationID: MutationIDV1
+    ) throws -> FieldDraftCommittedEvidenceV1?
 }
 
 // MARK: - C23 reviewed OCR field checkpoint integration

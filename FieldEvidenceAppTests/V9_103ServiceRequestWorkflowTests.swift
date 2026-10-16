@@ -89,6 +89,10 @@ private final class C40IDs: ApplicationIDSource, @unchecked Sendable {
     }
 }
 @MainActor private final class C40PortableDuplicates: ServiceRequestDuplicateProjectingV1 {
+    // Returned coordinators retain the same fixture session and its container.
+    private let fixtureOwner: C40Harness
+    init(fixtureOwner: C40Harness) { self.fixtureOwner = fixtureOwner }
+
     func projectCandidates(workspaceID: WorkspaceID, submission: PortableServiceRequestSubmissionV1,
                            canonicalSourceSHA256: String) throws -> ServiceRequestDuplicateProjectionV1 {
         try .init(basisRequestSHA256: canonicalSourceSHA256,
@@ -115,7 +119,7 @@ private final class C40IDs: ApplicationIDSource, @unchecked Sendable {
         store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
         lifecycle = ServiceRequestLifecycleAdapterV1(store: store)
     }
-    deinit { try? FileManager.default.removeItem(at: root) }
+    // No checked SQLite/lease drain is available here; retain the isolated root.
     func make(failure: MutationJournalFailureInjectionV1? = nil) throws -> (ServiceRequestWorkflowCoordinatorV1, WorkspaceExpectedRevisionV1) {
         let bundle = try makeBundle(failure: failure)
         return (bundle.0, bundle.2)
@@ -130,7 +134,7 @@ private final class C40IDs: ApplicationIDSource, @unchecked Sendable {
             generationID: session.generationID, initialRevision: current, clock: C40Clock(),
             idSource: C40FixedID(writerID), fileAuthority: SystemApplicationFileAuthorityV1(),
             adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext), journalStore: journal)
-        let canonical = ServiceRequestCoordinatorV1(duplicates: C40PortableDuplicates(), writer: writer,
+        let canonical = ServiceRequestCoordinatorV1(duplicates: C40PortableDuplicates(fixtureOwner: self), writer: writer,
             lifecycle: lifecycle, contactPromotion: C40Contacts(), clock: C40Clock(), idSource: ids)
         return (ServiceRequestWorkflowCoordinatorV1(canonical: canonical,
             manualDuplicates: manualDuplicates, clock: C40Clock()), canonical,
@@ -202,7 +206,12 @@ final class V9_103ServiceRequestWorkflowTests: XCTestCase {
     func testV23P04C40A01SixManualChannelsDispositionsDuplicatesUnlinkAndContactSeparation() async throws {
         let sources: [ServiceRequestSourceKindV1] = [.phone, .email, .text, .paper, .inPerson, .other]
         for (index, source) in sources.enumerated() {
-            let h = try C40Harness("A\(index)"); let (workflow, expected) = try h.make()
+            var h: C40Harness? = try C40Harness("A\(index)")
+            weak var retainedHarness: C40Harness? = h
+            let (workflow, expected) = try XCTUnwrap(h).make()
+            h = nil
+            XCTAssertNotNil(retainedHarness,
+                "Returned workflow must retain its fixture session and container")
             guard case let .manualPreview(preview) = try await workflow.execute(.previewManual(
                 expectedRevision: expected, intake: C40.intake(source), decision: .needsTriage,
                 mutationID: C40.mutation(20 + index))) else { return XCTFail("channel") }

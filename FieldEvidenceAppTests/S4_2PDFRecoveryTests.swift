@@ -68,7 +68,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("golden")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let before = try immutableAuthority(in: harness)
 
@@ -118,7 +117,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("writer-transitions")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let immutable = try immutableAuthority(in: harness)
         let writer = harness.dependencies.writer
@@ -186,7 +184,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("writer-conflict")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let original = try immutableAuthority(in: harness)
         let legacy = try ReportRenderService(modelContext: harness.context,
@@ -238,7 +235,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
             let harness = try await makeHarness("committed-file-drift-\(tamperedState.rawValue)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             _ = try ReportRenderService(modelContext: harness.context,
                 lifecycleDependencies: harness.dependencies, lifecycleProfile: harness.profile)
@@ -289,7 +285,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
             let harness = try await makeHarness("failure-\(point)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let before = try immutableAuthority(in: harness)
             let recovery = try ReportRecoveryService(
@@ -308,7 +303,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let capacity = try await makeHarness("capacity")
         defer {
             XCTAssertNoThrow(try capacity.close())
-            try? fileManager.removeItem(at: capacity.applicationSupportURL)
         }
         let capacityBefore = try immutableAuthority(in: capacity)
         let capacityService = try ReportRenderService(
@@ -328,7 +322,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let validator = try await makeHarness("validator")
         defer {
             XCTAssertNoThrow(try validator.close())
-            try? fileManager.removeItem(at: validator.applicationSupportURL)
         }
         validator.source.outcomeKey = "visible_issue"
         try validator.context.save()
@@ -359,7 +352,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let fileFault = try await makeHarness("validator-file-only")
         defer {
             XCTAssertNoThrow(try fileFault.close())
-            try? fileManager.removeItem(at: fileFault.applicationSupportURL)
         }
         let snapshotURL = fileFault.session.generationRootURL.appendingPathComponent(fileFault.report.snapshotRelativePath)
         var corruptedSnapshot = try Data(contentsOf: snapshotURL)
@@ -379,7 +371,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let repeated = try await makeHarness("retry-fails-again")
         defer {
             XCTAssertNoThrow(try repeated.close())
-            try? fileManager.removeItem(at: repeated.applicationSupportURL)
         }
         try repeated.failPending()
         let repeatedBefore = try immutableAuthority(in: repeated)
@@ -404,7 +395,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("failed-save")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let before = try immutableAuthority(in: harness)
         let service = try ReportRenderService(
@@ -431,7 +421,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let transition = try await makeHarness("transition-save")
         defer {
             XCTAssertNoThrow(try transition.close())
-            try? fileManager.removeItem(at: transition.applicationSupportURL)
         }
         try transition.failPending()
         let transitionBefore = try immutableAuthority(in: transition)
@@ -462,7 +451,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
             let harness = try await makeHarness("pending-\(presence)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let expected = try WorklightPDFRendererV1().render(
                 ReportRenderService(modelContext: harness.context,
@@ -496,7 +484,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
             let harness = try await makeHarness("failed-\(presence)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             try harness.failPending()
             let ownedBytes = Data("owned interrupted PDF".utf8)
@@ -522,7 +509,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("ready")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         _ = try ReportRenderService(
             modelContext: harness.context,
@@ -575,7 +561,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
             let harness = try await makeHarness("unsafe-\(testCase)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let sentinel = Data("do not adopt or delete".utf8)
             try configure(testCase, sentinel: sentinel, in: harness)
@@ -645,7 +630,6 @@ final class S4_2PDFRecoveryTests: XCTestCase {
         let harness = try await makeHarness("whole-matrix")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let collidingID = UUID(
             uuidString: "42000000-0000-0000-0000-000000000099"
@@ -735,6 +719,9 @@ final class S42CurrentReportHarness {
         self.coordinator = coordinator; self.dependencies = dependencies; self.profile = profile
     }
 
+    // Writer invalidation does not drain the retained session/context/container graph.
+    // Retain isolated fixture roots instead of unlinking live SQLite files.
+    // Fixture-root removal requires a genuine full owner and alias drain.
     func close() throws { try coordinator.invalidateAndReleaseWriter() }
 
     func validateJournal() throws {

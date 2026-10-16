@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -463,13 +464,18 @@ private final class C56VoiceDraftWriterProbe: FieldDraftWritingV1, VoiceReviewed
     }
 
     let generationID: UUID
+    private let initialCheckpoint: FieldDraftCheckpointV1
     private(set) var checkpoint: FieldDraftCheckpointV1
     private(set) var receipts: [MutationIDV1: MutationReceiptV1] = [:]
+    private(set) var originals: [MutationIDV1: FieldDraftCommittedEvidenceV1] = [:]
+    var originalOverride: FieldDraftCommittedEvidenceV1?
+    var evidenceFailure: WorkspaceMutationFailureV1?
     var frontierStore: C56VoiceFrontierStore?
     private var nextSequence: UInt64 = 1
 
     init(checkpoint: FieldDraftCheckpointV1, generationID: UUID) {
         self.checkpoint = checkpoint
+        initialCheckpoint = checkpoint
         self.generationID = generationID
     }
 
@@ -546,15 +552,48 @@ private final class C56VoiceDraftWriterProbe: FieldDraftWritingV1, VoiceReviewed
             committedAt: successor.updatedAt
         )
         let successorFrontier = try VoiceProposalDraftCheckpointFrontierV1(checkpoint: successor)
+        let original = try FieldDraftCommittedEvidenceV1(envelope: envelope, receipt: receipt)
         checkpoint = successor
         frontierStore?.frontier = successorFrontier
         receipts[mutation.mutationID] = receipt
+        originals[mutation.mutationID] = original
         nextSequence += 1
         return receipt
     }
 
     func reviewedVoiceFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1? {
         receipts[mutationID]
+    }
+
+    func reviewedVoiceFieldEvidence(
+        predecessor: FieldDraftCheckpointV1,
+        generationID: UUID,
+        mutationID: MutationIDV1
+    ) throws -> FieldDraftCommittedEvidenceV1? {
+        try predecessor.validate()
+        guard predecessor.workspaceID == checkpoint.workspaceID else {
+            throw FieldDraftFailureV1.wrongWorkspace
+        }
+        guard generationID == self.generationID else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        guard checkpoint.state == .active,
+              checkpoint.draftID == predecessor.draftID,
+              checkpoint.scope == predecessor.scope,
+              checkpoint.purpose == predecessor.purpose,
+              checkpoint.codec == predecessor.codec,
+              checkpoint.baseCanonicalRevision == predecessor.baseCanonicalRevision,
+              checkpoint.draftRevision >= predecessor.draftRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        if let evidenceFailure { throw evidenceFailure }
+        guard let original = originalOverride ?? originals[mutationID] else { return nil }
+        let isInitial = predecessor == initialCheckpoint
+        let retainedPredecessor = originals[predecessor.mutationID]
+        guard isInitial || retainedPredecessor?.mutation.postImage == .reviseCheckpoint(predecessor) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return original
     }
 
     func advanceExternally(mutationID: UUID) throws {
@@ -610,6 +649,120 @@ private final class C56VoiceDraftWriterProbe: FieldDraftWritingV1, VoiceReviewed
     ) throws -> MutationReceiptV1 {
         _ = discardTerminalBundle; _ = expectedDraftRevision
         throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+}
+
+@MainActor
+private final class C56VoiceWriterWithoutOriginalEvidence: FieldDraftWritingV1 {
+    let base: C56VoiceDraftWriterProbe
+    init(_ base: C56VoiceDraftWriterProbe) { self.base = base }
+    func currentCheckpoint(workspaceID: WorkspaceID, draftID: UUID) throws -> FieldDraftCheckpointV1? {
+        try base.currentCheckpoint(workspaceID: workspaceID, draftID: draftID)
+    }
+    func compareAndSwap(checkpoint: FieldDraftCheckpointV1, expectedDraftRevision: UInt64,
+                        expectedBaseRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func append(stagingItem: AttachmentStagingItemV1, expectedRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func append(saga: DraftCommitSagaV1, expectedRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func append(reservation: DraftContentReservationV1, expectedRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func apply(commitTerminalBundle: DraftCommitTerminalBundleV1, expectedDraftRevision: UInt64,
+               expectedSagaRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+    func apply(discardTerminalBundle: DraftDiscardTerminalBundleV1,
+               expectedDraftRevision: UInt64) throws -> MutationReceiptV1 {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+}
+
+/// Real canonical journal/context fixture, distinct from the projection probe.
+/// It uses the same lease/fence and empty V53 journal bootstrap as the existing
+/// receipt-safety tests; all draft rows enter through the canonical writer.
+@MainActor
+private final class C56VoiceJournalHarness {
+    let root: URL
+    let container: ModelContainer
+    let context: ModelContext
+    let registry: GenerationLeaseRegistryV1
+    let lease: GenerationLeaseTokenV1
+    let fence: StaleWriterFenceV1
+    let identity: WorkspaceReplicaIdentityV1
+    let generationID: UUID
+    let journal: MutationJournalStoreV1
+    let writer: WorkspaceWriterV1
+    let adapter: FieldDraftLifecycleAdapterV1
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "C56-voice-original-journal-\(UUID().uuidString)", isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("C56VoiceOriginal", schema: schema, isStoredInMemoryOnly: true,
+                               allowsSave: true, cloudKitDatabase: .none)
+        ])
+        context = container.mainContext
+        context.autosaveEnabled = false
+        generationID = UUID()
+        identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: C56VoiceTestSupport.workspace(), replicaID: ReplicaID(rawValue: UUID())
+        )
+        let epoch = try GenerationEpochV1(
+            generationID: generationID, generationManifestSHA256: String(repeating: "a", count: 64)
+        )
+        registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        lease = try registry.acquire(epoch: epoch, role: .writer)
+        fence = try StaleWriterFenceV1(expectedGenerationEpoch: epoch, writerLeaseToken: lease,
+                                      registry: registry, currentGenerationEpoch: { epoch })
+        journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, staleWriterFence: fence)
+        let writerID = UUID()
+        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerID),
+            clock: C56VoiceJournalClock(), idSource: C56VoiceJournalIDs(value: writerID),
+            fileAuthority: C56VoiceJournalFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal)
+        adapter = FieldDraftLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context)
+    }
+
+    func coldAuthority() throws -> (ModelContext, MutationJournalStoreV1, WorkspaceWriterV1, FieldDraftLifecycleAdapterV1) {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, allowStateBootstrap: false, staleWriterFence: fence)
+        let writerID = UUID()
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerID),
+            clock: C56VoiceJournalClock(), idSource: C56VoiceJournalIDs(value: writerID),
+            fileAuthority: C56VoiceJournalFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal)
+        return (context, journal, writer,
+                FieldDraftLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context))
+    }
+
+}
+
+private struct C56VoiceJournalClock: ApplicationClock {
+    func now() -> Date { C56VoiceTestSupport.fixedDate.addingTimeInterval(10) }
+}
+private struct C56VoiceJournalIDs: ApplicationIDSource {
+    let value: UUID
+    func makeID() -> UUID { value }
+}
+private struct C56VoiceJournalFiles: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+        "c56-voice-original/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
     }
 }
 
@@ -918,6 +1071,15 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
                 reviewedValue: nil
             ),
         ]
+        let pendingFirstUpdate = try VoiceProposalDraftCheckpointUpdateV1(
+            proposal: proposal,
+            field: try XCTUnwrap(proposal.fields.first),
+            review: try XCTUnwrap(reviews.first),
+            snapshot: initialSnapshot
+        )
+        XCTAssertNil(try harness.bridge.existingReviewedVoiceField(pendingFirstUpdate))
+        XCTAssertTrue(harness.payloadApplying.applications.isEmpty)
+        XCTAssertTrue(harness.writer.receipts.isEmpty)
         for review in reviews {
             _ = try await coordinator.reviewField(
                 proposalID: proposal.proposalID,
@@ -958,6 +1120,67 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         XCTAssertNotNil(try harness.bridge.existingReviewedVoiceField(firstUpdate))
         let stored = try XCTUnwrap(harness.writer.receipts[firstUpdate.mutationID])
         XCTAssertEqual(stored.mutationID, firstUpdate.mutationID)
+        let tipBeforeReplay = harness.writer.checkpoint
+        let original = try XCTUnwrap(harness.writer.originals[firstUpdate.mutationID])
+        let replayedFirst = try XCTUnwrap(harness.bridge.existingReviewedVoiceField(firstUpdate))
+        XCTAssertEqual(replayedFirst.mutation, original.mutation)
+        XCTAssertEqual(replayedFirst.mutationReceipt, original.receipt)
+        XCTAssertEqual(replayedFirst.mutation.postImage, .reviseCheckpoint(replayedFirst.successor))
+        XCTAssertNotEqual(replayedFirst.successor, tipBeforeReplay)
+        let coldPayload = C56VoicePayloadApplyingProbe(codec: firstUpdate.predecessor.codec)
+        let coldDrafts = FieldDraftCoordinatorV1(
+            registry: harness.fixture.registry, writer: harness.writer,
+            content: C56VoiceNoopContentPromotion(), target: C56VoiceNoopTarget()
+        )
+        let coldBridge = VoiceStructuringDraftCheckpointBridgeV1(
+            drafts: coldDrafts, payloadApplying: coldPayload
+        )
+        XCTAssertEqual(try coldBridge.existingReviewedVoiceField(firstUpdate), replayedFirst)
+        XCTAssertEqual(coldPayload.applications.count, 1)
+        XCTAssertEqual(harness.writer.checkpoint, tipBeforeReplay)
+        XCTAssertEqual(harness.writer.receipts.count, 5)
+        // Probe refusals exercise the bridge boundary; real journal/context
+        // validation is covered separately in R01 below.
+        for failure in [WorkspaceMutationFailureV1.mutationIDQuarantined,
+                        .receiptHistoryCorrupt, .persistenceFailed] {
+            harness.writer.evidenceFailure = failure
+            let before = coldPayload.applications.count
+            XCTAssertThrowsError(try coldBridge.existingReviewedVoiceField(firstUpdate)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, failure)
+            }
+            XCTAssertEqual(coldPayload.applications.count, before)
+        }
+        harness.writer.evidenceFailure = nil
+        harness.writer.originalOverride = try XCTUnwrap(harness.writer.originals.values.first {
+            $0.mutation.mutationID != firstUpdate.mutationID
+        })
+        XCTAssertThrowsError(try coldBridge.existingReviewedVoiceField(firstUpdate)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReceipt)
+        }
+        harness.writer.originalOverride = nil
+        let mismatchedCodec = C56VoicePayloadApplyingProbe(
+            codec: try C36FieldDraftTestSupportV1.codec(for: .workPacket)
+        )
+        let mismatchedBridge = VoiceStructuringDraftCheckpointBridgeV1(
+            drafts: coldDrafts, payloadApplying: mismatchedCodec
+        )
+        XCTAssertThrowsError(try mismatchedBridge.existingReviewedVoiceField(firstUpdate)) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .unknownCodec)
+        }
+        XCTAssertTrue(mismatchedCodec.applications.isEmpty)
+        let missingReaderDrafts = FieldDraftCoordinatorV1(
+            registry: harness.fixture.registry,
+            writer: C56VoiceWriterWithoutOriginalEvidence(harness.writer),
+            content: C56VoiceNoopContentPromotion(), target: C56VoiceNoopTarget()
+        )
+        let missingReaderBridge = VoiceStructuringDraftCheckpointBridgeV1(
+            drafts: missingReaderDrafts, payloadApplying: coldPayload
+        )
+        let beforeMissingReader = coldPayload.applications.count
+        XCTAssertThrowsError(try missingReaderBridge.existingReviewedVoiceField(firstUpdate)) {
+            XCTAssertEqual($0 as? FieldDraftFailureV1, .missingReceipt)
+        }
+        XCTAssertEqual(coldPayload.applications.count, beforeMissingReader)
 
         let staleTranscript = "note: stale frontier"
         let staleContext = try C56VoiceTestSupport.context(transcript: staleTranscript)
@@ -2284,5 +2507,174 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
             return
         }
         XCTAssertEqual(scratch.calls[0].1, [context.source])
+        try verifyOriginalEvidenceThroughRealJournal(grammar: grammar)
+    }
+
+    /// Extends R01 with actual journal/context refusals; no mock evidence is
+    /// substituted for the canonical envelope, retained history or live lease.
+    private func verifyOriginalEvidenceThroughRealJournal(
+        grammar: VoiceStructuringGrammarReleaseV1
+    ) throws {
+        for denial in 0..<10 {
+            let harness = try C56VoiceJournalHarness()
+            let fixture = try C36FieldDraftTestSupportV1.makeFixture(seed: 568_000 + denial * 100)
+            let initial = try FieldDraftCheckpointV1(
+                draftID: fixture.draftID, workspaceID: C56VoiceTestSupport.workspace(),
+                scope: fixture.scope, purpose: .inspectionReview, codec: fixture.codec,
+                baseCanonicalRevision: 0, draftRevision: 1,
+                payloadData: FieldDraftCanonicalCodecV1.encode(C56VoiceDraftPayloadV1(fields: ["seed": "initial"])),
+                stageIDs: [], resumeAnchor: fixture.anchor, state: .active,
+                updatedAt: C56VoiceTestSupport.fixedDate, mutationID: fixture.activeCheckpoint.mutationID
+            )
+            _ = try harness.adapter.compareAndSwap(checkpoint: initial,
+                expectedDraftRevision: 0, expectedBaseRevision: 0)
+            let payload = C56VoicePayloadApplyingProbe(codec: initial.codec)
+            let drafts = FieldDraftCoordinatorV1(registry: fixture.registry, writer: harness.adapter,
+                content: C56VoiceNoopContentPromotion(), target: C56VoiceNoopTarget())
+            let bridge = VoiceStructuringDraftCheckpointBridgeV1(drafts: drafts, payloadApplying: payload)
+            func update(text: String, checkpoint: FieldDraftCheckpointV1, slot: Int) throws
+                -> VoiceProposalDraftCheckpointUpdateV1 {
+                let transcript = "note: " + text
+                let context = try C56VoiceTestSupport.context(transcript: transcript)
+                let proposal = try C56VoiceTestSupport.oneFieldProposal(
+                    grammar: grammar, context: context, transcript: transcript,
+                    proposalID: C56VoiceTestSupport.id(568_050 + denial * 100 + slot)
+                )
+                let field = try XCTUnwrap(proposal.fields.first)
+                let snapshot = try VoiceProposalTrustedSnapshotV1(
+                    grammar: grammar, context: context,
+                    observedAt: C56VoiceTestSupport.fixedDate.addingTimeInterval(TimeInterval(slot)),
+                    sourceReferences: [context.source],
+                    draftFrontier: VoiceProposalDraftCheckpointFrontierV1(checkpoint: checkpoint),
+                    generationID: harness.generationID
+                )
+                return try VoiceProposalDraftCheckpointUpdateV1(
+                    proposal: proposal, field: field,
+                    review: VoiceProposalFieldReviewV1(fieldID: field.fieldID,
+                        disposition: .accept, reviewedValue: field.proposedValue),
+                    snapshot: snapshot
+                )
+            }
+            let firstUpdate = try update(text: "Original", checkpoint: initial, slot: 1)
+            XCTAssertNil(try bridge.existingReviewedVoiceField(firstUpdate))
+            XCTAssertTrue(payload.applications.isEmpty)
+            let first = try bridge.applyReviewedVoiceField(firstUpdate)
+            XCTAssertEqual(payload.applications.count, 1)
+            let secondUpdate = try update(text: "Later", checkpoint: first.successor, slot: 2)
+            XCTAssertNil(try bridge.existingReviewedVoiceField(secondUpdate))
+            XCTAssertEqual(payload.applications.count, 1)
+            let second = try bridge.applyReviewedVoiceField(secondUpdate)
+            XCTAssertEqual(payload.applications.count, 2)
+            let (context, journal, writer, adapter) = try harness.coldAuthority()
+            let coldPayload = C56VoicePayloadApplyingProbe(codec: initial.codec)
+            let coldDrafts = FieldDraftCoordinatorV1(registry: fixture.registry, writer: adapter,
+                content: C56VoiceNoopContentPromotion(), target: C56VoiceNoopTarget())
+            let coldBridge = VoiceStructuringDraftCheckpointBridgeV1(
+                drafts: coldDrafts, payloadApplying: coldPayload
+            )
+            let before = try writer.currentRevision()
+            XCTAssertEqual(try coldBridge.existingReviewedVoiceField(firstUpdate), first)
+            XCTAssertEqual(try adapter.currentCheckpoint(workspaceID: initial.workspaceID,
+                draftID: initial.draftID), second.successor)
+            XCTAssertEqual(try writer.currentRevision(), before)
+            XCTAssertEqual(coldPayload.applications.count, 1)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 3)
+            try journal.validateAll()
+
+            let originalRows = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+            let originalRow = try XCTUnwrap(originalRows.first {
+                $0.mutationID == firstUpdate.mutationID.rawValue
+            })
+            switch denial {
+            case 0:
+                let foreign = FieldDraftLifecycleAdapterV1(writer: writer, journal: journal,
+                    modelContext: ModelContext(harness.container))
+                XCTAssertThrowsError(try foreign.reviewedVoiceFieldEvidence(
+                    predecessor: initial, generationID: harness.generationID,
+                    mutationID: firstUpdate.mutationID
+                )) { XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed) }
+            case 1:
+                originalRow.envelopeSHA256 = String(repeating: "0", count: 64)
+                XCTAssertTrue(context.hasChanges)
+            case 2:
+                context.insert(MutationQuarantineRow(workspaceID: initial.workspaceID,
+                    mutationID: firstUpdate.mutationID, identityDomain: .mutationEnvelope,
+                    acceptedIdentitySHA256: first.mutationReceipt.envelopeSHA256,
+                    conflictingIdentitySHA256: String(repeating: "b", count: 64),
+                    detectedAt: C56VoiceTestSupport.fixedDate.addingTimeInterval(5)))
+                try context.save()
+            case 3:
+                originalRow.receiptSHA256 = String(repeating: "0", count: 64)
+                try context.save()
+            case 4:
+                try harness.registry.release(harness.lease)
+            case 5:
+                writer.invalidate()
+            case 6:
+                let unrelated = try XCTUnwrap(originalRows.first {
+                    $0.mutationID == initial.mutationID.rawValue
+                })
+                unrelated.envelopeSHA256 = String(repeating: "0", count: 64)
+                try context.save()
+            case 7:
+                context.delete(originalRow)
+                try context.save()
+            case 8:
+                let tip = try XCTUnwrap(context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).first)
+                context.delete(tip)
+                try context.save()
+            default:
+                XCTAssertThrowsError(try adapter.reviewedVoiceFieldEvidence(
+                    predecessor: initial, generationID: UUID(), mutationID: firstUpdate.mutationID
+                )) { XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongGeneration) }
+                func changedPredecessor(workspace: WorkspaceID, scope: DraftScopeKeyV1,
+                                        payloadData: Data? = nil) throws
+                    -> FieldDraftCheckpointV1 {
+                    try FieldDraftCheckpointV1(
+                        draftID: initial.draftID, workspaceID: workspace, scope: scope,
+                        purpose: initial.purpose, codec: initial.codec,
+                        baseCanonicalRevision: initial.baseCanonicalRevision,
+                        draftRevision: initial.draftRevision, payloadData: payloadData ?? initial.payloadData,
+                        stageIDs: initial.stageIDs, resumeAnchor: initial.resumeAnchor,
+                        state: initial.state, updatedAt: initial.updatedAt, mutationID: initial.mutationID
+                    )
+                }
+                let foreignWorkspace = try changedPredecessor(
+                    workspace: WorkspaceID(rawValue: UUID()), scope: initial.scope
+                )
+                XCTAssertThrowsError(try adapter.reviewedVoiceFieldEvidence(
+                    predecessor: foreignWorkspace, generationID: harness.generationID,
+                    mutationID: firstUpdate.mutationID
+                )) { XCTAssertEqual($0 as? FieldDraftFailureV1, .wrongWorkspace) }
+                let foreignScope = try changedPredecessor(workspace: initial.workspaceID,
+                    scope: DraftScopeKeyV1(scopeKind: "inspection-field", stableComponentIDs: ["other-field"]))
+                XCTAssertThrowsError(try adapter.reviewedVoiceFieldEvidence(
+                    predecessor: foreignScope, generationID: harness.generationID,
+                    mutationID: firstUpdate.mutationID
+                )) { XCTAssertEqual($0 as? FieldDraftFailureV1, .staleDraftRevision) }
+                let alteredPayload = try changedPredecessor(workspace: initial.workspaceID,
+                    scope: initial.scope, payloadData: FieldDraftCanonicalCodecV1.encode(
+                        C56VoiceDraftPayloadV1(fields: ["seed": "different original"])))
+                XCTAssertThrowsError(try adapter.reviewedVoiceFieldEvidence(
+                    predecessor: alteredPayload, generationID: harness.generationID,
+                    mutationID: firstUpdate.mutationID
+                )) { XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt) }
+                XCTAssertNil(try adapter.reviewedVoiceFieldEvidence(
+                    predecessor: initial, generationID: harness.generationID,
+                    mutationID: MutationIDV1(rawValue: UUID())
+                ))
+            }
+            let projectionsBeforeRefusal = coldPayload.applications.count
+            let receiptsBeforeRefusal = try context.fetchCount(FetchDescriptor<MutationReceiptRow>())
+            if (1...8).contains(denial) {
+                XCTAssertThrowsError(try coldBridge.existingReviewedVoiceField(firstUpdate))
+                XCTAssertEqual(coldPayload.applications.count, projectionsBeforeRefusal)
+                XCTAssertEqual(try context.fetchCount(FetchDescriptor<MutationReceiptRow>()), receiptsBeforeRefusal)
+            }
+            if denial == 1 { context.rollback() }
+            if denial != 4 { try harness.registry.release(harness.lease) }
+            // Retain the private root: these contexts/container still alias it,
+            // and releasing a writer lease does not demonstrate a full drain.
+        }
     }
 }

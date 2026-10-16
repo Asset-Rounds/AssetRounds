@@ -155,7 +155,10 @@ struct VoiceStructuringServiceV1: Sendable, VoiceStructuredProposalAuthenticatin
             let parsed = try Self.parse(
                 valueText, alias: match.alias, localeIdentifier: grammar.localeIdentifier
             )
-            guard parsed.resolution != .unsupported, parsed.proposed != nil else {
+            let permitsManualMaterialReview = parsed.resolution == .ambiguous
+                && match.alias.fieldKind == .materialDescriptionAndQuantity
+            guard parsed.resolution != .unsupported,
+                  parsed.proposed != nil || permitsManualMaterialReview else {
                 unmatched.append(try Self.unmatched(
                     clause, resolution: parsed.resolution,
                     reason: parsed.resolution == .ambiguous

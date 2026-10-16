@@ -177,7 +177,7 @@
       "changedPathCount": 14,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 1325
+      "unownedChangedPathCount": 1328
     },
     "selectors": [
       "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",

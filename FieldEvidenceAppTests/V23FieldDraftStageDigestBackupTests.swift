@@ -85,9 +85,37 @@ final class V23FieldDraftStageDigestBackupTests: XCTestCase {
         XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1.requireDisjointHistory(
             source: [createRecord], current: [createRecord, touchingStageRecord]))
 
+        // History is ordered by mutation identity, not canonical row revision.
+        // Remove the authenticated producer of the retained commit-receipt row,
+        // rather than an arbitrary possibly superseded original.
+        var terminalRecords: [(original: MutationHistoryReceiptRecordV1,
+                               receipt: DraftCommitReceiptV1)] = []
+        for original in closure.history {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: original.receiptData)
+            let evidence = try FieldDraftCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+            if case let .applyCommitTerminal(terminal, _) = evidence.mutation.postImage,
+               terminal.receipt.receiptID == fixture.receipt.receiptID {
+                terminalRecords.append((original: original, receipt: terminal.receipt))
+            }
+        }
+        XCTAssertEqual(terminalRecords.count, 1)
+        let terminal = try XCTUnwrap(terminalRecords.first)
+        XCTAssertEqual(terminal.receipt, fixture.receipt)
+        let receiptRows = closure.rows.filter {
+            $0.kind == .commitReceipt && $0.id == fixture.receipt.receiptID
+        }
+        XCTAssertEqual(receiptRows.count, 1)
+        let receiptRow = try XCTUnwrap(receiptRows.first)
+        XCTAssertEqual(receiptRow.workspaceID, fixture.receipt.workspaceID.rawValue)
+        XCTAssertEqual(receiptRow.revision, fixture.receipt.revision)
+        XCTAssertEqual(receiptRow.canonicalData,
+                       try FieldDraftCanonicalCodecV1.encode(terminal.receipt))
+        let remainingHistory = closure.history.filter { $0 != terminal.original }
+        XCTAssertEqual(remainingHistory.count, closure.history.count - 1)
         let missingHistory = CheckRunnerPhotoRestoreDraftClosureV1(
             draftID: closure.draftID, rows: closure.rows,
-            history: Array(closure.history.dropLast()), stageIDs: closure.stageIDs)
+            history: remainingHistory, stageIDs: closure.stageIDs)
         XCTAssertThrowsError(try CheckRunnerPhotoRestoreCompositionV1
             .retainedCurrentDraftClosures(source: [], current: [missingHistory]))
         let extraHistory = CheckRunnerPhotoRestoreDraftClosureV1(

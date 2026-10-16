@@ -118,10 +118,12 @@ final class VoiceStructuringDraftCheckpointBridgeV1: VoiceProposalDraftCheckpoin
     func existingReviewedVoiceField(
         _ update: VoiceProposalDraftCheckpointUpdateV1
     ) throws -> VoiceProposalDraftCheckpointResultV1? {
-        let application = try application(for: update)
+        guard payloadApplying.registeredCodec == update.predecessor.codec else {
+            throw FieldDraftFailureV1.unknownCodec
+        }
         guard let effect = try drafts.existingReviewedVoiceFieldEffect(
             update,
-            application: application
+            application: { try self.application(for: update) }
         ) else {
             return nil
         }

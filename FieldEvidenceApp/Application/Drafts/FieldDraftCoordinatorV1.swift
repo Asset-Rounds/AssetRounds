@@ -227,37 +227,61 @@ extension FieldDraftCoordinatorV1 {
     /// it never decodes or serializes the draft's opaque payload itself.
     func existingReviewedVoiceFieldEffect(
         _ update: VoiceProposalDraftCheckpointUpdateV1,
-        application: VoiceReviewedFieldDraftPayloadApplicationV1
+        application makeApplication: () throws -> VoiceReviewedFieldDraftPayloadApplicationV1
     ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1? {
-        try validateReviewedVoiceUpdate(update, application: application)
-        guard let current = try writer.currentCheckpoint(
-            workspaceID: update.workspaceID,
-            draftID: update.draftID
-        ), current.mutationID == update.mutationID else {
-            return nil
+        try validateReviewedVoiceUpdate(update)
+        guard let reader = writer as? any VoiceReviewedFieldDraftReceiptReadingV1 else {
+            throw FieldDraftFailureV1.missingReceipt
         }
+        guard let original = try reader.reviewedVoiceFieldEvidence(
+            predecessor: update.predecessor,
+            generationID: update.generationID,
+            mutationID: update.mutationID
+        ) else { return nil }
+        let application = try makeApplication()
+        try application.validate(predecessor: update.predecessor)
         try validate(application: application, update: update)
-        guard current.payloadData == application.successorPayloadData else {
-            throw FieldDraftFailureV1.staleDraftRevision
-        }
-        let mutation = try FieldDraftMutationV1(
+        let predecessor = update.predecessor
+        let expectedSuccessor = try FieldDraftCheckpointV1(
+            draftID: predecessor.draftID,
+            workspaceID: predecessor.workspaceID,
+            scope: predecessor.scope,
+            purpose: predecessor.purpose,
+            codec: predecessor.codec,
+            baseCanonicalRevision: predecessor.baseCanonicalRevision,
+            draftRevision: try nextRevision(after: predecessor.draftRevision),
+            payloadData: application.successorPayloadData,
+            stageIDs: predecessor.stageIDs,
+            resumeAnchor: predecessor.resumeAnchor,
+            state: .active,
+            lastDurableMutationID: predecessor.lastDurableMutationID,
+            lastReceiptSHA256: predecessor.lastReceiptSHA256,
+            updatedAt: update.reviewedAt,
+            mutationID: update.mutationID
+        )
+        let expectedMutation = try FieldDraftMutationV1(
             workspaceID: update.workspaceID,
             expectedRevision: update.expectedDraftRevision,
             expectedBaseCanonicalRevision: update.expectedBaseCanonicalRevision,
             mutationID: update.mutationID,
-            postImage: .reviseCheckpoint(current)
+            postImage: .reviseCheckpoint(expectedSuccessor)
         )
-        guard let receiptReader = writer as? any VoiceReviewedFieldDraftReceiptReadingV1,
-              let receipt = try receiptReader.reviewedVoiceFieldReceipt(
-                mutationID: update.mutationID
-              ) else {
-            throw FieldDraftFailureV1.missingReceipt
+        guard try FieldDraftCommittedEvidenceV1(
+            envelope: original.envelope,
+            receipt: original.receipt
+        ) == original,
+              original.envelope.generationID == update.generationID,
+              original.mutation == expectedMutation,
+              case let .reviseCheckpoint(successor) = original.mutation.postImage else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
         }
+        // The expected value above is comparison-only. Return the actual
+        // committed successor and receipt, even after a later field advances.
         return try VoiceReviewedFieldDraftCheckpointEffectV1(
             predecessor: update.predecessor,
-            mutation: mutation,
-            mutationReceipt: receipt,
-            successor: current,
+            mutation: original.mutation,
+            mutationReceipt: original.receipt,
+            successor: successor,
             application: application
         )
     }
@@ -266,7 +290,8 @@ extension FieldDraftCoordinatorV1 {
         _ update: VoiceProposalDraftCheckpointUpdateV1,
         application: VoiceReviewedFieldDraftPayloadApplicationV1
     ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1 {
-        try validateReviewedVoiceUpdate(update, application: application)
+        try validateReviewedVoiceUpdate(update)
+        try application.validate(predecessor: update.predecessor)
         guard let current = try writer.currentCheckpoint(
             workspaceID: update.workspaceID,
             draftID: update.draftID
@@ -322,19 +347,17 @@ extension FieldDraftCoordinatorV1 {
     }
 
     private func validateReviewedVoiceUpdate(
-        _ update: VoiceProposalDraftCheckpointUpdateV1,
-        application: VoiceReviewedFieldDraftPayloadApplicationV1
+        _ update: VoiceProposalDraftCheckpointUpdateV1
     ) throws {
         try update.predecessor.validate(authority: purposeAuthority)
-        try application.validate(predecessor: update.predecessor)
+        try update.value.validate(for: update.fieldKind)
         guard update.predecessor.state == .active,
               update.workspaceID == update.predecessor.workspaceID,
               update.draftID == update.predecessor.draftID,
               update.scope == update.predecessor.scope,
               update.expectedDraftRevision == update.predecessor.draftRevision,
               update.expectedBaseCanonicalRevision == update.predecessor.baseCanonicalRevision,
-              update.expectedCheckpointSHA256 == update.predecessor.checkpointSHA256,
-              application.codec == update.predecessor.codec else {
+              update.expectedCheckpointSHA256 == update.predecessor.checkpointSHA256 else {
             throw FieldDraftFailureV1.staleDraftRevision
         }
     }
@@ -343,7 +366,8 @@ extension FieldDraftCoordinatorV1 {
         application: VoiceReviewedFieldDraftPayloadApplicationV1,
         update: VoiceProposalDraftCheckpointUpdateV1
     ) throws {
-        guard application.fieldID == update.fieldID,
+        guard application.codec == update.predecessor.codec,
+              application.fieldID == update.fieldID,
               application.fieldKind == update.fieldKind,
               application.value == update.value else {
             throw FieldDraftFailureV1.invalidValue
