@@ -649,12 +649,12 @@ final class S5_3DifferentIssueTests: XCTestCase {
             _ = try writer.execute(.updateSiteTimeZone(.init(siteID: site.id,
                 timeZoneID: "America/New_York", confirmedAt: submission.completedAt)),
                 mutationID: competingID)
-            let reader = WorkAuthorityReaderV1(modelContext: harness.context, signPack: pack,
+            let reader = WorkAuthorityReaderV1(modelContext: harness.context, signPack: self.pack,
                 generationRootURL: harness.generationRootURL,
                 rootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: harness.generationRootURL))
             XCTAssertEqual(try reader.authorityForDraft(fixture.draft.recordID).parent.id,
                 fixture.result.recordID)
-            expectedRows = try differentIssueWorkRows(context: harness.context, root: harness.generationRootURL)
+            expectedRows = try self.differentIssueWorkRows(context: harness.context, root: harness.generationRootURL)
             hookReached = true
         })
         let work = try WorkCoordinator(modelContext: harness.context, signPack: pack,
