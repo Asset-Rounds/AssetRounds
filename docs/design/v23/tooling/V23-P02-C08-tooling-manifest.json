@@ -4,8 +4,8 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "83e034e79fefa585a5634a68843d2a81125747f52325cb2feeb4ddc578c89d8a",
-  "artifactSetDigest": "09ea67ce67d5cac14cb3b224bf6f7074de639e5c873ef72f41cd16ea972d17a1",
+  "artifactDigest": "73d08836b3ae7d103c033cfdb383c4760dfe6740bf5ee230080c24781858979c",
+  "artifactSetDigest": "06d8d7c4ee5a5626bb3eee793dd02b1778a35c66c05fa75b4d0db4a0e67ab4d7",
   "artifacts": [
     {
       "bytes": 189514,
@@ -43,9 +43,9 @@
       "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
     },
     {
-      "bytes": 784048,
+      "bytes": 784197,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "acf3cb517a19bdf33c31c7bbfa98b4dd8bb0e41db60eea99c61175ad4b33f685"
+      "sha256": "95b5a6d6e84894c98cb6884ad934a4aa32254184c28e02948e683c513c849007"
     },
     {
       "bytes": 114705,

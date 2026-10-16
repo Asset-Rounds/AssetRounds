@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "7dab04e11c4c3d85ef06f631a673724e9de2cde6",
+  "generatedAtHead": "6b7351fe070a4987bac51083f80b8ac9823ae3a6",
   "sweepOrder": [
     "S01",
     "S02",
@@ -2361,7 +2361,7 @@
     {
       "id": "S22",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1679.9,
       "selectors": [
         "FieldEvidenceAppTests/C31LightingAnchorV939SurveyDefinitionTests/testC31TypedLightingPackageContractAnchor",
         "FieldEvidenceAppTests/C31LightingAnchorV9LocationHierarchyPlacementCompositionTests/testC31TypedLightingPackageContractAnchor",
@@ -2369,6 +2369,9 @@
         "FieldEvidenceAppTests/C45KernelConformanceCompatibilityTests/testV23P03C45CompatibilityUsesClosedChecksumAlphabetAndCanonicalLimit",
         "FieldEvidenceAppTests/S5_3DifferentIssueTests/testCommittedRecheckJournalRecoversWithoutIssueDriftOrDuplicateRoot",
         "FieldEvidenceAppTests/S5_3DifferentIssueTests/testDifferentIssueCreatesOneRootResolvesOriginalAndFreezesBothIssues",
+        "FieldEvidenceAppTests/S5_3DifferentIssueTests/testDifferentIssueFirstWorkCommitsOneReceiptAndReplaysAfterReopen",
+        "FieldEvidenceAppTests/S5_3DifferentIssueTests/testDifferentIssueFirstWorkRechecksRevisionAfterPromotionWithoutCommitting",
+        "FieldEvidenceAppTests/S5_3DifferentIssueTests/testDifferentIssueFirstWorkRejectsMalformedAuthorityWithoutEffects",
         "FieldEvidenceAppTests/S5_3DifferentIssueTests/testDirtyContextAndStaleIssueFailClosedWithoutPartialAuthority",
         "FieldEvidenceAppTests/S5_3DifferentIssueTests/testExistingIssueOpenedByDraftCollisionFailsBeforeAnyAuthorityMutation",
         "FieldEvidenceAppTests/S5_3DifferentIssueTests/testModelSaveFailureRestoresBothIssueSidesAndSameIdentifiersRetryOnce",
@@ -2471,7 +2474,7 @@
     {
       "id": "S23",
       "tier": "D50C",
-      "estimatedSeconds": 1727.9,
+      "estimatedSeconds": 1907.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_17KernelPersistence/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS41DeterministicRenderer/testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2485,8 +2488,11 @@
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRecheckBecomesTheNewIssuesFirstParent",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testDifferentIssueOpeningRejectsAForkedOldIssueChain",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExactlySevenModelShapesRoundTripEveryFieldThroughTheNamedGeneration",
+        "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExistingDraftResumeRejectsDirtyCorruptAndAmbiguousDrafts",
+        "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExistingDraftResumeRejectsForeignReadOnlyAndInvalidatedWriterContexts",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExistingDraftWinsBeforeEveryNewRequestedRouteValidation",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExistingS2TwoModelGenerationReopensUnchangedUnderSevenModelSchema",
+        "FieldEvidenceAppTests/S3_1DraftSchemaTests/testExistingWorkAndRecheckResumeValidateTheirOwnIssueLineage",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testFixedPreflightCreatesAndReopensOneExactCheckDraftOnly",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testForkedIssueLineageFailsClosedWithoutCreatingDraft",
         "FieldEvidenceAppTests/S3_1DraftSchemaTests/testInvalidPreflightWritesNoZoneAndNoDraft",

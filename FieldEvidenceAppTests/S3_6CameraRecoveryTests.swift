@@ -148,8 +148,10 @@ final class S3_6CameraRecoveryTests: XCTestCase {
     @MainActor
     func testAuthorizedWideAndCloseBytesUseExistingCanonicalMediaAuthority() async throws {
         let applicationSupport = try makeTemporaryDirectory(label: "authorized")
-        defer { try? fileManager.removeItem(at: applicationSupport) }
-        let harness = try makeDraftHarness(applicationSupportURL: applicationSupport)
+        // Retain this root while the current owner and harness still alias its store.
+        let fixture = try makeCurrentCameraHarness(applicationSupportURL: applicationSupport)
+        defer { closeCurrentCameraWriter(fixture.owner) }
+        let harness = fixture.harness
         let probe = PermissionProbe(scenario: .settingsReturn)
         probe.status = .authorized
         let adapter = probe.adapter
@@ -197,6 +199,54 @@ final class S3_6CameraRecoveryTests: XCTestCase {
         XCTAssertEqual(directoryEntryCount(at: promotedEvidenceRoot(harness)), 2)
         XCTAssertEqual(probe.requestCallCount, 0)
         withExtendedLifetime(harness.session) {}
+    }
+
+    @MainActor
+    private func makeCurrentCameraHarness(applicationSupportURL: URL) throws
+        -> (owner: StoreSessionCoordinator, harness: CameraHarness) {
+        let session = try StoreGenerationFactory(applicationSupportURL: applicationSupportURL)
+            .openOrBootstrapCurrent()
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let owner = try StoreSessionCoordinator(validatingSession: session,
+            lifecycleProfileRegistry: registry)
+        do {
+            let siteID = UUID()
+            let assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            let observedAt = Date(timeIntervalSince1970: 1_768_600_000)
+            _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "North Campus", address: "10 Main",
+                    timeZoneID: "America/New_York"),
+                assetID: assetID, assetLabel: "Monument Sign", packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+                createdAt: observedAt, initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: placementMutationID)
+            let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
+            let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+            let coordinator = try CheckRunnerCoordinator(modelContext: context,
+                packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+            coordinator.configureCapture(generationRootURL: session.generationRootURL)
+            let draft = try coordinator.beginCheck(assetID: asset.id, timeZoneID: nil,
+                isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: observedAt)
+            return (owner, CameraHarness(session: session, context: context,
+                asset: asset, draft: draft, coordinator: coordinator))
+        } catch {
+            closeCurrentCameraWriter(owner)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func closeCurrentCameraWriter(_ owner: StoreSessionCoordinator) {
+        do { try owner.invalidateAndReleaseWriter() }
+        catch { XCTFail("Current camera fixture writer close failed: \(error)") }
     }
 
     @MainActor

@@ -231,7 +231,8 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
                 requestedStage: .work,
                 issueID: UUID()
             ),
-            .blockInvalidRequest
+            // C472: validate and resume the saved check before a new work route.
+            .continueExisting
         )
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
     }

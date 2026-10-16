@@ -11924,6 +11924,10 @@ final class EraseRouterOperationV1 {
               originalAuxiliaryFirstPreparation == nil else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        traceOriginalAuxiliaryFixedStageForTesting(
+            "original.aux.first-state-guard-passed")
+#endif
         // A fresh original P owner must not incorporate an interrupted older
         // reader publication into its immutable Operations first image. The
         // Registry checks the reserved record/temp names under this retained
@@ -11936,10 +11940,18 @@ final class EraseRouterOperationV1 {
               !originalAuxiliaryRegistryObservationFailed else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        traceOriginalAuxiliaryFixedStageForTesting(
+            "original.aux.source-binding-guard-passed")
+#endif
         let readerProbeActivity = try exclusion
             .requireOriginalEraseAuxiliaryPhaseActivity(
                 registry: registry, coordinator: coordinator,
                 writer: source.token)
+#if DEBUG
+        traceOriginalAuxiliaryFixedStageForTesting(
+            "original.aux.phase-activity-returned")
+#endif
         originalAuxiliaryRegistryObservationScope =
             .preFirstReaderRecordProbe
         do {

@@ -152,7 +152,7 @@
     ]
   },
   "cardID": "V23-P04-C27",
-  "contractDigest": "434702123667c19a3cad927ea5d129c7bdadf0f20ea5f546d6192497b30427ef",
+  "contractDigest": "5c89302ae205535bbd04426e36c097b89813eb4af428a4f9774673e343e8dae0",
   "generatorInterruptionProtocol": {
     "deterministicRerun": true,
     "protocol": "MANIFEST_LAST_ATOMIC_REPLACE",
@@ -195,7 +195,7 @@
       "changedPathCount": 14,
       "missingPathCount": 0,
       "s10ReservationOverlapCount": 0,
-      "unownedChangedPathCount": 1331
+      "unownedChangedPathCount": 1337
     },
     "selectors": [
       "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",

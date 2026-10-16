@@ -226,12 +226,16 @@ final class S3_1DraftSchemaTests: XCTestCase {
     @MainActor
     func testFixedPreflightCreatesAndReopensOneExactCheckDraftOnly() throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        // Retain this private root while the owner, session and context alias its store.
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let instant = Date(timeIntervalSince1970: 1_768_438_923)
-        let ids = try seedSiteAndAsset(in: factory, timeZoneID: nil)
+        let fixture = try makeCurrentDraftFixture(in: factory, timeZoneID: nil,
+            createdAt: instant.addingTimeInterval(-1))
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let ids = fixture.ids
         let context = ids.session.modelContext
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let coordinator = fixture.coordinator
+        fixture.clock.set(instant)
 
         let draft = try coordinator.beginOrResumeDraft(
             BeginDraftSubmission(assetID: ids.asset, requestedStage: .check, issueID: nil, observedAtUTC: instant, confirmedTimeZoneID: "America/New_York", afterDarkAccepted: true, safePositionAccepted: true)
@@ -289,12 +293,24 @@ final class S3_1DraftSchemaTests: XCTestCase {
     @MainActor
     func testExistingDraftWinsBeforeEveryNewRequestedRouteValidation() throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        // Retain this private root while the owner, session and context alias its store.
         let factory = StoreGenerationFactory(applicationSupportURL: root)
-        let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
+        let instant = Date(timeIntervalSince1970: 1_768_438_923)
+        var access = DraftAccessNormalizedStateV1.entitled
+        let fixture = try makeCurrentDraftFixture(in: factory,
+            timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1),
+            draftAccessState: { access })
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let ids = fixture.ids
         let context = ids.session.modelContext
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
-        let original = try coordinator.beginOrResumeDraft(BeginDraftSubmission(assetID: ids.asset, requestedStage: .check, issueID: nil, observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923), confirmedTimeZoneID: nil, afterDarkAccepted: true, safePositionAccepted: true))
+        let coordinator = fixture.coordinator
+        fixture.clock.set(instant)
+        let original = try coordinator.beginOrResumeDraft(BeginDraftSubmission(assetID: ids.asset, requestedStage: .check, issueID: nil, observedAtUTC: instant, confirmedTimeZoneID: nil, afterDarkAccepted: true, safePositionAccepted: true))
+        fixture.clock.set(instant.addingTimeInterval(1))
+        let persistedBefore = try lineageState(in: context)
+        let revisionBefore = try fixture.dependencies.writer.currentRevision()
+        access = .formerPaidInactive
+        XCTAssertEqual(try coordinator.prepare(assetID: ids.asset).existingDraftID, original.id)
 
         let invalidIssue = UUID()
         let workResult = try coordinator.beginOrResumeDraft(assetID: ids.asset, requestedStage: .work, issueID: nil)
@@ -306,6 +322,214 @@ final class S3_1DraftSchemaTests: XCTestCase {
         XCTAssertEqual(invalidPreflightResult.id, original.id)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
         assertExactCheckDraft(original, assetID: ids.asset, instant: Date(timeIntervalSince1970: 1_768_438_923))
+        // C472: a different requested issue also resumes this exact saved check.
+        XCTAssertEqual(try coordinator.accessDecision(assetID: ids.asset,
+            requestedStage: .work, issueID: invalidIssue), .continueExisting)
+        XCTAssertEqual(try coordinator.beginOrResumeDraft(assetID: ids.asset,
+            requestedStage: .work, issueID: invalidIssue).id, original.id)
+        try coordinator.requestRecheck(assetID: ids.asset, issueID: invalidIssue)
+        XCTAssertEqual(try coordinator.beginCheck(assetID: ids.asset, timeZoneID: "Invalid/Zone",
+            isTimeZoneConfirmed: false, afterDarkAccepted: false, safePositionAccepted: false,
+            observedAt: instant.addingTimeInterval(2)).id, original.id)
+        XCTAssertEqual(try lineageState(in: context), persistedBefore)
+        XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Issue>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Packet>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Report>()), 0)
+        XCTAssertFalse(context.hasChanges)
+
+        let reopenedSession = try factory.openOrBootstrapCurrent()
+        let reopened = reopenedSession.modelContext
+        let saved = try XCTUnwrap(reopened.fetch(FetchDescriptor<WorkflowRecord>()).first)
+        XCTAssertEqual(saved.id, original.id)
+        assertExactCheckDraft(saved, assetID: ids.asset, instant: instant)
+        XCTAssertEqual(try lineageState(in: reopened), persistedBefore)
+    }
+
+    @MainActor
+    func testExistingWorkAndRecheckResumeValidateTheirOwnIssueLineage() async throws {
+        for existingStage in [WorkflowStage.work, .recheck] {
+            let root = try makeTemporaryApplicationSupportURL()
+            let fixture = try makeCurrentDraftFixture(
+                in: StoreGenerationFactory(applicationSupportURL: root),
+                timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 99))
+            defer { closeCurrentDraftWriter(fixture.owner) }
+            let context = fixture.ids.session.modelContext
+            let issueID = UUID()
+            fixture.clock.set(Date(timeIntervalSince1970: 100))
+            let opening = try fixture.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+                assetID: fixture.ids.asset, requestedStage: .check, issueID: nil,
+                observedAtUTC: Date(timeIntervalSince1970: 100), confirmedTimeZoneID: nil,
+                afterDarkAccepted: true, safePositionAccepted: true))
+            try await finishCurrentCheck(fixture, draft: opening,
+                selection: .visibleIssue(labelKey: "dark_section"), issueID: issueID,
+                completedAt: Date(timeIntervalSince1970: 200))
+            let work = try fixture.coordinator.beginOrResumeDraft(assetID: fixture.ids.asset,
+                requestedStage: .work, issueID: issueID)
+            let draft: WorkflowRecord
+            if existingStage == .recheck {
+                try await finishCurrentWork(fixture, draft: work,
+                    completedAt: Date(timeIntervalSince1970: 300))
+                fixture.clock.set(Date(timeIntervalSince1970: 400))
+                draft = try fixture.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+                    assetID: fixture.ids.asset, requestedStage: .recheck, issueID: issueID,
+                    observedAtUTC: Date(timeIntervalSince1970: 400), confirmedTimeZoneID: nil,
+                    afterDarkAccepted: true, safePositionAccepted: true))
+            } else {
+                draft = work
+            }
+            fixture.clock.set(draft.startedAt.addingTimeInterval(1))
+            let before = try lineageState(in: context)
+            let revisionBefore = try fixture.dependencies.writer.currentRevision()
+            let resumed = try fixture.coordinator.beginOrResumeDraft(assetID: fixture.ids.asset,
+                requestedStage: .check, issueID: UUID())
+            XCTAssertEqual(resumed.id, draft.id)
+            XCTAssertEqual(resumed.stage, existingStage.rawValue)
+            XCTAssertEqual(resumed.issueID, issueID)
+            XCTAssertEqual(try lineageState(in: context), before)
+            XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+
+            // The saved draft's own current parent still governs continuation.
+            draft.parentRecordID = UUID()
+            try context.save()
+            let corruptBefore = try lineageState(in: context)
+            XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(assetID: fixture.ids.asset,
+                requestedStage: .check, issueID: nil)) {
+                XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .accessDenied(.blockInvalidRequest))
+            }
+            XCTAssertEqual(try lineageState(in: context), corruptBefore)
+            XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+            XCTAssertFalse(context.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testExistingDraftResumeRejectsDirtyCorruptAndAmbiguousDrafts() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let instant = Date(timeIntervalSince1970: 1_768_438_923)
+        let fixture = try makeCurrentDraftFixture(in: factory,
+            timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1))
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let context = fixture.ids.session.modelContext
+        fixture.clock.set(instant)
+        let draft = try fixture.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: fixture.ids.asset, requestedStage: .check, issueID: nil,
+            observedAtUTC: instant, confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        fixture.clock.set(instant.addingTimeInterval(1))
+        let revisionBefore = try fixture.dependencies.writer.currentRevision()
+
+        draft.note = "Unsaved owner edit"
+        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(
+            assetID: fixture.ids.asset, requestedStage: .work, issueID: UUID())) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .invalidLineage)
+        }
+        XCTAssertEqual(draft.note, "Unsaved owner edit")
+        XCTAssertTrue(context.hasChanges)
+        context.rollback()
+        XCTAssertNil(draft.note)
+
+        // Deliberate persisted corruption must not become a continuation proof.
+        draft.recordRevisionRootID = UUID()
+        try context.save()
+        let corruptBefore = try lineageState(in: context)
+        XCTAssertEqual(try fixture.coordinator.accessDecision(assetID: fixture.ids.asset,
+            requestedStage: .recheck, issueID: UUID()), .blockInvalidRequest)
+        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(
+            assetID: fixture.ids.asset, requestedStage: .work, issueID: nil)) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .accessDenied(.blockInvalidRequest))
+        }
+        XCTAssertEqual(try lineageState(in: context), corruptBefore)
+        XCTAssertFalse(context.hasChanges)
+
+        let duplicate = completedRecord(id: UUID(), assetID: fixture.ids.asset,
+            issueID: nil, parentID: nil, stage: .check)
+        duplicate.state = WorkflowState.draft.rawValue
+        context.insert(duplicate)
+        try context.save()
+        let ambiguousBefore = try lineageState(in: context)
+        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(
+            assetID: fixture.ids.asset, requestedStage: .work, issueID: UUID())) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .multipleActiveDrafts)
+        }
+        XCTAssertEqual(try lineageState(in: context), ambiguousBefore)
+        XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Issue>()), 0)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    @MainActor
+    func testExistingDraftResumeRejectsForeignReadOnlyAndInvalidatedWriterContexts() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let instant = Date(timeIntervalSince1970: 1_768_438_923)
+        let fixture = try makeCurrentDraftFixture(in: factory,
+            timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1))
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let context = fixture.ids.session.modelContext
+        fixture.clock.set(instant)
+        let draft = try fixture.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: fixture.ids.asset, requestedStage: .check, issueID: nil,
+            observedAtUTC: instant, confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        fixture.clock.set(instant.addingTimeInterval(1))
+        let before = try lineageState(in: context)
+        let revisionBefore = try fixture.dependencies.writer.currentRevision()
+        let profile = try fixture.dependencies.profileRegistry.resolve(
+            PackageReleaseIdentityV1(package: pack))
+
+        let readOnlyConfiguration = ModelConfiguration("FieldEvidenceV1",
+            schema: context.container.schema,
+            url: fixture.ids.session.generationRootURL.appendingPathComponent("model.sqlite"),
+            allowsSave: false, cloudKitDatabase: .none)
+        let readOnlyContainer = try ModelContainer(for: context.container.schema,
+            migrationPlan: nil, configurations: [readOnlyConfiguration])
+        readOnlyContainer.mainContext.autosaveEnabled = false
+        let readOnlyRunner = try CheckRunnerCoordinator(modelContext: readOnlyContainer.mainContext,
+            packageLifecycleDependencies: fixture.dependencies, packageLifecycleProfile: profile)
+        XCTAssertEqual(try readOnlyContainer.mainContext.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
+        XCTAssertThrowsError(try readOnlyRunner.beginOrResumeDraft(assetID: fixture.ids.asset,
+            requestedStage: .work, issueID: UUID())) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+        }
+        XCTAssertFalse(readOnlyContainer.mainContext.hasChanges)
+
+        let foreignRoot = try makeTemporaryApplicationSupportURL()
+        let foreign = try makeCurrentDraftFixture(
+            in: StoreGenerationFactory(applicationSupportURL: foreignRoot),
+            timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1))
+        defer { closeCurrentDraftWriter(foreign.owner) }
+        foreign.clock.set(instant)
+        _ = try foreign.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: foreign.ids.asset, requestedStage: .check, issueID: nil,
+            observedAtUTC: instant, confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        let foreignBefore = try lineageState(in: foreign.ids.session.modelContext)
+        let foreignRunner = try CheckRunnerCoordinator(modelContext: foreign.ids.session.modelContext,
+            packageLifecycleDependencies: fixture.dependencies, packageLifecycleProfile: profile)
+        XCTAssertThrowsError(try foreignRunner.beginOrResumeDraft(assetID: foreign.ids.asset,
+            requestedStage: .work, issueID: UUID())) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+        }
+        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(assetID: foreign.ids.asset,
+            requestedStage: .work, issueID: nil)) {
+            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .assetNotFound)
+        }
+        XCTAssertEqual(try lineageState(in: foreign.ids.session.modelContext), foreignBefore)
+        XCTAssertEqual(try lineageState(in: context), before)
+        XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+
+        // Invalidating the incumbent writer revokes even an otherwise valid saved draft.
+        fixture.dependencies.writer.invalidate()
+        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(assetID: fixture.ids.asset,
+            requestedStage: .recheck, issueID: UUID())) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        XCTAssertEqual(try lineageState(in: context), before)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<WorkflowRecord>()).map(\.id), [draft.id])
+        XCTAssertFalse(context.hasChanges)
     }
 
     @MainActor
@@ -328,13 +552,16 @@ final class S3_1DraftSchemaTests: XCTestCase {
     }
 
     @MainActor
-    func testNoDraftStageIssueAndLatestParentValidationIsExact() throws {
+    func testNoDraftStageIssueAndLatestParentValidationIsExact() async throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        // Retain this private root while the owner, session and context alias its store.
         let factory = StoreGenerationFactory(applicationSupportURL: root)
-        let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
+        let fixture = try makeCurrentDraftFixture(in: factory,
+            timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 100))
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let ids = fixture.ids
         let context = ids.session.modelContext
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let coordinator = fixture.coordinator
 
         XCTAssertThrowsError(try coordinator.beginOrResumeDraft(assetID: ids.asset, requestedStage: .check, issueID: UUID())) {
             XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .issueNotAllowed)
@@ -346,10 +573,15 @@ final class S3_1DraftSchemaTests: XCTestCase {
             XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .issueNotFound)
         }
 
-        let opening = completedRecord(id: UUID(), assetID: ids.asset, issueID: nil, parentID: nil, stage: .check)
-        let issue = Issue(id: UUID(), assetID: ids.asset, openedByRecordID: opening.id, labelKey: "dark_section", labelDisplaySnapshot: "Section appears dark", status: .open, resolvedByRecordID: nil, createdAt: opening.startedAt, updatedAt: opening.startedAt)
-        opening.issueID = issue.id
-        context.insert(opening); context.insert(issue); try context.save()
+        let issueID = UUID()
+        let opening = try coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: ids.asset, requestedStage: .check, issueID: nil,
+            observedAtUTC: Date(timeIntervalSince1970: 100), confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        try await finishCurrentCheck(fixture, draft: opening,
+            selection: .visibleIssue(labelKey: "dark_section"), issueID: issueID,
+            completedAt: Date(timeIntervalSince1970: 200))
+        let issue = try XCTUnwrap(context.fetch(FetchDescriptor<Issue>()).first { $0.id == issueID })
 
         XCTAssertThrowsError(try coordinator.beginOrResumeDraft(assetID: ids.asset, requestedStage: .recheck, issueID: issue.id)) {
             XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .issueStateMismatch)
@@ -360,11 +592,11 @@ final class S3_1DraftSchemaTests: XCTestCase {
         XCTAssertEqual(work.parentRecordID, opening.id)
         XCTAssertNil(work.observedAtUTC); XCTAssertNil(work.afterDarkAcknowledgementKey)
 
-        context.delete(work)
-        let completedWork = completedRecord(id: UUID(), assetID: ids.asset, issueID: issue.id, parentID: opening.id, stage: .work)
-        issue.status = IssueStatus.recheckDue.rawValue
-        context.insert(completedWork)
-        try context.save()
+        // Complete the actual returned work through the same sole writer;
+        // its receipt-backed transition, rather than a raw row, makes Recheck due.
+        try await finishCurrentWork(fixture, draft: work,
+            completedAt: Date(timeIntervalSince1970: 200))
+        let completedWork = work
 
         let recheck = try coordinator.beginOrResumeDraft(
             BeginDraftSubmission(assetID: ids.asset, requestedStage: .recheck, issueID: issue.id, observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923), confirmedTimeZoneID: nil, afterDarkAccepted: true, safePositionAccepted: true)
@@ -375,18 +607,19 @@ final class S3_1DraftSchemaTests: XCTestCase {
         XCTAssertEqual(recheck.draftStepKey, WorkflowDraftStep.wide.rawValue)
 
         // Traverse both accepted child branches, not just the opening check.
-        context.delete(recheck)
-        let completedRecheck = completedRecord(id: UUID(), assetID: ids.asset,
-            issueID: issue.id, parentID: completedWork.id, stage: .recheck)
-        issue.status = IssueStatus.open.rawValue
-        context.insert(completedRecheck)
-        try context.save()
+        // This completion follows the unchanged 2026 observed instant above.
+        try await finishCurrentCheck(fixture, draft: recheck,
+            selection: .issueStillVisible(note: nil), issueID: issue.id,
+            completedAt: Date(timeIntervalSince1970: 1_768_438_926))
+        let completedRecheck = recheck
         let nextWork = try coordinator.beginOrResumeDraft(
             assetID: ids.asset, requestedStage: .work, issueID: issue.id)
         XCTAssertEqual(nextWork.parentRecordID, completedRecheck.id)
         XCTAssertEqual(nextWork.issueID, issue.id)
         XCTAssertEqual(nextWork.stage, WorkflowStage.work.rawValue)
 
+        // Deliberate hostile source corruption after all successful mutations.
+        // No writer effect is requested from this corrupted state.
         context.delete(nextWork)
         completedRecheck.outcomeKey = "work_recorded"
         try context.save()
@@ -434,64 +667,60 @@ final class S3_1DraftSchemaTests: XCTestCase {
     }
 
     @MainActor
-    func testDifferentIssueOpeningRecheckBecomesTheNewIssuesFirstParent() throws {
+    func testDifferentIssueOpeningRecheckBecomesTheNewIssuesFirstParent() async throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        // Retain this private root while the live owner/session/context aliases its store.
         let factory = StoreGenerationFactory(applicationSupportURL: root)
-        let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
+        let fixture = try makeCurrentDraftFixture(in: factory,
+            timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 100))
+        defer { closeCurrentDraftWriter(fixture.owner) }
+        let ids = fixture.ids
         let context = ids.session.modelContext
+        let coordinator = fixture.coordinator
         let oldIssueID = UUID()
-        let oldOpening = completedRecord(
-            id: UUID(),
-            assetID: ids.asset,
-            issueID: oldIssueID,
-            parentID: nil,
-            stage: .check
-        )
-        let oldWork = completedRecord(
-            id: UUID(),
-            assetID: ids.asset,
-            issueID: oldIssueID,
-            parentID: oldOpening.id,
-            stage: .work
-        )
-        let openingRecheck = completedRecord(
-            id: UUID(),
-            assetID: ids.asset,
-            issueID: oldIssueID,
-            parentID: oldWork.id,
-            stage: .recheck
-        )
-        openingRecheck.outcomeKey = "original_resolved_different_issue"
-        let oldIssue = Issue(
-            id: oldIssueID,
-            assetID: ids.asset,
-            openedByRecordID: oldOpening.id,
-            labelKey: "dark_section",
-            labelDisplaySnapshot: "Section appears dark",
-            status: .resolved,
-            resolvedByRecordID: openingRecheck.id,
-            createdAt: Date(timeIntervalSince1970: 100),
-            updatedAt: Date(timeIntervalSince1970: 300)
-        )
-        let newIssue = Issue(
-            id: UUID(),
-            assetID: ids.asset,
-            openedByRecordID: openingRecheck.id,
-            labelKey: "color_mismatch",
-            labelDisplaySnapshot: "Visible color mismatch",
-            status: .open,
-            resolvedByRecordID: nil,
-            createdAt: Date(timeIntervalSince1970: 300),
-            updatedAt: Date(timeIntervalSince1970: 300)
-        )
-        context.insert(oldOpening)
-        context.insert(oldWork)
-        context.insert(openingRecheck)
-        context.insert(oldIssue)
-        context.insert(newIssue)
-        try context.save()
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let oldOpening = try coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: ids.asset, requestedStage: .check, issueID: nil,
+            observedAtUTC: Date(timeIntervalSince1970: 100), confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        try await finishCurrentCheck(fixture, draft: oldOpening,
+            selection: .visibleIssue(labelKey: "dark_section"), issueID: oldIssueID,
+            completedAt: Date(timeIntervalSince1970: 150))
+        let oldIssue = try XCTUnwrap(context.fetch(FetchDescriptor<Issue>()).first { $0.id == oldIssueID })
+        let oldWork = try coordinator.beginOrResumeDraft(
+            assetID: ids.asset, requestedStage: .work, issueID: oldIssueID)
+        try await finishCurrentWork(fixture, draft: oldWork,
+            completedAt: Date(timeIntervalSince1970: 200))
+        fixture.clock.set(Date(timeIntervalSince1970: 201))
+        let openingRecheck = try coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: ids.asset, requestedStage: .recheck, issueID: oldIssueID,
+            observedAtUTC: Date(timeIntervalSince1970: 201), confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        // Produce the old resolution and external new-Issue opener in one real
+        // receipt-backed finalization, using this fixture's existing writer.
+        for source in [(offset: 1.0, seed: UInt8(31)), (offset: 2.0, seed: UInt8(79))] {
+            let createdAt = openingRecheck.startedAt.addingTimeInterval(source.offset)
+            fixture.clock.set(createdAt)
+            let candidate = try await coordinator.importCandidate(assetID: ids.asset,
+                sourceData: try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: source.seed),
+                createdAt: createdAt)
+            _ = try await coordinator.accept(candidate: candidate, assetID: ids.asset)
+        }
+        let newIssueID = UUID()
+        let completedAt = Date(timeIntervalSince1970: 300)
+        fixture.clock.set(completedAt)
+        let result = try await coordinator.finalize(assetID: ids.asset,
+            selection: .originalResolvedDifferentIssue(labelKey: "color_mismatch", note: nil),
+            completedAt: completedAt, snapshotCreatedAt: completedAt,
+            sourceApp: SourceAppSnapshotV1(build: "draft-schema", version: "1"),
+            identifiers: FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(),
+                stableRootID: UUID(), reportID: UUID(), issueID: oldIssueID, newIssueID: newIssueID))
+        XCTAssertEqual(result.recordID, openingRecheck.id)
+        XCTAssertEqual(result.issueID, oldIssueID)
+        XCTAssertEqual(result.newIssueID, newIssueID)
+        let newIssue = try XCTUnwrap(context.fetch(FetchDescriptor<Issue>()).first { $0.id == newIssueID })
+        XCTAssertEqual(newIssue.openedByRecordID, openingRecheck.id)
+        XCTAssertEqual(newIssue.createdAt, completedAt)
+        XCTAssertEqual(oldIssue.updatedAt, completedAt)
 
         let work = try coordinator.beginOrResumeDraft(
             assetID: ids.asset,
@@ -513,13 +742,20 @@ final class S3_1DraftSchemaTests: XCTestCase {
 
         // The new issue's opening belongs to the resolved old issue. Its own
         // later work/recheck rows must still form one exact accepted chain.
-        context.delete(work)
-        let completedWork = completedRecord(id: UUID(), assetID: ids.asset,
-            issueID: newIssue.id, parentID: openingRecheck.id, stage: .work)
-        let completedRecheck = completedRecord(id: UUID(), assetID: ids.asset,
-            issueID: newIssue.id, parentID: completedWork.id, stage: .recheck)
-        context.insert(completedWork); context.insert(completedRecheck)
-        try context.save()
+        try await finishCurrentWork(fixture, draft: work,
+            completedAt: Date(timeIntervalSince1970: 350))
+        let completedWork = work
+        let mutationID = try MutationIDV1(rawValue: XCTUnwrap(completedWork.finalizationMutationID))
+        let envelope = try XCTUnwrap(fixture.dependencies.writer.workEnvelope(mutationID: mutationID))
+        XCTAssertNotNil(try fixture.dependencies.writer.workCommitReceipt(envelope: envelope))
+        fixture.clock.set(Date(timeIntervalSince1970: 351))
+        let completedRecheck = try coordinator.beginOrResumeDraft(BeginDraftSubmission(
+            assetID: ids.asset, requestedStage: .recheck, issueID: newIssue.id,
+            observedAtUTC: Date(timeIntervalSince1970: 351), confirmedTimeZoneID: nil,
+            afterDarkAccepted: true, safePositionAccepted: true))
+        try await finishCurrentCheck(fixture, draft: completedRecheck,
+            selection: .issueStillVisible(note: nil), issueID: newIssue.id,
+            completedAt: Date(timeIntervalSince1970: 400))
         let continued = try coordinator.beginOrResumeDraft(
             assetID: ids.asset, requestedStage: .work, issueID: newIssue.id)
         XCTAssertEqual(continued.parentRecordID, completedRecheck.id)
@@ -603,6 +839,97 @@ final class S3_1DraftSchemaTests: XCTestCase {
     private var pack: SignPack { .illuminatedSignV1 }
 
     @MainActor
+    private struct CurrentDraftFixture {
+        let ids: (session: StoreGenerationSession, site: UUID, asset: UUID)
+        let owner: StoreSessionCoordinator
+        let dependencies: WorkspacePackageLifecycleDependenciesV1
+        let coordinator: CheckRunnerCoordinator
+        let clock: CurrentDraftClock
+    }
+
+    @MainActor
+    private func makeCurrentDraftFixture(in factory: StoreGenerationFactory,
+        timeZoneID: String?, createdAt: Date,
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil) throws -> CurrentDraftFixture {
+        let session = try factory.openOrBootstrapCurrent()
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let clock = CurrentDraftClock(createdAt)
+        let owner = try StoreSessionCoordinator(validatingSession: session, clock: clock,
+            lifecycleProfileRegistry: registry)
+        do {
+            let siteID = UUID()
+            let assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "North Campus", address: nil, timeZoneID: timeZoneID),
+                assetID: assetID, assetLabel: "Monument Sign", packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+                createdAt: createdAt, initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: placementMutationID)
+            let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+            let coordinator = try CheckRunnerCoordinator(modelContext: session.modelContext,
+                packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile,
+                draftAccessState: draftAccessState)
+            coordinator.configureCapture(generationRootURL: session.generationRootURL)
+            return CurrentDraftFixture(ids: (session, siteID, assetID), owner: owner,
+                dependencies: dependencies, coordinator: coordinator, clock: clock)
+        } catch {
+            closeCurrentDraftWriter(owner)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func finishCurrentCheck(_ fixture: CurrentDraftFixture, draft: WorkflowRecord,
+        selection: CheckOutcomeSelection, issueID: UUID,
+        completedAt: Date) async throws {
+        let sources: [(offset: Double, seed: UInt8)] = [(1, 31), (2, 79)]
+        for source in sources {
+            let createdAt = draft.startedAt.addingTimeInterval(source.offset)
+            fixture.clock.set(createdAt)
+            let candidate = try await fixture.coordinator.importCandidate(
+                assetID: fixture.ids.asset,
+                sourceData: try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: source.seed),
+                createdAt: createdAt)
+            _ = try await fixture.coordinator.accept(candidate: candidate, assetID: fixture.ids.asset)
+        }
+        fixture.clock.set(completedAt)
+        let result = try await fixture.coordinator.finalize(assetID: fixture.ids.asset,
+            selection: selection, completedAt: completedAt, snapshotCreatedAt: completedAt,
+            sourceApp: SourceAppSnapshotV1(build: "draft-schema", version: "1"),
+            identifiers: FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(),
+                stableRootID: UUID(), reportID: UUID(), issueID: issueID))
+        XCTAssertEqual(result.recordID, draft.id)
+        XCTAssertEqual(result.issueID, issueID)
+        XCTAssertNil(result.newIssueID)
+    }
+
+    @MainActor
+    private func finishCurrentWork(_ fixture: CurrentDraftFixture, draft: WorkflowRecord,
+        completedAt: Date) async throws {
+        let work = try WorkCoordinator(modelContext: fixture.ids.session.modelContext,
+            signPack: pack, generationRootURL: fixture.ids.session.generationRootURL,
+            checkRunnerCoordinator: fixture.coordinator, lifecycleDependencies: fixture.dependencies)
+        fixture.clock.set(completedAt)
+        _ = try await work.saveWork(draftID: draft.id,
+            submission: WorkSaveSubmission(performedLocalDate: "1970-01-01",
+                description: "Completed fixture work", note: nil, photos: [], completedAt: completedAt),
+            identifiers: WorkIdentifiers(mutationID: UUID(), evidenceID: nil))
+        XCTAssertEqual(draft.state, WorkflowState.completed.rawValue)
+        XCTAssertEqual(draft.outcomeKey, "work_recorded")
+    }
+
+    @MainActor
+    private func closeCurrentDraftWriter(_ owner: StoreSessionCoordinator) {
+        do { try owner.invalidateAndReleaseWriter() }
+        catch { XCTFail("Current draft fixture writer close failed: \(error)") }
+    }
+
+    @MainActor
     private func seedSiteAndAsset(in factory: StoreGenerationFactory, timeZoneID: String?) throws -> (session: StoreGenerationSession, site: UUID, asset: UUID) {
         let session = try factory.openOrBootstrapCurrent()
         let context = session.modelContext
@@ -660,6 +987,14 @@ final class S3_1DraftSchemaTests: XCTestCase {
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
+}
+
+private final class CurrentDraftClock: ApplicationClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func set(_ value: Date) { lock.withLock { self.value = value } }
+    func now() -> Date { lock.withLock { value } }
 }
 
 extension S3_1DraftSchemaTests {

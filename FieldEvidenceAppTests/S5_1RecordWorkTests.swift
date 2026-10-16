@@ -1268,7 +1268,8 @@ final class WorkCanonicalOpenIssueFixtureV1 {
         siteLabel: String = "North Campus",
         siteAddress: String = "10 Main Street",
         assetLabel: String = "Monument Sign",
-        diagnosticsStore: DiagnosticsStore? = nil
+        diagnosticsStore: DiagnosticsStore? = nil,
+        clock: any ApplicationClock = SystemApplicationClock()
     ) async throws -> WorkCanonicalOpenIssueFixtureV1 {
         let session = try StoreGenerationFactory(applicationSupportURL: applicationSupportURL)
             .openOrBootstrapCurrent()
@@ -1278,6 +1279,7 @@ final class WorkCanonicalOpenIssueFixtureV1 {
         let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
         let owner = try StoreSessionCoordinator(
             validatingSession: session,
+            clock: clock,
             lifecycleProfileRegistry: registry
         )
         do {
@@ -1420,7 +1422,8 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
         workPerformedLocalDate: String = "2026-08-13",
         workDescription: String = "Replaced failed power supply",
         workNote: String? = "Work saved.",
-        diagnosticsStore: DiagnosticsStore? = nil
+        diagnosticsStore: DiagnosticsStore? = nil,
+        clock: any ApplicationClock = SystemApplicationClock()
     ) async throws -> WorkCanonicalCurrentRouteFixtureV1 {
         let opening = try await WorkCanonicalOpenIssueFixtureV1.make(
             applicationSupportURL: applicationSupportURL,
@@ -1428,7 +1431,8 @@ final class WorkCanonicalCurrentRouteFixtureV1 {
             siteLabel: siteLabel,
             siteAddress: siteAddress,
             assetLabel: assetLabel,
-            diagnosticsStore: diagnosticsStore
+            diagnosticsStore: diagnosticsStore,
+            clock: clock
         )
         do {
             let workCoordinator = try WorkCoordinator(

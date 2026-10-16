@@ -235,7 +235,7 @@ enum WorkRule {
         guard parent.schemaVersion == 1,
               parent.id == draft.parentRecordID,
               parent.assetID == draft.assetID,
-              parent.issueID == issue.id,
+              (parent.issueID == issue.id || isDifferentIssueOpening(parent, issue: issue)),
               parent.recordRevisionRootID == parent.id,
               parent.revisesRecordID == nil,
               parent.evidenceSourceRecordID == nil,
@@ -259,6 +259,26 @@ enum WorkRule {
         default:
             return false
         }
+    }
+
+    /// The full old-Issue chain and resolution are authenticated by the live
+    /// WorkAuthorityReader before save and again by the writer adapter. This
+    /// pure rule recognizes only the new Issue's exact external opening row.
+    private static func isDifferentIssueOpening(
+        _ parent: WorkflowRecordPayloadV1,
+        issue: IssuePayloadV1
+    ) -> Bool {
+        guard let originalIssueID = parent.issueID,
+              originalIssueID != issue.id,
+              let completedAt = parent.completedAt else {
+            return false
+        }
+        return parent.id == issue.openedByRecordID
+            && parent.stage == WorkflowStage.recheck.rawValue
+            && parent.outcomeKey == "original_resolved_different_issue"
+            && parent.parentRecordID != nil
+            && parent.packetID != nil
+            && issue.createdAt == completedAt
     }
 
     private static func validLocalDate(_ value: String) -> Bool {

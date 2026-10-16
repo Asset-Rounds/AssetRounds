@@ -2125,6 +2125,13 @@ final class FrozenBeginFixture {
                 XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .unsafePath)
             }
         }
+#if DEBUG
+        if true {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=waiter-start uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
         let fifoCompletion = await XCTWaiter.fulfillment(of: [fifoCompleted], timeout: 5)
 #if DEBUG
         print("V23_FROZEN_BEGIN_FIFO_PROBE_V1 source=\(fifoProbeSourceFile) callLine=\(fifoProbeSourceLine) phase=waiter-return resultRaw=\(fifoCompletion.rawValue) uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
@@ -2734,8 +2741,30 @@ struct FrozenProductionPhotoV1 {
         if publishRaw {
             diagnosticPhase?("raw-publish.begin")
             let url = root.appendingPathComponent("picker-\(childID.uuidString).png")
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                diagnosticPhase?("raw-publish.picker-write.begin")
+            }
+#endif
             try bytes.write(to: url)
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                diagnosticPhase?("raw-publish.picker-write.returned")
+                diagnosticPhase?("raw-publish.service.begin")
+            }
+#endif
             _ = try await service.publishRawPhoto(parentDraftID: parent.draftID, childDraftID: childID, sourceURL: url)
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                diagnosticPhase?("raw-publish.service.returned")
+            }
+#endif
             diagnosticPhase?("raw-publish.end")
         }
         clock.value = intent.stageCreatedAt.addingTimeInterval(1)

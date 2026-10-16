@@ -71,13 +71,25 @@ private enum C08 {
 
 @MainActor private final class C08WriterAdapter: WorkspaceWriterAdapterPortV1 {
     private(set) var applyCount = 0
+    private let lifecycleAdapter: WorkspaceWriterAdapterV1
+
+    init(modelContext: ModelContext) {
+        lifecycleAdapter = WorkspaceWriterAdapterV1(modelContext: modelContext)
+    }
+
     func apply(_ command: WorkspaceCommandV1, occurredAt: Date, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        if case .applyImportBulk = command {
+            return try lifecycleAdapter.apply(command, occurredAt: occurredAt,
+                temporaryRelativePath: temporaryRelativePath)
+        }
         guard case let .createFirstSign(value) = command else { throw WorkspaceMutationFailureV1.unsupportedCommand }
         applyCount += 1
         var identities = [try WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID)]
         if let site = value.newSite { identities.append(try WorkspaceEntityIdentityV1(kind: .site, id: site.id)) }
         return try WorkspaceMutationEffectV1(affectedEntities: identities, temporaryRelativePath: temporaryRelativePath)
     }
+
+    func rollback() { lifecycleAdapter.rollback() }
 }
 
 private struct C08Clock: ApplicationClock { func now() -> Date { C08.time } }
@@ -135,7 +147,7 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let workspaceID = C08.workspace(), generationID = C08.id(980_090)
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: C08.id(980_091)))
         let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
-        adapter = C08WriterAdapter()
+        adapter = C08WriterAdapter(modelContext: context)
         writer = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: journal.currentRevision(writerInstanceID: C08.id(980_092)), clock: C08Clock(), idSource: C08IDSource(value: C08.id(980_092)), fileAuthority: C08FileAuthority(), adapter: adapter, journalStore: journal)
         let registration = try C08Stack.registration()
         lifecycle = try ImportBulkLifecycleAdapterV1(registrations: [registration], modelContext: context)
@@ -291,6 +303,103 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         XCTAssertThrowsError(try ImportStreamingBudgetV1(maximumSourceBytes: 0, maximumRows: 1, maximumColumns: 1, maximumCellBytes: 1, maximumScalarsPerCell: 1))
         XCTAssertThrowsError(try ImportRowIdentityV1(workspaceID: plan.workspaceID, sourceSHA256: C08.sourceSHA256, sourceOrdinal: 0, canonicalRowSHA256: C08.sourceSHA256, stableExternalKey: "asset_001", schemaReleaseID: "c08_schema", schemaRelease: 1))
         XCTAssertThrowsError(try ImportRowIdentityV1(workspaceID: plan.workspaceID, sourceSHA256: C08.sourceSHA256, sourceOrdinal: 1, canonicalRowSHA256: C08.sourceSHA256, stableExternalKey: "asset\n001", schemaReleaseID: "c08_schema", schemaRelease: 1))
+
+        // Stable matching keys retain their exact accepted bytes; ordinary text may span lines.
+        let acceptedKey = "Asset_Caf\u{00E9} 001\tB"
+        let acceptedIdentity = try ImportRowIdentityV1(
+            workspaceID: plan.workspaceID, sourceSHA256: C08.sourceSHA256, sourceOrdinal: 1,
+            canonicalRowSHA256: C08.sourceSHA256, stableExternalKey: acceptedKey,
+            schemaReleaseID: "c08_schema", schemaRelease: 1
+        )
+        let acceptedBytes = try ImportBulkCanonicalCodecV1.encode(acceptedIdentity)
+        let acceptedRoundTrip = try ImportBulkCanonicalCodecV1.decode(ImportRowIdentityV1.self, from: acceptedBytes)
+        try acceptedRoundTrip.validate()
+        XCTAssertEqual(Array(acceptedIdentity.stableExternalKey.utf8), Array(acceptedKey.utf8))
+        XCTAssertEqual(Array(acceptedRoundTrip.stableExternalKey.utf8), Array(acceptedKey.utf8))
+        XCTAssertEqual(acceptedRoundTrip.identitySHA256, acceptedIdentity.identitySHA256)
+        XCTAssertEqual(try ImportBulkCanonicalCodecV1.encode(acceptedRoundTrip), acceptedBytes)
+
+        // Reconstruct a digest-valid identity permitted by the old multiline-key contract.
+        struct LegacyIdentityBasis: Encodable {
+            let schemaVersion: Int
+            let workspaceID: WorkspaceID
+            let sourceSHA256: String
+            let sourceOrdinal: UInt64
+            let canonicalRowSHA256: String
+            let stableExternalKey: String
+            let schemaReleaseID: String
+            let schemaRelease: UInt64
+        }
+        let newlineSequences = ["\n", "\r", "\r\n", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}"]
+        for newline in newlineSequences {
+            let multilineKey = "asset\(newline)001"
+            XCTAssertThrowsError(try ImportRowIdentityV1(
+                workspaceID: plan.workspaceID, sourceSHA256: C08.sourceSHA256, sourceOrdinal: 1,
+                canonicalRowSHA256: C08.sourceSHA256, stableExternalKey: multilineKey,
+                schemaReleaseID: "c08_schema", schemaRelease: 1
+            )) { error in
+                XCTAssertEqual(error as? ImportBulkFailureV1, .invalidValue)
+            }
+            let legacyBasis = LegacyIdentityBasis(
+                schemaVersion: ImportRowIdentityV1.schemaVersion, workspaceID: plan.workspaceID,
+                sourceSHA256: C08.sourceSHA256, sourceOrdinal: 1,
+                canonicalRowSHA256: C08.sourceSHA256, stableExternalKey: multilineKey,
+                schemaReleaseID: "c08_schema", schemaRelease: 1
+            )
+            let legacyDigest = try ImportBulkCanonicalCodecV1.sha256(legacyBasis)
+            var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: acceptedBytes) as? [String: Any])
+            legacyObject["stableExternalKey"] = multilineKey
+            legacyObject["identitySHA256"] = legacyDigest
+            let legacyTransportBytes = try JSONSerialization.data(withJSONObject: legacyObject, options: [.sortedKeys])
+            let legacyIdentity = try JSONDecoder().decode(ImportRowIdentityV1.self, from: legacyTransportBytes)
+            let replayedIdentity = try ImportBulkCanonicalCodecV1.decode(
+                ImportRowIdentityV1.self, from: ImportBulkCanonicalCodecV1.encode(legacyIdentity)
+            )
+            XCTAssertEqual(Array(replayedIdentity.stableExternalKey.utf8), Array(multilineKey.utf8))
+            XCTAssertEqual(replayedIdentity.identitySHA256, legacyDigest)
+            XCTAssertThrowsError(try replayedIdentity.validate()) { error in
+                XCTAssertEqual(error as? ImportBulkFailureV1, .invalidValue)
+            }
+            XCTAssertThrowsError(try ImportPlanRowV1(
+                identity: replayedIdentity, disposition: .duplicateSource, reasons: [.duplicateExternalKey],
+                mappedFields: [], commands: [], expectedTargetRevision: nil
+            )) { error in
+                XCTAssertEqual(error as? ImportBulkFailureV1, .invalidValue)
+            }
+            var replayedRow = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: ImportBulkCanonicalCodecV1.encode(plan.rows[0])) as? [String: Any]
+            )
+            replayedRow["identity"] = legacyObject
+            XCTAssertThrowsError(try JSONDecoder().decode(
+                ImportPlanRowV1.self, from: JSONSerialization.data(withJSONObject: replayedRow, options: [.sortedKeys])
+            )) { error in
+                XCTAssertEqual(error as? ImportBulkFailureV1, .invalidValue)
+            }
+            XCTAssertThrowsError(try ImportProposedCommandV1.canonicalPayloadSHA256(
+                commandID: "create_asset_001", kind: .createAsset, targetStableID: nil,
+                expectedRevision: nil, dependencyCommandIDs: [], rowIdentity: replayedIdentity,
+                schemaRelease: plan.schemaRelease, mappedFields: []
+            )) { error in
+                XCTAssertEqual(error as? ImportBulkFailureV1, .invalidValue)
+            }
+
+            let multilineText = "First\(newline)second"
+            XCTAssertNoThrow(try ImportBulkCanonicalCodecV1.requireText(multilineText))
+            let mappedText = try ImportMappedFieldV1(key: "asset_name", value: multilineText)
+            let mappedRoundTrip = try ImportBulkCanonicalCodecV1.decode(
+                ImportMappedFieldV1.self, from: ImportBulkCanonicalCodecV1.encode(mappedText)
+            )
+            XCTAssertEqual(Array(mappedRoundTrip.value.utf8), Array(multilineText.utf8))
+            let correction = try ImportCorrectionArtifactV1(
+                rowIdentity: acceptedIdentity, errorCode: .staleExpectedRevision,
+                offendingColumn: "asset_name", boundedCorrectionHint: multilineText
+            )
+            let correctionRoundTrip = try ImportBulkCanonicalCodecV1.decode(
+                ImportCorrectionArtifactV1.self, from: ImportBulkCanonicalCodecV1.encode(correction)
+            )
+            try correctionRoundTrip.validate()
+            XCTAssertEqual(Array(correctionRoundTrip.boundedCorrectionHint.utf8), Array(multilineText.utf8))
+        }
         XCTAssertThrowsError(try BulkChunkPlanV1(chunkIndex: 0, rowIdentitySHA256s: [], mutationIDs: []))
         let duplicate = try ImportPlanRowV1(identity: plan.rows[0].identity, disposition: .duplicateSource, reasons: [.duplicateExternalKey], mappedFields: [], commands: [], expectedTargetRevision: nil)
         let ambiguous = try ImportPlanRowV1(identity: plan.rows[0].identity, disposition: .ambiguousTarget, reasons: [.multipleExactTargets], mappedFields: [], commands: [], expectedTargetRevision: nil)
@@ -371,12 +480,28 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let begun = try coordinator.begin(sessionID: C08.id(980_040), preview: preview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let recoveryContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try stack.writer.currentRevision()))
         XCTAssertEqual(try C08CreateAssetMaterializer().materializeValidated(recoveryContext).mutationID, bulk.chunks[0].mutationIDs[0])
-        let committedByCoordinator = try coordinator.commitFirstMissingChunk(session: begun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: false)
-        let recoveredStartingPoint = try BulkSessionV1(sessionID: begun.sessionID, workspaceID: plan.workspaceID, bulkPlan: bulk, sourceSHA256: plan.source.sourceSHA256, expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
-        try stack.lifecycle.record(session: recoveredStartingPoint, replacing: committedByCoordinator.sessionSHA256)
-        let recovered = try coordinator.commitFirstMissingChunk(session: recoveredStartingPoint, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: false)
+        // The real writer effect is durable while the authentic begun session
+        // still lacks its C08 chunk receipt, matching I01's existing recovery edge.
+        _ = try stack.writer.execute(C08CreateAssetMaterializer().materializeValidated(recoveryContext))
+        XCTAssertNotNil(try stack.writer.durableReceipt(mutationID: bulk.chunks[0].mutationIDs[0]))
+        XCTAssertNil(try stack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
+        XCTAssertEqual(try stack.lifecycle.durableSession(sessionID: begun.sessionID), begun)
+        let recoveredStartingPoint = begun
+        let committedByCoordinator = try coordinator.commitFirstMissingChunk(session: recoveredStartingPoint, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: false)
+        XCTAssertEqual(committedByCoordinator.state, .completed)
+        let historyBeforeReplay = try stack.writer.sourceMutationHistorySnapshot()
+        let recovered = try coordinator.commitFirstMissingChunk(session: committedByCoordinator, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: false)
         XCTAssertEqual(recovered.chunkReceipts, committedByCoordinator.chunkReceipts)
         XCTAssertEqual(stack.adapter.applyCount, 1)
+        XCTAssertEqual(try stack.writer.sourceMutationHistorySnapshot(), historyBeforeReplay)
+        XCTAssertEqual(try stack.lifecycle.durableSession(sessionID: begun.sessionID), committedByCoordinator)
+        // A completed receipt-bearing session can never be rewound to begun.
+        XCTAssertThrowsError(try stack.lifecycle.record(session: begun, replacing: committedByCoordinator.sessionSHA256)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try stack.lifecycle.durableSession(sessionID: begun.sessionID), committedByCoordinator)
+        XCTAssertEqual(try stack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0), committedByCoordinator.chunkReceipts[0])
+        XCTAssertEqual(try stack.writer.sourceMutationHistorySnapshot(), historyBeforeReplay)
         let receipt = try BulkCommitReceiptV1(receiptID: C08.id(980_015), workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0, expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, disposition: .committed, committedMutationIDs: bulk.chunks[0].mutationIDs)
         let completed = try BulkSessionV1(sessionID: C08.id(980_016), workspaceID: plan.workspaceID, bulkPlan: bulk, sourceSHA256: plan.source.sourceSHA256, expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, state: .completed, chunkReceipts: [receipt])
         let receiptRow = try BulkCommitReceiptRowV1(receipt); XCTAssertEqual(try receiptRow.value(), receipt)

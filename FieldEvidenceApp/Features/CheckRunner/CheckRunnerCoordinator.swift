@@ -1188,11 +1188,23 @@ final class CheckRunnerCoordinator {
         }
         let gateCheckedAt = clock.now()
         if let draft = try existingDraft(assetID: assetID) {
-            guard draftAccessEntry(for: draft) == requestedEntry,
-                  draft.issueID == issueID,
+            if let liveLifecycle {
+                let dependencies = liveLifecycle.dependencies
+                try dependencies.writer.validateFieldDraftReadContext(modelContext)
+                let current = try dependencies.writer.currentRevision()
+                guard current.workspaceID == dependencies.workspaceID,
+                      current.generationID == dependencies.generationID,
+                      try dependencies.profileRegistry.resolve(liveLifecycle.profile.release)
+                        == liveLifecycle.profile else {
+                    throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+                }
+            }
+            // Resume the saved work under its own entry and issue authority.
+            // A different new route must never replace a valid active draft.
+            guard let existingEntry = draftAccessEntry(for: draft),
                   let proof = validatedDraftProof(
                     draft,
-                    entry: requestedEntry,
+                    entry: existingEntry,
                     gateCheckedAt: gateCheckedAt
                   ) else {
                 return .blockInvalidRequest
@@ -1200,7 +1212,7 @@ final class CheckRunnerCoordinator {
             if let draftAccessState {
                 return try evaluateDraftAccess(
                     state: draftAccessState(),
-                    entry: requestedEntry,
+                    entry: existingEntry,
                     existingDraft: proof
                 )
             }

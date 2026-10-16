@@ -1,6 +1,6 @@
 {
-  "artifactDigest": "33372d178ce8b76935b34bbd1b3adb14de9272afc6b7bb1a01b3384eea8e97d5",
-  "artifactSetDigest": "faa57fefdfa9bbf9a0c2c4bcbb292d6ecc1b2ba971f8d4671b536782a995f15f",
+  "artifactDigest": "8659e890066dc15be8a5a58ac81c9e2d3a6612e3e5f5952139fd4efe53f7a4ca",
+  "artifactSetDigest": "f9a391af1f39932088af23ea5e289bfc0b38cdfb4fa6f51180db5677195fbb46",
   "authority": {
     "appBaseHead": "dc59c04251eef2d6574a152b846c0cade2ab2caf",
     "appBaseTree": "308c809d842a54bbfaf8fa3dfce6d5cd520ab54a",
@@ -482,9 +482,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 549427,
+      "byteCount": 554342,
       "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
-      "sha256": "e2d64f69adc3a6e2c513e7d710a2426117b2bace7948e513353fe0fa1b226541",
+      "sha256": "4845382c0d0be29ed1fb100fe8ff7210bb73b1e2c734d5109d3bcf8285a0bfe0",
       "status": "SEALED_SOURCE"
     },
     {
@@ -770,9 +770,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 784048,
+      "byteCount": 784197,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "acf3cb517a19bdf33c31c7bbfa98b4dd8bb0e41db60eea99c61175ad4b33f685",
+      "sha256": "95b5a6d6e84894c98cb6884ad934a4aa32254184c28e02948e683c513c849007",
       "status": "SEALED_SOURCE"
     },
     {
@@ -806,15 +806,15 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 170702,
+      "byteCount": 171472,
       "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
-      "sha256": "4d62942076705fc68682031c9c701ed96508c4aeaee10f3ec25d2ed9d71f623c",
+      "sha256": "55bb00c9f711f4a2896f1147aa188c65f12dbdf5b9f76cccbef10da8301f8356",
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 21274,
+      "byteCount": 24194,
       "path": "FieldEvidenceAppTests/S3_6CameraRecoveryTests.swift",
-      "sha256": "b0c530937221010e14fde439ace7a1a42b9adc399e04aec1aba8eed2a9d3b5a9",
+      "sha256": "00b137b01afa7ac9baca0e85062692881089e236d87007d3eddf22e59b421ecc",
       "status": "SEALED_SOURCE"
     },
     {
@@ -824,15 +824,15 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 50343,
+      "byteCount": 49727,
       "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
-      "sha256": "a53f2e29ec8be617b06600040d788582f3181b8fd50a0289156960b8bcad0d3a",
+      "sha256": "c6ee536d31f5d16a75269664be2685cbaff0a38e7c491e7a06c80210871549dc",
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 46196,
+      "byteCount": 45824,
       "path": "FieldEvidenceAppTests/S4_4HistoryComparisonTests.swift",
-      "sha256": "153b4089da5a85bea05b75598be65145cca921c9a0b55ffbf38ac9bb133a3f95",
+      "sha256": "35cd28145c558eabe675ddef2df4c8a5fe6a203c99766a6d874821eb009ce974",
       "status": "SEALED_SOURCE"
     },
     {
@@ -998,9 +998,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 19189,
+      "byteCount": 20120,
       "path": "FieldEvidenceApp/Domain/Workflow/WorkRule.swift",
-      "sha256": "5dcdfd74e82a7781786f1b9b0ebd257baf4d4c6cc097d76d3a96e6aa4ee2f387",
+      "sha256": "b34f0d6c4d9c0501b0a94692fde95596c1f3614fa76ef9d268651ac8fdd9b93c",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1346,9 +1346,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 1750362,
+      "byteCount": 1750730,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
-      "sha256": "ca50895977ed01b678c5e3303a6b5e82111213c661e0c7cad8fd9b236faeb760",
+      "sha256": "5b3d19aff93e00bc679465352dcf26766e36078c6a72d91da8c1d60ec6149480",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1382,9 +1382,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 48968,
+      "byteCount": 70527,
       "path": "FieldEvidenceAppTests/S3_1DraftSchemaTests.swift",
-      "sha256": "c6e63dc1cfb60e865bff3a6bf8376b088aa1accc14cbfefe68e22cce8d415c68",
+      "sha256": "8c05510dff9d3261c91b00a32d4bdafc83989f636594bb67cdc579e08336d7c7",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1412,9 +1412,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 13571,
+      "byteCount": 13650,
       "path": "FieldEvidenceAppTests/S7_4DraftAccessPolicyTests.swift",
-      "sha256": "8599a38242129248e686d6f48e810c195f60ce9e47f69c730b66a7d75e0f07e9",
+      "sha256": "8fa7f1eb65bd2b50a722a04b469a456926381e9c34a1353b103dc3fc39773b7f",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1478,9 +1478,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 304492,
+      "byteCount": 310956,
       "path": "FieldEvidenceApp/Infrastructure/Drafts/DraftAttachmentStagingAdapterV1.swift",
-      "sha256": "ac039bab9edea5c1ff837faea38b4101b429e01dfb42d75ebbd1e565937b3e01",
+      "sha256": "7a0d1a8026fa5f6da39fcb6aa3ea0fe4a1fdd50a2a9c291d52e984ce47f788e6",
       "status": "SEALED_SOURCE"
     },
     {

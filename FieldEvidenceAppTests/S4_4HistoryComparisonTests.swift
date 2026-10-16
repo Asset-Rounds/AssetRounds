@@ -62,7 +62,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testIndexFiltersHistoryAndStrictImmediateComparisonUseValidatedVisitTruth() async throws {
         let harness = try await makeHarness("golden")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(harness.owner) }
         let old = try await addVisit(
             to: harness,
             completedAt: Fixture.baseDate,
@@ -132,7 +132,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testCurrentRevisionCollapsesOneStableRootAndCorrectionIsNotAnotherVisit() async throws {
         let harness = try await makeHarness("collapse")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(harness.owner) }
         let visit = try await addVisit(
             to: harness,
             completedAt: Fixture.baseDate,
@@ -140,7 +140,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
             asset: harness.assetA,
             seed: 130
         )
-        let correction = try addCorrection(to: visit, in: harness)
+        let correction = try await addCorrection(to: visit, in: harness)
         let coordinator = try historyCoordinator(in: harness)
 
         XCTAssertEqual(try coordinator.index().visits.map(\.stableRootID), [visit.packet.stableRootID])
@@ -156,7 +156,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testMutableMembershipLabelsNeverRewriteFrozenReportTruth() async throws {
         let harness = try await makeHarness("frozen-labels")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(harness.owner) }
         let visit = try await addVisit(
             to: harness,
             completedAt: Fixture.baseDate,
@@ -184,7 +184,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testMissingImmediateEvidenceAndEqualChronologyOmitComparisonButKeepHistory() async throws {
         let harness = try await makeHarness("comparison-alt")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(harness.owner) }
         let incomplete = try await addVisit(
             to: harness,
             completedAt: Fixture.baseDate,
@@ -223,7 +223,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testAmbiguousAndBrokenImmediatePredecessorsNeverFallThroughToOlderVisit() async throws {
         let ambiguous = try await makeHarness("ambiguous-prior")
-        defer { try? fileManager.removeItem(at: ambiguous.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(ambiguous.owner) }
         _ = try await addVisit(
             to: ambiguous, completedAt: Fixture.baseDate,
             site: ambiguous.siteA, asset: ambiguous.assetA, seed: 11
@@ -250,7 +250,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
         )
 
         let broken = try await makeHarness("broken-prior")
-        defer { try? fileManager.removeItem(at: broken.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(broken.owner) }
         let old = try await addVisit(
             to: broken, completedAt: Fixture.baseDate,
             site: broken.siteA, asset: broken.assetA, seed: 131
@@ -280,7 +280,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testCrossPacketReverseReplacementAndTombstoneNeverBecomeBrowsable() async throws {
         let replacement = try await makeHarness("foreign-replacement")
-        defer { try? fileManager.removeItem(at: replacement.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(replacement.owner) }
         let valid = try await addVisit(
             to: replacement, completedAt: Fixture.baseDate,
             site: replacement.siteA, asset: replacement.assetA, seed: 31
@@ -303,7 +303,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
         XCTAssertEqual(try authoritySnapshot(in: replacement), before)
 
         let tombstone = try await makeHarness("tombstone-collision")
-        defer { try? fileManager.removeItem(at: tombstone.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(tombstone.owner) }
         let live = try await addVisit(
             to: tombstone, completedAt: Fixture.baseDate,
             site: tombstone.siteA, asset: tombstone.assetA, seed: 61
@@ -327,7 +327,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     @MainActor
     func testDirtyCollisionAndUnsafeAuthorityFailClosedWithoutMutationOrUnownedTouch() async throws {
         let dirty = try await makeHarness("dirty")
-        defer { try? fileManager.removeItem(at: dirty.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(dirty.owner) }
         let dirtyVisit = try await addVisit(
             to: dirty,
             completedAt: Fixture.baseDate,
@@ -345,7 +345,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
         dirty.context.rollback()
 
         let collision = try await makeHarness("collision")
-        defer { try? fileManager.removeItem(at: collision.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(collision.owner) }
         let collisionVisit = try await addVisit(
             to: collision,
             completedAt: Fixture.baseDate,
@@ -369,7 +369,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
         XCTAssertEqual(try authoritySnapshot(in: collision), collisionBefore)
 
         let unsafe = try await makeHarness("unsafe")
-        defer { try? fileManager.removeItem(at: unsafe.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(unsafe.owner) }
         let unsafeVisit = try await addVisit(
             to: unsafe,
             completedAt: Fixture.baseDate,
@@ -425,6 +425,10 @@ private struct HistoryHarness {
     let applicationSupportURL: URL
     let session: StoreGenerationSession
     let context: ModelContext
+    let owner: StoreSessionCoordinator
+    let dependencies: WorkspacePackageLifecycleDependenciesV1
+    let profile: WorkspacePackageLifecycleProfileV1
+    let clock: HistoryFixtureClock
     let siteA: Site
     let siteB: Site
     let assetA: Asset
@@ -463,42 +467,78 @@ private extension S4_4HistoryComparisonTests {
             .openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
-        let siteA = Site(
-            id: UUID(), label: "North Campus", address: "10 Main",
-            timeZoneID: "America/New_York", createdAt: Fixture.baseDate.addingTimeInterval(-10)
-        )
-        let siteB = Site(
-            id: UUID(), label: "South Campus", address: "20 Main",
-            timeZoneID: "America/New_York", createdAt: Fixture.baseDate.addingTimeInterval(-9)
-        )
-        let assetA = Asset(
-            id: UUID(), siteID: siteA.id, packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
-            label: "Monument Sign", createdAt: Fixture.baseDate.addingTimeInterval(-8)
-        )
-        let assetB = Asset(
-            id: UUID(), siteID: siteA.id, packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
-            label: "Lobby Sign", createdAt: Fixture.baseDate.addingTimeInterval(-7)
-        )
-        let assetC = Asset(
-            id: UUID(), siteID: siteB.id, packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
-            label: "Road Sign", createdAt: Fixture.baseDate.addingTimeInterval(-6)
-        )
-        [siteA, siteB].forEach { context.insert($0) }
-        [assetA, assetB, assetC].forEach { context.insert($0) }
-        try context.save()
-        return HistoryHarness(
-            applicationSupportURL: applicationSupport,
-            session: session,
-            context: context,
-            siteA: siteA,
-            siteB: siteB,
-            assetA: assetA,
-            assetB: assetB,
-            assetC: assetC
-        )
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let clock = HistoryFixtureClock(Fixture.baseDate.addingTimeInterval(-10))
+        let owner = try StoreSessionCoordinator(validatingSession: session, clock: clock,
+            lifecycleProfileRegistry: registry)
+        do {
+            let siteAID = UUID()
+            let siteBID = UUID()
+            let assetAID = UUID()
+            let assetBID = UUID()
+            let assetCID = UUID()
+            // Canonical first sign creates its Site and first Asset together.
+            // Keep the original Site instants and seed before the earliest Check.
+            try createCurrentHistoryAsset(owner: owner, siteID: siteAID,
+                newSite: .init(id: siteAID, label: "North Campus", address: "10 Main",
+                    timeZoneID: "America/New_York"),
+                assetID: assetAID, label: "Monument Sign",
+                createdAt: Fixture.baseDate.addingTimeInterval(-10))
+            clock.set(Fixture.baseDate.addingTimeInterval(-9))
+            try createCurrentHistoryAsset(owner: owner, siteID: siteBID,
+                newSite: .init(id: siteBID, label: "South Campus", address: "20 Main",
+                    timeZoneID: "America/New_York"),
+                assetID: assetCID, label: "Road Sign",
+                createdAt: Fixture.baseDate.addingTimeInterval(-9))
+            clock.set(Fixture.baseDate.addingTimeInterval(-7))
+            try createCurrentHistoryAsset(owner: owner, siteID: siteAID, newSite: nil,
+                assetID: assetBID, label: "Lobby Sign",
+                createdAt: Fixture.baseDate.addingTimeInterval(-7))
+            let sites = try context.fetch(FetchDescriptor<Site>())
+            let assets = try context.fetch(FetchDescriptor<Asset>())
+            let dependencies = try owner.packageLifecycleDependencies(profileRegistry: registry)
+            return HistoryHarness(
+                applicationSupportURL: applicationSupport,
+                session: session,
+                context: context,
+                owner: owner,
+                dependencies: dependencies,
+                profile: profile,
+                clock: clock,
+                siteA: try XCTUnwrap(sites.first { $0.id == siteAID }),
+                siteB: try XCTUnwrap(sites.first { $0.id == siteBID }),
+                assetA: try XCTUnwrap(assets.first { $0.id == assetAID }),
+                assetB: try XCTUnwrap(assets.first { $0.id == assetBID }),
+                assetC: try XCTUnwrap(assets.first { $0.id == assetCID })
+            )
+        } catch {
+            closeCurrentHistoryWriter(owner)
+            throw error
+        }
+    }
+
+    @MainActor
+    func createCurrentHistoryAsset(owner: StoreSessionCoordinator, siteID: UUID,
+        newSite: FirstSignMutationV1.NewSiteV1?, assetID: UUID, label: String,
+        createdAt: Date) throws {
+        let pack = SignPack.illuminatedSignV1
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: newSite, assetID: assetID, assetLabel: label,
+            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+            packContentVersion: pack.contentVersion, createdAt: createdAt,
+            initialPlacementMutationID: mutationID, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+        )), mutationID: mutationID)
+    }
+
+    @MainActor
+    func closeCurrentHistoryWriter(_ owner: StoreSessionCoordinator) {
+        // Writer closure is not a proof that every session/model alias drained.
+        // Retain the private root while those aliases can still own SQLite.
+        do { try owner.invalidateAndReleaseWriter() }
+        catch { XCTFail("Current history fixture writer close failed: \(error)") }
     }
 
     @MainActor
@@ -513,11 +553,13 @@ private extension S4_4HistoryComparisonTests {
         guard asset.siteID == site.id else {
             throw HistoryFixtureError.couldNotCreateFixture
         }
-        let coordinator = CheckRunnerCoordinator(
+        let coordinator = try CheckRunnerCoordinator(
             modelContext: harness.context,
-            signPack: .illuminatedSignV1
+            packageLifecycleDependencies: harness.dependencies,
+            packageLifecycleProfile: harness.profile
         )
         coordinator.configureCapture(generationRootURL: harness.session.generationRootURL)
+        harness.clock.set(completedAt.addingTimeInterval(-10))
         let source = try coordinator.beginCheck(
             assetID: asset.id,
             timeZoneID: "America/New_York",
@@ -526,6 +568,7 @@ private extension S4_4HistoryComparisonTests {
             safePositionAccepted: true,
             observedAt: completedAt.addingTimeInterval(-10)
         )
+        harness.clock.set(completedAt.addingTimeInterval(-8))
         let wide = try await coordinator.importCandidate(
             assetID: asset.id,
             sourceData: try makePNG(seed: seed),
@@ -533,6 +576,7 @@ private extension S4_4HistoryComparisonTests {
         )
         _ = try await coordinator.accept(candidate: wide, assetID: asset.id)
         if includesClose {
+            harness.clock.set(completedAt.addingTimeInterval(-7))
             let close = try await coordinator.importCandidate(
                 assetID: asset.id,
                 sourceData: try makePNG(seed: seed &+ 1),
@@ -543,6 +587,7 @@ private extension S4_4HistoryComparisonTests {
         let selection: CheckOutcomeSelection = includesClose
             ? .noVisibleIssue
             : .couldNotVerify(reasonKey: "required_view_obstructed", note: nil)
+        harness.clock.set(completedAt.addingTimeInterval(1))
         let result = try await coordinator.finalize(
             assetID: asset.id,
             selection: selection,
@@ -571,113 +616,43 @@ private extension S4_4HistoryComparisonTests {
     func addCorrection(
         to prior: VisitFixture,
         in harness: HistoryHarness
-    ) throws -> VisitFixture {
+    ) async throws -> VisitFixture {
         let source = prior.source
-        let correctionID = UUID()
-        let correction = WorkflowRecord(
-            id: correctionID,
-            assetID: source.assetID,
-            packetID: source.packetID,
-            issueID: source.issueID,
-            parentRecordID: source.parentRecordID,
-            recordRevisionRootID: source.id,
-            revisesRecordID: source.id,
-            evidenceSourceRecordID: source.id,
-            revisionKind: .clericalCorrection,
-            stage: WorkflowStage(rawValue: source.stage)!,
-            state: .completed,
-            draftStepKey: nil,
-            startedAt: source.startedAt,
-            completedAt: try XCTUnwrap(source.completedAt).addingTimeInterval(300),
-            observedAtUTC: source.observedAtUTC,
-            timeZoneID: source.timeZoneID,
-            utcOffsetMinutes: source.utcOffsetMinutes,
-            localDate: source.localDate,
-            localTime: source.localTime,
-            afterDarkAcknowledgementKey: source.afterDarkAcknowledgementKey,
-            afterDarkAcknowledgementCopy: source.afterDarkAcknowledgementCopy,
-            afterDarkAcknowledgementVersion: source.afterDarkAcknowledgementVersion,
-            afterDarkAcknowledgementAccepted: source.afterDarkAcknowledgementAccepted,
-            safePositionAcknowledgementKey: source.safePositionAcknowledgementKey,
-            safePositionAcknowledgementCopy: source.safePositionAcknowledgementCopy,
-            safePositionAcknowledgementVersion: source.safePositionAcknowledgementVersion,
-            safePositionAcknowledgementAccepted: source.safePositionAcknowledgementAccepted,
-            packID: source.packID,
-            packSchemaVersion: source.packSchemaVersion,
-            packContentVersion: source.packContentVersion,
-            pdfTemplateID: source.pdfTemplateID,
-            pdfTemplateVersion: source.pdfTemplateVersion,
-            outcomeKey: source.outcomeKey,
-            couldNotVerifyKey: source.couldNotVerifyKey,
-            couldNotVerifyDisplaySnapshot: source.couldNotVerifyDisplaySnapshot,
-            couldNotVerifyRegistryVersion: source.couldNotVerifyRegistryVersion,
-            workPerformedLocalDate: source.workPerformedLocalDate,
-            workDescription: source.workDescription,
-            note: "Corrected clerical note",
-            finalizationMutationID: UUID()
-        )
-        let priorSnapshotURL = harness.session.generationRootURL.appendingPathComponent(
-            prior.report.snapshotRelativePath
-        )
-        let priorSnapshot = try ReportSnapshotEncoderV1().decode(
-            Data(contentsOf: priorSnapshotURL)
-        )
-        let reportID = UUID()
-        let snapshotAt = try XCTUnwrap(source.completedAt).addingTimeInterval(301)
-        let snapshot = ReportSnapshotV1(
-            acknowledgements: priorSnapshot.acknowledgements,
-            asset: priorSnapshot.asset,
-            couldNotVerify: priorSnapshot.couldNotVerify,
-            disclaimer: priorSnapshot.disclaimer,
-            display: priorSnapshot.display,
-            evidence: priorSnapshot.evidence,
-            evidenceSourceRecordID: source.id,
-            history: priorSnapshot.history,
-            issues: priorSnapshot.issues,
-            note: correction.note,
-            outcome: priorSnapshot.outcome,
-            pack: priorSnapshot.pack,
-            packetID: prior.packet.id,
-            pdfTemplate: priorSnapshot.pdfTemplate,
-            reportID: reportID,
-            site: priorSnapshot.site,
-            snapshotCreatedAt: snapshotAt,
-            snapshotSchemaVersion: 1,
-            sourceApp: priorSnapshot.sourceApp,
-            sourceRecordID: correctionID,
-            stableRootID: prior.packet.stableRootID,
-            stage: priorSnapshot.stage,
-            timeContext: priorSnapshot.timeContext
-        )
-        let snapshotBytes = try ReportSnapshotEncoderV1().encode(snapshot).data
-        let snapshotRelativePath = "snapshots/\(reportID.uuidString.lowercased()).json"
-        try snapshotBytes.write(
-            to: harness.session.generationRootURL.appendingPathComponent(snapshotRelativePath)
-        )
-        let report = Report(
-            id: reportID,
-            packetID: prior.packet.id,
-            sourceRecordID: correctionID,
-            snapshotSchemaVersion: 1,
-            snapshotRelativePath: snapshotRelativePath,
-            snapshotSHA256: snapshotBytes.sha256,
-            pdfState: .pending,
-            pdfRelativePath: nil,
-            pdfSHA256: nil,
-            createdAt: snapshotAt,
-            replacesReportID: prior.report.id
-        )
-        harness.context.insert(correction)
-        harness.context.insert(report)
-        prior.packet.currentRecordID = correctionID
-        try harness.context.save()
+        // A clerical correction keeps the original visit completion; the old
+        // correction instant is only the operation clock, not a new visit.
+        let correctionAt = try XCTUnwrap(source.completedAt).addingTimeInterval(300)
+        harness.clock.set(correctionAt)
         let delivery = try ReportDeliveryCoordinator(
             modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL
+            lifecycleDependencies: harness.dependencies,
+            lifecycleProfile: harness.profile
         )
-        guard case .ready = try delivery.prepareFinalizedReport(id: reportID) else {
+        let correctionSource = try delivery.correctionSource(reportID: prior.report.id)
+        let priorSnapshot = try delivery.validatedReadyReport(id: prior.report.id).snapshot
+        let identifiers = ReportCorrectionIdentifiers(
+            mutationID: UUID(), recordID: UUID(), reportID: UUID()
+        )
+        let snapshotAt = try XCTUnwrap(source.completedAt).addingTimeInterval(301)
+        harness.clock.set(snapshotAt)
+        let submission = try await delivery.submitCorrection(
+            from: correctionSource,
+            note: "Corrected clerical note",
+            snapshotCreatedAt: snapshotAt,
+            sourceApp: priorSnapshot.sourceApp,
+            identifiers: identifiers
+        )
+        guard case let .ready(chain) = submission,
+              chain.current.reportID == identifiers.reportID else {
             throw HistoryFixtureError.couldNotCreateFixture
         }
+        let corrections = try harness.context.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == identifiers.recordID
+        }
+        let reports = try harness.context.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == identifiers.reportID
+        }
+        let correction = try XCTUnwrap(corrections.first)
+        let report = try XCTUnwrap(reports.first)
         return VisitFixture(source: correction, packet: prior.packet, report: report)
     }
 
@@ -787,6 +762,14 @@ private extension S4_4HistoryComparisonTests {
     }
 }
 
+private final class HistoryFixtureClock: ApplicationClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func set(_ value: Date) { lock.withLock { self.value = value } }
+    func now() -> Date { lock.withLock { value } }
+}
+
 private enum HistoryFixtureError: Error { case couldNotCreateFixture }
 
 private extension Data {
@@ -840,7 +823,7 @@ extension S4_4HistoryComparisonTests {
         let staleRevision = try XCTUnwrap(scenario.operations.first { $0.kind == .rejectStaleRevision })
 
         let harness = try await makeHarness("c42-history")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        defer { closeCurrentHistoryWriter(harness.owner) }
         harness.siteA.label = scenario.archetypeID
         harness.assetA.label = receipt.normalizedResultSHA256
         try harness.context.save()

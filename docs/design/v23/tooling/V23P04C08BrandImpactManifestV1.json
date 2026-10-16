@@ -4,7 +4,7 @@
   "accessibilitySourceDisposition": "SOURCE_INSPECTED",
   "adoptionEnabled": false,
   "adoptionSkipped": true,
-  "artifactDigest": "b8156b4dbd8a27992934bc6119ed514dac145a645a274ca37ad3eb96d2b6625b",
+  "artifactDigest": "f2dd89d91c7168d3edcf15a9d1a9528ee98c8fc9421f53e88274a7b639f390c8",
   "authority": {
     "appBaseHead": "8925c84d79f703482525a0dc0876bfb6a1e5b7c1",
     "appBaseTree": "68a59bca98a5aa2a191c138db6418492203b0586",
@@ -429,9 +429,9 @@
     "sourceReason": "ALL_IMPLEMENTATION_SOURCE_LANES_PRESENT",
     "sourceRows": [
       {
-        "byteCount": 92538,
+        "byteCount": 94948,
         "path": "FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift",
-        "sha256": "c94f4388634c93e25d75d241301e0ae4b538d2fa0a823c22e0e32903a929a473",
+        "sha256": "551b7fb3c868a7d3d763cf3b8d3eff82b383fe26638cd1b854611655c53ef018",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -441,27 +441,27 @@
         "status": "SOURCE_PRESENT"
       },
       {
-        "byteCount": 13350,
+        "byteCount": 25816,
         "path": "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift",
-        "sha256": "ae13c21bf9d05f5318b1eb33423a33687c61918250c9f6ffb528f614ab0c7e48",
+        "sha256": "207589e46be33cfcf664b5d3af403dd92f64184b9171d3293cfd15d231fe3e2e",
         "status": "SOURCE_PRESENT"
       },
       {
-        "byteCount": 8854,
+        "byteCount": 12861,
         "path": "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift",
-        "sha256": "ef4d368fa7e4032195ccfbe08ffce580083c7e6e3730acfc9a2f693d32f29aa9",
+        "sha256": "7c9d0a2c7cb6b3da0d26a9ae9f63ab5361efc051ba4791edeba4b66aa92ac782",
         "status": "SOURCE_PRESENT"
       },
       {
-        "byteCount": 4808,
+        "byteCount": 5246,
         "path": "FieldEvidenceApp/Features/AssetImport/ImportBulkPreviewView.swift",
-        "sha256": "11f861c0fc95329ab6102d78a7cf97c8f9d861b3224b3278bc21d64bc4b7fbf6",
+        "sha256": "69a1259b50e84550f64a98eedc3beaf97cd01eaafa506628e5def1cc1478f8a6",
         "status": "SOURCE_PRESENT"
       },
       {
-        "byteCount": 30917,
+        "byteCount": 52285,
         "path": "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
-        "sha256": "1348635cb5c107fe4bff5a4e7355ea3b4157447d4e01294cf3edf21ffd940581",
+        "sha256": "40333141cd329b4d9e2b6a4ffb6d3530b2150e827627ffbbeedb86215faad920",
         "status": "SOURCE_PRESENT"
       },
       {

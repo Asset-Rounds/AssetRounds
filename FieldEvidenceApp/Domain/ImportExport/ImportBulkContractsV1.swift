@@ -516,6 +516,9 @@ struct ImportRowIdentityV1: Codable, Equatable, Hashable, Comparable, Sendable {
         try ImportBulkCanonicalCodecV1.requireDigest(sourceSHA256)
         try ImportBulkCanonicalCodecV1.requireDigest(canonicalRowSHA256)
         try ImportBulkCanonicalCodecV1.requireText(stableExternalKey)
+        guard !stableExternalKey.unicodeScalars.contains(where: { CharacterSet.newlines.contains($0) }) else {
+            throw ImportBulkFailureV1.invalidValue
+        }
         try ImportBulkCanonicalCodecV1.requireText(schemaReleaseID)
         guard schemaVersion == Self.schemaVersion,
               sourceOrdinal > 0,

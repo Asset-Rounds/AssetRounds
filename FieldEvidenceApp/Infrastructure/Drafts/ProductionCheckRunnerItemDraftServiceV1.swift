@@ -1,5 +1,9 @@
 import Foundation
 import SwiftData
+#if DEBUG
+import Darwin
+import Dispatch
+#endif
 
 /// Raw editor values only. Source, Begin and photo ownership never come from
 /// an editable snapshot, and incomplete input is not normalized on save.
@@ -1056,20 +1060,86 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     func publishRawPhoto(parentDraftID: UUID, childDraftID: UUID, sourceURL: URL,
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) async throws
         -> FieldDraftCommittedEvidenceV1 {
+#if DEBUG
+        let fifoSelectionErrnoC446 = errno
+        let fifoLatencyTraceC446 = sourceURL.lastPathComponent == "selected-photo-source.fifo"
+        errno = fifoSelectionErrnoC446
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=service-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+        defer {
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-exit uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+        }
+#endif
         return try await currentSession().withTemporalProducer {
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-authority-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             try withItemOperation(liveOperation) { _ in }
             guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
             let current = try currentSession()
             let writer = current.workspaceWriter
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-revision-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             let revision = try writer.currentRevision()
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-revision-ready uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-evidence-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-evidence-ready uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             guard try currentSession().workspaceWriter.currentRevision() == revision else {
                 throw FieldDraftFailureV1.staleDraftRevision
             }
             let authority = CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
                 owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
                 applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, liveOperation: liveOperation)
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-staging-await uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             let result = try await attachmentStaging.stageRawPhoto(sourceURL: sourceURL, authority: authority)
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=service-staging-return uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             return try withItemOperation(liveOperation) { _ in result }
         
         }

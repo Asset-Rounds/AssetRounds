@@ -28,7 +28,7 @@
       "head": "6bb5875d09e8d17076e269781ccb064451941895",
       "tree": "ed62c3eaf2765c1dee04f33fdd09d4688ce73753"
     },
-    "canonicalResultSHA256": "809beec98533ed1293dfda25a70b1952d8b6cbf1a079126a4f695f2ae3eb5c08",
+    "canonicalResultSHA256": "3208071e014a09cacb87c17fa208b0ad233e626fac3216250b46515f7ddc7c33",
     "cardID": "V23-P04-C29",
     "commands": [
       {
@@ -74,12 +74,12 @@
     "sourceRows": [
       {
         "path": "Scripts/release-preflight.sh",
-        "sha256": "f921d8f6589fa722ee953ad3a01a49824ea513a6cc5646009fe1a07644f3044e",
+        "sha256": "9197267ba7270d27846ca2c9ef393fec598d5324d568829df1702790e766ffde",
         "status": "SOURCE_PRESENT"
       },
       {
         "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
-        "sha256": "a8829e174b6f5ba448fa3e3e0252ccc91994face0ce38e519c4f1456926704d1",
+        "sha256": "77159ae06759037f8e4e1b686bcd9108b0c41a74e589afb6f62f23f47a0566e8",
         "status": "SOURCE_PRESENT"
       },
       {
@@ -89,7 +89,7 @@
       },
       {
         "path": "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
-        "sha256": "cbe31756bf92c88e5a7d9fac12eb2b62c4ed54a29843616068e596a8b8c8f406",
+        "sha256": "1ebf82a23320fee96b4843ba3892ac88f4f762a65fb89f2c9374a4f11bed3ecc",
         "status": "SOURCE_PRESENT"
       },
       {

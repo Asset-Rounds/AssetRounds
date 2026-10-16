@@ -151,6 +151,22 @@ private enum S6_2PhotoInstallerBoundaryV1: String {
     }
 }
 
+private func s6_2PhotoRestoreAttributionV1(_ stage: StaticString, context: String) {
+    switch context {
+    case "photo-claim-next-resume", "photo-claim-next-duplicate", "photo-claim-next-changed",
+         "photo-claim-terminal-resume", "photo-claim-terminal-duplicate", "photo-claim-terminal-changed":
+        break
+    default:
+        return
+    }
+    let savedErrno = errno
+    defer { errno = savedErrno }
+    do {
+        try FileHandle.standardError.write(contentsOf: Data(
+            "V23_S62_PHOTO_CLAIM_STAGE_V1 context=\(context) stage=\(stage)\n".utf8))
+    } catch { /* Diagnostic transport never replaces the actual outcome. */ }
+}
+
 #endif
 final class C45BackupExportCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityExportsAcceptedSnapshotNotScratchPlans() {
@@ -1695,7 +1711,13 @@ final class S6_2BackupExportTests: XCTestCase {
         for slot in ["next", "terminal"] {
             for scenario in ["resume", "duplicate", "changed"] {
                 let label = "photo-claim-\(slot)-\(scenario)"
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("fixture.begin", context: label)
+#endif
                 let fixture = try await makePhotoRestoreJourney(label)
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("fixture.returned", context: label)
+#endif
                 let support = fixture.harness.applicationSupportURL
                 // makeStartupFixtureSupport removes this path after sessions leave scope.
                 let newID = UUID(), restoreID = UUID()
@@ -1714,6 +1736,9 @@ final class S6_2BackupExportTests: XCTestCase {
                     reached = true
                     throw BackupRestoreServiceError.injectedFailure
                 }
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("initial-restore.check.begin", context: label)
+#endif
                 await XCTAssertThrowsErrorAsync {
                     _ = try await service.restore(validatedPackage: fixture.sourcePackage,
                         currentModelContext: fixture.harness.context,
@@ -1721,6 +1746,9 @@ final class S6_2BackupExportTests: XCTestCase {
                         currentGenerationRootURL: fixture.harness.session.generationRootURL,
                         mode: .replaceExisting)
                 } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure, label) }
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("initial-restore.check.returned", context: label)
+#endif
                 XCTAssertTrue(reached, label)
                 XCTAssertFalse(fileManager.fileExists(atPath: normal.path), label)
                 let capturedBytes = try Data(contentsOf: claim)
@@ -1754,6 +1782,9 @@ final class S6_2BackupExportTests: XCTestCase {
                         }
                         return values
                     }
+#if DEBUG
+                    s6_2PhotoRestoreAttributionV1("hostile-snapshot.begin", context: label)
+#endif
                     let beforeMetadata = try metadata()
                     let beforeRaw = try treeFacts(fixture.rawRoot)
                     let beforePointer = try factory.currentGenerationID()
@@ -1762,8 +1793,14 @@ final class S6_2BackupExportTests: XCTestCase {
                     let active = try factory.openOrBootstrapCurrent()
                     let inspector = try BackupRestoreService(applicationSupportURL: support)
                     let beforeRecords = try inspector.c55CurrentRecordsForTesting(in: active.modelContext)
+#if DEBUG
+                    s6_2PhotoRestoreAttributionV1("hostile-snapshot.returned", context: label)
+#endif
                     let recovery = try BackupRestoreService(applicationSupportURL: support,
                         storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+#if DEBUG
+                    s6_2PhotoRestoreAttributionV1("hostile-reconcile.check.begin", context: label)
+#endif
                     await XCTAssertThrowsErrorAsync {
                         _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
                     } verify: { error in
@@ -1773,17 +1810,29 @@ final class S6_2BackupExportTests: XCTestCase {
                         // Corrupt canonical bytes retain the existing reader's
                         // decoding error; denial and no effects are the contract.
                     }
+#if DEBUG
+                    s6_2PhotoRestoreAttributionV1("hostile-reconcile.check.returned", context: label)
+#endif
                     XCTAssertEqual(try metadata(), beforeMetadata, label)
                     XCTAssertEqual(try treeFacts(fixture.rawRoot), beforeRaw, label)
                     XCTAssertEqual(try factory.currentGenerationID(), beforePointer, label)
                     XCTAssertEqual(try factory.retiredGenerationIDs(), beforeRetired, label)
                     XCTAssertEqual(try intents.load(), beforeIntent, label)
                     XCTAssertEqual(try inspector.c55CurrentRecordsForTesting(in: active.modelContext), beforeRecords, label)
+#if DEBUG
+                    s6_2PhotoRestoreAttributionV1("iteration.returned", context: label)
+#endif
                     continue
                 }
                 let recovery = try BackupRestoreService(applicationSupportURL: support,
                     storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("resume-reconcile.call.begin", context: label)
+#endif
                 let recovered = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("resume-reconcile.call.returned", context: label)
+#endif
                 if slot == "terminal" {
                     let restored = try XCTUnwrap(recovered, label)
                     try await assertCompletedPhotoRestoreJourney(fixture, session: restored,
@@ -1803,11 +1852,20 @@ final class S6_2BackupExportTests: XCTestCase {
                 let stableRetired = try factory.retiredGenerationIDs()
                 let secondRecovery = try BackupRestoreService(applicationSupportURL: support,
                     storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("second-reconcile.call.begin", context: label)
+#endif
                 let secondResult = try await secondRecovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("second-reconcile.call.returned", context: label)
+#endif
                 XCTAssertNil(secondResult, label)
                 XCTAssertEqual(try factory.currentGenerationID(), stablePointer, label)
                 XCTAssertEqual(try factory.retiredGenerationIDs(), stableRetired, label)
                 XCTAssertEqual(try treeFacts(fixture.rawRoot), stableRaw, label)
+#if DEBUG
+                s6_2PhotoRestoreAttributionV1("iteration.returned", context: label)
+#endif
             }
         }
     }
@@ -4734,35 +4792,95 @@ private extension S6_2BackupExportTests {
 
     @MainActor
     func makePhotoRestoreJourney(_ label: String) async throws -> PhotoRestoreJourney {
+#if DEBUG
+        s6_2PhotoRestoreAttributionV1("journey.source-harness.begin", context: label)
+#endif
         let sourceHarness = try await makeMixedHarness("\(label)-source", sharedRaw: true)
+#if DEBUG
+        s6_2PhotoRestoreAttributionV1("journey.source-harness.returned", context: label)
+#endif
         do {
             // Preserve the S10 fixture and add genuine C36 histories before
             // branching. Two source children deliberately share raw bytes.
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-photo-histories.begin", context: label)
+#endif
             try await appendCompositionPhotoParents(sourceHarness, seeds: [(31, 71), (31, 72), (33, 73)])
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-photo-histories.returned", context: label)
+#endif
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.common-generic-stage.begin", context: label)
+#endif
             let commonGenericStage = try await appendGenericCompositionStage(sourceHarness,
                 slot: 630, bytes: Data("common generic branch bytes".utf8))
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.common-generic-stage.returned", context: label)
+#endif
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.branch-export.begin", context: label)
+#endif
             let branchArchive = try await exportLivePackage(sourceHarness,
                 directoryName: "photo-restore-branch-export")
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.branch-export.returned", context: label)
+#endif
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.branch-install.begin", context: label)
+#endif
             let harness = try await installCompositionBranchBase(branchArchive,
                 label: "\(label)-target", countedRoots: sourceHarness.countedRoots)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.branch-install.returned", context: label)
+#endif
             let oldID = harness.session.generationID
             let initialRetiredGenerationIDs = try StoreGenerationFactory(
                 applicationSupportURL: harness.applicationSupportURL).retiredGenerationIDs()
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-only-state.begin", context: label)
+#endif
             let retainedMyDayDraftID = try await appendCompositionCurrentOnlyState(harness)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-only-state.returned", context: label)
+#endif
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-export.begin", context: label)
+#endif
             let currentArchive = try await exportLivePackage(harness,
                 directoryName: "photo-restore-current-export")
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-export.returned", context: label)
+#endif
 
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-generic-stage.begin", context: label)
+#endif
             let sourceOnlyGenericStage = try await appendGenericCompositionStage(sourceHarness,
                 slot: 640, bytes: Data(repeating: 0xa5, count: 2 * 1_024 * 1_024))
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-generic-stage.returned", context: label)
+#endif
             XCTAssertEqual(sourceOnlyGenericStage.bytes.count, 2 * 1_024 * 1_024)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-export.begin", context: label)
+#endif
             let sourceArchive = try await exportLivePackage(sourceHarness,
                 directoryName: "photo-restore-source-export")
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-export.returned", context: label)
+#endif
 
             let currentImporter = try BackupImportService(
                 generationRootURL: harness.session.generationRootURL,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
                 makeUUID: { self.uuid(780) }, scopedAccess: .alreadyAuthorized)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-import.begin", context: label)
+#endif
             let current = try currentImporter.stageAndValidate(selectedPackageURL: currentArchive)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.current-import.returned", context: label)
+#endif
             let currentRecords = current.records
             let currentRecordsData = try XCTUnwrap(current.members["records.json"])
             let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(
@@ -4787,7 +4905,13 @@ private extension S6_2BackupExportTests {
                 generationRootURL: harness.session.generationRootURL,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
                 makeUUID: { self.uuid(781) }, scopedAccess: .alreadyAuthorized)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-import.begin", context: label)
+#endif
             let source = try sourceImporter.stageAndValidate(selectedPackageURL: sourceArchive)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.source-import.returned", context: label)
+#endif
             let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
                 source: source.manifest.source, records: source.records)
             let sourcePlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
@@ -4815,6 +4939,9 @@ private extension S6_2BackupExportTests {
                 currentIdentity: harness.session.workspaceIdentity,
                 sourceIdentity: sourceHarness.session.workspaceIdentity)
             let replacementRecords = replacementFixture.records
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.composition.begin", context: label)
+#endif
             let composition = try CheckRunnerPhotoRestoreCompositionV1.compose(
                 source: source.manifest.source, sourceRecords: source.records,
                 sourcePlan: sourcePlan, currentSource: current.manifest.source,
@@ -4822,6 +4949,9 @@ private extension S6_2BackupExportTests {
                 replacementRecords: replacementRecords,
                 sourceIdentity: sourceHarness.session.workspaceIdentity,
                 currentIdentity: harness.session.workspaceIdentity)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.composition.returned", context: label)
+#endif
             try assertExplicitDeletionCannotResurrectRetainedFinalization(
                 replacementFixture, sourcePlan: sourcePlan, currentPlan: currentPlan)
             let restoredRecords = try composition.applying(to: replacementRecords)
@@ -4847,6 +4977,9 @@ private extension S6_2BackupExportTests {
                 OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
                 .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,
                     isDirectory: true)
+#if DEBUG
+            s6_2PhotoRestoreAttributionV1("journey.return-values.begin", context: label)
+#endif
             return PhotoRestoreJourney(harness: harness, sourcePackage: source,
                 oldGenerationID: oldID,
                 initialRetiredGenerationIDs: initialRetiredGenerationIDs,

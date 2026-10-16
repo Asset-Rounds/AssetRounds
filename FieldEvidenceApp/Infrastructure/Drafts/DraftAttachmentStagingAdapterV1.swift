@@ -1,6 +1,9 @@
 import CryptoKit
 import Darwin
 import Foundation
+#if DEBUG
+import Dispatch
+#endif
 
 /// Each acquisition opens a distinct file description, including acquisitions
 /// from other adapter instances. No lock is retained across an actor hop.
@@ -447,6 +450,23 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         publishedRawReady: CheckRunnerPhotoRawReadyV1?, applicationSupportURL: URL,
         adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws
         -> DraftPreparedRawPhotoPublicationV1? {
+#if DEBUG
+        let fifoSelectionErrnoC446 = errno
+        let fifoLatencyTraceC446 = sourceURL?.lastPathComponent == "selected-photo-source.fifo"
+        errno = fifoSelectionErrnoC446
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+        defer {
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-exit uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+        }
+#endif
         let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
         defer { producerActivity.close() }
         try Task.checkCancellation()
@@ -457,7 +477,21 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         let intent = payload.phase.intent
         let path = DraftAttachmentStagingAdapterV1.relativeStageDirectory(
             draftID: payload.childDraftID, stageID: intent.stageID).split(separator: "/").map(String.init)
+#if DEBUG
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-lock-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
         let lock = try owner.acquire()
+#if DEBUG
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-lock-ready uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
         var lockHeld = true
         defer { if lockHeld { lock.release() } }
         let base = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner)
@@ -530,6 +564,13 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
             directory = try owner.directory([name])
         }
         defer {
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-private-cleanup-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             if !transferred {
                 if payloadFD >= 0 { close(payloadFD) }
                 if witnessFD >= 0 { close(witnessFD) }
@@ -545,6 +586,13 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
                     }
                 }
             }
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-private-cleanup-end uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
         }
         if existing { try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory.url) }
         else { try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: directory.url) }
@@ -554,8 +602,22 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         var copiedDigest: ContentDigestV1?
         if !existing {
             guard let sourceURL else { throw DraftAttachmentStagingFailureV1.stageNotFound }
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-copy-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             let copied = try copySource(sourceURL, expectedCount: intent.expectedSourceByteCount,
                 into: directory, ownedIdentity: &ownedPayload)
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=prepare-copy-return uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             payloadFD = copied.descriptor; copiedDigest = copied.digest
         }
         let initialFacts = try DraftStagingRootOwnerV1.regular(payloadFD)
@@ -645,13 +707,57 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
     private static func copySource(_ url: URL, expectedCount: Int64,
         into directory: DraftStagingRootOwnerV1.Directory, ownedIdentity: inout stat?) throws
         -> (descriptor: Int32, digest: ContentDigestV1) {
+#if DEBUG
+        let fifoSelectionErrnoC446 = errno
+        let fifoLatencyTraceC446 = url.lastPathComponent == "selected-photo-source.fifo"
+        errno = fifoSelectionErrnoC446
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=copy-source-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+        defer {
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=copy-source-exit uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+        }
+#endif
         guard url.isFileURL, !url.path.utf8.contains(0) else {
             throw DraftAttachmentStagingFailureV1.invalidAttachment
         }
         let source = open(url.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard source >= 0 else { throw DraftAttachmentStagingFailureV1.stageNotFound }
         defer { close(source) }
+#if DEBUG
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=copy-source-opened uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
+#if DEBUG
+        var fifoRegularReturnedC446 = false
+        defer {
+            if fifoLatencyTraceC446 && !fifoRegularReturnedC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=copy-source-regular-refusal uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+        }
+#endif
         let sourceFacts = try DraftStagingRootOwnerV1.regular(source)
+#if DEBUG
+        fifoRegularReturnedC446 = true
+#endif
+#if DEBUG
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=copy-source-regular-ready uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
         guard sourceFacts.st_size == expectedCount, expectedCount > 0,
               expectedCount <= Int64(MediaContractV1.sourceByteCountMaximum) else {
             throw DraftAttachmentStagingFailureV1.byteLengthMismatch
@@ -1924,6 +2030,23 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     @discardableResult
     func stageRawPhoto(sourceURL: URL, authority: CheckRunnerPhotoRawPublicationAuthorityV1)
         async throws -> FieldDraftCommittedEvidenceV1 {
+#if DEBUG
+        let fifoSelectionErrnoC446 = errno
+        let fifoLatencyTraceC446 = sourceURL.lastPathComponent == "selected-photo-source.fifo"
+        errno = fifoSelectionErrnoC446
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=staging-actor-enter uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+        defer {
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=staging-exit uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+        }
+#endif
         guard !authority.adoptsExistingOnly,
               let value = try await performRawPhotoPublication(sourceURL: sourceURL, authority: authority) else {
             throw DraftAttachmentStagingFailureV1.stageNotFound
@@ -1939,6 +2062,11 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
 
     private func performRawPhotoPublication(sourceURL: URL?, authority: CheckRunnerPhotoRawPublicationAuthorityV1)
         async throws -> FieldDraftCommittedEvidenceV1? {
+#if DEBUG
+        let fifoSelectionErrnoC446 = errno
+        let fifoLatencyTraceC446 = sourceURL?.lastPathComponent == "selected-photo-source.fifo"
+        errno = fifoSelectionErrnoC446
+#endif
         let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
         defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
@@ -1953,6 +2081,13 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         let support = applicationSupportURL
         let identity = ObjectIdentifier(self)
         let published = authority.publishedRawReady
+#if DEBUG
+        if fifoLatencyTraceC446 {
+            let fifoSavedErrnoC446 = errno
+            print("V23_FIFO_RAW_LATENCY_V1 phase=staging-detached-submit uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+            errno = fifoSavedErrnoC446
+        }
+#endif
         let preparation = Task.detached(priority: .userInitiated) {
             try DraftPreparedRawPhotoPublicationV1.prepare(sourceURL: sourceURL, payload: payload,
                 publishedRawReady: published, applicationSupportURL: support,
@@ -1962,6 +2097,13 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
             let prepared = try await withTaskCancellationHandler(operation: {
                 try await preparation.value
             }, onCancel: { preparation.cancel() })
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=staging-preparation-return uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             try Task.checkCancellation()
             guard let prepared else { return nil }
             let evidence = try await authority.publish(prepared)
@@ -1970,6 +2112,13 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
             try reloadManifest()
             return evidence
         } catch {
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=staging-error-cleanup-begin uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             // Physical publication may have succeeded before the canonical
             // write/acknowledgement failed. Re-read durable operational state;
             // never fabricate a receipt or remove those recoverable bytes.
@@ -1977,6 +2126,20 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                 try? reloadManifest()
                 lock.release()
             }
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=staging-error-cleanup-end uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
+#if DEBUG
+            if fifoLatencyTraceC446 {
+                let fifoSavedErrnoC446 = errno
+                print("V23_FIFO_RAW_LATENCY_V1 phase=staging-error-return uptimeNS=\(DispatchTime.now().uptimeNanoseconds)")
+                errno = fifoSavedErrnoC446
+            }
+#endif
             if error is CancellationError { throw DraftAttachmentStagingFailureV1.cancelled }
             throw error
         }

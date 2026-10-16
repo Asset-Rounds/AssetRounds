@@ -63,12 +63,14 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     }
     private let fileManager = FileManager.default
 
+    // Closing a harness invalidates its writer without draining the retained
+    // session/context/container graph. Keep isolated support roots intact;
+    // cleanup requires a genuine complete owner and alias drain.
     @MainActor
     func testReceiptAttemptsExactlyOnceAndEveryDeliveryUsesIdenticalCachedBytes() async throws {
         let harness = try await makeHarness("golden", ready: false)
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let readyBytes = try WorklightPDFRendererV1().render(
             ReportRenderService(modelContext: harness.context,
@@ -110,7 +112,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let failed = try await makeHarness("one-failed-attempt", ready: false)
         defer {
             XCTAssertNoThrow(try failed.close())
-            try? fileManager.removeItem(at: failed.applicationSupportURL)
         }
 
         let failing = try ReportDeliveryCoordinator(
@@ -137,7 +138,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let harness = try await makeHarness("share-counter")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let diagnostics = DiagnosticsStore(applicationSupportURL: harness.applicationSupportURL)
         await diagnostics.prepare()
@@ -211,7 +211,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let harness = try await makeHarness("share-not-presented")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let diagnostics = DiagnosticsStore(applicationSupportURL: harness.applicationSupportURL)
         await diagnostics.prepare()
@@ -246,7 +245,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let harness = try await makeHarness("exact-one")
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
         let coordinator = try ReportDeliveryCoordinator(
             modelContext: harness.context,
@@ -283,7 +281,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let harness = try await makeHarness("pending-collision", ready: false)
         defer {
             XCTAssertNoThrow(try harness.close())
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
         }
 
         let collisionID = UUID(uuidString: "42000000-0000-0000-0000-000000000098")!
@@ -322,7 +319,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
             let harness = try await makeHarness("authority-negative-\(testCase)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let unownedURL = harness.applicationSupportURL.appendingPathComponent(
                 "unowned-authority-sentinel.bin"
@@ -369,7 +365,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
             let harness = try await makeHarness("filesystem-negative-\(testCase)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let evidence = try XCTUnwrap(
                 try harness.context.fetch(FetchDescriptor<EvidenceFile>())
@@ -470,7 +465,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
             let harness = try await makeHarness("invalid-\(testCase)")
             defer {
                 XCTAssertNoThrow(try harness.close())
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
             }
             let sentinel = Data("untrusted cached bytes".utf8)
             try configure(testCase, sentinel: sentinel, in: harness)
@@ -487,7 +481,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let canonical = try await makeHarness("canonical-snapshot-mismatch")
         defer {
             XCTAssertNoThrow(try canonical.close())
-            try? fileManager.removeItem(at: canonical.applicationSupportURL)
         }
         let snapshotURL = canonical.session.generationRootURL.appendingPathComponent(
             canonical.report.snapshotRelativePath
@@ -550,7 +543,6 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         let dirty = try await makeHarness("dirty-context")
         defer {
             XCTAssertNoThrow(try dirty.close())
-            try? fileManager.removeItem(at: dirty.applicationSupportURL)
         }
         let dirtyCoordinator = try ReportDeliveryCoordinator(
             modelContext: dirty.context,
