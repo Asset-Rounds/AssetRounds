@@ -24,7 +24,7 @@ private struct C42IDSource: ApplicationIDSource {
     }
 }
 
-@MainActor private final class C42Query: PartyContactSiteRoleWorkflowQueryingV1 {
+@MainActor final class C42Query: PartyContactSiteRoleWorkflowQueryingV1 {
     let context: ModelContext
     let workspaceID: WorkspaceID
 

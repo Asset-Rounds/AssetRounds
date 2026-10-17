@@ -80,6 +80,9 @@ struct PartyContactSiteRoleWorkflowView: View {
         .navigationTitle("Parties and contacts")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)
+        #endif
         .transaction { transaction in
             if reduceMotion { transaction.animation = nil }
         }

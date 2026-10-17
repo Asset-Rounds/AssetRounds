@@ -1486,8 +1486,16 @@ class CompilerObservationDispatchTests(unittest.TestCase):
         spec.loader.exec_module(timing)
         profile = timing.DEVELOPMENT_F9_J2_PROFILE
         prospective_head = "b" * 40
-        selected = (REPO_ROOT / "Scripts/ci-selection.json").read_bytes()
-        mapping = (REPO_ROOT / "Scripts/ci-selection-map.json").read_bytes()
+        # This frozen experiment admits its historical source pair, independently
+        # of later changes to the checkout's ordinary development selection.
+        selected = subprocess.check_output(
+            ["git", "show", profile["sourceHead"] + ":Scripts/ci-selection.json"],
+            cwd=REPO_ROOT)
+        mapping = subprocess.check_output(
+            ["git", "show", profile["sourceHead"] + ":Scripts/ci-selection-map.json"],
+            cwd=REPO_ROOT)
+        self.assertEqual(sha(selected), profile["selectionSHA256"])
+        self.assertEqual(sha(mapping), profile["selectionMapSHA256"])
         overridden = {}
 
         def git(*args):
@@ -1529,6 +1537,21 @@ class CompilerObservationDispatchTests(unittest.TestCase):
                         SystemExit, "source preflight refused"):
                     NEW.preflight_compiler_observation_source(
                         prospective_head, profile["resolvedSelectionSHA256"], True)
+                overridden.clear()
+            for relative, historical, detail in (
+                    ("Scripts/ci-selection.json", selected, "selector source bytes"),
+                    ("Scripts/ci-selection-map.json", mapping, "selector map source bytes")):
+                current = (REPO_ROOT / relative).read_bytes()
+                if current == historical:
+                    continue
+                overridden[("show", prospective_head + ":" + relative)] = current
+                with self.subTest(currentSource=relative), self.assertRaisesRegex(
+                        SystemExit, "source preflight refused") as refused:
+                    NEW.preflight_compiler_observation_source(
+                        prospective_head, profile["resolvedSelectionSHA256"], True)
+                self.assertIsInstance(refused.exception.__cause__, ValueError)
+                self.assertEqual(str(refused.exception.__cause__),
+                                 "compiler timing admission: " + detail)
                 overridden.clear()
             with self.assertRaisesRegex(SystemExit, "source preflight refused"):
                 NEW.preflight_compiler_observation_source(

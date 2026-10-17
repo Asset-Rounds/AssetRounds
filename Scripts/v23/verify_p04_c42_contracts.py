@@ -30,6 +30,204 @@ def _read_json(path: str) -> Any:
     return contracts.read_json(path)
 
 
+
+def _current_hosted_unit_fixture_result() -> dict[str, Any]:
+    """Check the separate current UNIT Source question, never historical UI."""
+    failures: list[str] = []
+    rows: list[dict[str, Any]] = []
+    selector = "FieldEvidenceAppTests/" + contracts.CURRENT_HOSTED_UNIT_CLASS + "/" + contracts.CURRENT_HOSTED_UNIT_METHOD
+    try:
+        inputs = contracts.current_hosted_unit_sources(contracts.CURRENT_HOSTED_UNIT_PATH,
+            contracts.CURRENT_HOSTED_UNIT_CLASS, contracts.CURRENT_HOSTED_UNIT_METHODS,
+            contracts.CURRENT_HOSTED_UNIT_METHOD, contracts.CURRENT_HOSTED_UNIT_DEPENDENCIES)
+        rows = inputs["rows"]
+        body = inputs["method"]
+        contracts.current_source_require(body, (
+            "let fixture = try await makeFixture(", "defer { fixture.cleanUp() }",
+            "let context = fixture.coordinator.modelContext", "let writer = fixture.coordinator.workspaceWriter",
+            "let query = C42Query(context: context, workspaceID: workspaceID)",
+            "OperationalContactRowQueryV1(modelContext: context, workspaceID: workspaceID)",
+            "OperationalContactCoordinatorV1(query: contactQuery, writer: writer, system: system",
+            "PartyAccountabilityCoordinatorV1(writer: writer, idSource: SystemApplicationIDSource())",
+            "let setupReceiptCount = try context.fetchCount(FetchDescriptor<MutationReceiptRow>())",
+            "let site = try await makeWorkAsset(in: fixture, label:",
+            "XCTAssertTrue(try context.fetch(FetchDescriptor<ServicePartyRow>()).isEmpty,",
+            "guard case .party = try await workflow.execute(.commitParty(seedParty))",
+            "guard case .contact = try await workflow.execute(.commitContact(seedPhone))",
+            "guard case .siteRole = try await workflow.execute(.commitSiteRole(seedRole))",
+            "let revisionBefore = try writer.currentRevision()", "let rowsBefore = try c42CanonicalRows(in: context)",
+            "XCTAssertEqual(rowsBefore.parties.count, 1)", "XCTAssertEqual(rowsBefore.contacts.count, 1)",
+            "XCTAssertEqual(rowsBefore.siteRoles.count, 1)",
+            "XCTAssertEqual(rowsBefore.receipts.count, setupReceiptCount + 4,",
+            "XCTAssertTrue(rowsBefore.handoffIntents.isEmpty)",
+            "let partyPreview = try await workflow.previewCreateParty(workspaceID: workspaceID, partyID: proposedPartyID",
+            "let contactPreview = try await workflow.previewCreateContact(workspaceID: workspaceID, contactPointID: proposedContactID, partyID: partyID, kind: .email",
+            "let rolePreview = try await workflow.previewAppendSiteRole(workspaceID: workspaceID, eventID: proposedRoleID, siteID: site.siteID, partyID: partyID, role: .serviceProvider",
+            "XCTAssertTrue(partyPreview.zeroWrite)", "XCTAssertTrue(contactPreview.zeroWrite)", "XCTAssertTrue(rolePreview.zeroWrite)",
+            "XCTAssertEqual(partyPreview.impact.operation, .createParty)",
+            "XCTAssertEqual(partyPreview.impact.affectedPartyIDs, [proposedPartyID])",
+            "XCTAssertEqual(contactPreview.impact.operation, .createContact)",
+            "XCTAssertEqual(contactPreview.impact.affectedPartyIDs, [partyID])",
+            "XCTAssertEqual(contactPreview.impact.affectedContactPointIDs, [proposedContactID])",
+            "XCTAssertEqual(contactPreview.impact.preferredScopes, contactPreview.mutation.preferredScopes)",
+            "XCTAssertEqual(contactPreview.impact.preferredScopes.map(\\.partyID), [partyID])",
+            "XCTAssertEqual(contactPreview.impact.preferredScopes.map(\\.kind), [.email])",
+            "XCTAssertEqual(contactPreview.impact.preferredScopes.map(\\.activeContactPointIDs), [[proposedContactID]])",
+            "XCTAssertEqual(contactPreview.impact.preferredScopes.map(\\.preferredContactPointID), [Optional(proposedContactID)])",
+            "XCTAssertTrue(contactPreview.mutation.handoffIntents.isEmpty)",
+            "XCTAssertEqual(rolePreview.impact.operation, .appendSiteRole)",
+            "XCTAssertEqual(rolePreview.impact.affectedPartyIDs, [partyID])",
+            "XCTAssertEqual(rolePreview.impact.affectedSiteRoleEventIDs, [proposedRoleID])",
+            "for impact in [partyPreview.impact, contactPreview.impact, rolePreview.impact]",
+            "XCTAssertEqual(impact.cascadeCount, 0)", "XCTAssertEqual(impact.identityMergeCount, 0)",
+            "XCTAssertEqual(impact.warnings, [.equalValuesRemainDistinct, .noCascade, .operationalPurposeOnly, .customerAndSiteLabelsArePresentationOnly])",
+            "let history = try workflow.history(workspaceID: workspaceID, partyRevisions: parties, contactRevisions: contacts, siteRoleEvents: roles)",
+            "XCTAssertEqual(history.partyRevisions, parties)", "XCTAssertEqual(history.contactRevisions, contacts)",
+            "XCTAssertEqual(history.siteRoleEvents, roles)",
+            "callbacks.surface(party: partyPreview, history: history)",
+            "callbacks.surface(contact: contactPreview, history: history)",
+            "callbacks.surface(role: rolePreview, history: history)",
+            "for (root, title) in zip(AppRootV1.frozenOrder, titles)", "try scene.restore()", "try scene.select(root)",
+            "let mounted = try mountC42ShippingShell(fixture)", "await fulfillment(of: [bound], timeout: 20)",
+            "let tabBar = try XCTUnwrap(observedTabBar)",
+            "XCTAssertEqual(tabBar.items?.map(\\.title), titles.map(Optional.some))",
+            "XCTAssertEqual(tabBar.items?.map(\\.accessibilityIdentifier), identifiers.map(Optional.some))",
+            "XCTAssertEqual(tabBar.selectedItem?.title, title)",
+            "switch root { case .today, .work:",
+            "let loadedRootIdentifier = root == .today ? ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier : ProductionWorkRootViewV1.screenAccessibilityIdentifier",
+            "let rootContentMounted = await waitForMountedScreen(loadedRootIdentifier, from: mounted.host)",
+            "XCTAssertTrue(rootContentMounted,",
+            "XCTAssertFalse(nativeScreenObservation(SemanticSelector.screen, from: mounted.host).found)",
+            "case .assets, .reports: break",
+            "let settings = try mountC42Settings(fixture)", "defer { settings.unmount() }",
+            "let settingsMounted = await waitForMountedScreen(AppShellView.settingsScreenAccessibilityIdentifier, from: settings.host)",
+            "XCTAssertTrue(settingsMounted,", "XCTAssertFalse(nativeScreenObservation(SemanticSelector.screen, from: settings.host).found)",
+            "for surface in surfaces", "let mounted = try mountC42Content(AnyView(NavigationStack { surface }.modelContext(context)))",
+            "let surfaceMounted = await waitForMountedScreen(SemanticSelector.screen, from: mounted.host)",
+            "XCTAssertTrue(surfaceMounted,", "XCTAssertTrue(nativeScreenObservation(SemanticSelector.screen, from: mounted.host).found)",
+            "XCTAssertTrue(callbacks.previewRequests.isEmpty)", "XCTAssertEqual(callbacks.confirmationCount, 0)",
+            "surface.onRequestPreview(operation)",
+            "XCTAssertEqual(callbacks.previewRequests, [.createParty, .createContact, .appendSiteRole])",
+            "XCTAssertTrue(system.requests.isEmpty)", "XCTAssertFalse(context.hasChanges)",
+        ), "C42 actual contained boundary", failures)
+        contracts.current_source_literal(body, 'let titles = ["Today", "Work", "Assets", "Reports"]', "C42 accepted tabs", inputs, failures)
+        contracts.current_source_literal(body, 'let identifiers = ["v23.tab.today", "v23.tab.work", "s1.tab.signs", "s1.tab.reports"]', "C42 accepted tab identifiers", inputs, failures)
+        contracts.current_source_order(body, (
+            "let site = try await makeWorkAsset(", "XCTAssertTrue(try context.fetch(FetchDescriptor<ServicePartyRow>()).isEmpty,",
+            "workflow.execute(.commitParty(seedParty))", "workflow.execute(.commitContact(seedPhone))",
+            "workflow.execute(.commitSiteRole(seedRole))", "let revisionBefore = try writer.currentRevision()",
+            "let rowsBefore = try c42CanonicalRows(in: context)",
+            "let partyPreview = try await workflow.previewCreateParty(",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)", "XCTAssertEqual(try c42CanonicalRows(in: context), rowsBefore)",
+            "let contactPreview = try await workflow.previewCreateContact(",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)", "XCTAssertEqual(try c42CanonicalRows(in: context), rowsBefore)",
+            "let rolePreview = try await workflow.previewAppendSiteRole(",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)", "XCTAssertEqual(try c42CanonicalRows(in: context), rowsBefore)",
+            "let history = try workflow.history(", "let mounted = try mountC42ShippingShell(fixture)",
+            "await fulfillment(of: [bound], timeout: 20)", "let tabBar = try XCTUnwrap(observedTabBar)",
+            "switch root { case .today, .work:",
+            "let loadedRootIdentifier = root == .today ? ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier : ProductionWorkRootViewV1.screenAccessibilityIdentifier",
+            "let rootContentMounted = await waitForMountedScreen(loadedRootIdentifier, from: mounted.host)",
+            "XCTAssertTrue(rootContentMounted,",
+            "XCTAssertFalse(nativeScreenObservation(SemanticSelector.screen, from: mounted.host).found)",
+            "case .assets, .reports: break",
+            "let settings = try mountC42Settings(fixture)", "XCTAssertTrue(settingsMounted,",
+            "XCTAssertFalse(nativeScreenObservation(SemanticSelector.screen, from: settings.host).found)",
+            "for surface in surfaces", "XCTAssertTrue(surfaceMounted,",
+            "XCTAssertTrue(nativeScreenObservation(SemanticSelector.screen, from: mounted.host).found)",
+            "surface.onRequestPreview(operation)", "XCTAssertEqual(callbacks.previewRequests, [.createParty, .createContact, .appendSiteRole])",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)", "XCTAssertEqual(try c42CanonicalRows(in: context), rowsBefore)",
+        ), "C42 seed/preview/positive-observation order", failures)
+        compact = re.sub(r"\s+", "", body["code"])
+        for expression, count in (
+            ("XCTAssertEqual(trywriter.currentRevision(),revisionBefore)", 8),
+            ("XCTAssertEqual(tryc42CanonicalRows(in:context),rowsBefore)", 8),
+        ):
+            _require(compact.count(expression) == count, "C42 immutable conservation stage count differs: " + expression, failures)
+        measured = body["code"].split("let revisionBefore", 1)[1]
+        _require(re.search(r"\b(?:execute|commit|insert|delete|save|handOff)\s*\(", measured) is None,
+                 "C42 measured interval contains a write or handoff call", failures)
+        _require("v23PhaseGate" not in body["code"], "C42 must not borrow an unrelated feature gate", failures)
+
+        path = contracts.CURRENT_HOSTED_UNIT_PATH
+        snapshot = contracts.current_source_block(inputs, path, r"func\s+c42CanonicalRows", "C42 immutable rows")
+        for row, identity in (("ServicePartyRow", "partyID"), ("ServiceContactPointRow", "contactPointID"),
+                              ("SitePartyRoleEventRow", "eventID"), ("SystemHandoffIntentRow", "intentID")):
+            contracts.current_source_require(snapshot, ("context.fetch(FetchDescriptor<" + row + ">())",
+                ".sorted { $0." + identity + ".uuidString < $1." + identity + ".uuidString }"), "C42 immutable " + row, failures)
+        contracts.current_source_require(snapshot, ("context.fetch(FetchDescriptor<MutationReceiptRow>())",
+            ".sorted { $0.receiptIdentity < $1.receiptIdentity }.map { C42BoundaryReceipt($0) }"), "C42 receipt snapshots", failures)
+        _require(snapshot["code"].count("_ = try row.value()") == 4 and snapshot["code"].count("return row.canonicalData") == 4,
+                 "C42 row representations must validate and copy bytes, not retain row objects", failures)
+        receipt = contracts.current_source_block(inputs, path, r"init\s*\(\s*_\s+row:\s*MutationReceiptRow", "C42 full receipt copy")
+        for field in ("mutationID", "workspaceMutationKey", "receiptIdentity", "workspaceID", "replicaID", "localSequence",
+                      "commandKind", "envelopeData", "envelopeSHA256", "receiptData", "receiptSHA256",
+                      "reversalBasisData", "reversalBasisSHA256", "semanticReversalData"):
+            contracts.current_source_require(receipt, (field + " = row." + field,), "C42 full receipt", failures)
+        expected = contracts.current_source_block(inputs, path, r"func\s+c42Expected", "C42 actual expected revision")
+        contracts.current_source_require(expected, ("let current = try writer.currentRevision()",
+            "WorkspaceEntityRevisionV1(identity: identity, revision: 0)",
+            "workspaceRevision: current.revision", "writerInstanceID: current.writerInstanceID"), "C42 expected revision", failures)
+        mount = contracts.current_source_block(inputs, path, r"func\s+mountC42ShippingShell", "C42 production shell")
+        contracts.current_source_require(mount, ("var shell = AppShellView(", "storeSession: fixture.coordinator",
+            "contentAccess: try XCTUnwrap(fixture.presentation.renderAccess)",
+            "myDayAccess: try XCTUnwrap(fixture.presentation.myDayAccess)",
+            "shell.onNativeTabsBoundForTesting = onTabs",
+            "mountC42Content(AnyView(shell.modelContext(fixture.coordinator.modelContext)))"), "C42 production shell", failures)
+        _require("v23PhaseGate" not in mount["code"], "C42 shell must use shipping environment", failures)
+        settings = contracts.current_source_block(inputs, path, r"func\s+mountC42Settings", "C42 production Settings")
+        contracts.current_source_require(settings, ("let settings = SettingsPlaceholderView(modelContext: fixture.coordinator.modelContext",
+            "settings.reminderSettingsSectionForTesting(section)",
+            ".environment(\\.appContentAccess, try XCTUnwrap(fixture.presentation.renderAccess))"), "C42 production Settings", failures)
+        host = contracts.current_source_block(inputs, path, r"func\s+mountC42Content", "C42 actual host")
+        contracts.current_source_require(host, ("UIHostingController(rootView: content)", "window.rootViewController = host",
+            "window.makeKeyAndVisible()", "host.view.layoutIfNeeded()",
+            "return SIG1MountedShellV1(window: window, host: host, previousKeyWindow: previousKeyWindow)"), "C42 actual host", failures)
+        view = inputs["sources"]["FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift"]
+        contracts.current_source_require(view, (".nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)",
+            "onRequestPreview(operation)"), "C42 real view witness/request binding", failures)
+        system = contracts.current_source_block(inputs, path, r"func\s+handOff", "C42 injected handoff recorder")
+        contracts.current_source_require(system, ("requests.append(request)", "disposition: .systemUnavailable"), "C42 injected handoff", failures)
+        query = inputs["sources"]["FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift"]
+        contracts.current_source_require(query, ("@MainActor final class C42Query: PartyContactSiteRoleWorkflowQueryingV1",
+            "FetchDescriptor<ServicePartyRow>(", "FetchDescriptor<ServiceContactPointRow>(", "FetchDescriptor<SitePartyRoleEventRow>("), "C42 actual query", failures)
+        today = inputs["sources"]["FieldEvidenceApp/Features/Shell/ProductionMyDayRootViewV1.swift"]
+        contracts.current_source_require(today, (
+            "if phaseGate.allows(.myDay) { ProductionMyDayCurrentWorkRootV1(source: source) } else { ProductionTodayPhaseOneEmptyStateV1() }",
+            "NativeScreenObservationAnchorV1(identifier: ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier)",
+        ), "C42 actual loaded Phase 1 Today witness", failures)
+        work = inputs["sources"]["FieldEvidenceApp/Features/Shell/ProductionWorkRootViewV1.swift"]
+        contracts.current_source_require(work, (
+            "if source.snapshot != nil { NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)",
+        ), "C42 actual loaded Work witness", failures)
+        gate = inputs["sources"]["FieldEvidenceApp/App/V23PhaseGateV1.swift"]
+        contracts.current_source_require(gate, (
+            "static let shipping = V23PhaseGateV1(through: .phase1)",
+            "static let defaultValue: V23PhaseGateV1 = .shipping",
+        ), "C42 unchanged shipping environment", failures)
+        support = "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift"
+        wait = contracts.current_source_block(inputs, support, r"func\s+waitForMountedScreen", "C42 bounded observer")
+        contracts.current_source_require(wait, ("for _ in 0..<200", "nativeScreenObservation(identifier, from: host).found",
+            "Task.sleep(nanoseconds: 25_000_000)", "return false"), "C42 bounded observer", failures)
+        unmount = contracts.current_source_block(inputs, "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift",
+            r"func\s+unmount", "C42 existing cleanup")
+        contracts.current_source_require(unmount, ("guard isMounted else { return }", "isMounted = false",
+            "window.isHidden = true", "window.rootViewController = nil", "previousKeyWindow?.makeKeyAndVisible()"), "C42 existing cleanup", failures)
+    except (OSError, ValueError, UnicodeError, IndexError) as error:
+        failures.append("currentHostedUnitSource:" + str(error))
+    return {"cardID": contracts.CARD, "question": "CURRENT_HOSTED_UNIT_FIXTURE_SOURCE_STRUCTURE",
+            "result": "FAIL_CURRENT_HOSTED_UNIT_SOURCE_STRUCTURE" if failures else "PASS_CURRENT_HOSTED_UNIT_SOURCE_STRUCTURE_ONLY",
+            "failures": failures, "selector": selector, "testBundle": "FieldEvidenceAppTests",
+            "currentSourceInputRows": rows, "SourceReady": False, "nativeExecution": False,
+            "acceptanceCredit": False, "gateCredit": False, "releaseReady": False,
+            "historicalArtifactsRegenerated": False, "historicalAllocationVerifiedByThisMode": False,
+            "historicalDeclaredUIPath": contracts.NEW_PRODUCT_PATHS[5],
+            "historicalDeclaredUIPathPresent": (ROOT / contracts.NEW_PRODUCT_PATHS[5]).is_file(),
+            "dynamicallyObservedShippingFrontDoors": ["TODAY_PHASE1_CONTENT", "WORK_LOADED_CONTENT", "SETTINGS_SCREEN"],
+            "unobservedShippingRootContentAndRoutes": ["ASSETS", "REPORTS"],
+            "unobservedShippingRootContentAndRoutesStatus": "PENDING",
+            "liveRouteOrContactPermissionAdoption": False, "physicalMenuOrAccessibilityQualification": False}
+
 def _validate_corpus(failures: list[str]) -> None:
     try:
         corpus = _read_json(contracts.NEW_PRODUCT_PATHS[4])
@@ -225,7 +423,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--complete", action="store_true", help="require every C42 product/test/UI/fixture source path")
     parser.add_argument("--json", action="store_true", help="emit a JSON result")
+    parser.add_argument("--current-hosted-unit-fixture", action="store_true",
+                        help="check current app-hosted UNIT Source only; preserve historical card/UI artifacts")
     args = parser.parse_args()
+    if args.current_hosted_unit_fixture:
+        if args.complete:
+            parser.error("--complete belongs to the historical allocation question")
+        result = _current_hosted_unit_fixture_result()
+        print(json.dumps(result, sort_keys=True, indent=2 if args.json else None))
+        return 1 if result["failures"] else 0
     failures: list[str] = []
     try:
         contracts.authority()

@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "6b7351fe070a4987bac51083f80b8ac9823ae3a6",
+  "generatedAtHead": "298866ef6d784d169cb149ad7a0522bc8f302ac4",
   "sweepOrder": [
     "S01",
     "S02",
@@ -246,11 +246,12 @@
     {
       "id": "S03",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1559.9,
       "selectors": [
         "FieldEvidenceAppTests/C05EvidenceMetadataMigrationBoundaryTests/testV23P03C05V42ToV43MigrationAndRecords41CompatibilityAreClosed",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS6_3BackupValidation/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testCanonicalDateReplayUsesExactEnvelopeBytesAndChangedBytesStillQuarantine",
+        "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testImportedFirstSignPreservesAcceptedPlacementTimeAcrossFractionalDestinationClockAndColdReplay",
         "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignQuantizesGeneratedClockAndColdReplayPreservesExactBytes",
         "FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect",
         "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualNativeRoundRouteAndBackPreserveReportsWithoutAutomaticWork",
@@ -388,7 +389,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 2638.1,
+      "estimatedSeconds": 2758.1,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -467,6 +468,7 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPostRetiredOwnerGuardLinkTransitionRetainsOtherTreeFacts",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedPostReadExclusiveScratchIsIsolatedFromUnrelatedOrdinaryRead",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRolledBackPreparationAbortsExactGateReservationButDurableIntentDoesNot",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testSeededEraseFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testV23P03C13EraseRecoveryRetainsRecordedAndVoidedAttestationHistory",
@@ -533,6 +535,7 @@
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testDiagnosticsLegacyMigrationAndRepeatedReplacementsFinishOwnedBackupCleanup",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testDiagnosticsRejectsHardlinkedCounterDuringHeldPublicationWithoutChangingBytes",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testDiagnosticsRejectsRootReplacementDuringHeldPublicationWithoutChangingBytes",
+        "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testSourceScratchRetainedReaderStaysWithItsPhysicalRootAndFreshStoreRecoversIt",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV23P03C17DiagnosticsExcludeEventCheckpointAndSubjectPayloads",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV23P03C18ReplayClassificationIsPartOfOperationalLifecycle",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV23P03C19DiagnosticsExposeNoExternalMeasurementProviderState",
@@ -2980,7 +2983,7 @@
     {
       "id": "S28",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1658.2,
       "selectors": [
         "FieldEvidenceAppTests/C27S61TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C49WorkResourceRendererBoundaryTests/testManualFactsRenderWithoutInventoryOrConversionAuthority",
@@ -3010,8 +3013,10 @@
         "FieldEvidenceAppTests/V23ProductionSceneRoleTests/testRoundSessionUsesCanonicalHistoryAndRejectsTerminalResume",
         "FieldEvidenceAppTests/V23ProductionSceneRoleTests/testScheduleUsesCanonicalReleaseAndOccurrenceLifecycle",
         "FieldEvidenceAppTests/V23ProductionSceneRoleTests/testSignoffUsesSupersessionAndSubjectRevision",
+        "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45ContainedFieldReviewEmitsExactRequestsAndHonorsUnavailableState",
+        "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45ContainedManualFallbackEmitsOnlyExplicitBoundedRequests",
         "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45ContainedSurfaceAccessibilityContract",
-        "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45LiveJourneyIsExplicitlyDeferredUntilPostS10Adoption",
+        "FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests/testV23P04C45PhaseOneShippingShellAndExistingDraftHaveNoCaptureEntry",
         "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38A01LeapMonthEndLastWeekdayAndScopesPreview",
         "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38G01PatternsOverridesAndHistoryProjectDeterministically",
         "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38H01InvalidRulesStalePreviewAndIdentityDriftHaveNoEffects",
@@ -3344,7 +3349,7 @@
     {
       "id": "S32",
       "tier": "D50C",
-      "estimatedSeconds": 23.6,
+      "estimatedSeconds": 143.5,
       "selectors": [
         "FieldEvidenceAppTests/C27S43TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C27S44TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
@@ -3796,15 +3801,15 @@
         "FieldEvidenceAppTests/V23StoreControlDescriptorOwnershipTests/testMigrationJournalFailureBeforeTransferClosesLocalDescriptorsOnceAndReopens",
         "FieldEvidenceAppTests/V23StoreControlDescriptorOwnershipTests/testMigrationJournalPostTransferFailuresCloseObjectDescriptorsOnceAndReopen",
         "FieldEvidenceAppTests/V23StoreControlDescriptorOwnershipTests/testMigrationJournalSuccessfulLifetimeClosesOnlyItsObjectDescriptorsOnce",
+        "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40PhaseOneContainmentAndManualPreviewHaveNoImplicitEffects",
         "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40SemanticSelectorContractIsClosedAndUnique",
-        "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40ServiceRequestWorkflowRemainsContainedBeforeS10",
         "FieldEvidenceAppTests/V23_P04_C40ServiceRequestWorkflowUITests/testV23P04C40TypedPreviewAndStatusInitializerShape",
         "FieldEvidenceAppTests/V23_P04_C41MyDayWorkflowUITests/testV23P04C41MyDayWorkflowRemainsContainedBeforeS10",
         "FieldEvidenceAppTests/V23_P04_C41MyDayWorkflowUITests/testV23P04C41SemanticSelectorContractIsClosedAndUnique",
         "FieldEvidenceAppTests/V23_P04_C41MyDayWorkflowUITests/testV23P04C41WorkflowInitializerBindsCoreContractShapes",
         "FieldEvidenceAppTests/V23_P04_C43SignoffEnrollmentUITests/testV23P04C43JourneyIdentifiersAreClosedAndOrdered",
         "FieldEvidenceAppTests/V23_P04_C43SignoffEnrollmentUITests/testV23P04C43RequiresVisibleWorkJourneyBeforeLaunchAdoption",
-        "FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests/testV23P04C44LiveAdoptionRemainsPendingS10",
+        "FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests/testV23P04C44PhaseOneWorkDoesNotOfferLiveStockJourney",
         "FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests/testV23P04C44StaticAccessibilityJourneyIsClosed",
         "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45A01DeniedUnsupportedAndManualFallbackAreComplete",
         "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45G01ExplicitOnDeviceCaptureStructuresThenRequiresPerFieldReview",
@@ -3851,7 +3856,7 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1560.0,
+      "estimatedSeconds": 1680.0,
       "selectors": [
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testActualWriterThumbnailOnlyDescriptorOwnsPreparedOriginal",
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedInboxRetainsOriginalAndThumbnailDescriptors",
@@ -3863,7 +3868,9 @@
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testNewlyAdmittedEnvelopesRetainLedgerHistoryAndCompanionRejections",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testPackageRejectsEveryMismatchedPairAndUnknownFutureEnvelope",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testPopulatedServiceRequestFieldsSurviveEverySuccessorAndRejectBeforeIntroduction",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testEmptyCanonicalEvidenceParentPassesRetiredInventoryWithoutChangingPopulatedHistory",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testForeignOnlyCloneHistoryNeedsNoInventedLocalReceiptToAdmitRetiredSummary",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testOptionalEvidenceParentRejectsUnownedCanonicalDescendantsWithoutEffects",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testPopulatedRetiredSummaryPreservesOriginalsWhileOrdinaryExportRemainsCurrentOnly",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testReceiptFreeAndMultipleRetiredStoresUseCompleteAcceptedSemanticsWithoutBootstrap",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredCorruptHistoryAndUnknownBytesRetainAllSources",
@@ -4031,7 +4038,7 @@
     {
       "id": "S38",
       "tier": "D50C",
-      "estimatedSeconds": 960.0,
+      "estimatedSeconds": 1020.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect",
         "FieldEvidenceAppTests/V23EraseLateColdReplaySupplementalTests/testDeleteCommittedThenAfterCleanupColdReplayRequiresCompleteAuthority",
@@ -4048,7 +4055,8 @@
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testSameIDReplayUsesOriginalCommitmentAfterColdReopenAndChangedCommandQuarantines",
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnknownRetainedDraftCodecRefusesBeforeDeletionTombstoneOrReceipt",
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnrelatedCalendarAndEvidenceAudienceMetadataRemainExactThroughCompensation",
-        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnrelatedMetadataNeverExemptsRealTypedAssetDependency"
+        "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testUnrelatedMetadataNeverExemptsRealTypedAssetDependency",
+        "FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests/testV23P04C44ReadOnlyPolicyPreservesIncumbentDraftExportAndRecoveryAndRejectsStockWrites"
       ]
     },
     {

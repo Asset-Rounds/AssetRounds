@@ -393,7 +393,25 @@ def _validate_source(failures: list[str]) -> None:
         r"\bUserActivity\b",
     ):
         _require(re.search(pattern, new_source, re.IGNORECASE) is None, f"prohibited C40 integration token: {pattern}", failures)
-    _require("V23-P04-C40" in ui and len(re.findall(r"throw\s+XCTSkip\s*\(", ui)) == 1, "UI lane must have one no-launch skip", failures)
+    # Required unit coverage now exercises the contained Phase 1 surface. Full
+    # live intake/route adoption remains unclaimed; a placeholder skip cannot
+    # substitute for the loaded-root, feature-positive and zero-write checks.
+    boundary_name = "testV23P04C40PhaseOneContainmentAndManualPreviewHaveNoImplicitEffects"
+    boundary = _method_bodies(ui).get(boundary_name, "")
+    _require("V23-P04-C40" in ui and bool(boundary), "contained Phase 1 behavior method missing", failures)
+    _require(re.search(r"\bXCTSkip\b", ui) is None, "C40 required unit lane must not skip", failures)
+    for token in (
+        "makeFixture(", "makeWorkAsset(", "AppShellView(",
+        "ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier",
+        "ProductionWorkRootViewV1.screenAccessibilityIdentifier",
+        "waitForMountedScreen(", "nativeScreenObservation(",
+        "workflow.execute(.previewManual(", "ServiceRequestWorkflowView(",
+        "surface.onRefreshPreview()", "C40ContainedSnapshot(fixture)",
+        "XCTAssertEqual(callbacks.createWorkCount, 0)", "XCTAssertFalse(context.hasChanges)",
+    ):
+        _require(token in boundary, f"contained Phase 1 behavior binding missing: {token}", failures)
+    _require(".nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)" in view,
+             "contained feature-positive observation witness missing", failures)
     _require(re.search(r"\b(?:XCUIApplication|app)\s*\(?.*\)?\.launch\s*\(", ui, re.IGNORECASE) is None, "UI lane must not launch", failures)
 
     methods = _method_bodies(tests)

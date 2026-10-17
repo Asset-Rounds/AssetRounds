@@ -777,6 +777,14 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         let locationOccurredAt = try change.envelope.command.canonicalLocationAffectedIdentities() == nil
             ? nil
             : change.receipt.committedAt
+        let importedOccurredAt: Date?
+        if case .createFirstSign = change.envelope.command {
+            // Initial placement is canonical source history. Recreate its
+            // accepted instant instead of generating a destination-clock value.
+            importedOccurredAt = change.receipt.committedAt
+        } else {
+            importedOccurredAt = locationOccurredAt
+        }
         let acknowledgementAdmission: ReinspectionAcknowledgementAdmission?
         if case let .applyReinspectionException(command) = request.command,
            case .recordAcknowledgement = command.payload {
@@ -800,7 +808,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             contentDependencyIDs: change.envelope.contentDependencyIDs,
             correlationID: sourceCorrelationID,
             portableReversalPlan: change.portableReversalPlan,
-            occurredAtOverride: locationOccurredAt,
+            occurredAtOverride: importedOccurredAt,
             reinspectionAcknowledgementAdmission: acknowledgementAdmission
         )
     }

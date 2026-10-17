@@ -42,7 +42,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json",
       "schema": "V23P04C27ToolingManifestV1",
-      "sha256": "4bb1da775a14332278a6d9ea9069e7ea1e256e132167134a2e86d791f6adcd99"
+      "sha256": "5bdd93c342e6ef8e746bb7092090cb4584ae128dccc1d3e48a49080ba265ce75"
     },
     {
       "cardID": "V23-P04-C28",
@@ -70,7 +70,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C32-tooling-manifest.json",
       "schema": "V23P04C32ToolingManifestV1",
-      "sha256": "2e0c576250ae9d121eb9680cb2cf9bca350ac9a8db273e814adc4f70caa35938"
+      "sha256": "5922ec68f11f1274009be41021881c5f3a97fa6648da3203948175246b627d8e"
     },
     {
       "cardID": "V23-P04-C33",
@@ -126,7 +126,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C40-tooling-manifest.json",
       "schema": "V23P04C40ToolingManifestV1",
-      "sha256": "a25d246495681ec5f2f4f73eed853476e54965fedc5c8e549e4d6a538a44602a"
+      "sha256": "6d552febf0af448e18ac093b436f5dfe352b722d92c8a7e0938883623bbd6017"
     },
     {
       "cardID": "V23-P04-C41",
@@ -140,7 +140,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C42-tooling-manifest.json",
       "schema": "V23P04C42ToolingManifestV1",
-      "sha256": "301f8212acbc375376e1f23e3492f98bfe33017a731edc581fa3dc4100cbe05b"
+      "sha256": "cb03af9cd2f7b037d3b1bbd6e97de4fcdd831c4847e993bee81f6c614373f9fa"
     },
     {
       "cardID": "V23-P04-C43",

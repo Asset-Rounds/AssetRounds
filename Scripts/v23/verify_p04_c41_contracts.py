@@ -30,6 +30,117 @@ def _read_json(path: str) -> Any:
     return contracts.read_json(path)
 
 
+def _current_hosted_unit_fixture_result() -> dict[str, Any]:
+    """Current Source structure only; historical documents stay untouched."""
+    failures: list[str] = []
+    rows: list[dict[str, Any]] = []
+    selector = "FieldEvidenceAppTests/" + contracts.CURRENT_HOSTED_UNIT_CLASS + "/" + contracts.CURRENT_HOSTED_UNIT_METHOD
+    try:
+        inputs = contracts.current_hosted_unit_sources(contracts.CURRENT_HOSTED_UNIT_PATH,
+            contracts.CURRENT_HOSTED_UNIT_CLASS, contracts.CURRENT_HOSTED_UNIT_METHODS,
+            contracts.CURRENT_HOSTED_UNIT_METHOD, contracts.CURRENT_HOSTED_UNIT_DEPENDENCIES)
+        rows = inputs["rows"]
+        body = inputs["method"]
+        contracts.current_source_require(body, (
+            "let fixture = try await makeFixture(", "defer { fixture.cleanUp() }",
+            "let writer = fixture.coordinator.workspaceWriter",
+            "try writer.makeFieldDraftLifecycleAdapter(modelContext: context)",
+            "try makeC41EligibleCheckpoint(in: fixture)",
+            "try adapter.compareAndSwap(checkpoint: source, expectedDraftRevision: 0, expectedBaseRevision: source.baseCanonicalRevision)",
+            "XCTAssertEqual(try adapter.currentCheckpoint(workspaceID: source.workspaceID, draftID: source.draftID), source)",
+            "let revisionBefore = try writer.currentRevision()",
+            "let countsBefore = try c41CanonicalRowCounts(in: context)",
+            "let reference = MyDayEligibleReferenceV1.resumableDraft(workspaceID: source.workspaceID, draftID: source.draftID, revision: source.draftRevision, checkpointSHA256: source.checkpointSHA256, anchor: source.resumeAnchor)",
+            "let access = try XCTUnwrap(fixture.presentation.myDayAccess)",
+            "let snapshot = try await access.snapshot(evaluatedAt: source.updatedAt)",
+            "XCTAssertEqual(snapshot.workspaceID, source.workspaceID)",
+            "XCTAssertEqual(snapshot.eligibleReferences, [reference],",
+            "try scene.select(.today)", "let shipping = try mountC41Shell(fixture, gate: nil)",
+            "defer { shipping.unmount() }", "shipping.unmount()",
+            "let enabled = try mountC41Shell(fixture, gate: .allFeatures)",
+            "defer { enabled.unmount() }",
+            "let shippingMounted = await waitForMountedScreen(ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier, from: shipping.host)",
+            "XCTAssertTrue(shippingMounted,",
+            "XCTAssertFalse(nativeScreenObservation(ProductionMyDayRootViewV1.myDayObservationIdentifier, from: shipping.host).found,",
+            "let enabledMounted = await waitForMountedScreen(ProductionMyDayRootViewV1.myDayObservationIdentifier, from: enabled.host)",
+            "XCTAssertTrue(enabledMounted,",
+            "XCTAssertFalse(nativeScreenObservation(ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier, from: enabled.host).found)",
+        ), "C41 current boundary", failures)
+        contracts.current_source_order(body, (
+            "try adapter.compareAndSwap(", "let snapshot = try await access.snapshot(",
+            "XCTAssertEqual(snapshot.eligibleReferences, [reference],",
+            "let shipping = try mountC41Shell(fixture, gate: nil)",
+            "let shippingMounted = await waitForMountedScreen(", "XCTAssertTrue(shippingMounted,",
+            "XCTAssertFalse(nativeScreenObservation(ProductionMyDayRootViewV1.myDayObservationIdentifier, from: shipping.host).found,",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)",
+            "XCTAssertEqual(try c41CanonicalRowCounts(in: context), countsBefore)",
+            "XCTAssertFalse(context.hasChanges)", "shipping.unmount()",
+            "let enabled = try mountC41Shell(fixture, gate: .allFeatures)",
+            "let enabledMounted = await waitForMountedScreen(", "XCTAssertTrue(enabledMounted,",
+            "XCTAssertFalse(nativeScreenObservation(ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier, from: enabled.host).found)",
+            "XCTAssertEqual(try writer.currentRevision(), revisionBefore)",
+            "XCTAssertEqual(try c41CanonicalRowCounts(in: context), countsBefore)",
+            "XCTAssertFalse(context.hasChanges)",
+        ), "C41 populated fixture shipping/control", failures)
+        # Every observed stage has the real canonical equations, not a constant
+        # 'no writes' claim. Repeated assertions retain their distinct stages.
+        compact = re.sub(r"\s+", "", body["code"])
+        for expression, count in (
+            ("XCTAssertEqual(trywriter.currentRevision(),revisionBefore)", 4),
+            ("XCTAssertEqual(tryc41CanonicalRowCounts(in:context),countsBefore)", 4),
+            ("XCTAssertFalse(context.hasChanges)", 5),
+        ):
+            _require(compact.count(expression) == count,
+                     "C41 canonical conservation stage count differs: " + expression, failures)
+        seed = contracts.current_source_block(inputs, contracts.CURRENT_HOSTED_UNIT_PATH,
+            r"func\s+makeC41EligibleCheckpoint", "C41 writer seed")
+        contracts.current_source_require(seed, (
+            "baseCanonicalRevision: try writer.currentRevision().revision",
+            "draftRevision: 1", "mutationID: try writer.makeMutationID()", "state: .active",
+        ), "C41 writer seed", failures)
+        counts = contracts.current_source_block(inputs, contracts.CURRENT_HOSTED_UNIT_PATH,
+            r"func\s+c41CanonicalRowCounts", "C41 canonical counts")
+        contracts.current_source_require(counts, tuple(
+            "context.fetchCount(FetchDescriptor<" + row + ">())" for row in
+            ("MutationReceiptRow", "FieldDraftCheckpointRow", "MyDayPlanRowV1", "MyDayCarryoverReceiptRowV1")
+        ), "C41 canonical counts", failures)
+        mount = contracts.current_source_block(inputs, contracts.CURRENT_HOSTED_UNIT_PATH,
+            r"func\s+mountC41Shell", "C41 actual shell host")
+        contracts.current_source_require(mount, (
+            "let shell = AppShellView(", "storeSession: fixture.coordinator",
+            "myDayAccess: try XCTUnwrap(fixture.presentation.myDayAccess)",
+            "if let gate { content = AnyView(shell.environment(\\.v23PhaseGate, gate).modelContext(fixture.coordinator.modelContext)) } else { content = AnyView(shell.modelContext(fixture.coordinator.modelContext)) }",
+            "UIHostingController(rootView: content)", "window.makeKeyAndVisible()",
+            "return SIG1MountedShellV1(window: window, host: host, previousKeyWindow: previousKeyWindow)",
+        ), "C41 actual shell host", failures)
+        support = "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift"
+        wait = contracts.current_source_block(inputs, support, r"func\s+waitForMountedScreen", "bounded mounted observer")
+        contracts.current_source_require(wait, ("for _ in 0..<200", "nativeScreenObservation(identifier, from: host).found",
+            "Task.sleep(nanoseconds: 25_000_000)", "return false"), "bounded mounted observer", failures)
+        owner = "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift"
+        unmount = contracts.current_source_block(inputs, owner, r"func\s+unmount", "host cleanup")
+        contracts.current_source_require(unmount, ("guard isMounted else { return }", "isMounted = false",
+            "window.isHidden = true", "window.rootViewController = nil", "previousKeyWindow?.makeKeyAndVisible()"), "host cleanup", failures)
+        gate = inputs["sources"]["FieldEvidenceApp/App/V23PhaseGateV1.swift"]
+        contracts.current_source_require(gate, ("static let shipping = V23PhaseGateV1(through: .phase1)",
+            "case .myDay, .workSources, .reminders, .systemDiscovery, .envelopeDocumentOpen: return .phase2",
+            "static let allFeatures = V23PhaseGateV1(enabled: Set(V23GatedFeatureV1.allCases))",
+            "static let defaultValue: V23PhaseGateV1 = .shipping"), "frozen phase boundary", failures)
+        root = inputs["sources"]["FieldEvidenceApp/Features/Shell/ProductionMyDayRootViewV1.swift"]
+        contracts.current_source_require(root, ("if phaseGate.allows(.myDay) { ProductionMyDayCurrentWorkRootV1(source: source) } else { ProductionTodayPhaseOneEmptyStateV1() }",
+            "NativeScreenObservationAnchorV1(identifier: ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier)",
+            "NativeScreenObservationAnchorV1(identifier: ProductionMyDayRootViewV1.myDayObservationIdentifier)"), "actual production branches", failures)
+    except (OSError, ValueError, UnicodeError) as error:
+        failures.append("currentHostedUnitSource:" + str(error))
+    return {"cardID": contracts.CARD, "question": "CURRENT_HOSTED_UNIT_FIXTURE_SOURCE_STRUCTURE",
+            "result": "FAIL_CURRENT_HOSTED_UNIT_SOURCE_STRUCTURE" if failures else "PASS_CURRENT_HOSTED_UNIT_SOURCE_STRUCTURE_ONLY",
+            "failures": failures, "selector": selector, "testBundle": "FieldEvidenceAppTests",
+            "currentSourceInputRows": rows, "SourceReady": False, "nativeExecution": False,
+            "acceptanceCredit": False, "gateCredit": False, "releaseReady": False,
+            "historicalArtifactsRegenerated": False, "historicalAllocationVerifiedByThisMode": False,
+            "physicalMenuOrAccessibilityQualification": False}
+
+
 def _validate_corpus(failures: list[str]) -> None:
     try:
         corpus = _read_json(contracts.NEW_PRODUCT_PATHS[4])
@@ -360,7 +471,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--complete", action="store_true", help="require every C41 product/test/UI/fixture source path")
     parser.add_argument("--json", action="store_true", help="emit a JSON result")
+    parser.add_argument("--current-hosted-unit-fixture", action="store_true",
+                        help="check the current DEBUG unit fixture Source only; preserve historical card artifacts")
     args = parser.parse_args()
+    if args.current_hosted_unit_fixture:
+        if args.complete:
+            parser.error("--complete is the separate historical-card question")
+        result = _current_hosted_unit_fixture_result()
+        print(json.dumps(result, sort_keys=True, indent=2 if args.json else None))
+        return 1 if result["failures"] else 0
     failures: list[str] = []
     try:
         contracts.authority()

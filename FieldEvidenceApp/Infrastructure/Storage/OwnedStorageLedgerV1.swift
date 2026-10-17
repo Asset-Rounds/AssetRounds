@@ -10243,6 +10243,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         private var descriptorCloseAttempted = false
         private let producerActivity: OwnedStorageProducerActivityV1?
         private let exclusivePermit: ExclusiveEraseSourceReadPermit?
+        fileprivate var isOrdinarySourceRead: Bool { exclusivePermit == nil }
         private var exclusiveOwnedInodes: [String: (device: UInt64, inode: UInt64)] = [:]
         private static let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
         var modelURL: URL { directoryURL.appendingPathComponent("model.sqlite") }
@@ -12384,11 +12385,26 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         try request.validate()
         return try withProducerFilesystemLock {
-            for prior in Self.retainedSourceReaders where prior.readerIsDrained() {
+            for prior in Self.retainedSourceReaders {
+                // An exclusive failure retains its revoked scope for host life.
+                // Ordinary activity must not even query that owner's drainage.
+                guard prior.isOrdinarySourceRead,
+                      prior.store.rootURL == rootURL,
+                      prior.store.producerApplicationSupportURL == producerApplicationSupportURL,
+                      prior.store.authority.rootDevice == authority.rootDevice,
+                      prior.store.authority.rootInode == authority.rootInode else { continue }
+                // A fresh Store may recover an ordinary reader in this same
+                // physical namespace. Keep our matching-root SH through release,
+                // including after the prior reader closes its own activity.
+                try verifyRoot()
+                try prior.store.verifyRoot()
+                guard prior.readerIsDrained() else { continue }
                 _ = try prior.closeReaderScope()
                 try prior.store.releaseScratchLeaseSynchronously(prior.lease, terminal: .failed)
+                if let index = Self.retainedSourceReaders.firstIndex(where: { $0 === prior }) {
+                    Self.retainedSourceReaders.remove(at: index)
+                }
             }
-            Self.retainedSourceReaders.removeAll { $0.readerIsDrained() }
             let lease = try acquireScratchLeaseSynchronously(request)
             let directory: SourceReadDirectory
             do { directory = try SourceReadDirectory(store: self, lease: lease, readerIsDrained: readerIsDrained) }

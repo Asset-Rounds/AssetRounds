@@ -4,8 +4,8 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "6e6ef31951b59320241f29d1da4078ea7d2ff0d9dd055ccc8fa0ea36ac6473d7",
-  "artifactSetDigest": "94c0571b1ca0d95af9ad2a9cf23fa11a2ca2e2e182142099e0c0be7b21216629",
+  "artifactDigest": "98f37660ca150a1882550c3cde271f0c8827618296924897fc2dd0f05da2d659",
+  "artifactSetDigest": "21083ebffe72146920e503157d17963af3dd404f048bb7c28dd9364db787a916",
   "artifacts": [
     {
       "bytes": 189514,
@@ -33,9 +33,9 @@
       "sha256": "9c24c7579400c0c7e0e9f57e61620c11c962030c3b735d9b4567eb84749ca094"
     },
     {
-      "bytes": 969576,
+      "bytes": 970645,
       "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
-      "sha256": "93eed80f52ed3b2e660e6babc794a6a7c7796451917346f9426435323e97af98"
+      "sha256": "80c2c45aa85615efe15b4e8878c9bb85f2bb74cd0cf8e5cec6e077221c1af0ec"
     },
     {
       "bytes": 21188,
@@ -43,9 +43,9 @@
       "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
     },
     {
-      "bytes": 785962,
+      "bytes": 786136,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "1f29c5d71189fcc15cf85f94ab8eea83c3624ad4321da3dda2c89fe947e6dee7"
+      "sha256": "16b73fcfc533fbecf617adf657407c47e7bcf56244039edef69756bda6053754"
     },
     {
       "bytes": 114705,
@@ -58,9 +58,9 @@
       "sha256": "5cc15018101e38766e11e413aadd9f135ce537fc440a003dfa6324eb7c9410a9"
     },
     {
-      "bytes": 253583,
+      "bytes": 259541,
       "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
-      "sha256": "295b2286d618f31339f5d966188adc2923dc4dc38cf7b36d19affef2f15c986b"
+      "sha256": "9cc018150af9a3f72a59bc3201fb2a785d54fe1bcf542fbc030bc8ac67b94fd6"
     },
     {
       "bytes": 49316,
@@ -73,9 +73,9 @@
       "sha256": "3525e083dc33cf49d9a0bc1de4097a83482f1b7875c5f72ccd3429c5424e2157"
     },
     {
-      "bytes": 93494,
+      "bytes": 100025,
       "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
-      "sha256": "4d16566b8221943d16c4d80ef09e641819e57fc27be89299d408026699814cf1"
+      "sha256": "e3eaef0b5606a1d3e1d441e1dbe15ac9ee4ef01e72bda76bd971c82405f67b99"
     },
     {
       "bytes": 8453,

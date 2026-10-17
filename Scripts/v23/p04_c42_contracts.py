@@ -12,6 +12,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import stat
+import types
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -80,6 +83,34 @@ PATH_FENCE = (*EXISTING_PATHS, *NEW)
 OWNED = frozenset(TOOLING_PATHS)
 PRODUCT = (*EXISTING_PATHS, *NEW_PRODUCT_PATHS)
 SOURCE_PATHS = PRODUCT
+# Historical card allocation and missing UI lane above stay authoritative.
+# This additive mode describes the actual app-hosted UNIT Source only; it does
+# not redirect UI allocation, regenerate artifacts or certify readiness/adoption.
+CURRENT_HOSTED_UNIT_PATH = "FieldEvidenceAppTests/V23_P04_C42PartyContactSiteRoleWorkflowUITests.swift"
+CURRENT_HOSTED_UNIT_CLASS = "V23_P04_C42PartyContactSiteRoleWorkflowUITests"
+CURRENT_HOSTED_UNIT_METHOD = "testV23P04C42WorkflowRemainsContainedBeforeS10"
+CURRENT_HOSTED_UNIT_METHODS = (
+    "testV23P04C42SemanticSelectorContractIsClosedAndUnique",
+    "testV23P04C42WorkflowInitializerBindsCoreContractShapes",
+    CURRENT_HOSTED_UNIT_METHOD,
+)
+CURRENT_HOSTED_UNIT_DEPENDENCIES = (
+    "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift",
+    "FieldEvidenceAppTests/V23ProductionMyDayPresentationTests.swift",
+    "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift",
+    "FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift",
+    "FieldEvidenceApp/App/V23PhaseGateV1.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Shell/ProductionMyDayRootViewV1.swift",
+    "FieldEvidenceApp/Features/Shell/ProductionWorkRootViewV1.swift",
+    "FieldEvidenceApp/Features/Shell/NativeScreenObservationAnchorV1.swift",
+    "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+    "FieldEvidenceApp/Domain/Contacts/PartyContactSiteRoleWorkflowContractsV1.swift",
+    "FieldEvidenceApp/Application/Contacts/PartyContactSiteRoleWorkflowCoordinatorV1.swift",
+    "FieldEvidenceApp/Domain/Models/PartyAccountabilityPersistenceModelsV1.swift",
+    "FieldEvidenceApp/Domain/Models/OperationalContactPersistenceModelsV1.swift",
+    "FieldEvidenceApp/Domain/Models/MutationPersistenceModelsV1.swift",
+)
 NEW_PRODUCT_TEST_UI_FIXTURE_PATH_COUNT = 6
 NEW_TOOLING_DOCUMENTATION_PATH_COUNT = 8
 
@@ -259,6 +290,152 @@ def pretty(value: Any) -> bytes:
 
 def sha(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+
+def current_hosted_unit_sources(path: str, class_name: str, methods: tuple[str, ...],
+                                method: str, dependencies: tuple[str, ...]) -> dict[str, Any]:
+    """Read only fixed current inputs using the incumbent closed Debug parser.
+
+    This neither generates a selection nor performs discovery, compilation,
+    native execution, historical allocation verification, or readiness admission.
+    The caller supplies literals from its card module, never user-selected paths.
+    """
+    rows: list[dict[str, Any]] = []
+    if path != "FieldEvidenceAppTests/" + class_name + ".swift" or method not in methods:
+        raise ValueError("current hosted-unit literal path/selector binding differs")
+
+    def held_source(relative: str) -> str:
+        target = ROOT / relative
+        if target.resolve() != target or not target.is_relative_to(ROOT):
+            raise ValueError("unsafe current hosted-unit source path: " + relative)
+        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            before = os.fstat(fd)
+            def identity(value):
+                return (value.st_dev, value.st_ino, value.st_mode, value.st_nlink,
+                        value.st_uid, value.st_gid, value.st_size, value.st_mtime_ns,
+                        value.st_ctime_ns, getattr(value, "st_flags", 0))
+            if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+                raise ValueError("non-singleton current source: " + relative)
+            if identity(before) != identity(os.lstat(target)):
+                raise ValueError("current source named/held mismatch: " + relative)
+            chunks = []
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks)
+            if len(raw) != before.st_size or identity(before) != identity(os.fstat(fd)) \
+                    or identity(before) != identity(os.lstat(target)):
+                raise ValueError("current source changed during read: " + relative)
+        finally:
+            os.close(fd)
+        rows.append({"path": relative, "byteCount": len(raw), "sha256": sha(raw),
+                     "physicalMode": oct(stat.S_IMODE(before.st_mode)),
+                     "readIntervalConserved": True})
+        return raw.decode("utf-8")
+
+    parser_path = "Scripts/v23-selection-generator.py"
+    parser_source = held_source(parser_path)
+    # Root's future execution loads the exact held bytes, never an unrelated
+    # timestamp/size-qualified .pyc. Authoring/review does not execute this path.
+    generator = types.ModuleType("v23_current_hosted_unit_selection_parser")
+    generator.__file__ = str(ROOT / parser_path)
+    exec(compile(parser_source, generator.__file__, "exec"), generator.__dict__)
+    sources = {relative: held_source(relative) for relative in (path, *dependencies)}
+    project = held_source("FieldEvidenceApp.xcodeproj/project.pbxproj")
+    project_code = re.sub(r"/\*.*?\*/", "", project, flags=re.S)
+    target = re.search(r"A00000000000000000000031\s*=\s*\{\s*isa\s*=\s*PBXNativeTarget;([\s\S]*?)\n\s*\};", project_code)
+    group = re.search(r"A00000000000000000000005\s*=\s*\{\s*isa\s*=\s*PBXFileSystemSynchronizedRootGroup;([\s\S]*?)\n\s*\};", project_code)
+    if target is None or group is None \
+            or 'path = FieldEvidenceAppTests;' not in group.group(1) \
+            or 'productType = "com.apple.product-type.bundle.unit-test";' not in target.group(1) \
+            or re.search(r"fileSystemSynchronizedGroups\s*=\s*\(\s*A00000000000000000000005\s*,?\s*\);", target.group(1)) is None:
+        raise ValueError("current hosted-unit target binding absent")
+    parsed = {relative: {"source": source,
+                         "code": generator._active_swift(generator._mask_swift_noncode(source))}
+              for relative, source in sources.items()}
+    selected = parsed[path]
+    superclass, bodies = generator._class_bodies(selected["code"], class_name, methods)
+    if superclass != "V23ProductionFourRootShellTestSupport":
+        raise ValueError("current hosted-unit support superclass differs")
+    generator._verify_methods(bodies, class_name, methods)
+    direct = []
+    for body in bodies:
+        depths = generator._brace_depths(body)
+        direct.extend(match.group(1) for match in re.finditer(r"\bfunc\s+(test\w*)\s*\(", body)
+                      if depths[match.start()] == 0)
+    if tuple(direct) != methods:
+        raise ValueError("current hosted-unit direct method order/set differs")
+    support = parsed["FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift"]
+    base, support_bodies = generator._class_bodies(support["code"], "V23ProductionFourRootShellTestSupport")
+    if base != "XCTestCase" or any(re.search(r"\bfunc\s+test\w*\s*\(", body) for body in support_bodies):
+        raise ValueError("current support inheritance acquires test methods")
+    result = {"generator": generator, "sources": parsed, "rows": rows,
+              "selector": "FieldEvidenceAppTests/" + class_name + "/" + method}
+    block = current_source_block(result, path, r"func\s+" + re.escape(method) + r"\s*\(\s*\)\s+async\s+throws", method)
+    if block["declarationPrefix"].strip() != "@MainActor":
+        raise ValueError("current hosted-unit method must be MainActor")
+    # C42's common preview/effect core executes in every configuration. Only
+    # hosted native screen observation is DEBUG; there is no Release skip.
+    if re.search(r"\bXCTSkip\s*\(", generator._mask_swift_noncode(selected["source"])):
+        raise ValueError("current C42 unit fixture must not skip in any configuration")
+    result["method"] = block
+    return result
+
+
+def current_source_block(inputs: dict[str, Any], path: str, declaration: str, label: str) -> dict[str, str]:
+    """Extract one real named body; noncode/inactive branches cannot supply it."""
+    entry = inputs["sources"][path]
+    matches = list(re.finditer(r"\b" + declaration + r"\b[^{};]*\{", entry["code"]))
+    if len(matches) != 1:
+        raise ValueError("missing/duplicate current source block: " + label)
+    match = matches[0]
+    opening = match.end() - 1
+    body = inputs["generator"]._body_at(entry["code"], opening, label)
+    stop = opening + len(body) + 2
+    source = entry["source"][match.start():stop]
+    return {"code": entry["code"][match.start():stop], "source": source,
+            "declarationPrefix": inputs["generator"]._declaration_prefix(entry["code"], match.start()),
+            "maskedBody": inputs["generator"]._mask_swift_noncode(entry["source"][opening+1:stop-1])}
+
+
+def current_source_require(block: dict[str, str], expressions: tuple[str, ...], label: str,
+                           failures: list[str]) -> None:
+    code = re.sub(r"\s+", "", block["code"])
+    for expression in expressions:
+        if re.sub(r"\s+", "", expression) not in code:
+            failures.append(label + " missing active code: " + expression)
+
+
+def current_source_literal(block: dict[str, str], expression: str, label: str,
+                           inputs: dict[str, Any], failures: list[str]) -> None:
+    """Require an exact literal equation at a real active assertion/call site."""
+    # The fixed literal is exact, including its spaces. Whitespace folding
+    # inside a quoted expected value would silently weaken the fact equation.
+    pattern = re.escape(expression)
+    for match in re.finditer(pattern, block["source"]):
+        expected = inputs["generator"]._mask_swift_noncode(match.group())
+        actual = block["code"][match.start():match.end()]
+        if expected == actual and re.search(r"\b(?:XCTAssert\w+|Label|case|static|try|let)\b", actual):
+            return
+    failures.append(label + " missing active literal equation: " + expression)
+
+
+def current_source_order(block: dict[str, str], expressions: tuple[str, ...], label: str,
+                         failures: list[str]) -> None:
+    """Keep the prerequisite/observation/equation order within this one body."""
+    code = re.sub(r"\s+", "", block["code"])
+    offset = 0
+    for expression in expressions:
+        expression = re.sub(r"\s+", "", expression)
+        index = code.find(expression, offset)
+        if index < 0:
+            failures.append(label + " active step order differs: " + expression)
+            return
+        offset = index + len(expression)
 
 
 def git(*args: str, cwd: Path = ROOT) -> str:

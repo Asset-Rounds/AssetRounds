@@ -18,6 +18,25 @@ SELECTOR_ROWS=(("G01","V23-P04-C43-G01","GOLDEN"),("A01","V23-P04-C43-A01","ALTE
 FLAGS={x:False for x in ("native","hosted","physicalDevice","adoption","acceptance","release","nativeAcceptance","hostedAcceptance","physicalEvidence","adoptionEvidence","acceptanceCredit","releaseReadiness","phase10PollingDuringParallelExecution")}; FINAL_HASHES_SEALED=False
 PERSISTENCE_DECISION={"exactAction":"Record approval response","visibleWorkRootPathRequired":True,"typedPathAccessible":True,"deepLinkOnlyAcceptance":False,"optionalDrawnMark":True,"drawnMarkBiometric":False,"acknowledgementSnapshotV1BytePreserved":True,"acknowledgementSnapshotV1Migration":False,"identityClaim":False,"authorityClaim":False,"legalClaim":False,"nonrepudiationClaim":False,"verifiedOrFinalApprovalClaim":False,"newDurableFamilyCount":0,"newMigrationCount":0,"newModelCount":0,"newSchemaCount":0,"newStoreCount":0,"newWriterCount":0,"rootOrNetworkOrTelemetry":False}
 CLAIMS={"identityProof":False,"authorityProof":False,"legalApproval":False,"nonrepudiation":False,"verifiedApproval":False,"finalApproval":False,"biometricMark":False,"deepLinkOnlyAcceptance":False,"hostedDependency":False,"nativeBuildVerified":False}
+# These current hosted-unit inputs are separate from the historical exact fence.
+# No original allocation, generated row, provisional flag or readiness is changed.
+CURRENT_HOSTED_UNIT_PATH="FieldEvidenceAppTests/V23_P04_C43SignoffEnrollmentUITests.swift"
+CURRENT_HOSTED_UNIT_CLASS="V23_P04_C43SignoffEnrollmentUITests"
+CURRENT_HOSTED_UNIT_METHOD="testV23P04C43RequiresVisibleWorkJourneyBeforeLaunchAdoption"
+CURRENT_HOSTED_UNIT_METHODS=("testV23P04C43JourneyIdentifiersAreClosedAndOrdered",CURRENT_HOSTED_UNIT_METHOD)
+CURRENT_HOSTED_UNIT_DEPENDENCIES=(
+ "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift",
+ "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift",
+ "FieldEvidenceApp/Features/Accountability/CompletedWorkDetailViewV1.swift",
+ "FieldEvidenceApp/Domain/Accountability/SignoffEnrollmentContractsV1.swift",
+)
+def current_hosted_unit_sources():
+ # Reuse the bounded reader and incumbent closed parser; no historical authority
+ # function is called and no new selection or acceptance decision is generated.
+ import p04_c41_contracts as current_reader
+ return current_reader.current_hosted_unit_sources(CURRENT_HOSTED_UNIT_PATH,
+  CURRENT_HOSTED_UNIT_CLASS,CURRENT_HOSTED_UNIT_METHODS,CURRENT_HOSTED_UNIT_METHOD,
+  CURRENT_HOSTED_UNIT_DEPENDENCIES)
 def pretty(v:Any)->bytes:return (json.dumps(v,sort_keys=True,indent=2,ensure_ascii=False)+"\n").encode()
 def sha(v:bytes)->str:return hashlib.sha256(v).hexdigest()
 def git(*a:str,cwd:Path=ROOT)->str:return subprocess.run(["git",*a],cwd=cwd,check=True,capture_output=True,text=True).stdout.strip()

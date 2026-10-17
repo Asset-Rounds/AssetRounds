@@ -4,11 +4,13 @@ Root runs this source after independent review. These fixtures use the actual
 published cold-contract constructors, with one synthetic declared partition.
 No existing predicate, census, workflow or test expectation is changed.
 """
+import atexit
 import contextlib
 import io
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -20,21 +22,48 @@ SPEC = importlib.util.spec_from_file_location("cold_payload_data_candidate", PAT
 M = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(M)
 SOURCE_ROOT = PATH.parents[2]
+_COLD_FIXTURE_PARENT = None
+
+
+def cold_fixture_directory(prefix):
+    """Keep owned fixture ancestors outside the shared default temp namespace."""
+    global _COLD_FIXTURE_PARENT
+    if _COLD_FIXTURE_PARENT is None:
+        cache = Path.home() / ("Library/Caches" if sys.platform == "darwin" else ".cache") / "AssetRounds"
+        cache.mkdir(parents=True, exist_ok=True)
+        _COLD_FIXTURE_PARENT = tempfile.TemporaryDirectory(prefix="cold-data-", dir=cache.resolve())
+        # One private parent survives every fence interval in this serial module.
+        # Only its own disposable tree is removed after the test process closes.
+        atexit.register(_COLD_FIXTURE_PARENT.cleanup)
+    return tempfile.TemporaryDirectory(prefix=prefix, dir=_COLD_FIXTURE_PARENT.name)
 
 
 class ColdPayloadDataTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="synthetic-cold-data-")
+        self.temporary = cold_fixture_directory(prefix="synthetic-cold-data-")
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name).resolve()
         self.source, self.original = self.base / "source", self.base / "original"
         self.source.mkdir()
         self.original.mkdir()
         self.contract = M.source_contract(SOURCE_ROOT, M.ReadFences())
+        native_fixture = None
+        if isinstance(self, ColdPayloadDataV2Tests):
+            import subprocess
+            # V2 reviews one exact parser Source, not each later CI profile.
+            # Authenticate that historical fixture before importing any bytes.
+            native_fixture = subprocess.check_output(
+                ["git", "--no-optional-locks", "show",
+                 "298866ef6d784d169cb149ad7a0522bc8f302ac4:" + M.EMITTED_NATIVE_SOURCE_PATH_V2],
+                cwd=SOURCE_ROOT, env=dict(os.environ, GIT_OPTIONAL_LOCKS="0",
+                    GIT_NO_REPLACE_OBJECTS="1", GIT_NO_LAZY_FETCH="1"))
+            self.assertEqual(M.sha(native_fixture), M.EMITTED_NATIVE_SOURCE_SHA256_V2)
+            self.assertIn(M.EMITTED_NATIVE_SOURCE_PATH_V2, self.contract["SOURCES"])
         for name in self.contract["SOURCES"]:
             destination = self.source / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes((SOURCE_ROOT / name).read_bytes())
+            destination.write_bytes(native_fixture if native_fixture is not None
+                and name == M.EMITTED_NATIVE_SOURCE_PATH_V2 else (SOURCE_ROOT / name).read_bytes())
         coverage = {"schema": "v23-coverage-partitions.v2", "sourceCensusHead": "3" * 40,
             "generatedAtHead": "4" * 40, "sweepOrder": ["S01"], "partitions": [{"id": "S01", "tier": "D50C",
             "estimatedSeconds": 1, "selectors": ["FieldEvidenceAppTests/SyntheticColdTests/testOnly"]}]}
@@ -345,7 +374,7 @@ class ReadFenceBehaviorTests(unittest.TestCase):
                     ("symlink-type", False, {"st_mode": 0o120600}, "single-link file required"),
                     ("multiple-links", False, {"st_nlink": 2}, "single-link file required"))
         for label, ancestor, changed, phrase in variants:
-            with self.subTest(label=label), tempfile.TemporaryDirectory(prefix="synthetic-preopen-fence-") as temporary:
+            with self.subTest(label=label), cold_fixture_directory(prefix="synthetic-preopen-fence-") as temporary:
                 base = Path(temporary).resolve()
                 blocked = base / "blocked-component"
                 if ancestor:
@@ -374,8 +403,27 @@ class ReadFenceBehaviorTests(unittest.TestCase):
                 self.assertEqual(attempts, [])
                 operation.assert_not_called()
 
+    def test_default_temp_sibling_activity_preserves_owned_fixture_ancestry(self):
+        with cold_fixture_directory(prefix="synthetic-read-fence-") as temporary:
+            path = Path(temporary).resolve() / "raw"
+            path.write_bytes(b"DATA")
+            fences = M.ReadFences()
+            self.assertEqual(fences.read(path), b"DATA")
+            before = {name: dict(value) for name, value in fences.identities.items()}
+            default_parent = Path(tempfile.gettempdir()).resolve()
+            self.assertNotIn(str(default_parent), before)
+            default_before = M.identity(default_parent.stat())
+            with tempfile.TemporaryDirectory(prefix="unrelated-default-temp-") as unrelated:
+                self.assertEqual(Path(unrelated).resolve().parent, default_parent)
+                self.assertNotEqual(M.identity(default_parent.stat()), default_before)
+                fences.finish()
+                self.assertEqual(fences.identities, before)
+            fences.finish()
+            self.assertEqual(fences.identities, before)
+            self.assertEqual(path.read_bytes(), b"DATA")
+
     def test_changed_inode_after_read_refuses_at_the_final_join_fence(self):
-        with tempfile.TemporaryDirectory(prefix="synthetic-read-fence-") as temporary:
+        with cold_fixture_directory(prefix="synthetic-read-fence-") as temporary:
             path = Path(temporary).resolve() / "raw"
             path.write_bytes(b"DATA")
             fences = M.ReadFences()
@@ -387,7 +435,7 @@ class ReadFenceBehaviorTests(unittest.TestCase):
                 fences.finish()
 
     def test_first_read_error_survives_close_error_and_every_handle_is_attempted_once(self):
-        with tempfile.TemporaryDirectory(prefix="synthetic-read-fence-") as temporary:
+        with cold_fixture_directory(prefix="synthetic-read-fence-") as temporary:
             path = Path(temporary).resolve() / "raw"
             path.write_bytes(b"DATA")
             actual_open, actual_close = os.open, os.close
@@ -504,7 +552,7 @@ class ColdPayloadDataV2Tests(unittest.TestCase):
         writer_raw = (self.source / writer_path).read_bytes()
         self.assertEqual(M.sha(writer_raw), native.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256)
         self.assertNotIn(writer_path, plan["sources"], "closed cold plan must not acquire a counterfeit PFP key")
-        with tempfile.TemporaryDirectory(prefix="synthetic-cold-worker-") as temporary:
+        with cold_fixture_directory(prefix="synthetic-cold-worker-") as temporary:
             artifact = Path(temporary).resolve()
             context = {"schema": native.COLD_DURABLE_CONTEXT_SCHEMA,
                 "executionScope": core.COLD_PURPOSE, "head": plan["head"], "tree": plan["tree"],
@@ -747,10 +795,19 @@ class ColdPayloadDataV2Tests(unittest.TestCase):
 
     def test_unreviewed_native_source_is_refused_before_executable_loading(self):
         native = self.source / M.EMITTED_NATIVE_SOURCE_PATH_V2
-        native.write_bytes(b"raise AssertionError('unreviewed Native must never execute')\n")
-        facts = {"sourceSHA256": {M.EMITTED_NATIVE_SOURCE_PATH_V2: M.sha(native.read_bytes())}}
-        with self.assertRaisesRegex(M.Refused, "exact reviewed/frozen Native parser Source"):
-            M._emitted_native_v2(self.source, M.ReadFences(), facts)
+        self.assertEqual(M.sha(native.read_bytes()), M.EMITTED_NATIVE_SOURCE_SHA256_V2)
+        variants = [("unreviewed", b"raise AssertionError('unreviewed Native must never execute')\n")]
+        current = (SOURCE_ROOT / M.EMITTED_NATIVE_SOURCE_PATH_V2).read_bytes()
+        if M.sha(current) != M.EMITTED_NATIVE_SOURCE_SHA256_V2:
+            variants.append(("current-unreviewed", current))
+        for label, raw in variants:
+            with self.subTest(source=label):
+                native.write_bytes(raw)
+                facts = {"sourceSHA256": {M.EMITTED_NATIVE_SOURCE_PATH_V2: M.sha(native.read_bytes())}}
+                with mock.patch.object(M, "exec", create=True) as load:
+                    with self.assertRaisesRegex(M.Refused, "exact reviewed/frozen Native parser Source"):
+                        M._emitted_native_v2(self.source, M.ReadFences(), facts)
+                    load.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

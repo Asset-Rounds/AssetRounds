@@ -9105,9 +9105,11 @@ private extension EraseAllService {
             ])
             expectedFiles.insert(path)
         }
-        // Finalization startup owns this empty root before any Report exists.
-        // Its descendants still require the exact report-backed file inventory.
-        var optionalDirectories: Set<String> = ["snapshots"]
+        // Whole-sign deletion removes the last evidence bundle but retains its
+        // canonical parent. Finalization startup likewise owns an empty snapshots
+        // root before any Report exists. Only these bare roots are optional;
+        // every descendant still requires the exact row-backed inventory below.
+        var optionalDirectories: Set<String> = ["evidence", "snapshots"]
         var optionalFiles = Set<String>()
         if !evidence.isEmpty { expectedDirectories.insert("evidence") }
         for value in evidence {

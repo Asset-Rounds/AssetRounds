@@ -1,8 +1,8 @@
 {
   "acceptanceEnabled": false,
   "adoptionEnabled": false,
-  "artifactDigest": "8cd1459930b5cdc97aa91050c336e431b29c025d79b4cd5ebcc783b3ff50e618",
-  "artifactSetDigest": "80038a3b35c6e98297822359e74256f1122326cc214db73fb6f416c94c0da7ca",
+  "artifactDigest": "d67ac819ff49d162dccb3145800344c675c23d1a96bb2d269a98b659923ecb9e",
+  "artifactSetDigest": "6261b0ee324487808d1b91c81c85ab8e05ab0e3810a5fa893b94bcbc0b316777",
   "authority": {
     "appBaseHead": "8925c84d79f703482525a0dc0876bfb6a1e5b7c1",
     "appBaseTree": "68a59bca98a5aa2a191c138db6418492203b0586",
@@ -502,9 +502,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 278258,
+      "byteCount": 278652,
       "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
-      "sha256": "6e17f0e0f57928f51cf79896f7418fbeeb99fd21e552b88107843669f6316d6f",
+      "sha256": "592605455d0d919581e72b6ee8b55399597ba37319933363cebd4050ab5a43f5",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1228,9 +1228,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 785962,
+      "byteCount": 786136,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "1f29c5d71189fcc15cf85f94ab8eea83c3624ad4321da3dda2c89fe947e6dee7",
+      "sha256": "16b73fcfc533fbecf617adf657407c47e7bcf56244039edef69756bda6053754",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1594,9 +1594,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 969576,
+      "byteCount": 970645,
       "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
-      "sha256": "93eed80f52ed3b2e660e6babc794a6a7c7796451917346f9426435323e97af98",
+      "sha256": "80c2c45aa85615efe15b4e8878c9bb85f2bb74cd0cf8e5cec6e077221c1af0ec",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1720,9 +1720,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 73286,
+      "byteCount": 76193,
       "path": "FieldEvidenceAppTests/S3_1DraftSchemaTests.swift",
-      "sha256": "a106d468147a845a686525cd1ea7bcf3e34b9331b081ca4fb195590a4a0c43cb",
+      "sha256": "bb036c47eb45692133e8264d0454cdfb8a6dcb9a419c11c1eb0a2530bd58f890",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1810,9 +1810,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 253583,
+      "byteCount": 259541,
       "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
-      "sha256": "295b2286d618f31339f5d966188adc2923dc4dc38cf7b36d19affef2f15c986b",
+      "sha256": "9cc018150af9a3f72a59bc3201fb2a785d54fe1bcf542fbc030bc8ac67b94fd6",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1936,9 +1936,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 93494,
+      "byteCount": 100025,
       "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
-      "sha256": "4d16566b8221943d16c4d80ef09e641819e57fc27be89299d408026699814cf1",
+      "sha256": "e3eaef0b5606a1d3e1d441e1dbe15ac9ee4ef01e72bda76bd971c82405f67b99",
       "status": "PRESENT_INHERITED"
     },
     {

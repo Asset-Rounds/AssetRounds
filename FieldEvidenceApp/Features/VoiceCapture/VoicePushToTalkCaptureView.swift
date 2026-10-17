@@ -237,6 +237,42 @@ enum VoicePushToTalkCaptureCommandV1: Equatable, Sendable {
     case rejectProposal(proposalID: UUID)
 }
 
+#if DEBUG
+/// A mounted C45 view's existing state and handlers, for host-unit tests only.
+/// This does not supply a capture, permission, review authority, or writer.
+@MainActor
+struct VoicePushToTalkCaptureTestingStateV1: Equatable {
+    let model: VoicePushToTalkCaptureProjectionV1
+    let manualText: String
+    let editedValues: [String: String]
+    let editingFieldID: String?
+    let errorMessage: String?
+    let statusMessage: String?
+}
+
+@MainActor
+struct VoicePushToTalkFieldActionsForTestingV1 {
+    let fieldID: String
+    let accept: (() -> Void)?
+    let edit: (() -> Void)?
+    let editedText: Binding<String>?
+    let applyEdit: (() -> Void)?
+    let cancelEdit: (() -> Void)?
+    let reject: (() -> Void)?
+}
+
+@MainActor
+struct VoicePushToTalkCaptureActionsForTestingV1 {
+    let state: VoicePushToTalkCaptureTestingStateV1
+    let manualText: Binding<String>
+    let continueManualEntry: (() -> Void)?
+    let fields: [VoicePushToTalkFieldActionsForTestingV1]
+    let speakDetailsButtonPresent: Bool
+    let speakDetailsEnabled: Bool
+    let finishReviewEnabled: Bool
+}
+#endif
+
 /// Contained iPhone C45 push-to-talk and structured-review surface.
 ///
 /// This view is intentionally a no-launch surface before S10.6. It presents
@@ -326,6 +362,11 @@ struct VoicePushToTalkCaptureView: View {
 
     let model: VoicePushToTalkCaptureProjectionV1
     let onCommand: @MainActor (VoicePushToTalkCaptureCommandV1) -> Void
+    #if DEBUG
+    /// Receives bindings only from this mounted view and is cleared on unmount.
+    var onActionsBoundForTesting:
+        (@MainActor (VoicePushToTalkCaptureActionsForTestingV1?) -> Void)?
+    #endif
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -426,10 +467,16 @@ struct VoicePushToTalkCaptureView: View {
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)
+        #endif
         .transaction { transaction in
             if reduceMotion { transaction.animation = nil }
         }
         .onAppear {
+            #if DEBUG
+            publishActionsForTesting()
+            #endif
             if displayedErrorMessage != nil || stateRequiresRecovery {
                 moveAccessibilityFocus(to: .error)
             } else {
@@ -453,6 +500,12 @@ struct VoicePushToTalkCaptureView: View {
                 moveAccessibilityFocus(to: .status)
             }
         }
+        #if DEBUG
+        .onChange(of: testingState) { _, _ in
+            publishActionsForTesting()
+        }
+        .onDisappear { onActionsBoundForTesting?(nil) }
+        #endif
         .environment(\.layoutDirection, layoutDirection)
     }
 
@@ -615,6 +668,9 @@ struct VoicePushToTalkCaptureView: View {
                     .keyboardShortcut("s", modifiers: [.command])
                     .accessibilityHint("Starts one explicit push-to-talk capture for at most 60 seconds. It does not continuously listen or use a wake word.")
                     .accessibilityIdentifier(Self.speakDetailsAccessibilityIdentifier)
+                    #if DEBUG
+                    .nativeScreenObservationWitnessV1(Self.speakDetailsAccessibilityIdentifier)
+                    #endif
                 } else {
                     Text("Speak details is unavailable until a current capture context is supplied. Use the manual entry below.")
                         .font(.footnote)
@@ -761,6 +817,9 @@ struct VoicePushToTalkCaptureView: View {
                 .accessibilityLabel("Edit \(fieldLabel)")
                 .accessibilityHint("Enter a manual value. The caller validates its type and sends it through the ordinary draft authority; typing does not write the draft.")
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit-field")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit-field")
+                #endif
 
                 Button("Apply edit for \(fieldLabel)") {
                     submitEdit(presentation)
@@ -768,13 +827,16 @@ struct VoicePushToTalkCaptureView: View {
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(!canReviewFields)
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).apply-edit")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).apply-edit")
+                #endif
 
-                Button("Cancel edit for \(fieldLabel)") {
-                    editingFieldID = nil
-                    focusedField = nil
-                }
+                Button("Cancel edit for \(fieldLabel)", action: cancelFieldEdit)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).cancel-edit")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).cancel-edit")
+                #endif
             } else {
                 Button("Accept \(fieldLabel)") {
                     submitAccept(presentation)
@@ -783,6 +845,9 @@ struct VoicePushToTalkCaptureView: View {
                 .disabled(!canReviewFields || !acceptIsAvailable(presentation.field))
                 .accessibilityHint(acceptIsAvailable(presentation.field) ? "Requests acceptance of this exact structured proposal through C56. It does not claim Saved or Complete." : "Accept is unavailable because this field is ambiguous or unsupported; edit it manually or reject it.")
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).accept")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).accept")
+                #endif
 
                 Button("Edit \(fieldLabel)") {
                     beginEdit(presentation)
@@ -791,6 +856,9 @@ struct VoicePushToTalkCaptureView: View {
                 .disabled(!canReviewFields)
                 .accessibilityHint("Opens a full keyboard-editable value field. The caller validates the typed value before ordinary draft review.")
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit")
+                #endif
 
                 Button("Reject \(fieldLabel)") {
                     submitReject(presentation)
@@ -799,6 +867,9 @@ struct VoicePushToTalkCaptureView: View {
                 .disabled(!canReviewFields)
                 .accessibilityHint("Rejects this proposal field through C56 without writing the rejected value to the draft.")
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).reject")
+                #if DEBUG
+                .nativeScreenObservationWitnessV1("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).reject")
+                #endif
             }
         }
         .padding(.vertical, DesignTokens.Spacing.small)
@@ -827,6 +898,9 @@ struct VoicePushToTalkCaptureView: View {
                 .accessibilityLabel("Manual draft entry")
                 .accessibilityHint("Type or edit the existing draft with the full keyboard path. Text changes do not start speech and do not write until you explicitly continue.")
                 .accessibilityIdentifier(Self.manualEntryFieldAccessibilityIdentifier)
+                #if DEBUG
+                .nativeScreenObservationWitnessV1(Self.manualEntryFieldAccessibilityIdentifier)
+                #endif
             Button("Continue with manual entry") {
                 submitManualEntry()
             }
@@ -835,6 +909,9 @@ struct VoicePushToTalkCaptureView: View {
             .keyboardShortcut("m", modifiers: [.command])
             .accessibilityHint("Sends the current typed text to the existing ordinary draft authority. It does not claim Saved or Complete.")
             .accessibilityIdentifier("\(Self.manualFallbackAccessibilityIdentifier).continue")
+            #if DEBUG
+            .nativeScreenObservationWitnessV1("\(Self.manualFallbackAccessibilityIdentifier).continue")
+            #endif
         }
         .accessibilityElement(children: .contain)
     }
@@ -892,6 +969,9 @@ struct VoicePushToTalkCaptureView: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
+            #if DEBUG
+            .nativeScreenObservationWitnessV1(Self.errorAccessibilityIdentifier)
+            #endif
         }
     }
 
@@ -946,6 +1026,9 @@ struct VoicePushToTalkCaptureView: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(identifier)
+            #if DEBUG
+            .nativeScreenObservationWitnessV1(identifier)
+            #endif
     }
 
     private func valueRow(_ label: String, value: String) -> some View {
@@ -983,6 +1066,11 @@ struct VoicePushToTalkCaptureView: View {
                 : presentation.editedText
         }
         focusedField = .edit(presentation.id)
+    }
+
+    private func cancelFieldEdit() {
+        editingFieldID = nil
+        focusedField = nil
     }
 
     private func submitAccept(_ presentation: VoicePushToTalkFieldPresentationV1) {
@@ -1073,6 +1161,44 @@ struct VoicePushToTalkCaptureView: View {
         moveAccessibilityFocus(to: .status)
         onCommand(command)
     }
+
+    #if DEBUG
+    private var testingState: VoicePushToTalkCaptureTestingStateV1 {
+        .init(model: model, manualText: manualText, editedValues: editedValues,
+            editingFieldID: editingFieldID, errorMessage: displayedErrorMessage,
+            statusMessage: localStatusMessage ?? model.operation.message)
+    }
+
+    private func publishActionsForTesting() {
+        let fields: [VoicePushToTalkFieldActionsForTestingV1] = model.proposal == nil ? [] : model.presentedFields.map { presentation in
+            let editing = editingFieldID == presentation.id
+            return VoicePushToTalkFieldActionsForTestingV1(
+                fieldID: presentation.id,
+                accept: !editing && canReviewFields && acceptIsAvailable(presentation.field)
+                    ? { submitAccept(presentation) } : nil,
+                edit: !editing && canReviewFields ? { beginEdit(presentation) } : nil,
+                editedText: editing ? editedValueBinding(for: presentation) : nil,
+                applyEdit: editing && canReviewFields ? { submitEdit(presentation) } : nil,
+                cancelEdit: editing ? { cancelFieldEdit() } : nil,
+                reject: !editing && canReviewFields ? { submitReject(presentation) } : nil
+            )
+        }
+        let hasSpeakButton: Bool
+        switch model.state {
+        case .capturing, .processing, .review: hasSpeakButton = false
+        default: hasSpeakButton = model.captureContext != nil
+        }
+        onActionsBoundForTesting?(.init(
+            state: testingState,
+            manualText: $manualText,
+            continueManualEntry: model.draft.canEdit ? { submitManualEntry() } : nil,
+            fields: fields,
+            speakDetailsButtonPresent: hasSpeakButton,
+            speakDetailsEnabled: hasSpeakButton && canStartCapture,
+            finishReviewEnabled: model.hasReviewedAllFields && canReviewFields
+        ))
+    }
+    #endif
 
     private func presentError(_ message: String, focus: InputField? = nil) {
         localErrorMessage = message

@@ -2135,7 +2135,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         introduceForeignSourceLeaf: Bool = false,
         introduceForeignIngressLeaf: Bool = false,
         replacePrivateSHM: Bool = false,
-        replacePrivateSHMAfterRead: Bool = false
+        replacePrivateSHMAfterRead: Bool = false,
+        verifyUnrelatedOrdinaryScratchIsolation: Bool = false
     ) async throws -> AbortedEraseAdmissionReceiptV1 {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "S6_6-phase-\(offset)-\(UUID().uuidString)", isDirectory: true)
@@ -2161,6 +2162,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         var aborts = [AbortedEraseAdmissionReceiptV1]()
         var completions = [CompletedEraseReceiptV1]()
         var hostilePrivateSHM: URL?
+        var postReadMutationCount = 0
+        var retainedReplacedSHMDescriptor: Int32 = -1
         let newID = UUID(uuid: (0x66, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, UInt8(0x40 + offset), UInt8(0x60 + offset)))
         let presentation = AppAccessPresentationV1(startupRouter: router,
@@ -2205,13 +2208,28 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 }
                 if replacePrivateSHMAfterRead {
                     original.completedAbortPrivateCopyPostReadMutationForTesting = { copyURL in
+                        postReadMutationCount += 1
                         let shm = copyURL.deletingLastPathComponent()
                             .appendingPathComponent("model.sqlite-shm")
+                        var replacedIdentity: ManifestFileIdentity?
+                        if verifyUnrelatedOrdinaryScratchIsolation {
+                            // Keep the real original inode alive so a new SHM
+                            // cannot reuse it and masquerade as an owned file.
+                            replacedIdentity = try self.regularFileIdentity(shm)
+                            retainedReplacedSHMDescriptor = Darwin.open(shm.path,
+                                O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+                            _ = try XCTUnwrap(retainedReplacedSHMDescriptor >= 0 ? true : nil)
+                            // The already host-retained Service captures this
+                            // descriptor. Do not close it to force cleanup.
+                        }
                         if self.fileManager.fileExists(atPath: shm.path) {
                             try self.fileManager.removeItem(at: shm)
                         }
                         try Data("foreign post-read SHM".utf8).write(to: shm)
                         hostilePrivateSHM = shm
+                        if let replacedIdentity {
+                            XCTAssertNotEqual(try self.regularFileIdentity(shm), replacedIdentity)
+                        }
                     }
                 }
                 Self.retainedS6EraseServices.append((root, original))
@@ -2320,8 +2338,70 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         if mutatePrivateCopy || mutateLatentSQLite || introduceForeignSourceLeaf ||
             introduceForeignIngressLeaf || replacePrivateSHM ||
             replacePrivateSHMAfterRead {
+            var firstRefusal: Error?
             XCTAssertThrowsError(try presentation
-                .finishCompletedAbortColdRestartForTesting(operation))
+                .finishCompletedAbortColdRestartForTesting(operation)) { firstRefusal = $0 }
+            if verifyUnrelatedOrdinaryScratchIsolation {
+                _ = try XCTUnwrap(replacePrivateSHMAfterRead && postReadMutationCount == 1
+                    && retainedReplacedSHMDescriptor >= 0 ? true : nil,
+                    "Isolation requires the genuine typed post-read hook, not an earlier refusal")
+                XCTAssertEqual(firstRefusal as? ScratchDataLeaseStoreFailureV1, .leaseCollision)
+                _ = try XCTUnwrap((firstRefusal as? ScratchDataLeaseStoreFailureV1) == .leaseCollision
+                    ? true : nil, "The real owned-file cleanup must refuse the foreign SHM")
+                let shm = try XCTUnwrap(hostilePrivateSHM)
+                let privateDirectory = shm.deletingLastPathComponent()
+                func retainedImage(_ directory: URL) throws -> [String: Data] {
+                    let names = [""] + (try fileManager.subpathsOfDirectory(atPath: directory.path)).sorted()
+                    var result: [String: Data] = [:]
+                    for name in names {
+                        let url = name.isEmpty ? directory : directory.appendingPathComponent(name)
+                        var fact = stat()
+                        _ = try XCTUnwrap(Darwin.lstat(url.path, &fact) == 0 ? true : nil)
+                        let kind = fact.st_mode & S_IFMT
+                        _ = try XCTUnwrap(kind == S_IFDIR || kind == S_IFREG ? true : nil)
+                        result["fact:" + name] = Data(
+                            "\(fact.st_dev)|\(fact.st_ino)|\(fact.st_mode)|\(fact.st_nlink)|\(fact.st_size)".utf8)
+                        if kind == S_IFREG { result["bytes:" + name] = try Data(contentsOf: url) }
+                    }
+                    XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: directory.path).sorted(),
+                        Array(names.dropFirst()))
+                    return result
+                }
+                XCTAssertEqual(try Data(contentsOf: shm), Data("foreign post-read SHM".utf8))
+                let privateBefore = try retainedImage(privateDirectory)
+                let sourceAfterRefusal = try tree(sourceRoot)
+                let ordinaryRoot = root.appendingPathComponent("ordinary-isolation", isDirectory: true)
+                try fileManager.createDirectory(at: ordinaryRoot, withIntermediateDirectories: false)
+                let now = Date()
+                let ordinary = try ScratchDataLeaseStoreV1(applicationSupportURL: ordinaryRoot,
+                    clock: { now }, capacityProvider: { _ in Int64.max })
+                let bytes = Data("unrelated ordinary source".utf8)
+                let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+                    ownerOperationID: UUID(), requestedByteCount: UInt64(bytes.count),
+                    createdAt: now, expiresAt: now.addingTimeInterval(60))
+                var ordinaryReadEntered = false
+                let copied = try ordinary.withSourceReadScratch(request: request, readerIsDrained: { true }) { copy in
+                    ordinaryReadEntered = true
+                    try copy.copySQLiteFile(named: "model.sqlite", byteCount: UInt64(bytes.count)) { fd in
+                        try bytes.withUnsafeBytes { buffer in
+                            guard Darwin.write(fd, buffer.baseAddress, buffer.count) == buffer.count else {
+                                throw FixtureError.invalid
+                            }
+                        }
+                    }
+                    return try Data(contentsOf: copy.modelURL)
+                }
+                XCTAssertTrue(ordinaryReadEntered)
+                XCTAssertEqual(copied, bytes)
+                XCTAssertEqual(try retainedImage(privateDirectory), privateBefore,
+                    "Ordinary activity must not touch a retained revoked exclusive scope")
+                XCTAssertEqual(try tree(sourceRoot), sourceAfterRefusal)
+                XCTAssertEqual(try Data(contentsOf: support
+                    .appendingPathComponent("FieldEvidenceData/current.json")), pointerBefore)
+                XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: ordinaryRoot
+                    .appendingPathComponent("FieldEvidenceOperations/ScratchDataV1").path).isEmpty)
+                XCTAssertEqual(postReadMutationCount, 1)
+            }
             XCTAssertEqual(aborts.count, 1)
             XCTAssertTrue(completions.isEmpty)
             XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
@@ -2418,6 +2498,14 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         _ = try await exerciseKernelCompletedAbort(
             point: .afterEmptyGenerationDirectoryCreate, offset: 103,
             foreignReceipt: nil, replacePrivateSHMAfterRead: true)
+    }
+
+    @MainActor
+    func testRetainedPostReadExclusiveScratchIsIsolatedFromUnrelatedOrdinaryRead() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .afterEmptyGenerationDirectoryCreate, offset: 106,
+            foreignReceipt: nil, replacePrivateSHMAfterRead: true,
+            verifyUnrelatedOrdinaryScratchIsolation: true)
     }
 
     @MainActor

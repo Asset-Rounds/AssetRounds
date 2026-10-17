@@ -53,6 +53,152 @@ final class V23ErasePreexistingRetiredAuthorityTests: XCTestCase {
     }
 
     @MainActor
+    func testEmptyCanonicalEvidenceParentPassesRetiredInventoryWithoutChangingPopulatedHistory() throws {
+#if DEBUG
+        for includeEmptyParent in [false, true] {
+            let fixture = try makeFixture()
+            try fixture.seedSign()
+            let original = try fixture.currentFacts()
+            XCTAssertFalse(original.history.receipts.isEmpty)
+            XCTAssertEqual(original.signs.count, 1)
+            let root = fixture.factory.installedGenerationURL(id: original.id)
+            let evidenceRoot = root.appendingPathComponent("evidence", isDirectory: true)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: evidenceRoot.path))
+            if includeEmptyParent {
+                // Model the exact parent retained after the last ordinary bundle
+                // is deleted. Do not fabricate an EvidenceFile or journal receipt.
+                try FileManager.default.createDirectory(at: evidenceRoot,
+                    withIntermediateDirectories: false)
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: evidenceRoot.path), [])
+            }
+            try autoreleasepool {
+                let session = try fixture.open()
+                XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+                XCTAssertFalse(session.modelContext.hasChanges)
+            }
+            XCTAssertEqual(try fixture.currentFacts(), original)
+            try fixture.retireCurrent()
+            let controls = try fixture.controls()
+            let rows = try fixture.rawRows(id: original.id)
+            XCTAssertFalse(rows.isEmpty)
+            try fixture.requireDrained()
+            let closedBefore = try fixture.closedGenerationSnapshot(at: root)
+            if includeEmptyParent {
+                let parent = try XCTUnwrap(closedBefore["evidence"])
+                XCTAssertEqual(parent.mode & UInt32(S_IFMT), UInt32(S_IFDIR))
+                XCTAssertNil(parent.bytes)
+            } else {
+                XCTAssertNil(closedBefore["evidence"])
+            }
+            let cold = StoreGenerationFactory(applicationSupportURL: fixture.support)
+            let authority = try cold.makeRestoreGenerationAuthority()
+            let service = fixture.service()
+            var phases: [String] = []
+            service.schema2ColdFixedStageForTesting = { phases.append($0) }
+            try cold.validatePreexistingRetiredGenerationForErase(id: original.id,
+                expectedCurrentID: controls.currentID, expectedRetiredIDs: controls.retiredIDs,
+                authority: authority, service: service)
+            XCTAssertEqual(phases.filter { $0 == "frozen.inventory-predicate" }.count, 1)
+            XCTAssertEqual(phases.filter { $0 == "frozen.inventory-predicate.complete" }.count, 1)
+            XCTAssertFalse(phases.contains { $0.hasPrefix("frozen.inventory.failure.") })
+            try fixture.requireDrained()
+            XCTAssertEqual(try fixture.closedGenerationSnapshot(at: root), closedBefore)
+            XCTAssertEqual(try fixture.rawRows(id: original.id), rows)
+            XCTAssertEqual(try fixture.facts(id: original.id), original)
+            try autoreleasepool {
+                let retired = try fixture.open(id: original.id)
+                XCTAssertEqual(try retired.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+                XCTAssertFalse(retired.modelContext.hasChanges)
+            }
+            XCTAssertEqual(try fixture.controls(), controls)
+            XCTAssertEqual(try cold.makeGenerationLeaseRegistry().activeEpochs(), [])
+        }
+#else
+        XCTFail("The fixed Erase inventory witness requires the DEBUG test configuration")
+#endif
+    }
+
+    @MainActor
+    func testOptionalEvidenceParentRejectsUnownedCanonicalDescendantsWithoutEffects() throws {
+#if DEBUG
+        for includeUnownedFiles in [false, true] {
+            let fixture = try makeFixture()
+            try fixture.seedSign()
+            let original = try fixture.currentFacts()
+            XCTAssertFalse(original.history.receipts.isEmpty)
+            let root = fixture.factory.installedGenerationURL(id: original.id)
+            let evidenceRoot = root.appendingPathComponent("evidence", isDirectory: true)
+            try FileManager.default.createDirectory(at: evidenceRoot,
+                withIntermediateDirectories: false)
+            try autoreleasepool {
+                let session = try fixture.open()
+                XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+                XCTAssertFalse(session.modelContext.hasChanges)
+            }
+            try fixture.retireCurrent()
+            let controls = try fixture.controls()
+            let rows = try fixture.rawRows(id: original.id)
+            XCTAssertFalse(rows.isEmpty)
+            let cold = StoreGenerationFactory(applicationSupportURL: fixture.support)
+            let authority = try cold.makeRestoreGenerationAuthority()
+            let service = fixture.service()
+            var phases: [String] = []
+            service.schema2ColdFixedStageForTesting = { phases.append($0) }
+            // First prove the same populated source and bare parent really reach
+            // and pass this guard. A failure in an earlier authority check cannot
+            // stand in for the descendant refusal exercised below.
+            try cold.validatePreexistingRetiredGenerationForErase(id: original.id,
+                expectedCurrentID: controls.currentID, expectedRetiredIDs: controls.retiredIDs,
+                authority: authority, service: service)
+            XCTAssertEqual(phases.filter { $0 == "frozen.inventory-predicate.complete" }.count, 1)
+            XCTAssertEqual(try fixture.facts(id: original.id), original)
+            XCTAssertEqual(try fixture.rawRows(id: original.id), rows)
+            try fixture.requireDrained()
+            let bundle = evidenceRoot.appendingPathComponent(UUID().uuidString.lowercased(),
+                isDirectory: true)
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: false)
+            if includeUnownedFiles {
+                try Data("unowned original sentinel".utf8).write(to: bundle.appendingPathComponent("original.jpg"))
+                try Data("unowned thumbnail sentinel".utf8).write(to: bundle.appendingPathComponent("thumbnail.jpg"))
+            }
+            let closedHostile = try fixture.closedGenerationSnapshot(at: root)
+            phases.removeAll()
+            XCTAssertThrowsError(try cold.validatePreexistingRetiredGenerationForErase(id: original.id,
+                expectedCurrentID: controls.currentID, expectedRetiredIDs: controls.retiredIDs,
+                authority: authority, service: service)) {
+                XCTAssertEqual($0 as? EraseAllServiceError, .invalidAuthority)
+            }
+            XCTAssertEqual(phases.filter { $0 == "frozen.inventory-predicate" }.count, 1)
+            XCTAssertEqual(phases.filter { $0.hasPrefix("frozen.inventory.failure.") }, [
+                "frozen.inventory.failure.missing-directories.absent",
+                "frozen.inventory.failure.unexpected-directories.present",
+                "frozen.inventory.failure.missing-files.absent",
+                includeUnownedFiles ? "frozen.inventory.failure.unexpected-files.present"
+                    : "frozen.inventory.failure.unexpected-files.absent",
+                "frozen.inventory.failure.context-changes.absent",
+            ])
+            XCTAssertFalse(phases.contains("frozen.inventory-predicate.complete"))
+            try fixture.requireDrained()
+            // Preserve every member, inode/type/link fact and byte, including
+            // SQLite sidecars and the unowned sentinels; a failed read cannot
+            // repair the fixture by deleting what made it ineligible.
+            XCTAssertEqual(try fixture.closedGenerationSnapshot(at: root), closedHostile)
+            XCTAssertEqual(try fixture.rawRows(id: original.id), rows)
+            XCTAssertEqual(try fixture.facts(id: original.id), original)
+            try autoreleasepool {
+                let retired = try fixture.open(id: original.id)
+                XCTAssertEqual(try retired.modelContext.fetchCount(FetchDescriptor<EvidenceFile>()), 0)
+                XCTAssertFalse(retired.modelContext.hasChanges)
+            }
+            XCTAssertEqual(try fixture.controls(), controls)
+            XCTAssertEqual(try cold.makeGenerationLeaseRegistry().activeEpochs(), [])
+        }
+#else
+        XCTFail("The fixed Erase inventory witness requires the DEBUG test configuration")
+#endif
+    }
+
+    @MainActor
     func testForeignOnlyCloneHistoryNeedsNoInventedLocalReceiptToAdmitRetiredSummary() async throws {
         let source = try makeFixture()
         try source.seedSign()

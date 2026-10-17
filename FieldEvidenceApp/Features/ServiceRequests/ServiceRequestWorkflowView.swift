@@ -114,6 +114,9 @@ struct ServiceRequestWorkflowView: View {
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)
+        #endif
         .transaction { transaction in
             if reduceMotion { transaction.animation = nil }
         }

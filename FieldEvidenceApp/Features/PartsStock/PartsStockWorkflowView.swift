@@ -394,6 +394,11 @@ struct PartsStockWorkflowView: View {
     static let catalogItemAccessibilityIdentifierPrefix = "v23.p04.c44.parts-stock-workflow.catalog.item."
     static let balanceAccessibilityIdentifierPrefix = "v23.p04.c44.parts-stock-workflow.detail.balance."
     static let returnCandidateAccessibilityIdentifierPrefix = "v23.p04.c44.parts-stock-workflow.return.candidate."
+    #if DEBUG
+    /// Branch witness on an actual eligible-return button, independent of
+    /// which receipt/candidate ID a caller supplies. Not an accessibility ID.
+    static let eligibleReturnObservationIdentifier = "v23.p04.c44.parts-stock-workflow.return.eligible-entry"
+    #endif
 
     static let fixedAccessibilityIdentifiers = [
         screenAccessibilityIdentifier,
@@ -510,6 +515,9 @@ struct PartsStockWorkflowView: View {
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)
+        #endif
         .transaction { transaction in
             if reduceMotion {
                 transaction.animation = nil
@@ -758,6 +766,9 @@ struct PartsStockWorkflowView: View {
     private var catalog: some View {
         WorklightCard {
             sectionHeading("Catalog", identifier: Self.catalogAccessibilityIdentifier)
+                #if DEBUG
+                .nativeScreenObservationWitnessV1(Self.catalogAccessibilityIdentifier)
+                #endif
             Text("Catalog definitions are Work-local. Select an item to review its supplied unit, product identities, balance projections, and explicit actions.")
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -793,6 +804,10 @@ struct PartsStockWorkflowView: View {
                     .accessibilityLabel("View details for \(item.detail.part.displayName)")
                     .accessibilityHint("Opens the supplied item detail and its explicit stock actions.")
                     .accessibilityIdentifier("\(Self.catalogItemAccessibilityIdentifierPrefix)\(item.id.uuidString.lowercased())")
+                    #if DEBUG
+                    .nativeScreenObservationWitnessV1(
+                        "\(Self.catalogItemAccessibilityIdentifierPrefix)\(item.id.uuidString.lowercased())")
+                    #endif
                 }
             }
         }
@@ -859,6 +874,9 @@ struct PartsStockWorkflowView: View {
                 enabled: writesAllowed && !item.detail.part.archived,
                 hint: "Records an explicit opening or physical count through the canonical stock owner. UNKNOWN is never treated as zero."
             )
+            #if DEBUG
+            .nativeScreenObservationWitnessV1(Self.countAccessibilityIdentifier)
+            #endif
             actionButton(
                 title: "Adjust",
                 command: .adjust(item.id),
@@ -926,6 +944,9 @@ struct PartsStockWorkflowView: View {
             .disabled(!writesAllowed || item.detail.part.archived)
             .accessibilityHint("Requests the only stock-decrementing action in this surface. A durable canonical receipt must be supplied before any effect is shown.")
             .accessibilityIdentifier("\(Self.useAccessibilityIdentifier).submit")
+            #if DEBUG
+            .nativeScreenObservationWitnessV1("\(Self.useAccessibilityIdentifier).submit")
+            #endif
         }
         .accessibilityElement(children: .contain)
     }
@@ -978,6 +999,9 @@ struct PartsStockWorkflowView: View {
             .disabled(!writesAllowed)
             .accessibilityHint("Opens the quantity field for a Return bound to this exact prior Use. It is not a standalone Return.")
             .accessibilityIdentifier("\(Self.returnCandidateAccessibilityIdentifierPrefix)\(candidate.id.uuidString.lowercased())")
+            #if DEBUG
+            .nativeScreenObservationWitnessV1(Self.eligibleReturnObservationIdentifier)
+            #endif
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("\(Self.returnCandidateAccessibilityIdentifierPrefix)\(candidate.id.uuidString.lowercased()).row")
@@ -1061,6 +1085,9 @@ struct PartsStockWorkflowView: View {
                     .accessibilityLabel("Material line draft")
                     .accessibilityHint("Typing or editing this draft never changes stock. Checkpointing remains an explicit caller action.")
                     .accessibilityIdentifier("\(Self.draftAccessibilityIdentifier).material")
+                    #if DEBUG
+                    .nativeScreenObservationWitnessV1("\(Self.draftAccessibilityIdentifier).material")
+                    #endif
                 Button("Checkpoint draft") {
                     submitDraftCheckpoint()
                 }

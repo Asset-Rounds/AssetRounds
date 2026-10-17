@@ -144,6 +144,55 @@ private enum PreparedReaderThrowDiagnosticV1 {
 }
 #endif
 
+#if DEBUG
+/// Failure-only closed stages and the policy state already returned by the checked
+/// reader. No owner, path, identity, canonical bytes or acceptance is retained.
+private enum OriginalEraseReaderRefusalDiagnosticV1 {
+    enum Stage: String {
+        case absenceEntryActivity = "absence.entry-activity"
+        case absenceMutationAdmission = "absence.mutation-admission"
+        case absenceHeldActivity = "absence.held-activity"
+        case absenceVerify = "absence.verify"
+        case absenceFirstObservation = "absence.first-registry-observation"
+        case absenceReservedNames = "absence.reserved-record-and-temp-absent"
+        case absenceSecondObservation = "absence.second-registry-observation"
+        case absenceFinalActivity = "absence.final-activity"
+        case absenceMutationUnlock = "absence.mutation-unlock"
+        case registryPolicyDescriptors = "registry.policy-descriptors-settled"
+        case registryRetainAttempt = "registry.retain-operation-attempt"
+        case registryOpen = "registry.open"
+        case registryFailedOpenClose = "registry.failed-open-close"
+        case registryRetainDescriptor = "registry.retain-descriptor"
+        case registryVerifyBefore = "registry.verify-before"
+        case registryDirectoryPolicy = "registry.directory-policy-observation"
+        case registrySnapshotBefore = "registry.snapshot-before"
+        case registryNamedBefore = "registry.named-identity-before"
+        case registryPolicyObservation = "registry.control-policy-observation"
+        case registryPolicyGuard = "registry.strict-policy-and-settled-descriptors"
+        case registryRead = "registry.read-bytes"
+        case registrySnapshotAfter = "registry.snapshot-and-byte-count"
+        case registryNamedAfter = "registry.named-identity-after"
+        case registryDecode = "registry.canonical-decode"
+        case registryVerifyAfter = "registry.verify-after"
+        case registryFailureClose = "registry.failure-close"
+        case registryFinalClose = "registry.final-close"
+    }
+
+    static func emit(firstStage: Stage, terminalStage: Stage,
+        registryPolicyState: TemporalPolicyObservationV1.State? = nil) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let state = registryPolicyState?.rawValue ?? "unobserved"
+        let line = "V23_ORIGINAL_ERASE_READER_REFUSAL_V1 firstStage=\(firstStage.rawValue) terminalStage=\(terminalStage.rawValue) registryPolicyState=\(state)\n"
+        do {
+            try FileHandle.standardError.write(contentsOf: Data(line.utf8))
+        } catch {
+            // Diagnostic transport never replaces the actual checked error.
+        }
+    }
+}
+#endif
+
 enum EraseSchema2ColdPointerCutV1: Equatable {
     case old
     case target
@@ -26281,9 +26330,25 @@ extension GenerationLeaseRegistryV1 {
         operation: EraseRouterOperationV1,
         activity: GenerationTemporalActivityHandleV1
     ) throws {
+#if DEBUG
+        var diagnosticStage = OriginalEraseReaderRefusalDiagnosticV1.Stage.absenceEntryActivity
+        var diagnosticFirstStage: OriginalEraseReaderRefusalDiagnosticV1.Stage?
+        var diagnosticTerminalStage: OriginalEraseReaderRefusalDiagnosticV1.Stage?
+        var diagnosticCompleted = false
+        defer {
+            if !diagnosticCompleted {
+                OriginalEraseReaderRefusalDiagnosticV1.emit(
+                    firstStage: diagnosticFirstStage ?? diagnosticStage,
+                    terminalStage: diagnosticTerminalStage ?? diagnosticStage)
+            }
+        }
+#endif
         try activity.validateSharedNormalizationRegistry(self)
         Self.processMutationLock.lock()
         defer { Self.processMutationLock.unlock() }
+#if DEBUG
+        diagnosticStage = .absenceMutationAdmission
+#endif
         guard !originalEraseRetainedReaderAbsenceUncertain,
               generationMutationLockDepth == 0,
               flock(mutationLockDescriptor, LOCK_EX) == 0 else {
@@ -26293,29 +26358,60 @@ extension GenerationLeaseRegistryV1 {
         generationMutationLockDepth = 1
         var failure: (any Error)?
         do {
+#if DEBUG
+            diagnosticStage = .absenceHeldActivity
+#endif
             try activity.validateSharedNormalizationRegistry(self)
+#if DEBUG
+            diagnosticStage = .absenceVerify
+#endif
             try verify()
+#if DEBUG
+            diagnosticStage = .absenceFirstObservation
+#endif
             _ = try readOriginalEraseAuxiliaryRegistryLocked(
                 operation: operation)
+#if DEBUG
+            diagnosticStage = .absenceReservedNames
+#endif
             guard try !Self.itemExists(parent: leaseDescriptor,
                     name: Self.originalEraseRetainedReaderRecordName),
                   try !Self.itemExists(parent: leaseDescriptor,
                     name: Self.registryTemporaryName) else {
                 throw Self.uncertainOwnerFailure()
             }
+#if DEBUG
+            diagnosticStage = .absenceSecondObservation
+#endif
             _ = try readOriginalEraseAuxiliaryRegistryLocked(
                 operation: operation)
+#if DEBUG
+            diagnosticStage = .absenceFinalActivity
+#endif
             try activity.validateSharedNormalizationRegistry(self)
         } catch {
+#if DEBUG
+            diagnosticFirstStage = diagnosticStage
+            diagnosticTerminalStage = diagnosticStage
+#endif
             failure = error
             originalEraseRetainedReaderAbsenceUncertain = true
         }
+#if DEBUG
+        diagnosticStage = .absenceMutationUnlock
+#endif
         guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+#if DEBUG
+            diagnosticTerminalStage = .absenceMutationUnlock
+#endif
             originalEraseRetainedReaderAbsenceUncertain = true
             throw Self.uncertainOwnerFailure()
         }
         generationMutationLockDepth = 0
         if let failure { throw failure }
+#if DEBUG
+        diagnosticCompleted = true
+#endif
     }
 
     @MainActor
@@ -32455,23 +32551,60 @@ extension GenerationLeaseRegistryV1 {
     private func observeOriginalEraseAuxiliaryRegistryLocked(
         operation: EraseRouterOperationV1
     ) throws -> TemporalGenerationRegistryObservationV1 {
+#if DEBUG
+        var diagnosticStage = OriginalEraseReaderRefusalDiagnosticV1.Stage.registryPolicyDescriptors
+        var diagnosticFirstStage: OriginalEraseReaderRefusalDiagnosticV1.Stage?
+        var diagnosticTerminalStage: OriginalEraseReaderRefusalDiagnosticV1.Stage?
+        var diagnosticPolicyState: TemporalPolicyObservationV1.State?
+        var diagnosticCompleted = false
+        defer {
+            if !diagnosticCompleted {
+                OriginalEraseReaderRefusalDiagnosticV1.emit(
+                    firstStage: diagnosticFirstStage ?? diagnosticStage,
+                    terminalStage: diagnosticTerminalStage ?? diagnosticStage,
+                    registryPolicyState: diagnosticPolicyState)
+            }
+        }
+#endif
         guard originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+#if DEBUG
+        diagnosticStage = .registryRetainAttempt
+#endif
         try operation.retainOriginalEraseAuxiliaryRegistryObservation(
             attempt: attempt, registry: self)
+#if DEBUG
+        diagnosticStage = .registryOpen
+#endif
         let descriptor = Darwin.openat(leaseDescriptor,
             Self.registryName,
             O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
+#if DEBUG
+            diagnosticFirstStage = .registryOpen
+            diagnosticTerminalStage = .registryFailedOpenClose
+#endif
             try attempt.closeChecked()
+#if DEBUG
+            diagnosticTerminalStage = .registryOpen
+#endif
             throw Self.mappedFailure()
         }
+#if DEBUG
+        diagnosticStage = .registryRetainDescriptor
+#endif
         try attempt.retain(descriptor)
         let observed: TemporalGenerationRegistryObservationV1
         do {
+#if DEBUG
+            diagnosticStage = .registryVerifyBefore
+#endif
             try verify()
+#if DEBUG
+            diagnosticStage = .registryDirectoryPolicy
+#endif
             let directoryPolicy = try ProtectedFilePolicyV1
                 .observeTemporalPolicyWithCheckedClose(
                     .stagingDirectory, at: leaseURL,
@@ -32479,9 +32612,18 @@ extension GenerationLeaseRegistryV1 {
                         self.originalEraseAuxiliaryPolicyUncertainDescriptors
                             .append(value)
                     })
+#if DEBUG
+            diagnosticStage = .registrySnapshotBefore
+#endif
             let before = try Self.regularFileSnapshot(descriptor)
+#if DEBUG
+            diagnosticStage = .registryNamedBefore
+#endif
             try requireNamedIdentity(parent: leaseDescriptor,
                 name: Self.registryName, expected: before.identity)
+#if DEBUG
+            diagnosticStage = .registryPolicyObservation
+#endif
             let policy = try ProtectedFilePolicyV1
                 .observeTemporalPolicyWithCheckedClose(
                     try Self.controlKind(for: Self.registryName),
@@ -32490,29 +32632,61 @@ extension GenerationLeaseRegistryV1 {
                         self.originalEraseAuxiliaryPolicyUncertainDescriptors
                             .append(value)
                     })
+#if DEBUG
+            diagnosticPolicyState = policy.state
+            diagnosticStage = .registryPolicyGuard
+#endif
             guard policy.state == .strictComplete,
                   originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
+#if DEBUG
+            diagnosticStage = .registryRead
+#endif
             let bytes = try Self.readAll(from: descriptor)
+#if DEBUG
+            diagnosticStage = .registrySnapshotAfter
+#endif
             guard try Self.regularFileSnapshot(descriptor) == before,
                   bytes.count == Int(before.byteCount) else {
                 throw Self.identityFailure()
             }
+#if DEBUG
+            diagnosticStage = .registryNamedAfter
+#endif
             try requireNamedIdentity(parent: leaseDescriptor,
                 name: Self.registryName, expected: before.identity)
+#if DEBUG
+            diagnosticStage = .registryDecode
+#endif
             let tokens = try RegistryStateV1.decodeCanonical(
                 from: bytes).leases
             observed = TemporalGenerationRegistryObservationV1(
                 leases: tokens, registryBytes: bytes,
                 registryPolicy: policy,
                 directoryPolicy: directoryPolicy)
+#if DEBUG
+            diagnosticStage = .registryVerifyAfter
+#endif
             try verify()
         } catch {
+#if DEBUG
+            diagnosticFirstStage = diagnosticStage
+            diagnosticTerminalStage = .registryFailureClose
+#endif
             try attempt.closeChecked()
+#if DEBUG
+            diagnosticTerminalStage = diagnosticFirstStage
+#endif
             throw error
         }
+#if DEBUG
+        diagnosticStage = .registryFinalClose
+#endif
         try attempt.closeChecked()
+#if DEBUG
+        diagnosticCompleted = true
+#endif
         return observed
     }
 

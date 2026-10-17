@@ -658,6 +658,10 @@ ROUND_ITEM_COMPLETION_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoun
         'testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes',
         'testStoragePublicationAcceptsFreeByteDriftOnlyWithTheSameVerdict',
     ))
+FIRST_SIGN_IMPORT_CLOCK_PROFILE = 'first-sign-import-clock-v1'
+FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256 = '4E130CA49C4F634206323DC7E092DA97C080A5246543A7DD88FD9E6DF54039D8'
+FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256 = 'D5BC6E33A77BA76F4B9BE5A3D2835B511FFD4A39A99065077B2CF5F5BEBDA7F2'
+FIRST_SIGN_IMPORT_CLOCK_SELECTORS = ('FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testImportedFirstSignPreservesAcceptedPlacementTimeAcrossFractionalDestinationClockAndColdReplay',)
 ROUND_READINESS_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoundReadinessTests/' + method
     for method in (
         'testActualRoundRoutesReadEveryWriterFrontierWithoutStartingOrResuming',
@@ -670,6 +674,7 @@ ROUND_READINESS_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoundReadi
 ROUND_ITEM_COMPLETION_QUESTION_SELECTORS = ROUND_ITEM_COMPLETION_SELECTORS + ROUND_READINESS_SELECTORS
 GENERATED_PROFILE_PINS = {
     ROUND_ITEM_COMPLETION_POOL_SHA256: (ROUND_ITEM_COMPLETION_PROFILE, ROUND_ITEM_COMPLETION_MAP_SHA256),
+    FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256: (FIRST_SIGN_IMPORT_CLOCK_PROFILE, FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256),
     ROUND_ITEM_MOUNT_POOL_SHA256: (ROUND_ITEM_MOUNT_PROFILE, ROUND_ITEM_MOUNT_MAP_SHA256),
     LIVE_HOST_POOL_SHA256: (LIVE_HOST_PROFILE, LIVE_HOST_MAP_SHA256),
     SAVED_REVIEW_POOL_SHA256: (SAVED_REVIEW_PROFILE, SAVED_REVIEW_MAP_SHA256),
@@ -2068,6 +2073,7 @@ def resolve_selection(default, selection_map, selection_id):
             (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
             (ROUND_ITEM_MOUNT_POOL_SHA256, ROUND_ITEM_MOUNT_MAP_SHA256),
             (ROUND_ITEM_COMPLETION_POOL_SHA256, ROUND_ITEM_COMPLETION_MAP_SHA256),
+            (FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256, FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256),
             (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256))
     )
     require(isinstance(groups, list) and
@@ -2110,6 +2116,7 @@ def resolve_selection(default, selection_map, selection_id):
                     (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
                     (ROUND_ITEM_MOUNT_POOL_SHA256, ROUND_ITEM_MOUNT_MAP_SHA256),
                     (ROUND_ITEM_COMPLETION_POOL_SHA256, ROUND_ITEM_COMPLETION_MAP_SHA256),
+                    (FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256, FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256),
                     (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256),
                     (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256)),
                 "durable begin exact base pool/map")
@@ -2355,7 +2362,7 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[FINDING_PROFILE_FIXTURES_SELECTION_ID] = finding
     if generated_profile_shape and sha256(canonical(default)) in (SAVED_REVIEW_POOL_SHA256, GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256,
                                                                    ROUND_ITEM_MOUNT_POOL_SHA256,
-                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256):
+                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256, FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256):
         require(tuple(default["unitTestSelectors"][1054:1059]) == SAVED_REVIEW_NEW_SELECTORS
                 and tuple(default["unitTestSelectors"][773:777]) == SAVED_REVIEW_REGRESSION_SELECTORS
                 and tuple(resolved["c36-production-destination"]["unitTestSelectors"])
@@ -2369,8 +2376,9 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[SAVED_REVIEW_SELECTION_ID] = saved_review
     if generated_profile_shape and sha256(canonical(default)) in (GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256,
                                                                    ROUND_ITEM_MOUNT_POOL_SHA256,
-                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256):
-        round_item_completion = sha256(canonical(default)) == ROUND_ITEM_COMPLETION_POOL_SHA256
+                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256, FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256):
+        first_sign_import_clock = sha256(canonical(default)) == FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256
+        round_item_completion = first_sign_import_clock or sha256(canonical(default)) == ROUND_ITEM_COMPLETION_POOL_SHA256
         round_item_mount = round_item_completion or sha256(canonical(default)) == ROUND_ITEM_MOUNT_POOL_SHA256
         live_host = round_item_mount or sha256(canonical(default)) == LIVE_HOST_POOL_SHA256
         expected_fields = FIELD_EDIT_SELECTORS + ((LIVE_HOST_NEW_SELECTORS[0],) if live_host else ())
@@ -2392,7 +2400,7 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[FIELD_AUTOSAVE_SELECTION_ID] = autosave
         if live_host:
             require(tuple(default["unitTestSelectors"][1064:1078]) == LIVE_HOST_RUNTIME_SELECTORS
-                    and len(default["unitTestSelectors"]) == (1091 if round_item_completion
+                    and len(default["unitTestSelectors"]) == (1092 if first_sign_import_clock else 1091 if round_item_completion
                                                               else 1085 if round_item_mount else 1078)
                     and tuple(resolved["c36-live-host"]["unitTestSelectors"]) == LIVE_HOST_SELECTORS,
                     "live host exact appended methods and class group")
@@ -2420,7 +2428,7 @@ def resolve_selection(default, selection_map, selection_id):
             validate_selection(mount_question)
             resolved[ROUND_ITEM_MOUNT_SELECTION_ID] = mount_question
         if round_item_completion:
-            require(tuple(default["unitTestSelectors"][1085:]) == ROUND_ITEM_COMPLETION_SELECTORS
+            require(tuple(default["unitTestSelectors"][1085:1091]) == ROUND_ITEM_COMPLETION_SELECTORS
                     and tuple(resolved["c36-round-item-completion"]["unitTestSelectors"]) == ROUND_ITEM_COMPLETION_SELECTORS
                     and len(set(ROUND_ITEM_COMPLETION_SELECTORS)) == 6
                     and set(ROUND_READINESS_SELECTORS) <= defaults
@@ -2430,6 +2438,11 @@ def resolve_selection(default, selection_map, selection_id):
             completion_question = dict(combined, unitTestSelectors=list(ROUND_ITEM_COMPLETION_QUESTION_SELECTORS))
             validate_selection(completion_question)
             resolved[ROUND_ITEM_COMPLETION_SELECTION_ID] = completion_question
+        if first_sign_import_clock:
+            require(tuple(default["unitTestSelectors"][1091:]) == FIRST_SIGN_IMPORT_CLOCK_SELECTORS
+                    and tuple(item for item in resolved["mutation-command-codec"]["unitTestSelectors"]
+                              if item in FIRST_SIGN_IMPORT_CLOCK_SELECTORS) == FIRST_SIGN_IMPORT_CLOCK_SELECTORS,
+                    "imported first sign exact source-supported current codec append")
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")

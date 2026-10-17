@@ -932,7 +932,50 @@ EXPECTED_ROUND_READINESS = ['FieldEvidenceAppTests/V23ProductionRoundReadinessTe
     'testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation')]
 
 
+EXPECTED_FIRST_SIGN_IMPORT_CLOCK = ['FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testImportedFirstSignPreservesAcceptedPlacementTimeAcrossFractionalDestinationClockAndColdReplay']
+
+
+def preimport_clock_manifest(value):
+    if CI.sha256(CI.canonical(value)) != 'BD8DCDA4E19D7DD0CCB7B4BF9D05BB3F61D338BF920649227845A0FB0F479761':
+        raise AssertionError('changed imported first sign current manifest')
+    prior = copy.deepcopy(value)
+    if prior['selectorPool'][-1:] != EXPECTED_FIRST_SIGN_IMPORT_CLOCK:
+        raise AssertionError('changed exact imported first sign append')
+    prior['selectorPool'].pop()
+    if prior['profiles'].pop() != {'id': 'first-sign-import-clock-v1', 'excludedGroupIDs': []}:
+        raise AssertionError('changed imported first sign successor profile')
+    for item in prior['profiles']:
+        if item.get('excludedSelectors', []).count(EXPECTED_FIRST_SIGN_IMPORT_CLOCK[0]) != 1:
+            raise AssertionError('changed historical imported first sign exclusion')
+        item['excludedSelectors'].remove(EXPECTED_FIRST_SIGN_IMPORT_CLOCK[0])
+        if not item['excludedSelectors']:
+            del item['excludedSelectors']
+    if CI.sha256(CI.canonical(prior)) != 'D99DD93E7EBCACA9CC63ED93BD2D0C72A152BAFC1A85780407C26EA3B3CD76AC':
+        raise AssertionError('changed exact historical selection manifest')
+    return prior
+
+
+def preimport_clock_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) != 1092:
+        raise AssertionError('changed imported first sign pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256, CI.FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256):
+        raise AssertionError('changed imported first sign generated inputs')
+    if default['unitTestSelectors'][1091:] != EXPECTED_FIRST_SIGN_IMPORT_CLOCK:
+        raise AssertionError('changed exact imported first sign append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'].pop()
+    codec = next(group for group in mapping['groups'] if group['id'] == 'mutation-command-codec')
+    if codec['methodCount'] != 37:
+        raise AssertionError('changed imported first sign codec membership')
+    codec['methodCount'] = 36
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_COMPLETION_POOL_SHA256, CI.ROUND_ITEM_COMPLETION_MAP_SHA256):
+        raise AssertionError('changed exact historical round item completion profile')
+    return default, mapping
+
+
 def preround_item_completion_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1091:
         raise AssertionError('changed round item completion pool count')
     if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_COMPLETION_POOL_SHA256, CI.ROUND_ITEM_COMPLETION_MAP_SHA256):
@@ -949,6 +992,8 @@ def preround_item_completion_values(default, mapping):
 
 
 def preround_item_mount_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) == 1091:
         default, mapping = preround_item_completion_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1085:
@@ -967,6 +1012,8 @@ def preround_item_mount_values(default, mapping):
 
 
 def prelive_host_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1085, 1091):
         default, mapping = preround_item_mount_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1078:
@@ -987,6 +1034,8 @@ def prelive_host_values(default, mapping):
 
 
 def prefield_edit_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1078, 1085, 1091):
         default, mapping = prelive_host_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1064:
@@ -1005,6 +1054,8 @@ def prefield_edit_values(default, mapping):
 
 
 def presaved_review_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1064, 1078, 1085, 1091):
         default, mapping = prefield_edit_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1059:
@@ -1023,6 +1074,8 @@ def presaved_review_values(default, mapping):
 
 
 def prefinding_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1059, 1064, 1078, 1085, 1091):
         default, mapping = presaved_review_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1054:
@@ -1040,6 +1093,8 @@ def prefinding_values(default, mapping):
 
 
 def precompleted_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085, 1091):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 968:
@@ -1055,6 +1110,8 @@ def precompleted_values(default, mapping):
 
 
 def prepartition_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1092:
+        default, mapping = preimport_clock_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085, 1091):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) == 968:
@@ -1479,7 +1536,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         changed = copy.deepcopy(self.mapping); changed['groups'][0]['classes'] += changed['groups'][1]['classes']
         changes.append((self.root / CI.SELECTION_MAP_PATH, CI.canonical(changed)))
         path = self.root / 'Scripts/v23-selection-manifest.json'; changed = CI.read_json(path)
-        next(p for p in changed['profiles'] if p['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
+        next(p for p in changed['profiles'] if p['id'] == CI.FIRST_SIGN_IMPORT_CLOCK_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
         changes.append((path, CI.canonical(changed)))
         for selector in CI.SAVED_REVIEW_NEW_SELECTORS:
             _, name, method = selector.split('/')
@@ -1525,7 +1582,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 self.assertEqual(CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), old.canonical(previous))
                 current = CI.resolve_selection(self.default, self.mapping, identifier)
                 additions = list(CI.SAVED_REVIEW_NEW_SELECTORS + CI.FIELD_EDIT_SELECTORS) if identifier == CI.DEFAULT_SELECTION_ID else list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]) if identifier == 'c36-production-destination' else list(CI.SAVED_REVIEW_NEW_SELECTORS[4:]) if identifier == 'app-myday-production' else []
-                additions += [s for s in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                additions += [s for s in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_FIRST_SIGN_IMPORT_CLOCK if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
                 self.assertEqual(current, dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions))
 
     def test_partition_selected_input_binds_manifest_and_exact_public_worker_choice(self):
@@ -1551,7 +1608,10 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (1091, 72))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1092, 72))
+        self.assertEqual(self.default['unitTestSelectors'][1091:], EXPECTED_FIRST_SIGN_IMPORT_CLOCK)
+        prior, prior_map = preimport_clock_values(self.default, self.mapping)
+        self.assertEqual((len(prior['unitTestSelectors']), len(prior_map['groups'])), (1091, 72))
         for group_id, count in [('c36-round-item-completion', 6), ('c36-round-item-mount', 7), ('c36-live-host', 9), ('c36-field-edit', 6), ('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 93), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
@@ -1583,6 +1643,35 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(output.read_bytes(), CI.canonical(selected))
             output.unlink()
+            # The incumbent round-item profile remains a historical admission.
+            # Keep its original actual-command hostile against exact1091 bytes.
+            prior, prior_map = preimport_clock_values(self.default, self.mapping)
+            profile_path = self.root/'Scripts/v23-selection-manifest.json'
+            pool_path = self.root/'Scripts/ci-selection.json'
+            map_path = self.root/CI.SELECTION_MAP_PATH
+            originals = {p: p.read_bytes() for p in (profile_path, pool_path, map_path)}
+            current_environment = dict(e)
+            try:
+                pool_path.write_bytes(CI.canonical(prior))
+                map_path.write_bytes(CI.canonical(prior_map))
+                prior_selected, prior_record = CI.selected_input(self.root, e)
+                self.assertEqual(prior_selected, selected)
+                e.update(DISPATCH_NATIVE_SELECTION_SHA256=prior_record['selectionSHA256'],
+                         DISPATCH_NATIVE_SELECTION_MAP_SHA256=prior_record['selectionMapSHA256'])
+                result = run()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_bytes(), CI.canonical(selected))
+                output.unlink()
+                value = CI.read_json(profile_path)
+                next(p for p in value['profiles'] if p['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
+                profile_path.write_bytes(CI.canonical(value))
+                result = run()
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertFalse(output.exists())
+            finally:
+                for p, original in originals.items():
+                    p.write_bytes(original)
+                e.clear(); e.update(current_environment)
             changes = []
             # The unadopted81 cohort is neither a current nor historical admission.
             stale = copy.deepcopy(self.default); stale['unitTestSelectors'] = stale['unitTestSelectors'][:-5]
@@ -1594,7 +1683,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 value[key] = value[key][::-1]
                 changes.append((path, CI.canonical(value)))
             path = self.root/'Scripts/v23-selection-manifest.json'; value = CI.read_json(path)
-            next(p for p in value['profiles'] if p['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
+            next(p for p in value['profiles'] if p['id'] == CI.FIRST_SIGN_IMPORT_CLOCK_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
             changes.append((path, CI.canonical(value)))
             for group in FINDING_PROFILE_FIXTURES_GROUPS:
                 name = group['classes'][0]; path = self.root/'FieldEvidenceAppTests'/(name+'.swift')
@@ -1745,15 +1834,21 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
     def test_current_admission_rejects_manifest_output_and_source_declaration_drift(self):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
-        changed = CI.read_json(path)
-        current = next(profile for profile in changed['profiles'] if profile['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)
-        current['excludedGroupIDs'] = ['c36-startup-recovery']
-        try:
-            path.write_bytes(CI.canonical(changed))
-            with self.assertRaisesRegex(ValueError, 'differs from manifest/source'):
-                CI.verify_generated_selection(self.root, self.default, self.mapping)
-        finally:
-            path.write_bytes(original)
+        prior, prior_map = preimport_clock_values(self.default, self.mapping)
+        for profile_id, default, mapping in (
+                (CI.ROUND_ITEM_COMPLETION_PROFILE, prior, prior_map),
+                (CI.FIRST_SIGN_IMPORT_CLOCK_PROFILE, self.default, self.mapping)):
+            with self.subTest(profile=profile_id):
+                CI.verify_generated_selection(self.root, default, mapping)
+                changed = json.loads(original)
+                current = next(profile for profile in changed['profiles'] if profile['id'] == profile_id)
+                current['excludedGroupIDs'] = ['c36-startup-recovery']
+                try:
+                    path.write_bytes(CI.canonical(changed))
+                    with self.assertRaisesRegex(ValueError, 'differs from manifest/source'):
+                        CI.verify_generated_selection(self.root, default, mapping)
+                finally:
+                    path.write_bytes(original)
         hostile = copy.deepcopy(self.default)
         hostile['unitTestSelectors'][-1], hostile['unitTestSelectors'][-2] = hostile['unitTestSelectors'][-2], hostile['unitTestSelectors'][-1]
         with self.assertRaises(ValueError):
@@ -2016,7 +2111,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),1091)
+        self.assertEqual(len(default['unitTestSelectors']),1092)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -2031,6 +2126,7 @@ class ReportPartitionTests(unittest.TestCase):
             appended = [item for item in REMINDER_PRODUCTION_SELECTORS + SETTINGS_COMPATIBILITY_SELECTORS + SNAPSHOT_FAMILY_SELECTORS
                         if CI.selection_class(item) in group['classes']]
             appended += [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in group['classes']]
+            appended += [s for s in EXPECTED_FIRST_SIGN_IMPORT_CLOCK if CI.selection_class(s) in group['classes']]
             if group['id'] in [g['id'] for g in REMINDER_PRODUCTION_GROUPS]:
                 self.assertEqual(actual, dict(prior, unitTestSelectors=appended))
             elif group['id'] in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS]:
@@ -2440,7 +2536,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
@@ -2661,7 +2757,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2779,7 +2875,7 @@ class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-34'):
             with self.assertRaises(ValueError):
@@ -2885,7 +2981,7 @@ class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-8'):
             with self.assertRaises(ValueError):
@@ -2982,7 +3078,7 @@ class ReplacementUnionBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.REPLACEMENT_UNION_SELECTORS)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         self.assertEqual(len(CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)['unitTestSelectors']), 7)
         self.assertTrue(set(self.selected['unitTestSelectors']).isdisjoint(CI.REMINDER_BUILD_WATCHDOG_SELECTORS))
@@ -3088,7 +3184,7 @@ class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         for suffix in ('-retry', '-parallel', '-14'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -3632,7 +3728,7 @@ class RoundItemCompletionBuild30DiagnosticTests(ReplacementPartitionDiagnosticTe
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         members = EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_ROUND_READINESS
         self.assertEqual(len(set(members)), len(members))
-        self.assertEqual(self.default['unitTestSelectors'][1085:], EXPECTED_ROUND_ITEM_COMPLETION)
+        self.assertEqual(self.default['unitTestSelectors'][1085:1091], EXPECTED_ROUND_ITEM_COMPLETION)
         self.assertTrue(set(EXPECTED_ROUND_READINESS) <= set(self.default['unitTestSelectors'][:1085]))
         self.select(CI.ROUND_ITEM_COMPLETION_SELECTION_ID)
         self.assertEqual(self.selected['unitTestSelectors'], members)
@@ -3692,7 +3788,7 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         self.assertIn(expected[0], CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'])
         combined = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_FIELDS_SELECTION_ID)
         self.assertEqual(len(combined['unitTestSelectors']), 14)
@@ -3845,7 +3941,7 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
             if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.COLD_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
-            additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+            additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_FIRST_SIGN_IMPORT_CLOCK if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
             self.assertEqual(CI.resolve_selection(self.default, self.mapping, identifier), dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions), identifier)
 
     def test_collection_requires_all_fourteen_original_results(self):
@@ -4031,7 +4127,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         expected = ordinary['unitTestSelectors']
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(len(expected), 28)
         self.assertEqual(len(set(expected)), 28)
@@ -4269,7 +4365,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         ]
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         parent = CI.resolve_selection(self.default, self.mapping, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1092, 72))
         historical_pool, historical_map = presaved_review_values(self.default, self.mapping)
         self.assertEqual((len(historical_pool['unitTestSelectors']), len(historical_map['groups'])), (1054, 68))
         self.assertEqual([method for method in ordinary['unitTestSelectors'] if method in expected], expected)
@@ -4320,7 +4416,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                 projected = presaved_review_values(self.default, self.mapping)
                 current_bytes = CI.canonical(projected[0 if path == 'Scripts/ci-selection.json' else 1])
             elif path == 'Scripts/v23-selection-manifest.json':
-                manifest = json.loads(current_bytes)
+                manifest = preimport_clock_manifest(json.loads(current_bytes))
                 self.assertEqual(manifest['selectorPool'][1085:], EXPECTED_ROUND_ITEM_COMPLETION)
                 manifest['selectorPool'] = manifest['selectorPool'][:1085]
                 self.assertEqual(manifest['groups'].pop(), {'id': 'c36-round-item-completion', 'classes': ['V23ProductionRoundItemCompletionTests']})
@@ -4400,7 +4496,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                     expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[:4])
                 elif identifier == 'app-myday-production':
                     expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[4:])
-                expected_current['unitTestSelectors'] += [v for v in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(v) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                expected_current['unitTestSelectors'] += [v for v in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_FIRST_SIGN_IMPORT_CLOCK if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(v) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
                 self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
                                  CI.canonical(expected_current), identifier)
             self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES),
@@ -4699,7 +4795,7 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 1091)
+        self.assertEqual(len(self.default['unitTestSelectors']), 1092)
         self.assertEqual(len(self.mapping['groups']), 72)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
@@ -5006,8 +5102,8 @@ class BuildWatchdogDiagnosticTests(unittest.TestCase):
         for name in [CI.DEFAULT_SELECTION_ID, 'c36-parent-finalization-check-no-issue'] + [g['id'] for g in self.mapping['groups']]:
             old = CI.resolve_selection(self.default, self.mapping, name)
             self.assertEqual(tuple(old[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.ROUND_ITEM_COMPLETION_POOL_SHA256)
-        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.ROUND_ITEM_COMPLETION_MAP_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.FIRST_SIGN_IMPORT_CLOCK_POOL_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.FIRST_SIGN_IMPORT_CLOCK_MAP_SHA256)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         self.assertEqual(CI.sha256(CI.canonical(previous)), CI.GENERATED_SELECTION_POOL_SHA256)
         self.assertEqual(CI.sha256(CI.canonical(previous_map)), CI.GENERATED_SELECTION_MAP_SHA256)
@@ -8256,8 +8352,9 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
                 self.assertEqual(previous.count(before), 1)
                 self.assertEqual(before_shared_coverage_bytes(relative, (ROOT / relative).read_bytes()),
                                  previous.replace(before, after))
-        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
-        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        current_default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        current_mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = preimport_clock_values(current_default, current_mapping)
 
         def outcome(module, call):
             try:
@@ -8285,8 +8382,13 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
                 self.assertEqual(resolved, outcome(base, lambda m: m.resolve_selection(default, mapping, identifier)))
                 self.assertEqual(resolved[0], 'ok')
                 value = json.loads(resolved[1])
+                additions = EXPECTED_FIRST_SIGN_IMPORT_CLOCK if identifier in (CI.DEFAULT_SELECTION_ID, 'mutation-command-codec') else []
+                current_value = CI.resolve_selection(current_default, current_mapping, identifier)
+                self.assertEqual(current_value, dict(value, unitTestSelectors=value['unitTestSelectors'] + additions))
                 record = {'selectionID': identifier, 'selectionSHA256': CI.sha256(resolved[1]),
-                          'selectionMapSHA256': CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes())}
+                          'selectionMapSHA256': CI.sha256(CI.canonical(mapping))}
+                current_record = dict(record, selectionSHA256=CI.sha256(CI.canonical(current_value)),
+                                      selectionMapSHA256=CI.sha256(CI.canonical(current_mapping)))
                 e = dict(environment(), DISPATCH_NATIVE_SELECTION_ID=identifier,
                          DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
                          DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
@@ -8296,11 +8398,34 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
                         previous = outcome(base, lambda m: m.admission(value, e, HEAD, stage, record, ROOT))
                     self.assertEqual(current, previous)
                     admitted += current[0] == 'ok'
+                    self.assertEqual(current[0], 'ok')
+                    current_environment = dict(e, DISPATCH_NATIVE_SELECTION_SHA256=current_record['selectionSHA256'],
+                                               DISPATCH_NATIVE_SELECTION_MAP_SHA256=current_record['selectionMapSHA256'])
+                    with mock.patch.object(subprocess, 'check_output', side_effect=git_facts(identifier)):
+                        current_point = outcome(CI, lambda m: m.admission(current_value, current_environment, HEAD, stage, current_record, ROOT))
+                    self.assertEqual(current_point, ('ok', CI.canonical(dict(json.loads(current[1]), **current_record))))
         self.assertEqual(admitted, 2 * len(base_choices))
-        for identifier in (CI.DEFAULT_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
-            e = dict(environment(), NATIVE_SELECTION_ID=identifier)
-            self.assertEqual(outcome(CI, lambda m: m.selected_input(ROOT, e)),
-                             outcome(base, lambda m: m.selected_input(ROOT, e)))
+        # Reconstruct actual historical input bytes in an ordinary dependency copy;
+        # never extend the incumbent module's closed profile allowlist.
+        with tempfile.TemporaryDirectory() as directory:
+            historical_root = Path(directory).resolve()/'historical'
+            shutil.copytree(self.root, historical_root)
+            (historical_root/'Scripts/ci-selection.json').write_bytes(CI.canonical(default))
+            (historical_root/CI.SELECTION_MAP_PATH).write_bytes(CI.canonical(mapping))
+            manifest = preimport_clock_manifest(CI.read_json(ROOT/'Scripts/v23-selection-manifest.json'))
+            (historical_root/'Scripts/v23-selection-manifest.json').write_bytes(CI.canonical(manifest))
+            for identifier in (CI.DEFAULT_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
+                e = dict(environment(), NATIVE_SELECTION_ID=identifier)
+                previous = outcome(CI, lambda m: m.selected_input(historical_root, e))
+                self.assertEqual(previous, outcome(base, lambda m: m.selected_input(historical_root, e)))
+                self.assertEqual(previous[0], 'ok', previous)
+                prior_value, prior_record = json.loads(previous[1])
+                additions = EXPECTED_FIRST_SIGN_IMPORT_CLOCK if identifier == CI.DEFAULT_SELECTION_ID else []
+                expected_value = dict(prior_value, unitTestSelectors=prior_value['unitTestSelectors'] + additions)
+                expected_record = dict(prior_record, selectionSHA256=CI.sha256(CI.canonical(expected_value)),
+                                       selectionMapSHA256=CI.sha256(CI.canonical(current_mapping)))
+                self.assertEqual(outcome(CI, lambda m: m.selected_input(ROOT, e)),
+                                 ('ok', CI.canonical((expected_value, expected_record))))
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory)
             for identifier in CI.NO_INDEX_ROUTES:

@@ -732,6 +732,117 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         XCTAssertEqual(retryAttempts, 2)
     }
 
+    func testSourceScratchRetainedReaderStaysWithItsPhysicalRootAndFreshStoreRecoversIt() throws {
+        let instant = try Self.loadCorpus().createdAt
+        let rootA = try Self.temporaryRoot("source-owner-A")
+        let rootB = try Self.temporaryRoot("source-owner-B")
+        // Preserve these small roots on any failure; no teardown may unlink a
+        // retained reader or clear the process-wide ownership pools.
+        let bytesA = Data("source owned by A".utf8)
+        let bytesB = Data("source owned by B".utf8)
+        let originalA = rootA.appendingPathComponent("original.sqlite")
+        let originalB = rootB.appendingPathComponent("original.sqlite")
+        try bytesA.write(to: originalA)
+        try bytesB.write(to: originalB)
+        var storeA: ScratchDataLeaseStoreV1? = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: rootA, clock: { instant }, capacityProvider: { _ in Int64.max })
+        weak var priorStore = storeA
+        let storeB = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: rootB, clock: { instant }, capacityProvider: { _ in Int64.max })
+        func request(_ bytes: Data) throws -> ScratchDataLeaseRequestV1 {
+            try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+                ownerOperationID: Self.id(73), requestedByteCount: UInt64(bytes.count),
+                createdAt: instant, expiresAt: instant.addingTimeInterval(60))
+        }
+        func populate(_ directory: ScratchDataLeaseStoreV1.SourceReadDirectory, bytes: Data) throws {
+            try directory.copySQLiteFile(named: "model.sqlite", byteCount: UInt64(bytes.count)) { fd in
+                try bytes.withUnsafeBytes { buffer in
+                    guard Darwin.write(fd, buffer.baseAddress, buffer.count) == buffer.count else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                }
+            }
+        }
+        func image(_ root: URL) throws -> [String: Data] {
+            let names = [""] + (try FileManager.default.subpathsOfDirectory(atPath: root.path)).sorted()
+            var result: [String: Data] = [:]
+            for name in names {
+                let url = name.isEmpty ? root : root.appendingPathComponent(name)
+                var fact = stat()
+                _ = try XCTUnwrap(Darwin.lstat(url.path, &fact) == 0 ? true : nil)
+                let kind = fact.st_mode & S_IFMT
+                _ = try XCTUnwrap(kind == S_IFDIR || kind == S_IFREG ? true : nil)
+                result["fact:" + name] = Data(
+                    "\(fact.st_dev)|\(fact.st_ino)|\(fact.st_mode)|\(fact.st_nlink)|\(fact.st_size)".utf8)
+                if kind == S_IFREG { result["bytes:" + name] = try Data(contentsOf: url) }
+            }
+            XCTAssertEqual(try FileManager.default.subpathsOfDirectory(atPath: root.path).sorted(),
+                Array(names.dropFirst()))
+            return result
+        }
+        var readerFD: Int32 = -1
+        var drainObservationsA = 0
+        var retainedModel: URL?
+        XCTAssertThrowsError(try XCTUnwrap(storeA).withSourceReadScratch(
+            request: request(bytesA), readerIsDrained: {
+                drainObservationsA += 1
+                return readerFD < 0
+            }) { directory in
+                try populate(directory, bytes: bytesA)
+                retainedModel = directory.modelURL
+                readerFD = Darwin.open(directory.modelURL.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+                _ = try XCTUnwrap(readerFD >= 0 ? true : nil)
+            }) {
+            XCTAssertEqual($0 as? ScratchDataLeaseStoreFailureV1, .leaseCollision)
+        }
+        let modelA = try XCTUnwrap(retainedModel)
+        let directoryA = modelA.deletingLastPathComponent()
+        _ = try XCTUnwrap(readerFD >= 0 ? true : nil, "A must retain a real live reader")
+        var readback = [UInt8](repeating: 0, count: bytesA.count)
+        let readCount = readback.withUnsafeMutableBytes {
+            Darwin.pread(readerFD, $0.baseAddress, $0.count, 0)
+        }
+        XCTAssertEqual(readCount, bytesA.count)
+        XCTAssertEqual(Data(readback), bytesA)
+        let retainedA = try image(directoryA)
+        let originalImageA = try Data(contentsOf: originalA)
+        let originalImageB = try Data(contentsOf: originalB)
+        func readB() throws -> Data {
+            try storeB.withSourceReadScratch(request: request(bytesB), readerIsDrained: { true }) { directory in
+                try populate(directory, bytes: bytesB)
+                return try Data(contentsOf: directory.modelURL)
+            }
+        }
+        let liveDrainObservations = drainObservationsA
+        XCTAssertEqual(try readB(), bytesB)
+        XCTAssertEqual(drainObservationsA, liveDrainObservations)
+        XCTAssertEqual(try image(directoryA), retainedA, "B must not inspect or settle A's live reader")
+        _ = try XCTUnwrap(Darwin.close(readerFD) == 0 ? true : nil)
+        readerFD = -1
+        let drainedObservations = drainObservationsA
+        XCTAssertEqual(try readB(), bytesB)
+        XCTAssertEqual(drainObservationsA, drainedObservations)
+        XCTAssertEqual(try image(directoryA), retainedA, "Drainage does not give B authority over A")
+        let scratchB = Self.scratchRoot(rootB)
+        let settledB = try image(scratchB)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: scratchB.path).isEmpty)
+        storeA = nil
+        XCTAssertNotNil(priorStore, "The retained directory must keep its actual old Store alive")
+        let freshA = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: rootA, clock: { instant }, capacityProvider: { _ in Int64.max })
+        let recovered = try freshA.withSourceReadScratch(request: request(bytesA), readerIsDrained: { true }) { directory in
+            try populate(directory, bytes: bytesA)
+            return try Data(contentsOf: directory.modelURL)
+        }
+        XCTAssertEqual(recovered, bytesA)
+        XCTAssertGreaterThan(drainObservationsA, drainedObservations)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directoryA.path))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: Self.scratchRoot(rootA).path).isEmpty)
+        XCTAssertEqual(try image(scratchB), settledB, "A's recovery must leave B's physical namespace unchanged")
+        XCTAssertEqual(try Data(contentsOf: originalA), originalImageA)
+        XCTAssertEqual(try Data(contentsOf: originalB), originalImageB)
+    }
+
     func testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects() async throws {
         let corpus = try Self.loadCorpus()
         let root = try Self.temporaryRoot("I01")

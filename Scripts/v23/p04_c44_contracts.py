@@ -12,6 +12,51 @@ SCRIPTS=("Scripts/v23/p04_c44_contracts.py","Scripts/v23/generate_p04_c44_contra
 SELECTOR_ROWS=(("G01","V23-P04-C44-G01","GOLDEN"),("A01","V23-P04-C44-A01","ALTERNATE"),("H01","V23-P04-C44-H01","HOSTILE"),("I01","V23-P04-C44-I01","INTERRUPTION"),("R01","V23-P04-C44-R01","RECOVERY"));SELECTORS=tuple(x[1] for x in SELECTOR_ROWS);FINAL_HASHES_SEALED=False
 FLAGS={x:False for x in("native","hosted","physicalDevice","adoption","acceptance","release","nativeAcceptance","hostedAcceptance","physicalEvidence","adoptionEvidence","acceptanceCredit","releaseReadiness","phase10PollingDuringParallelExecution")}
 POLICY={"definesLocalPartCatalogV1":True,"definesLocalStockFeaturePolicyV1":True,"workLocalCatalog":True,"scanAndManualLookup":True,"typingMaterialLineDecrementsStock":False,"explicitUseAtomicMutationOnly":True,"returnOnlyEligibleUseWithOutstandingQuantityAndDestination":True,"standaloneUnboundReturn":False,"rejectPartialConcurrentDoubleReturnOverflow":True,"countAdjustTransferUseReturnArchive":True,"lowStockAttention":True,"exactCSVImportExport":True,"draftsAndFeatureDisablePreservation":True,"customerReportsExposeBalancesOrInternalLocations":False,"customerSafeReportsReviewedMaterialSnapshotsOnly":True,"reusesStockBalanceProjectionV1":True,"reusesStockReturnAgainstUseReceiptV1":True,"newMigration":False,"newModel":False,"newRoot":False,"newSchema":False,"newStore":False,"newWriter":False,"rootOrNetworkOrTelemetry":False}
+# The current app-hosted UNIT question is separate from NEW_PRODUCT_PATHS[5].
+# Keep that historical missing UI lane, its readiness and adoption predicates.
+CURRENT_HOSTED_UNIT_PATH="FieldEvidenceAppTests/V23_P04_C44PartsStockWorkflowUITests.swift"
+CURRENT_HOSTED_UNIT_CLASS="V23_P04_C44PartsStockWorkflowUITests"
+CURRENT_HOSTED_UNIT_METHOD="testV23P04C44PhaseOneWorkDoesNotOfferLiveStockJourney"
+CURRENT_HOSTED_UNIT_METHODS=(
+ "testV23P04C44StaticAccessibilityJourneyIsClosed",CURRENT_HOSTED_UNIT_METHOD,
+ "testV23P04C44ReadOnlyPolicyPreservesIncumbentDraftExportAndRecoveryAndRejectsStockWrites",
+)
+CURRENT_PENDING_LIVE_METHODS=(
+ "testV23P04C44VisibleWorkCatalogLookupDetailCountAndHistoryJourney",
+ "testV23P04C44VisibleExplicitUseEligibleBoundReturnAndHistoryJourney",
+ "testV23P04C44LiveDisablePreservesStockDraftExportAndRecoveryJourney",
+)
+CURRENT_HOSTED_UNIT_DEPENDENCIES=(
+ "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift",
+ "FieldEvidenceAppTests/V23ProductionMyDayPresentationTests.swift",
+ "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift",
+ "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+ "FieldEvidenceApp/App/V23PhaseGateV1.swift",
+ "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+ "FieldEvidenceApp/Features/Shell/ProductionWorkRootViewV1.swift",
+ "FieldEvidenceApp/Features/Shell/NativeScreenObservationAnchorV1.swift",
+ "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+ "FieldEvidenceApp/Domain/PartsStock/PartsStockWorkflowContractsV1.swift",
+ "FieldEvidenceApp/Domain/PartsStock/PartsStockContractsV1.swift",
+ "FieldEvidenceApp/Domain/Models/PartsStockPersistenceModelsV1.swift",
+ "FieldEvidenceApp/Domain/Models/FieldDraftPersistenceModelsV1.swift",
+ "FieldEvidenceApp/Domain/Models/WorkResourcePersistenceModelsV1.swift",
+ "FieldEvidenceApp/Application/PartsStock/PartsStockWorkflowCoordinatorV1.swift",
+ "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+ "FieldEvidenceApp/Application/WorkResources/ManualWorkResourceWorkflowCoordinatorV1.swift",
+ "FieldEvidenceApp/Infrastructure/PartsStock/PartsStockLifecycleAdapterV1.swift",
+ "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift",
+ "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationReceiptRecoveryServiceV1.swift",
+ "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+ "Scripts/v23/p04_c42_contracts.py",
+)
+def current_hosted_unit_sources():
+ # Reuse the existing held fixed-source reader and closed DEBUG parser only.
+ # This invokes no historical authority, Git, selection generation or runtime.
+ import p04_c42_contracts as current_reader
+ return current_reader.current_hosted_unit_sources(CURRENT_HOSTED_UNIT_PATH,
+  CURRENT_HOSTED_UNIT_CLASS,CURRENT_HOSTED_UNIT_METHODS,CURRENT_HOSTED_UNIT_METHOD,
+  CURRENT_HOSTED_UNIT_DEPENDENCIES)
 def pretty(v:Any)->bytes:return (json.dumps(v,sort_keys=True,indent=2,ensure_ascii=False)+"\n").encode()
 def sha(v:bytes)->str:return hashlib.sha256(v).hexdigest()
 def git(*a,cwd=ROOT):return subprocess.run(["git",*a],cwd=cwd,check=True,capture_output=True,text=True).stdout.strip()

@@ -112,6 +112,120 @@ final class V23FirstSignReceiptClockTests: XCTestCase {
     }
 
     @MainActor
+    func testImportedFirstSignPreservesAcceptedPlacementTimeAcrossFractionalDestinationClockAndColdReplay() throws {
+        let destinationClock = Date(timeIntervalSinceReferenceDate: 811_123_456.000_000_1)
+        try assertLocationRowExposesFractionalClockPremise(destinationClock)
+        let source = try FirstSignReceiptClockHarness(
+            clockInstant: Date(timeIntervalSinceReferenceDate: 811_123_450.125)
+        )
+        defer { source.removeFiles() }
+        let destination = try FirstSignReceiptClockHarness(
+            clockInstant: destinationClock,
+            workspaceID: source.identity.workspaceID
+        )
+        defer { destination.removeFiles() }
+        XCTAssertNotEqual(source.identity.replicaID, destination.identity.replicaID)
+
+        let scenario = try source.makeScenario(
+            createdAt: Date(timeIntervalSince1970: 1_789_344_000.079_157_6)
+        )
+        _ = try source.writer.execute(scenario.request)
+        let sourceHistory = try source.writer.sourceMutationHistorySnapshot()
+        XCTAssertEqual(sourceHistory.receipts.count, 1)
+        let sourceRecord = try XCTUnwrap(sourceHistory.receipts.first)
+        let sourceEnvelope = try MutationEnvelopeV1.decodeCanonical(from: sourceRecord.envelopeData)
+        let sourceReceipt = try MutationReceiptV1.decodeCanonical(from: sourceRecord.receiptData)
+        let sourceBasisBytes = try XCTUnwrap(sourceRecord.reversalBasisData)
+        let sourceBasis = try ReversalBasisV1.decodeCanonical(from: sourceBasisBytes)
+        let compensation = try XCTUnwrap(sourceBasis.firstSignCompensation)
+        let portablePlan = try PortableReversalPlanV1(
+            basis: sourceBasis,
+            expectedRevision: sourceReceipt.resultingRevision,
+            compensatingCommands: [compensation.compensatingCommand()]
+        )
+        let policy = try ConflictPolicyV1(
+            policyID: "test.first-sign-clock", rule: .stableIDAppendUnion
+        )
+        let change = try JournalChangeV1(
+            envelope: sourceEnvelope,
+            receipt: sourceReceipt,
+            entityChanges: sourceReceipt.postImages.map {
+                try EntityChangeV1(postImage: $0, conflictPolicy: policy, conflictIdentity: nil)
+            }.sorted { $0.stableKey < $1.stableKey },
+            reversalBasis: sourceBasis,
+            portableReversalPlan: portablePlan,
+            semanticReversalReceipt: nil,
+            contentReferences: []
+        )
+        guard case let .createFirstSign(incomingCommand) = sourceEnvelope.command else {
+            return XCTFail("Expected the accepted First Sign command")
+        }
+        XCTAssertNotEqual(incomingCommand.createdAt, Self.quantized(incomingCommand.createdAt))
+        XCTAssertNotEqual(sourceReceipt.committedAt, Self.quantized(destinationClock))
+        let sourcePlacementRow = try XCTUnwrap(
+            source.context.fetch(FetchDescriptor<AssetPlacementEventRow>()).first
+        )
+        let sourcePlacement = try sourcePlacementRow.value()
+        let sourcePlacementBytes = sourcePlacementRow.canonicalData
+        XCTAssertEqual(sourcePlacement.occurredAt, sourceReceipt.committedAt)
+
+        let imported = try destination.writer.executeImported(change)
+        let importedReceipt = try XCTUnwrap(
+            destination.store.receipt(mutationID: scenario.mutationID)
+        )
+        let placementRow = try XCTUnwrap(
+            destination.context.fetch(FetchDescriptor<AssetPlacementEventRow>()).first
+        )
+        let placement = try placementRow.value()
+        XCTAssertEqual(imported.occurredAt, sourceReceipt.committedAt)
+        XCTAssertEqual(importedReceipt.committedAt, sourceReceipt.committedAt)
+        XCTAssertEqual(importedReceipt.sourceKind, .importedHistory)
+        XCTAssertEqual(placement.occurredAt, sourceReceipt.committedAt)
+        XCTAssertEqual(placementRow.occurredAt, sourceReceipt.committedAt)
+        XCTAssertEqual(placement, sourcePlacement)
+        XCTAssertEqual(placement.eventSHA256, sourcePlacement.eventSHA256)
+        XCTAssertEqual(placementRow.canonicalData, sourcePlacementBytes)
+        XCTAssertEqual(try LocationPersistenceCodecV1.encode(placement), sourcePlacementBytes)
+        let site = try XCTUnwrap(destination.context.fetch(FetchDescriptor<Site>()).first)
+        let asset = try XCTUnwrap(destination.context.fetch(FetchDescriptor<Asset>()).first)
+        XCTAssertEqual(site.createdAt, incomingCommand.createdAt)
+        XCTAssertEqual(asset.createdAt, incomingCommand.createdAt)
+        try destination.store.validateAll()
+        XCTAssertFalse(destination.context.hasChanges)
+        let counts = try destination.rowCounts(in: destination.context)
+        XCTAssertEqual(counts, FirstSignReceiptClockHarness.RowCounts(
+            sites: 1, assets: 1, placements: 1, receipts: 1, entityRevisions: 3
+        ))
+        let receiptBytes = try importedReceipt.canonicalData()
+
+        let cold = try destination.reopen()
+        try cold.store.validateAll()
+        let coldPlacement = try XCTUnwrap(
+            cold.context.fetch(FetchDescriptor<AssetPlacementEventRow>()).first
+        )
+        XCTAssertEqual(coldPlacement.canonicalData, sourcePlacementBytes)
+        XCTAssertEqual(try coldPlacement.value(), sourcePlacement)
+        let beforeReplay = try cold.writer.currentRevision()
+        let replay = try cold.writer.executeImported(change)
+        XCTAssertEqual(replay.mutationID, imported.mutationID)
+        XCTAssertEqual(replay.commandDigest, imported.commandDigest)
+        XCTAssertEqual(replay.occurredAt, sourceReceipt.committedAt)
+        XCTAssertEqual(replay.effect, imported.effect)
+        XCTAssertEqual(try cold.writer.currentRevision(), beforeReplay)
+        XCTAssertEqual(try destination.rowCounts(in: cold.context), counts)
+        XCTAssertEqual(
+            try XCTUnwrap(cold.store.receipt(mutationID: scenario.mutationID)).canonicalData(),
+            receiptBytes
+        )
+        XCTAssertFalse(cold.context.hasChanges)
+        XCTAssertEqual(try source.writer.sourceMutationHistorySnapshot(), sourceHistory)
+        XCTAssertEqual(try change.envelope.canonicalData(), sourceRecord.envelopeData)
+        XCTAssertEqual(try change.receipt.canonicalData(), sourceRecord.receiptData)
+        XCTAssertEqual(try XCTUnwrap(change.reversalBasis).canonicalData(), sourceBasisBytes)
+        XCTAssertEqual(sourcePlacementRow.canonicalData, sourcePlacementBytes)
+    }
+
+    @MainActor
     func testCanonicalDateReplayUsesExactEnvelopeBytesAndChangedBytesStillQuarantine() throws {
         let sourceDate = Date(timeIntervalSince1970: 1_789_344_000.079_157_6)
         let harness = try FirstSignReceiptClockHarness(
@@ -360,7 +474,7 @@ private final class FirstSignReceiptClockHarness {
     let writer: WorkspaceWriterV1
     let clock: FirstSignReceiptClock
 
-    init(clockInstant: Date) throws {
+    init(clockInstant: Date, workspaceID: WorkspaceID? = nil) throws {
         clock = FirstSignReceiptClock(instant: clockInstant)
         root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23-first-sign-receipt-clock-\(UUID().uuidString)",
@@ -386,7 +500,7 @@ private final class FirstSignReceiptClockHarness {
         context = container.mainContext
         context.autosaveEnabled = false
         identity = try WorkspaceReplicaIdentityV1(
-            workspaceID: WorkspaceID(rawValue: UUID()),
+            workspaceID: workspaceID ?? WorkspaceID(rawValue: UUID()),
             replicaID: ReplicaID(rawValue: UUID())
         )
         generationID = UUID()

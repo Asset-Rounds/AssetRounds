@@ -8,6 +8,45 @@ ALLOCATION="48903c96743befdea2a67f0769a5ffe39eadff2d1d85cf5c1a29a42c0bce8114";PR
 EXISTING_PATHS=("FieldEvidenceApp/Info.plist",);NEW_PRODUCT_PATHS=("FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift","FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift","FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift","FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift","FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift","FieldEvidenceAppTests/Fixtures/V23/VoiceCapture/V23P04C45StructuredVoiceCaptureCorpusV1.json","FieldEvidenceAppUITests/V23_P04_C45StructuredVoiceCaptureUITests.swift")
 SCRIPTS=("Scripts/v23/p04_c45_contracts.py","Scripts/v23/generate_p04_c45_contracts.py","Scripts/v23/verify_p04_c45_contracts.py");SCHEMA="Scripts/v23/structured-voice-capture.schema.json";CONTRACT="docs/design/v23/tooling/V23P04C45StructuredVoiceCaptureContractV1.json";EVIDENCE="docs/design/v23/tooling/V23P04C45StructuredVoiceCaptureEvidenceReceiptV1.json";BRAND="docs/design/v23/tooling/V23P04C45BrandImpactManifestV1.json";MANIFEST="docs/design/v23/tooling/V23-P04-C45-tooling-manifest.json";TOOLING_PATHS=(*SCRIPTS,SCHEMA,CONTRACT,EVIDENCE,BRAND,MANIFEST);PATH_FENCE=(*EXISTING_PATHS,*NEW_PRODUCT_PATHS,*TOOLING_PATHS);FLAGS={k:False for k in("native","hosted","physicalDevice","adoption","acceptance","publication","release","nativeAcceptance","hostedAcceptance","adoptionEvidence","acceptanceCredit","releaseReadiness")};SELECTORS=("V23-P04-C45-G01","V23-P04-C45-A01","V23-P04-C45-H01","V23-P04-C45-I01","V23-P04-C45-R01")
 POLICY={"concreteOnDevicePushToTalkAdapter":True,"captureAudioTranscriptConfidenceSessionCallbackState":"NONPERSISTENT","automaticWrite":False,"continuousListening":False,"wakeWord":False,"cloudOrNetworkFallback":False,"recordingArchive":False,"newMigration":False,"newModel":False,"newRoot":False,"newSchema":False,"newStore":False,"newWriter":False,"rootOrNetworkOrTelemetry":False,"recordWorkViewAdoption":False,"infoPlistSpeechRecognitionUsageDescriptionRequired":True,"acceptedOrEditedC56ReviewOnlyMayReachExistingUniversalDraftCheckpointAuthority":True,"contractOwners":["StructuredVoiceCaptureContextV1","VoiceScratchDispositionV1"]}
+# The current app-hosted UNIT question is separate from NEW_PRODUCT_PATHS[6].
+# Do not redirect that historical UI path, its deferred-adoption predicate, or
+# generated readiness/flags to these contained Phase 1 request-boundary tests.
+CURRENT_HOSTED_UNIT_PATH="FieldEvidenceAppTests/V23_P04_C45StructuredVoiceCaptureUITests.swift"
+CURRENT_HOSTED_UNIT_CLASS="V23_P04_C45StructuredVoiceCaptureUITests"
+CURRENT_HOSTED_UNIT_METHOD="testV23P04C45PhaseOneShippingShellAndExistingDraftHaveNoCaptureEntry"
+CURRENT_HOSTED_UNIT_METHODS=(
+ "testV23P04C45ContainedSurfaceAccessibilityContract",CURRENT_HOSTED_UNIT_METHOD,
+ "testV23P04C45ContainedManualFallbackEmitsOnlyExplicitBoundedRequests",
+ "testV23P04C45ContainedFieldReviewEmitsExactRequestsAndHonorsUnavailableState",
+)
+CURRENT_HOSTED_UNIT_DEPENDENCIES=(
+ "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift",
+ "FieldEvidenceAppTests/V23ProductionMyDayPresentationTests.swift",
+ "FieldEvidenceAppTests/S5_1RecordWorkTests.swift",
+ "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+ "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+ "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+ "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+ "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+ "FieldEvidenceApp/Features/Shell/ProductionMyDayRootViewV1.swift",
+ "FieldEvidenceApp/Features/Shell/ProductionWorkRootViewV1.swift",
+ "FieldEvidenceApp/Features/Shell/NativeScreenObservationAnchorV1.swift",
+ "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+ "FieldEvidenceApp/App/V23PhaseGateV1.swift",
+ "FieldEvidenceApp/Domain/Navigation/RouteRegistryContractsV1.swift",
+ "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift",
+ "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+ "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+ "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+ "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+)
+def current_hosted_unit_sources():
+ # Reuse C137's bounded held reader/current DEBUG parser. This calls no
+ # historical authority/generator, Git, compiler, native runner or gate.
+ import p04_c41_contracts as current_reader
+ return current_reader.current_hosted_unit_sources(CURRENT_HOSTED_UNIT_PATH,
+  CURRENT_HOSTED_UNIT_CLASS,CURRENT_HOSTED_UNIT_METHODS,CURRENT_HOSTED_UNIT_METHOD,
+  CURRENT_HOSTED_UNIT_DEPENDENCIES)
 def pretty(v):return (json.dumps(v,sort_keys=True,indent=2)+"\n").encode()
 def sha(v):return hashlib.sha256(v).hexdigest()
 def git(*a,cwd=ROOT):return subprocess.run(["git",*a],cwd=cwd,check=True,capture_output=True,text=True).stdout.strip()

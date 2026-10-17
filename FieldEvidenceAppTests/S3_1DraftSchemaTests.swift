@@ -406,9 +406,66 @@ final class S3_1DraftSchemaTests: XCTestCase {
 
     @MainActor
     func testExistingDraftResumeRejectsDirtyCorruptAndAmbiguousDrafts() throws {
+        let instant = Date(timeIntervalSince1970: 1_768_438_923)
+        do {
+            let root = try makeTemporaryApplicationSupportURL()
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let fixture = try makeCurrentDraftFixture(in: factory,
+                timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1))
+            defer { closeCurrentDraftWriter(fixture.owner) }
+            let context = fixture.ids.session.modelContext
+            fixture.clock.set(instant)
+            let draft = try fixture.coordinator.beginOrResumeDraft(BeginDraftSubmission(
+                assetID: fixture.ids.asset, requestedStage: .check, issueID: nil,
+                observedAtUTC: instant, confirmedTimeZoneID: nil,
+                afterDarkAccepted: true, safePositionAccepted: true))
+            fixture.clock.set(instant.addingTimeInterval(1))
+            let revisionBefore = try fixture.dependencies.writer.currentRevision()
+            let lineageBefore = try lineageState(in: context)
+            let draftID = draft.id
+
+            // Read the committed note through a fresh read-only container, rather
+            // than treating the retained dirty model alias as a rollback witness.
+            @MainActor
+            func persistedNote() throws -> String? {
+                let configuration = ModelConfiguration("FieldEvidenceV1",
+                    schema: context.container.schema,
+                    url: fixture.ids.session.generationRootURL.appendingPathComponent("model.sqlite"),
+                    allowsSave: false, cloudKitDatabase: .none)
+                let container = try ModelContainer(for: context.container.schema,
+                    migrationPlan: nil, configurations: [configuration])
+                let reader = container.mainContext
+                reader.autosaveEnabled = false
+                let rows = try reader.fetch(FetchDescriptor<WorkflowRecord>(
+                    predicate: #Predicate { $0.id == draftID }))
+                XCTAssertEqual(rows.count, 1)
+                let persisted = try XCTUnwrap(rows.first)
+                XCTAssertFalse(reader.hasChanges)
+                return persisted.note
+            }
+
+            XCTAssertNil(try persistedNote())
+            draft.note = "Unsaved owner edit"
+            XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(
+                assetID: fixture.ids.asset, requestedStage: .work, issueID: UUID())) {
+                XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .invalidLineage)
+            }
+            XCTAssertEqual(draft.note, "Unsaved owner edit")
+            XCTAssertTrue(context.hasChanges)
+            XCTAssertEqual(try lineageState(in: context), lineageBefore)
+            XCTAssertNil(try persistedNote())
+            context.rollback()
+            XCTAssertFalse(context.hasChanges)
+            XCTAssertNil(try persistedNote())
+            XCTAssertEqual(try lineageState(in: context), lineageBefore)
+            XCTAssertEqual(try fixture.dependencies.writer.currentRevision(), revisionBefore)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<Issue>()), 0)
+        }
+
+        // Hostile lineage fixtures must not inherit a retained dirty model alias
+        // or depend on how SwiftData refreshes that alias after rollback.
         let root = try makeTemporaryApplicationSupportURL()
         let factory = StoreGenerationFactory(applicationSupportURL: root)
-        let instant = Date(timeIntervalSince1970: 1_768_438_923)
         let fixture = try makeCurrentDraftFixture(in: factory,
             timeZoneID: "America/New_York", createdAt: instant.addingTimeInterval(-1))
         defer { closeCurrentDraftWriter(fixture.owner) }
@@ -420,16 +477,8 @@ final class S3_1DraftSchemaTests: XCTestCase {
             afterDarkAccepted: true, safePositionAccepted: true))
         fixture.clock.set(instant.addingTimeInterval(1))
         let revisionBefore = try fixture.dependencies.writer.currentRevision()
-
-        draft.note = "Unsaved owner edit"
-        XCTAssertThrowsError(try fixture.coordinator.beginOrResumeDraft(
-            assetID: fixture.ids.asset, requestedStage: .work, issueID: UUID())) {
-            XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .invalidLineage)
-        }
-        XCTAssertEqual(draft.note, "Unsaved owner edit")
-        XCTAssertTrue(context.hasChanges)
-        context.rollback()
         XCTAssertNil(draft.note)
+        XCTAssertFalse(context.hasChanges)
 
         // Construct the hostile root through the model's initializer; the
         // production root remains immutable after construction.

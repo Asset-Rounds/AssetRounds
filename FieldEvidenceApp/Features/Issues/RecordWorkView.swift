@@ -237,6 +237,9 @@ struct RecordWorkView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)
+        #endif
         .modifier(RecordWorkTabBarVisibility())
         .onAppear {
             moveAccessibilityFocus(to: .header)
