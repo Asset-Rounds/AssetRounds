@@ -2027,6 +2027,36 @@ final class MutationJournalStoreV1 {
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
         guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         let before = try currentRevision(writerInstanceID: writerInstanceID)
+        // Decoded values are reused only within this fixed synchronous G read.
+        // Noncanonical and retained original recovery keep the incumbent path.
+        if originalEraseRecoveryDepth == 0,
+           case let .canonicalWriter(fence) = accessMode {
+            do {
+                return try fence.withAuthorizedRead {
+                    let pass = try validateCheckRunnerBeginHistoryValue {
+                        try validateJournalPass(release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                            historicalAuthority: nil, retainDecodedRows: true)
+                    }
+                    let value = try readCheckRunnerPhotoRawStageEvidence(workspaceID: workspaceID,
+                        parentDraftID: parentDraftID, childDraftID: childDraftID,
+                        writerInstanceID: writerInstanceID, before: before, validatedPass: pass)
+                    guard !modelContext.hasChanges,
+                          try currentRevision(writerInstanceID: writerInstanceID) == before else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    return value
+                }
+            } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
+                provenWriterLeaseInvalidated = true
+                if let registryFailure = failure.underlying as? GenerationLeaseRegistryFailureV1 {
+                    throw mappedFenceFailure(registryFailure)
+                }
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            } catch {
+                provenWriterLeaseInvalidated = true
+                throw error
+            }
+        }
         try validateCheckRunnerBeginHistoryValue { try validateAll() }
         let value = try readCheckRunnerPhotoRawStageEvidence(workspaceID: workspaceID,
             parentDraftID: parentDraftID, childDraftID: childDraftID,

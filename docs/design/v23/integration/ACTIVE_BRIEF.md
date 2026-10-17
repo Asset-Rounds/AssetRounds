@@ -1,43 +1,34 @@
-# Active integration brief — 2026-10-16 UTC; compiler-fix checkpoint review next
-- Goal: verified Phase1 V23/S10 merge, then full V23. All five gates OPEN (0/5); SourceReady=false; releaseReady=false.
-- Branch codex/v23-s10-integration-20260910; published/currentHEAD8f4e345d8fcb3985893de3145e51c4b172c5e2a1.
-- Publishedtree46fc696417b9eb440c514445179f783e0c4ee264; parentf2d6a6c87be7a6951fe00e4767ec7a777566ffb0.
-- Root refreshed refs October16: integration8f4, mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6. Refresh before push.
-- Root alone integrates/Git/dispatch/storage effects; helpers Sol6.1/xhigh, up to10 plus Root, useful bounded lanes.
-- Preserve ownerconfig/drafts/untracked/history/failures/partials/HOLDs/consumed questions. No broad stage, PR, force, signing or release.
-## Actual failure feedback and correction
-- Last app-executed6b/run38863997628:3411PASS/326FAIL/6SKIP/2Interrupted/40NotStarted (42unresolved); C524/C530 DATA.
-- Ownf2 run38930266866 failed build65/oneS31 compilererror; own8f4 run38964744387 failed build65/twoS53 explicit-self errors.
-- Current8f4 original:3791NotStarted/0executed/40NoJob/all1498affected unstarted/noProducts; C678 complete DATA13903/d5b9.
-- Its solecollector24770/operator24528/session53627 naturallyclosed0. Shared8f4question CONSUMED; no restart/replay.
-- Seven-row M4 ledger2282/dd72ed9c preserves old prefixes/all7attempts+claims. Never create an empty/shadow ledger.
-- C674/C679 Root adopted only two self qualifiers in S5_3DifferentIssueTests.swift:61506/22f8830a; C676 Source7477/306a11d0 PASS.
-- All10 methods/177XCTest sites/other bytes unchanged; direct1/wholefile10 already in1498/S22;3791 census and ordered40 unchanged.
-- App/test-module compilation and runtime remain UNVERIFIED. Two old compiler errors have a reviewed Source correction, not a successful compile.
-## Current tooling: complete, do not repeat
-- M4 constructor39139 once; reviewed C701 wholecaller19800/502b under C704 selection once42686/check1/apply1 natural0.
-- Entry43683/session73710 naturallyclosed0: admission43684, binder43707, DEBUG+Release S53 syntax2, pair43712 all natural0.
-- Full native-CI399/399603s and selection45/45767s passed: zero failures/errors/skips; Source2826/index/inputs/enrolled history conserved.
-- C715 Root received raw4 once/306safe/31353022expanded; receipt68631/7fb72989, CRC/nativeSHA/providerhash/readback/protected PASS.
-- SAME independent Sol6.1/xhigh C716 complete-available DATA11603/a0796564 PASS13543checks; no material discrepancy, all reads closed.
-- Preserve original __C__ failure,40124 pre-Git refusal, authorSyntaxError/ec0, old birth/failedinstantdictionary UNKNOWNs and unexported reporting errors.
-- This is tooling/syntax evidence only: no module/runtime/qualification/SourceReady or gate credit.
-## Exact checkpoint and next hosted plan
-- Proposed owned payload: one Swift plus six Root records; owner dirty .codex/config.toml excluded, index initially empty.
-- C717 actual map496216/889e proves2820 non-sixMD rows equal tested8f4+S53; final6MD applicability/exact candidate review due.
-- C720 final record/plan packet tracks actual payload/tree/review; checkpoint stays INCOMPLETE DEVELOPMENT under C253 hosted-first authority.
-- Next own new-head pinned full DEVELOPMENT v23-shared-coverage-d50x:3791methods/ordered40/all1498 exactly once, maximum5 consumers.
-- Fresh own-head app+test-module build-for-testing precedes test-only fan-out; own setup/Source/Products/xctestrun/payload/destination bindings due.
-- C718 exact16789/d9eb3aa4 author-only existing C625/C659 recipe reference keeps prospective newquestion/remoteabsence/fetchedhead guards.
-- Futurehead/question/reservation/dispatch/results PENDING; no new original or collector selected. Do not reuse local-tooling constructor for app dispatch.
-## Locations, toolchain and storage
-- Source/coordination stay in this Dropbox repository; current transfer packets in docs/design/v23/integration/secondary-mac-20261011.
-- M4 fixedE:~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015; keep lifecycle root/history/native bulk there.
-- M4/GitHub Xcode26.6/17F113, SDK26.5/23F81a, iOS26.2/23C54. Primary27.1/27A9275 unapproved: no primary app/native.
-- Ordinary15/native30GiB floors unchanged. C715 post-intake primary16792231936B (~15.64GiB); fresh admission before later effects.
-- Two standing storage helpers: C709/C710 cache/catalog and C713/C714 Downloads checks found no material safe target; no reclaim this batch.
-- Preserve updater0.707MiB, SafariEPERM/sizeUNKNOWN, Downloads1.668MiB and ambiguous aliases; assigned lanes park until concrete new input.
-- Existing archive /AssetRounds-Archive/resume-20261002;84courier offloads~1.005GiB allocation->0; four retired duplicate extractions observed737869824B free gain, exclusive APFS cause UNKNOWN.
-- Historical34.9GB logical archives already zeroallocated; no hydration. See STORAGE_MAP for exact locations and preservation reviews.
-- Main waits all unit debt/cold qualification/same-head coverage/RUI1/independent/genuine owner review and exact-main. Release boundaries unchanged.
-- Durable continuation: .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c720-next-incomplete-s53-checkpoint-final-records-and-plan-v1/ROOT_CURRENT_C720_FINAL_RECORDS_AND_NEXT_FULL_PLAN_HANDOFF.json
+# Active integration brief — 2026-10-17 UTC; final INCOMPLETE checkpoint preparation
+- Goal: verified Phase1 V23/S10 merge, then fullV23. Allfive gates OPEN0/5; SourceReady=false; releaseReady=false. Mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6 remains historical acceptedS10.
+- Work only on codex/v23-s10-integration-20260910 in this Dropbox repository. PublishedHEAD eba09f1d8cdf910f088044a6ffede9035cef3dd5/tree1d64e817a1da316fc4ff4c312122d454a5c4fc6a; refresh refs before push. Root alone commits/pushes/dispatches/effects; helpers Sol6.1/xhigh, useful lanes up to10+Root.
+- Preserve owner .codex/config.toml, drafts/untracked work, originals/failures/partials/HOLDs/consumed questions and historical identities. No PR/force/history rewrite/account/settings/signing/distribution. Owner config excluded from checkpoint.
+## Exact next checkpoint — INCOMPLETE DEVELOPMENT, compilation and behavior UNVERIFIED
+- FrozenSource25:4Swift+1Python+20generatedJSON; plus these five factualMDs gives prospective30paths. No new test methods or assertions/budgets/predicates changed. Futurecommit/head/tree/publication PENDING until actual.
+- EraseAllService785962/1f29c5d7 fixes actual checked same-provider Registry registration inside DEBUG preparation, with typed opted-in captured-directory diagnostic. Harness426494/1f79103d emits existing faultphase; Writer278258/6e17f0e0 adds isolated DEBUG firstSign phase/refusal diagnostics. SAME nonauthor C760/C775 SourcePASS; C770/C779 actualintegration retained.
+- Journal696833/041cc995 reuses one complete validateddecoded pass in canonical non-erase-recovery photo reads within the same synchronous authorized interval. C778 independent SourcePASS; C789 actualintegration. Five-second assertion/fallback/guards unchanged; actual performance/behavior still UNKNOWN.
+- C791 verifier274524/71c7c382 updates only three stale policy120 cells to genuine C550 fixture bytes; C792 SourcePASS/C799integration. C802 negative-mechanism applicability PASS, not new historical156 execution. Original C771 AnyV1 and C780 stale-pin failures preserved.
+- C798 existing producers computed40bodies/adopted20differentJSONs/C29last; C26/C27 count2066/2058 are real current name-projection deltas. C795 current C02+51PASS; C800 current readers/fivegeneratorchecksPASS; C804 current full399+45PASS/0FAILERRORSKIP. C810 genuine independent DATA and C815 factual-record applicabilityPASS; final lateMD applicability due via same existing route, no repeated444.
+- C816 genuine independent Sol6.1/xhigh exact25 Source/coupling compositionPASS preparation-only, no concrete finding; compile/runtime UNVERIFIED. Final exact complete INCOMPLETE candidate review remains due.
+- C826 independent timing addendum: C253 permits reviewed publication while predecessor collection continues. C237-only safe-close-before-publication clause is not reused. Existing currentfeedback continues; no nextdispatch admitted and no test/gate/review requirement waived.
+- RootC809/C797 plan: next own-new-head pinned GitHub DEVELOPMENT full3791unique/ordered40/all3791conservativeaffected, orderS01..S12,S39,S40,S13..S38/max5. Coverage500242/3ecd8c98; selectorarraya6658462. Build complete app+test modules before fanout, fresh own Products/payload/no-rebuild. Ordinary unchanged budgets and Xcode26.6/17F113,iOS26.2/23C54.
+- Use existing C806 C729APPconstructor→Source/history admission→C737preinvoke/operator→C738Rootselection. Futurehead-derived question/reservation/dispatch/Products/results PENDING. No redundant affectedsubset/localnative recipe; no successive unverified checkpoint replacing mandatory next feedback.
+## Current eba original — preserve its frozen Source and SAME collector
+- Run38986896511/attempt1, DEVELOPMENT shared3791/40/all1498oldaffected: https://github.com/Asset-Rounds/AssetRounds/actions/runs/38986896511. Producer117260477771 reportsSUCCESS, build00:54:57UTC/payloadsealed+uploaded/job00:56:49; complete Products/no-rebuild DATA PENDING. Compiler-error total UNKNOWN, not inferred from metadata.
+- C821 retained GitHubmetadata:22/40consumerjobscomplete=2SUCCESS(S12,S39)20FAIL,5active. These are jobcounts; whole method PASS/FAIL/SKIP/interrupted/unstarted totals UNKNOWN.
+- Independent auxiliary C753/C758 authenticates S04+S01=70PASS5FAIL/75observed methods only. A01/I01 uncertainOwner, G01 retained-directory refusal, R01 persistenceFailed; S01 waiter2vs1. No whole-run failure reduction claim.
+- C823 independent auxiliary S40 DATA authenticates50selectors:console8PASS/10starts,0explicitFAILendpoints,2missingendpoints+40unstarted. One1200s fixture watchdog and later3000s outertimeout/exit124. Earliest fixture/photo33 awaits preparePhotoPair before export; innercause/stack UNKNOWN. No export/restore defect or runtime success inferred; downstream diagnostic/refusal history preserved.
+- Oldcollector67939/session3840 authoritativelyabsent afterreconnect; naturalterminals/causeUNKNOWN. C807prep+C808review→RootC811 ONE sameclaim ordinaryresume. Currentcollector90817/capture90806/session90517 actuallystarted02:49UTC; C817 complete startup16338/1e7568c2 authenticated. Continue SAMEhandles, never duplicate from observationloss.
+- Ledger8rows2608/d0d70a90, claim204/f687945d, dispatch986286/952b4cc3 and frozen2826 remain preserved. C82503:04point confirms sole90817sleeping, monitor-only currentmembership. Complete canonical all40/all1498 DATA and actual final ledgerpostimage remain due BEFORE next originalselection; no consumed question reset.
+- M4chat01a12bb7-3a96-7461-af37-c7839e6950d2; hostremote-control:env_e_6acc0551c29c8333b4e3dfcd46141d3c. Use compactwait/read fallback; reconnect does not imply stoppedjob. Maxoutputitem20000; receive complete bytes/hash, not truncated display.
+- Historical complete6b/run38863997628,3785methods only:3411PASS326FAIL6SKIP2Interrupted40NotStarted. Not current3791 totals. Earlier compilerfailures/partials/HOLDs and all changed-source-successor obligations remain.
+## Locations, storage and toolchains
+- Primary Xcode27.1/27A9275 remains UNAPPROVED: no primary Swift/app/native. Root pinnedPython3.12.14 portabletooling only. M4/GitHub Xcode26.6/17F113,SDK26.5/23F81a,iOS26.2/23C54.
+- FixedM4E=~/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015; keep exact lifecycle/root/runanchors. Source+coordination stayDropbox. Historicalexternal /Volumes/EXTERNAL/AssetRounds-resume-20261002 preserved. Nativebulk/Products stayM4.
+- Stablecouriers docs/design/v23/integration/secondary-mac-20261011; oneinactivearchive /AssetRounds-Archive/resume-20261002. Historical34.9GBlogicalalready0allocated, leaveonline-only.
+- Completed exactC787171helpdcache+C80191helpindex removals observed39,915,520B(~38.1MiB)combinedfreeincrease, exclusiveAPFScausalityUNKNOWN. Selectionsconsumed; directories/airpods/DB/HSTS/preferencespreserved. Laterprimary~20.4GiBfree includes unexplainedfilesystemmovement, not cleanupclaim.
+- StandingstorageC818/C820/C825 identifies closed6b41ZIPs4,820,702,061logical/4,820,791,296allocated at03:04UTC/datalessclear; not guaranteedreclaim. Fresh exacthashpass selected READONLY; no upload/localrelease yet. RootC827 prospective archive-first42files/21existingtwofilereaders awaits independentreview and actualcustody/adapter facts.
+- Preserve ALL oldextractions/smallcontrols/logs/claims/ledger/originalmanifests and currentrun. Exact archive/hash/cloud-contentverification and ordinary independentreview precede any later explicit localduplicate release/newidentity record. No broadscan/hydration/cachepurge/swap/runtime/Products/Source/Git cleanup. Ordinary15/native30GiBfloors unchanged; refresh before effects.
+## Next actions and durable continuation
+- Finish finalfiveMD applicability and exact30/tree/ownerexclusion INCOMPLETE candidate review, then Root may publish linearly while currenteba original continues unchanged. Actual nextdispatch waits currentcompletecollection/DATA/history and ordinary fresh controls. No main advancement.
+- Current candidate binding/proposal is R/c829-root-final-incomplete-source25-records-and-candidate-binding-v1; R=.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1. C819 historicalRootcontinuation and every predecessor remain preserved.
+- Main waits all unit/native debt, coldshared-buildqualification, allfive same-headgates, genuineindependent+humanownerreview, nonforcefast-forward/exact-main. FullV23/S10/data/privacy/physical-protection/release obligations remain; releaseReady=false.

@@ -1,8 +1,8 @@
 {
   "acceptanceEnabled": false,
   "adoptionEnabled": false,
-  "artifactDigest": "a04025ae351280c57e9eab84d3a80a934b227e8a5954e7113e71c7c318dfef4e",
-  "artifactSetDigest": "4338ea73d03c7e93411c81df40e72b02315b72397c6a042f09643732fb3ca903",
+  "artifactDigest": "8cd1459930b5cdc97aa91050c336e431b29c025d79b4cd5ebcc783b3ff50e618",
+  "artifactSetDigest": "80038a3b35c6e98297822359e74256f1122326cc214db73fb6f416c94c0da7ca",
   "authority": {
     "appBaseHead": "8925c84d79f703482525a0dc0876bfb6a1e5b7c1",
     "appBaseTree": "68a59bca98a5aa2a191c138db6418492203b0586",
@@ -502,9 +502,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 276170,
+      "byteCount": 278258,
       "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
-      "sha256": "cb86a4307f5540b29e392645f5d95a7276a097a2a4a434cc87f4695192437c93",
+      "sha256": "6e17f0e0f57928f51cf79896f7418fbeeb99fd21e552b88107843669f6316d6f",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1228,9 +1228,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 784197,
+      "byteCount": 785962,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "95b5a6d6e84894c98cb6884ad934a4aa32254184c28e02948e683c513c849007",
+      "sha256": "1f29c5d71189fcc15cf85f94ab8eea83c3624ad4321da3dda2c89fe947e6dee7",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1414,9 +1414,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 695144,
+      "byteCount": 696833,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-      "sha256": "1fad84720d1eb274b3cc0eb0fe072d8893b9d6bea7db0f9d20a3259596469be6",
+      "sha256": "041cc995e117c192594a53d0afe5ce9b931c592918088623ba6f06a892aa5620",
       "status": "PRESENT_INHERITED"
     },
     {
@@ -1840,9 +1840,9 @@
       "status": "PRESENT_INHERITED"
     },
     {
-      "byteCount": 425999,
+      "byteCount": 426494,
       "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
-      "sha256": "372d5d37932773d3bf5f7d7a7932da8606290d3e71910f723afa311762e63409",
+      "sha256": "1f79103dd4d4560a7f19821581e0bc973e4f34dd2eb79b4357f644d1559a30d2",
       "status": "PRESENT_INHERITED"
     },
     {

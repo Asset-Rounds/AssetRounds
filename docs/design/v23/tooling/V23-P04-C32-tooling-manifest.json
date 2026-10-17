@@ -75,11 +75,11 @@
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C32PartyContactSiteRoleImportContractV1.json",
-      "sha256": "5774a9ba3c50f2fcf3543845d221a51fba91ea5be867824b6cfe35b3ead74f16"
+      "sha256": "11e67681edd7d33a29ca459b789788943e21689ac8a84baff71ccb824e699511"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C32PartyContactSiteRoleImportEvidenceReceiptV1.json",
-      "sha256": "c97936d3b13b1dfd9796e3b1556d63587204e651297e08c3053553ae002ed93f"
+      "sha256": "1568c0a628fabf98c0cabdd95edc93cf67cb29a3e96017b787d13aa7c4f9f5a2"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C32BrandImpactManifestV1.json",
@@ -138,7 +138,7 @@
     },
     {
       "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
-      "sha256": "cb86a4307f5540b29e392645f5d95a7276a097a2a4a434cc87f4695192437c93",
+      "sha256": "6e17f0e0f57928f51cf79896f7418fbeeb99fd21e552b88107843669f6316d6f",
       "status": "SOURCE_PRESENT"
     },
     {
@@ -148,7 +148,7 @@
     },
     {
       "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-      "sha256": "1fad84720d1eb274b3cc0eb0fe072d8893b9d6bea7db0f9d20a3259596469be6",
+      "sha256": "041cc995e117c192594a53d0afe5ce9b931c592918088623ba6f06a892aa5620",
       "status": "SOURCE_PRESENT"
     },
     {

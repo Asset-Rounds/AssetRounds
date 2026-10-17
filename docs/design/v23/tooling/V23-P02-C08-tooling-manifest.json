@@ -4,8 +4,8 @@
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
   "artifactCount": 26,
-  "artifactDigest": "09b3cef507446da5a046271219191118de3a0e751805bd8ba807dc45fe648737",
-  "artifactSetDigest": "ffbfaeb37a35a55c5236103a03299da647add1fea98872f8ec238cc7034e4db2",
+  "artifactDigest": "6e6ef31951b59320241f29d1da4078ea7d2ff0d9dd055ccc8fa0ea36ac6473d7",
+  "artifactSetDigest": "94c0571b1ca0d95af9ad2a9cf23fa11a2ca2e2e182142099e0c0be7b21216629",
   "artifacts": [
     {
       "bytes": 189514,
@@ -43,9 +43,9 @@
       "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
     },
     {
-      "bytes": 784197,
+      "bytes": 785962,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "95b5a6d6e84894c98cb6884ad934a4aa32254184c28e02948e683c513c849007"
+      "sha256": "1f29c5d71189fcc15cf85f94ab8eea83c3624ad4321da3dda2c89fe947e6dee7"
     },
     {
       "bytes": 114705,
@@ -95,7 +95,7 @@
     {
       "bytes": 274524,
       "path": "Scripts/v23/verify_p02_c08_contracts.py",
-      "sha256": "4f824b091e2ceff88ab118e6215559ca9725da7e7b43eaa80ffdac499e586399"
+      "sha256": "71c7c382776852baf65dd55673b4d215f463a9754d7557d53654e83dd1628ac1"
     },
     {
       "bytes": 88129,

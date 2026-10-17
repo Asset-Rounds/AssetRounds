@@ -3318,10 +3318,10 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   '    func testPendingEraseAndRestoreRootsRouteToTheirExactMaintenanceReasons() async throws {',
   ('final class S2PersistenceLedgerTests: XCTestCase {',),
   1,
-  1553,
-  '63c2c7fd47e2755c330dd18d0a8ff5ada09003ca6d1abe6ee34e2694e72bfd77',
+  1618,
+  '0d019c5081e01cb205746e46afe2cf0e252e45c61853da07555233faebdf46ce',
   (),
-  (('optionalTry', 500, ()),),
+  (('optionalTry', 556, ()),),
   ('guard case let .maintenance(reason) = router.route else {',),
   ('Exact XCTest method/assertion/fixture cleanup; nil boundary count fails; registry restored under named '
    'guard; actual StartupRouter DEBUG type/phase callback.',)),

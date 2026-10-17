@@ -1671,11 +1671,48 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         reinspectionAcknowledgementAdmission: ReinspectionAcknowledgementAdmission?
     ) throws -> WorkspaceMutationOutcomeV1 {
 #if DEBUG
+        let tracesImportedFirstSign: Bool
+        if case .some(.importedHistory) = sourceKind,
+           case .createFirstSign = request.command {
+            tracesImportedFirstSign = true
+        } else {
+            tracesImportedFirstSign = false
+        }
+        var importedFirstSignPhase = "entry"
         func traceC32(_ stage: String) {
             if case .applyPartyContactSiteRoleImport = request.command {
                 FileHandle.standardError.write(Data(
                     "WorkspaceWriterV1.execute C32 stage=\(stage)\n".utf8
                 ))
+            }
+            guard tracesImportedFirstSign else { return }
+            switch stage {
+            case "entry", "adapter-entry", "adapter-applied",
+                 "journal-commit", "journal-committed":
+                importedFirstSignPhase = stage
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                do {
+                    try FileHandle.standardError.write(contentsOf: Data(
+                        "V23_IMPORTED_FIRST_SIGN_WRITER_PHASE_V1 phase=\(stage)\n".utf8
+                    ))
+                } catch {
+                    // Diagnostic transport must not replace the mutation outcome.
+                }
+            default:
+                break
+            }
+        }
+        func traceImportedFirstSignRefusal(_ category: String) {
+            guard tracesImportedFirstSign else { return }
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            do {
+                try FileHandle.standardError.write(contentsOf: Data(
+                    "V23_IMPORTED_FIRST_SIGN_WRITER_REFUSAL_V1 phase=\(importedFirstSignPhase) category=\(category)\n".utf8
+                ))
+            } catch {
+                // Diagnostic transport must not replace the original refusal.
             }
         }
         traceC32("entry")
@@ -2523,12 +2560,26 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 ))
             }
         } catch let failure as MutationJournalFailureV1 {
+            #if DEBUG
+            traceImportedFirstSignRefusal("journal.failure")
+            #endif
             rollbackUncommittedEffect()
             throw failure
         } catch let error as WorkspaceMutationFailureV1 {
+            #if DEBUG
+            switch error {
+            case .persistenceFailed:
+                traceImportedFirstSignRefusal("mutation.persistence-failed")
+            default:
+                traceImportedFirstSignRefusal("mutation.other")
+            }
+            #endif
             rollbackUncommittedEffect()
             throw error
         } catch {
+            #if DEBUG
+            traceImportedFirstSignRefusal("other.mapped-to-persistence-failed")
+            #endif
             rollbackUncommittedEffect()
             #if DEBUG
             print("WorkspaceWriterV1.execute failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")

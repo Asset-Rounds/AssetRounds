@@ -110,11 +110,11 @@
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowContractV1.json",
-      "sha256": "4c57783f8ced0d6eeae0aa96a33476fb25beefb2081b2718024c8110e855a931"
+      "sha256": "312f506207559a5cf5f3169d92ba4494d6801140659b2ed933f6ef57124a1414"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowEvidenceReceiptV1.json",
-      "sha256": "7e33f8ad2b09167fba313288f1d427cd524be22fffa463aab1d58516a43f06df"
+      "sha256": "a9a806cde25f7381b4b0cf2e1153d4cf2ec9c78ecd34d757bcccf1b23864bc44"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C40BrandImpactManifestV1.json",
@@ -233,7 +233,7 @@
     },
     {
       "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
-      "sha256": "372d5d37932773d3bf5f7d7a7932da8606290d3e71910f723afa311762e63409",
+      "sha256": "1f79103dd4d4560a7f19821581e0bc973e4f34dd2eb79b4357f644d1559a30d2",
       "status": "SOURCE_PRESENT"
     },
     {

@@ -4330,6 +4330,15 @@ final class KernelConformanceProductionHarnessV1 {
             } catch {
                 if let activationFailure { throw activationFailure }
                 guard !late, error as? EraseAllServiceError == .injectedFailure else {
+#if DEBUG
+                    do {
+                        let savedErrno = errno
+                        defer { errno = savedErrno }
+                        let line = "KERNEL_ERASE_FAULT_FAILURE_V1 boundary=\(boundary) serviceStage=\(service.eraseFixedPhaseForTesting)\n"
+                        do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+                        catch { /* Diagnostic transport never replaces the actual outcome. */ }
+                    }
+#endif
                     throw error
                 }
                 visibleFailure = String(describing: error)

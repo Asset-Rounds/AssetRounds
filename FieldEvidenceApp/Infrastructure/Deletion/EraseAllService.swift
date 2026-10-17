@@ -3146,6 +3146,9 @@ final class EraseAllService {
         try generationFactory.requireEraseReaderInventory(operation.inventory)
         try operation.beginPreparationServiceFrame(coordinator: coordinator)
         defer { operation.endPreparationServiceFrame() }
+        let registry = try generationFactory.makeGenerationLeaseRegistry()
+        try operation.registerPreparationRegistry(registry,
+            factory: generationFactory, inventory: operation.inventory)
         let authority = try generationFactory.makeRestoreGenerationAuthority()
         return try body(generationFactory, authority, expectedPointer, expectedLedger)
     }
@@ -9319,6 +9322,32 @@ private extension EraseAllService {
                     let line = "V23_C92_FROZEN_INVENTORY_PREDICATE_V1 stage=" + outcome + "\n"
                     do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
                     catch { /* Diagnostic transport never replaces the actual refusal. */ }
+                }
+            }
+            if schema2ColdFixedStageForTesting != nil || erasePhaseDiagnosticForTesting != nil {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                // Report the rejecting operand from the retained tree only.
+                let allowedDirectories = expectedDirectories
+                    .union(allowedStagingDirectories).union(optionalDirectories)
+                let unexpectedDirectories = tree.directories.subtracting(allowedDirectories).sorted()
+                if !unexpectedDirectories.isEmpty {
+                    struct UnexpectedDirectoriesDiagnostic: Encodable {
+                        let diagnostic: String
+                        let unexpectedDirectoryCount: Int
+                        let unexpectedDirectories: [String]
+                    }
+                    let record = UnexpectedDirectoriesDiagnostic(
+                        diagnostic: "V23_C754_FROZEN_UNEXPECTED_DIRECTORIES_V1",
+                        unexpectedDirectoryCount: unexpectedDirectories.count,
+                        unexpectedDirectories: unexpectedDirectories)
+                    do {
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.sortedKeys]
+                        var line = try encoder.encode(record)
+                        line.append(0x0A)
+                        try FileHandle.standardError.write(contentsOf: line)
+                    } catch { /* Diagnostic transport never replaces the actual refusal. */ }
                 }
             }
             if erasePhaseDiagnosticForTesting != nil {

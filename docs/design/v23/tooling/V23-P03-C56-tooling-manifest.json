@@ -1,6 +1,6 @@
 {
-  "artifactDigest": "8defa3dd473950cc19c9ae7792c663d61d978b9589eed74a227e480049c69df6",
-  "artifactSetDigest": "1edbc349e5f9177cdc5674cae2ce03afd561cafbf8c099a0b28016c0f131b464",
+  "artifactDigest": "13a0bb90c98fa22f16af19e2124859f59fe03fba4fceaa173974f05b0485fbf0",
+  "artifactSetDigest": "57023a2e5871d997249a9c36b1719bdb36e5d40657d9b79f7b3a490f6c8e6984",
   "authority": {
     "appBaseHead": "dc59c04251eef2d6574a152b846c0cade2ab2caf",
     "appBaseTree": "308c809d842a54bbfaf8fa3dfce6d5cd520ab54a",
@@ -386,9 +386,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 695144,
+      "byteCount": 696833,
       "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-      "sha256": "1fad84720d1eb274b3cc0eb0fe072d8893b9d6bea7db0f9d20a3259596469be6",
+      "sha256": "041cc995e117c192594a53d0afe5ce9b931c592918088623ba6f06a892aa5620",
       "status": "SEALED_SOURCE"
     },
     {
@@ -770,9 +770,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 784197,
+      "byteCount": 785962,
       "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
-      "sha256": "95b5a6d6e84894c98cb6884ad934a4aa32254184c28e02948e683c513c849007",
+      "sha256": "1f29c5d71189fcc15cf85f94ab8eea83c3624ad4321da3dda2c89fe947e6dee7",
       "status": "SEALED_SOURCE"
     },
     {
@@ -884,9 +884,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 276170,
+      "byteCount": 278258,
       "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
-      "sha256": "cb86a4307f5540b29e392645f5d95a7276a097a2a4a434cc87f4695192437c93",
+      "sha256": "6e17f0e0f57928f51cf79896f7418fbeeb99fd21e552b88107843669f6316d6f",
       "status": "SEALED_SOURCE"
     },
     {
@@ -1436,9 +1436,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 425999,
+      "byteCount": 426494,
       "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
-      "sha256": "372d5d37932773d3bf5f7d7a7932da8606290d3e71910f723afa311762e63409",
+      "sha256": "1f79103dd4d4560a7f19821581e0bc973e4f34dd2eb79b4357f644d1559a30d2",
       "status": "SEALED_SOURCE"
     },
     {

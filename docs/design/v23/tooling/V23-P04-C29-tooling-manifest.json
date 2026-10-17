@@ -42,7 +42,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json",
       "schema": "V23P04C27ToolingManifestV1",
-      "sha256": "5bdd93c342e6ef8e746bb7092090cb4584ae128dccc1d3e48a49080ba265ce75"
+      "sha256": "4bb1da775a14332278a6d9ea9069e7ea1e256e132167134a2e86d791f6adcd99"
     },
     {
       "cardID": "V23-P04-C28",
@@ -70,7 +70,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C32-tooling-manifest.json",
       "schema": "V23P04C32ToolingManifestV1",
-      "sha256": "71ac3090b6a098de72874f7df69694b079e332c25457ee62147465e894353035"
+      "sha256": "2e0c576250ae9d121eb9680cb2cf9bca350ac9a8db273e814adc4f70caa35938"
     },
     {
       "cardID": "V23-P04-C33",
@@ -126,7 +126,7 @@
       "flagsAllFalse": true,
       "path": "docs/design/v23/tooling/V23-P04-C40-tooling-manifest.json",
       "schema": "V23P04C40ToolingManifestV1",
-      "sha256": "4d02250ff31aa1dee93ad251a158affaf2a7d4fbe762c918ac54acc7db0d8db8"
+      "sha256": "a25d246495681ec5f2f4f73eed853476e54965fedc5c8e549e4d6a538a44602a"
     },
     {
       "cardID": "V23-P04-C41",
@@ -167,11 +167,11 @@
   "files": [
     {
       "path": "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json",
-      "sha256": "1bceb0c8332fb6dbc0f1ef0d27090d968822d0115a4f9be1da79ebed6ea26ad9"
+      "sha256": "ffffd416b9fee2eeb4a5c2863171b90be31bbb70b5ed91fe7b77354f1468f216"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json",
-      "sha256": "df3f250ed578b2c965761646daca1e54b40e26eb5bc6fb5cc952bc8995c46ad9"
+      "sha256": "fa8abc0a3eba2bc27a829b6d30238f87824a31a76fd00ce55c03891275343a1c"
     },
     {
       "path": "docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json",
