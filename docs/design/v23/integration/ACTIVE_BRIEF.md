@@ -1,41 +1,44 @@
-# AssetRounds V23/S10 — current integration brief, 2026-10-17 UTC
+# AssetRounds V23/S10 — C1284 current, 2026-10-18 UTC
 
-## Current state
-- Work only on `codex/v23-s10-integration-20260910` in this Dropbox repository; Root alone integrates, commits, pushes and dispatches.
-- Published predecessor INCOMPLETE DEVELOPMENT head `298866ef6d784d169cb149ad7a0522bc8f302ac4`, tree `e56f362341e4c25d75dfca6c5bffc4b3ae9c5db2`, sole parent `eba09f1d8cdf910f088044a6ffede9035cef3dd5`.
-- Its mandatory pinned DEVELOPMENT original39015048828 is completely collected and independently reviewed: https://github.com/Asset-Rounds/AssetRounds/actions/runs/39015048828 . All3791 methods/40 partitions:3426PASS,317FAIL,6SKIP,2INTERRUPTED,40UNSTARTED,0classificationUNKNOWN. Inner causes remain UNKNOWN unless proven.
-- C1070 genuine independent Sol6.1/xhigh compile/control DATA: published2988 complete app/test-module build PASS1359s,0Swift compiler errors,686distinct Swift warnings(759raw occurrences). This does not compile the unpublished Source67.
-- C1069 genuine independent Sol6.1/xhigh all40/all3791 DATA authenticates the complete census and outcomes. S40 MixedExport has a1200s fatal watchdog at fixture/parent-1-finalization and no normal testcase terminal: it remains INTERRUPTED plus orthogonal functional-failure debt.318failure-bearing methods is not318terminalFAIL. PhotoRestoreMetadata also interrupted;40 remain unstarted.
-- S40 retains empty structured results/missing executed report, total timeout and strict shared after/delta refusal after BUILD INTERRUPTED. Products metadata equality does not clear refusal or prove a rebuild. No cold shared-build qualification or gate credit.
-- Exact C1071 comparison with eba:3415P→P,302F→F,11F→P,15P→F,6S→S,2I→I,40U→U; all26 changed terminals corroborated in both raw originals. No cause/correction follows from outcome alone.
-- Same collector38727/operator38641/OUTER38640/capture38627/M4session34323 closed naturally0; session consumed, never poll/replay/restart. Complete final ledger9rows2934/3175e091 with all attempts/claims/history conserved. Old90817/67939 handles remain historical.
-- Final textual courier37005914/SHA27068646335146e410935593a93d67907be0c90eaa89ef7a3f6348c89f030d6a received once; all4438 member hashes/CRC and4437 original manifest rows authenticated. Native ZIPs/xcresults/Products remain fixed M4E; no physical qualification transferred.
+Read first; refresh actual state. Root alone chooses native/Git/ledger/storage effects.
+Current continuation: RD/ROOT_CURRENT_C1284_COMPLETE_ACTUAL39945_DATA_ADOPTED_FINAL_OWNED9_REVIEW_PENDING_HANDOFF.json
+All prior originals/failures/HOLDs/reviews retain exact scope.
 
-## Next checkpoint and mandatory feedback
-- Current Source67 is now integrated into primary Dropbox, in the explicitly owned72-path staged proposal: appCore32(21Swift11Python),CI11,coverage1,23generatedJSONs. C1067 checked transcription/all2759-unowned complement conservation PASS; C884 independent DATA PASS. Preserve owner config, drafts/untracked and all old failures/HOLDs.
-- C1066 one consolidated exact2988-base recovery patch1321636/c1cbce3920fc481bc0a97db9ed94539ea7af4bb60b42326abb21e51232852c61 remains preserved; do not apply historical packets indiscriminately.
-- Source reviews retain C958 recovered7,C960 Source17,C981/C1013 kernel/coupling and later tooling reviews. Bounded changes include recovered dirty-draft/Phase1 boundary/manual behavior, empty evidence-parent handling, imported source-time conservation and retained-reader physical ownership. No current Source expansion.
-- C1058 reviewed private cold-fixture isolation and real-TEN regression preserve every strict guard and old35 tests; module36. Original cold35 failure18parents/27failureevents+4errors/path-key-actor-causeUNKNOWN and C1026 whole-caller HOLD remain preserved.
-- C1064 naturally CLOSED0: cold36,phase1tooling41,witness10,rawtransport7,emitted21,activation24 =139PASS; current full nativeCI399PASS373s. All538 actual checks pass and exact Source/protected/history/C02ten/current49 bookends conserve. Genuine C1047 final DATA PASS.
-- Selection45 is reused only at exact C1057 predecessor Source/context/512s through genuine narrow internal-cold-helper applicability. It was not re-executed under the new TMPDIR; old whole-caller HOLD is not success.
-- Exact next complete census3799/40, named pool1092/72; C1024/C1049 select ALL3799 conservatively,187named minimum(119currentP54F3S11newnames). Eleven names replace3 historic skips plus8 additive tests; old skip obligations persist. Every deferred future selector remains PENDING.
-- Next order S01..S12,S39,S40,S13..S38,max5. Pinned GitHub26.6/17F113,SDK26.5/23F81a,iOS26.2/23C54. Own producer app+test compile before test-only fanout; producer setup300/build2400/total3000; S01 setup300/test5400/total6000; other39 setup300/test3000/total3600; UI0.
-- Existing C729APP→Source/history admission→C737PRE→genuine Root selection→once OUTER/dispatcher/solecollector is reused with actual new data, never bare gh dispatch or consumed invocation. Future head/tree/question/reservation/run/results PENDING until born; C1075 INITIAL exact72 INCOMPLETE candidate review PASS; same-reviewer final factual binding remains due before commit.
-- C253 hosted-first DEVELOPMENT permits this meaningful reviewed changed payload before new app/test compile and affected native. Every required tooling check/review remains required. Mandatory next own-head full3799 feedback must follow; no successive unverified checkpoint, unchanged focused retry or duplicate subset.
-- C1075 INITIAL exact72 INCOMPLETE review PASS (review122302/5199f065...,seal3573/c0afdd51...,initialtreef2aeeba9...); genuine verdict transcribed in CURRENT. Final same-reviewer exact factual binding precedes commit; new app/test compilation and behavior stay UNVERIFIED.
-- Current payload binding: `R/c1088-root-genuine-c1075-verdict-transcription-final72-binding-v1/actual-artifacts-schema-two-records-v2/ROOT_FINAL72_FACTUAL_TRANSCRIPTION_AND_STAGED_TREE_OR_FIRST_ERROR.json`. Actual publication receipt `R/c1089-root-final-reviewed72-checkpoint-publication-v1/ROOT_ACTUAL_REVIEWED_CHECKPOINT_PUBLICATION_OR_FIRST_ERROR.json` is PENDING until born; refresh actual Git before assuming a new head.
+## Immediate state and next action
+- SAME M4 operator77749/session79103/entry77760 is CLOSED0. NEVER poll/restart/replay; no live native handle for this original.
+- Exact reviewed finalV3 outer17727/51993335... ran once; Root choice4778/b9b4c5f5... sent/ACKED once. No copy/apply/shutdown repeated.
+- Fresh external CPU89.88/memory62 and internal CPU89.26/memory61 passed unchanged70/50/strict30GiB. Binder77780 and four grammar-only77781–77784 closed0 (not app compile).
+- Whole actual pairRESULT4985/5bc6ef77... physically receivedPrimary: NATIVE_CI77790 399/399 PASS,0fail/0error/0skip,natural0,604s; SELECTION77791 45/45 PASS,0fail/0error/0skip,natural0,754s.
+- Same complete M4 Source2826/index/input conservation true, empty raw/physical deltas. CI18058560/21a9986b..., prun-B/j3+j2/c2/t3600/max5 unchanged. No app/test-module compilation/runtime/gate credit.
+- Complete SAME nonauthor Sol6.1/xhigh actual DATA17766/1d88130e...+seal7045/eecaf21c... PASS, received/adopted7490/99052c20.... All180 output/2826 Source raw+native joins pass. Parent/reviewer errors and unavailable capture details preserved.
+- C1216 current owned9/applicability addendum27272/6a3eee1a...+seal12566/8716a89b... verifies all2826 rows/9copies/47reader inputs, no new Source issue. Final four-MD afterimages/map/exact INCOMPLETE verdict PENDING; no records-only tooling rerun.
+- CURRENT_INTEGRATION/MERGE_READINESS/VERIFICATION_DUE have bounded current prefixes; all old bodies preserved byte-for-byte. Actual full app/test compilation and behavior remain UNVERIFIED.
 
-## Machines, storage and coordination
-- Primary Xcode27.1/27A9275 remains UNAPPROVED for app/native; pinned portable Python3.12.14 is tooling only. M4/GitHub pinned26.6 remains the native route.
-- M4 chat `01a12bb7-3a96-7461-af37-c7839e6950d2`, host `remote-control:env_e_6acc0551c29c8333b4e3dfcd46141d3c`, reconnected and original closed. C1083 metadata capture reportedly refused BEFORE observer on parent closedENV mismatch; complete refusal DATA PENDING, no ZIP observations/upload/release. C1084 compact monitor; Root sole messenger, no replay/duplicate.
-- Fixed M4E `/Users/rentamac/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015`. Textual derived copies are primary Cache/c1068-run39015048828-final-courier-v1; packet stays Dropbox secondary-mac-20261011. FullSource/coordination stays Dropbox.
-- M4 fresh13:09 point24013639680B(~22.36GiB); next strict>30GiB setup deficit8198615040B plus growth/margin. Existing collector had no runtime/postflight30GiB guard; completed collection is not a floor violation. No floor change selected.
-- C1072/C1073 bounded archive-first plan: closed eba41 ZIPs prior allocated4682104832B; current39041 ZIPs logical5026957559B. Combined nominal9.04GiB is not guaranteed reclaim. Prefer82 regular ZIPs after fresh exact metadata/use/holder/content checks and independently verified whole cloud recovery; no upload/release selected yet. Products, xcresults, logs, ledgers and Source excluded.
-- C888/C898 prior41 old6b ZIP duplicate release is consumed (~4.49GiB observed available increase, exclusive APFS causalityUNKNOWN); no replay. Historical34.9GB archives already online-only stay unhydrated. Old6b consumer-xcresult52677-leaf frontier remains fallback only; S14/S40 historical decoded comparisons are content-only, not native retirement eligibility.
-- STORAGE_MAP retains exact custody/identities. Preserve all originals, failures, partials, HOLDs, original manifests and owner drafts/config. Existing ordinary15/native30GiB floors remain; capacity recheck before effects.
+## Recover M4 collection/review
+- Chat01a12bb7-3a96-7461-af37-c7839e6950d2; last turn01a1503b-b1e1-79c2-911b-de6294a53a16, cursor2a4eb54b-add6-4f80-8be4-9973a66d721d:76; current turn CLOSED, controller idle. No old session polling/replay.
+- NO-HOST wait_threads works; explicit-host wait unavailable. Authorized send host remote-control:env_e_6acc0551c29c8333b4e3dfcd46141d3c. Errors/timeouts never authorize duplicate jobs.
+- M4base=/Users/rentamac/Library/Caches/AssetRounds-secondary-20261011; actual Source=M4base/c1270-current-source3-local-tooling-preparation-v1/Source. NonSource originals124; frozen400=old281+oldO46+oldT73.
+- O4=M4base/c1284-source3-current-tooling-after-c1283-cpu-refusal-v1 ALREADY BORN; closed measured139files/15925503B. EntryT closed41files/6482527B; placementT3 retained originals. Preserve all; NEVER clear/rebirth.
+- E=/Users/rentamac/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015 fixed; ledger10/attempts10/claims10 conserved at retained points. Actual logical producer Source.parent/15_FULL_TRACKED_MODES.stdout.raw; old alias absent.
+- Full original parent41578/60bc6236...+native300268/69139755...+entry1260253/d89be9d6... remainM4. Pair4985/5bc6... and complete ordinary terminal/raw tool returns retainedPrimary.
+- Prior same nonauthor actual placement/finalV3Source19066/0afbae66...+seal7035/782d5604... PASS/adopted5337/6727f776...; no future runtime credit. Both externalARGV raw-pin findings resolved.
+- Preserve historical49memory,0775mode and internalCPU58.13 refusals, normal targeted shutdown and all consumed originals. Do not retry them or infer their causes from later points.
 
-## Merge boundaries
-- Main remains accepted S10 `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`; allfive Phase1 gates OPEN(0/5),SourceReady=false,releaseReady=false. DEVELOPMENT success is not acceptance.
-- All required unit/native debt, cold shared-build qualification, same-head full unit/UI, independent integration review and genuine human owner review precede non-force main fast-forward; pinned exact-main follows. FullV23,S10 quality, privacy/data safety and deferred physical protection remain required.
-- No PR/force/history rewrite/accounts/passwords/settings/signing/distribution. Never broad-stage or stage owner config. Helpers gpt-6.1-sol/xhigh, useful bounded lanes only, up to10+Root. Read AGENTS/PERFORMANCE_WORKFLOW; C925 coalesces compatible reviews without dropping guards.
-- `R` is `.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1`. CURRENT_INTEGRATION,MERGE_READINESS,VERIFICATION_DUE retain history; these factual MDs join the next real Source commit.
+## Source, next hosted and merge debt
+- Integration fc98ef663f2364a042255c1a8415709bdb2b26af; mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6 unchanged. Refresh refs before push and investigate movement.
+- Source3 ALREADY applied Root+M4: AppShellView62611/b612d4fe..., C42UITests26854/e6b0dbd3..., C42reader38908/155d9e32.... Never reapply.
+- Exact owning-file DEBUG context overload, nonthrowing test-closure correction and legitimate reader contract preserve Release/assertions/authorization/schema/persistence. Full app/test compile/runtime UNVERIFIED.
+- Root final owned9 must differ from actually tested Source3 only sixMD (other2820 equal; other2817fc98). Owner-dirty config excluded; normative AGENTS/PERFORMANCE latest accepted bytes unchanged.
+- After final exact independent INCOMPLETE review: explicitstage9, freshrefs, linearintegrationcheckpointpush. No publication/main claim yet.
+- Next question source3-c42-private-environment-full3799-ordered40-development; exact plan RD/ROOT_C1279_SELECTED_PROSPECTIVE_SOURCE3_FULL3799_ORDERED40_DEVELOPMENT_QUESTION_PLAN.json retained, not dispatched.
+- Own pinned GitHub Xcode26.6/17F113+SDK26.5/23F81a+iOS26.2/23C54 complete app/test compile precedes all3799methods/ordered40; affected3 once (C42S31,twoPhaseGateShellS19). Existing PRE/OUTER/dispatcher/solecollector and unchanged budgets/max5.
+- Actual commit/head/tree/reservation/dispatch/run/Products/results PENDING. C253 changes app/native timing only; no tooling/review/gate waiver or duplicate affected subset.
+- Consumed39125547149 retains2 C42 Swift diagnostics/3799NotStarted/40NoJob. Historical39015048828:3426PASS/317FAIL/6SKIP/2INTERRUPTED/40UNSTARTED/0classificationUNKNOWN. None cleared; new runtime total UNKNOWN.
+- Closest extra family prepared-reader/bootstrap protectGeneration still has UNKNOWN failing operand; no speculative patch.
+
+## Preservation and resources
+- Preserve owner-dirty config, all drafts/untracked/Windows work, originals/failures/HOLDs/ledgers and online-only archives. W1112 all2826D is intentional; NEVER reset/checkout/repair/prune/broadstage.
+- Two finite Sol6.1/xhigh storage lanes/reminder yield to verification; no unchanged broad scans. Primary last18.25GiB; M4afteractual33858924544B historical. Fresh strict>30GiB applies before BOTH M4 dispatch and collection; next Source/transfer peaks UNKNOWN. No new cleanup/restart selected.
+- SourceReady=false/releaseReady=false; all five gatesOPEN0/5. Resolve required unit debt, cold shared-build qualification, sameheadunit/UI, independent and genuine owner review before mainFF/exactmain.
+- FullV23/S10/data/privacy/physical-protection/release obligations unchanged. No signing/distribution/PR/force/historyrewrite/account/settings.
+- Aliases:R=.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1;RD=R/c1193-primary-postrestart-admitted-c1181-intake-v1;W=.codex-temp/resume-20261002/worktrees/c1112-attempt-directory-private-mode-correction-authoring-v1.

@@ -373,9 +373,10 @@ final class V23_P04_C42PartyContactSiteRoleWorkflowUITests: V23ProductionFourRoo
                 diagnosticsStore: fixture.diagnostics, catalogLinks: nil),
             lifecycleCoordinator: StoreKitLifecycleCoordinator(processor: processor))
         let section = ReminderSettingsSectionV1(access: try XCTUnwrap(fixture.presentation.reminderSettingsAccess))
+        let contentAccess = try XCTUnwrap(fixture.presentation.renderAccess)
         return try mountC42Content(AnyView(NavigationStack {
-            settings.reminderSettingsSectionForTesting(section)
-        }.environment(\.appContentAccess, try XCTUnwrap(fixture.presentation.renderAccess))
+            settings.reminderSettingsSectionForTesting(section, contentAccess: contentAccess)
+        }
             .modelContext(fixture.coordinator.modelContext)))
     }
 

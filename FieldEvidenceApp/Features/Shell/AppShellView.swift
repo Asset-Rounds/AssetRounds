@@ -1354,6 +1354,15 @@ extension SettingsPlaceholderView {
     ) -> some View {
         environment(\.reminderSettingsSection, section)
     }
+
+    /// Test hosts only: also installs the caller's existing render capability.
+    func reminderSettingsSectionForTesting(
+        _ section: ReminderSettingsSectionV1?,
+        contentAccess: AppAccessPresentationV1.ContentAccess
+    ) -> some View {
+        reminderSettingsSectionForTesting(section)
+            .environment(\.appContentAccess, contentAccess)
+    }
 }
 #endif
 

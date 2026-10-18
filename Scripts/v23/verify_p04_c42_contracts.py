@@ -177,8 +177,39 @@ def _current_hosted_unit_fixture_result() -> dict[str, Any]:
         _require("v23PhaseGate" not in mount["code"], "C42 shell must use shipping environment", failures)
         settings = contracts.current_source_block(inputs, path, r"func\s+mountC42Settings", "C42 production Settings")
         contracts.current_source_require(settings, ("let settings = SettingsPlaceholderView(modelContext: fixture.coordinator.modelContext",
-            "settings.reminderSettingsSectionForTesting(section)",
-            ".environment(\\.appContentAccess, try XCTUnwrap(fixture.presentation.renderAccess))"), "C42 production Settings", failures)
+            "let contentAccess = try XCTUnwrap(fixture.presentation.renderAccess)",
+            "settings.reminderSettingsSectionForTesting(section, contentAccess: contentAccess)"), "C42 production Settings", failures)
+        contracts.current_source_order(settings, (
+            "let contentAccess = try XCTUnwrap(fixture.presentation.renderAccess)",
+            "return try mountC42Content(", "NavigationStack {",
+            "settings.reminderSettingsSectionForTesting(section, contentAccess: contentAccess)"),
+            "C42 genuine access prebound before nonthrowing Settings builder", failures)
+        _require("appContentAccess" not in settings["code"], "C42 test must not access the private environment key", failures)
+        shell_path = "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+        shell = inputs["sources"][shell_path]
+        private_environment = contracts.current_source_block(inputs, shell_path,
+            r"private\s+extension\s+EnvironmentValues(?=\s*\{\s*var\s+appContentAccess:)", "C42 private shell environment")
+        contracts.current_source_require(private_environment, (
+            "var appContentAccess: AppAccessPresentationV1.ContentAccess?",
+            "get { self[AppContentAccessKey.self] }", "set { self[AppContentAccessKey.self] = newValue }"),
+            "C42 unchanged private access environment", failures)
+        _require(len(re.findall(r"\bvar\s+appContentAccess\b", shell["code"])) == 1,
+                 "C42 access environment must retain its sole private declaration", failures)
+        hook_extension = contracts.current_source_block(inputs, shell_path,
+            r"extension\s+SettingsPlaceholderView", "C42 Settings test-hook extension")
+        mask = inputs["generator"]._mask_swift_noncode
+        _require("#if DEBUG\n" + mask(hook_extension["source"]) + "\n#endif" in mask(shell["source"]),
+                 "C42 Settings test hooks must remain in the existing DEBUG boundary", failures)
+        reminder_hook = contracts.current_source_block(inputs, shell_path,
+            r"func\s+reminderSettingsSectionForTesting\s*\(\s*_\s+section:\s*ReminderSettingsSectionV1\?\s*\)\s*->\s*some\s+View",
+            "C42 preserved reminder test hook")
+        contracts.current_source_require(reminder_hook, ("environment(\\.reminderSettingsSection, section)",),
+            "C42 unchanged owning-file reminder installation", failures)
+        access_hook = contracts.current_source_block(inputs, shell_path,
+            r"func\s+reminderSettingsSectionForTesting\s*\(\s*_\s+section:\s*ReminderSettingsSectionV1\?\s*,\s*contentAccess:\s*AppAccessPresentationV1\.ContentAccess\s*\)\s*->\s*some\s+View",
+            "C42 nonoptional genuine access test hook")
+        contracts.current_source_require(access_hook, ("reminderSettingsSectionForTesting(section)",
+            ".environment(\\.appContentAccess, contentAccess)"), "C42 owning-file reminder/access installation", failures)
         host = contracts.current_source_block(inputs, path, r"func\s+mountC42Content", "C42 actual host")
         contracts.current_source_require(host, ("UIHostingController(rootView: content)", "window.rootViewController = host",
             "window.makeKeyAndVisible()", "host.view.layoutIfNeeded()",
