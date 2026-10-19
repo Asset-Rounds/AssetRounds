@@ -257,6 +257,59 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         )
         XCTAssertNil(try coordinator.onlyReadyReport(assetID: UUID()))
 
+        // Complete and authenticate a second independent Sign-owned candidate
+        // through the same original writer, capture, and report-rendering path.
+        let independentReportID = UUID(uuidString: "42000000-0000-0000-0000-000000000090")!
+        let independentPacketID = UUID(uuidString: "42000000-0000-0000-0000-000000000091")!
+        let independentStableRootID = UUID(uuidString: "42000000-0000-0000-0000-000000000092")!
+        let runner = try CheckRunnerCoordinator(modelContext: harness.context,
+            packageLifecycleDependencies: harness.dependencies,
+            packageLifecycleProfile: harness.profile)
+        runner.configureCapture(generationRootURL: harness.session.generationRootURL)
+        let independentSource = try runner.beginCheck(assetID: Fixture.assetID,
+            timeZoneID: nil, isTimeZoneConfirmed: false,
+            afterDarkAccepted: true, safePositionAccepted: true,
+            observedAt: Fixture.observedAt.addingTimeInterval(60))
+        let wide = try await runner.importCandidate(assetID: Fixture.assetID,
+            sourceData: makePNG(seed: 31),
+            createdAt: Fixture.observedAt.addingTimeInterval(61))
+        _ = try await runner.accept(candidate: wide, assetID: Fixture.assetID)
+        let close = try await runner.importCandidate(assetID: Fixture.assetID,
+            sourceData: makePNG(seed: 79),
+            createdAt: Fixture.observedAt.addingTimeInterval(62))
+        _ = try await runner.accept(candidate: close, assetID: Fixture.assetID)
+        let result = try await runner.finalize(assetID: Fixture.assetID, selection: .noVisibleIssue,
+            completedAt: Fixture.completedAt.addingTimeInterval(60),
+            snapshotCreatedAt: Fixture.snapshotAt.addingTimeInterval(60),
+            sourceApp: SourceAppSnapshotV1(build: "42", version: "1.0"),
+            identifiers: FinalizationIdentifiers(
+                mutationID: UUID(uuidString: "42000000-0000-0000-0000-000000000093")!,
+                packetID: independentPacketID, stableRootID: independentStableRootID,
+                reportID: independentReportID, issueID: nil))
+        XCTAssertEqual(result.reportID, independentReportID)
+        _ = try ReportRenderService(modelContext: harness.context,
+            lifecycleDependencies: harness.dependencies, lifecycleProfile: harness.profile)
+            .renderPendingReport(id: independentReportID)
+        try harness.validateJournal()
+        let packets = try harness.context.fetch(FetchDescriptor<Packet>())
+        let reports = try harness.context.fetch(FetchDescriptor<Report>())
+        XCTAssertEqual(packets.count, 2)
+        XCTAssertEqual(reports.count, 2)
+        let independentPacket = try XCTUnwrap(packets.first { $0.id == independentPacketID })
+        let independentReport = try XCTUnwrap(reports.first { $0.id == independentReportID })
+        XCTAssertNotEqual(independentPacket.id, harness.packet.id)
+        XCTAssertNotEqual(independentPacket.stableRootID, harness.packet.stableRootID)
+        XCTAssertNotEqual(independentSource.id, harness.source.id)
+        XCTAssertEqual(harness.packet.currentRecordID, harness.source.id)
+        XCTAssertEqual(independentPacket.currentRecordID, independentSource.id)
+        XCTAssertEqual(independentReport.packetID, independentPacket.id)
+        XCTAssertEqual(independentReport.sourceRecordID, independentSource.id)
+        XCTAssertEqual(try coordinator.loadReadyReport(id: Fixture.reportID).reportID, Fixture.reportID)
+        XCTAssertEqual(try coordinator.loadReadyReport(id: independentReportID).reportID, independentReportID)
+        XCTAssertNil(try coordinator.onlyReadyReport(assetID: Fixture.assetID))
+
+        // A second Report for one Packet/source must fail the existing
+        // exact-one authority guard with invalidAuthority.
         let secondID = UUID(uuidString: "42000000-0000-0000-0000-000000000099")!
         harness.context.insert(Report(
             id: secondID,
@@ -272,8 +325,12 @@ final class S4_3ReportDeliveryTests: XCTestCase {
             replacesReportID: nil
         ))
         try harness.context.save()
-        XCTAssertNil(try coordinator.onlyReadyReport(assetID: Fixture.assetID))
-        XCTAssertThrowsError(try coordinator.loadReadyReport(id: Fixture.reportID))
+        XCTAssertThrowsError(try coordinator.onlyReadyReport(assetID: Fixture.assetID)) {
+            XCTAssertEqual($0 as? ReportDeliveryCoordinatorError, .invalidAuthority)
+        }
+        XCTAssertThrowsError(try coordinator.loadReadyReport(id: Fixture.reportID)) {
+            XCTAssertEqual($0 as? ReportDeliveryCoordinatorError, .invalidAuthority)
+        }
     }
 
     @MainActor

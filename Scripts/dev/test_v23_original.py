@@ -7345,5 +7345,69 @@ class ColdCurrentCensusV2Tests(unittest.TestCase):
             NEW.cold_v2_decode(f["gate"], b'{"consumerFacts":{"S01":{},"S01":{}}}\n')
 
 
+class ColdPayloadDataV2SourceLoaderTests(unittest.TestCase):
+    """Real reviewed reader loads; only disposable Source copies are changed."""
+
+    def setUp(self):
+        self.gate = NEW.cold_gates()
+        self.relative = NEW.COLD_PAYLOAD_DATA_V2_PATH
+        self.reader_raw = NEW.cold_v2_regular_bytes(self.gate, REPO_ROOT / self.relative)
+        self.assertEqual(self.gate.sha(self.reader_raw), NEW.COLD_PAYLOAD_DATA_V2_SHA256)
+        directory = tempfile.TemporaryDirectory(prefix="v23-cold-v2-source-loader-")
+        self.addCleanup(directory.cleanup)
+        self.source_root = Path(directory.name).resolve()
+        self.reader = self.source_root / self.relative
+        self.reader.parent.mkdir(parents=True)
+        self.reader.write_bytes(self.reader_raw)
+
+    def test_approved_current_reader_loads_real_v2_api(self):
+        namespace = NEW.cold_v2_source_module(
+            self.gate, self.source_root, self.relative, NEW.COLD_PAYLOAD_DATA_V2_SHA256)
+        self.assertEqual(namespace["__file__"], str(self.reader))
+        for name in ("read_cold_payload_data", "qualification_contract_v2", "read_cold_payload_data_v2"):
+            with self.subTest(api=name):
+                function = namespace[name]
+                self.assertTrue(callable(function))
+                self.assertIs(function.__globals__, namespace)
+                self.assertEqual(function.__code__.co_filename, str(self.reader))
+        contract = namespace["qualification_contract_v2"]()
+        self.assertEqual(contract["schema"], "v23-cold-qualification-contract.v2")
+        self.assertEqual(contract["status"], "CONTRACT_ONLY_NO_AUTHORITY")
+        self.assertFalse(contract["executionAuthority"])
+        self.assertEqual(self.reader.read_bytes(), self.reader_raw)
+
+    def test_changed_actual_reader_refuses_hash_before_exec(self):
+        self.reader.write_bytes(self.reader_raw + b"\n# disposable pre-load Source drift\n")
+        with mock.patch("builtins.exec") as executable_loading:
+            with self.assertRaisesRegex(self.gate.Refused, "cold V2 exact executable Source hash"):
+                NEW.cold_v2_source_module(
+                    self.gate, self.source_root, self.relative, NEW.COLD_PAYLOAD_DATA_V2_SHA256)
+        executable_loading.assert_not_called()
+
+    def test_actual_reader_changed_after_real_exec_refuses_load_fence(self):
+        import builtins
+
+        real_exec = builtins.exec
+        executed_readers = []
+
+        def execute_then_change_reader(code, *args, **kwargs):
+            result = real_exec(code, *args, **kwargs)
+            if getattr(code, "co_filename", None) == str(self.reader):
+                namespace = args[0]
+                self.assertEqual(namespace["__file__"], str(self.reader))
+                self.assertEqual(self.reader.read_bytes(), self.reader_raw)
+                executed_readers.append(namespace)
+                self.reader.write_bytes(self.reader_raw + b"\n# disposable post-load Source drift\n")
+            return result
+
+        with mock.patch("builtins.exec", side_effect=execute_then_change_reader):
+            with self.assertRaisesRegex(self.gate.Refused, "cold V2 Source changed through load"):
+                NEW.cold_v2_source_module(
+                    self.gate, self.source_root, self.relative, NEW.COLD_PAYLOAD_DATA_V2_SHA256)
+        self.assertEqual(len(executed_readers), 1)
+        self.assertTrue(callable(executed_readers[0]["read_cold_payload_data_v2"]))
+        self.assertEqual(self.reader.read_bytes(), self.reader_raw + b"\n# disposable post-load Source drift\n")
+
+
 if __name__ == "__main__":
     unittest.main()

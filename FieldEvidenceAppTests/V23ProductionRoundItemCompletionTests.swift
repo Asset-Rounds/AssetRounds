@@ -321,11 +321,147 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
         let unavailable = try observed(nil)
         XCTAssertTrue(try observed(nil).supportsPublication(ofRecorded: unavailable, requiredBytes: required))
     }
+}
 
-    // MARK: Helpers
+final class V23ProductionRoundItemCompletionSupplementalTests: V23ProductionFourRootShellTestSupport {
+    @MainActor
+    func testPreparedFinalizationColdHostReopenIsReadOnlyAndResumesOriginalOnce() async throws {
+        let fixture = try await makeFixture("round-item-prepared-cold-reopen")
+        defer { fixture.cleanUp() }
+        let seed = try await V23RoundRouteHarness.make(in: fixture, label: "round-item-prepared-cold-reopen")
+        let context = try await seed.addingDraftItems(1)
+        let active = try await startActualRound(in: context, recorder: "Prepared reopen start")
+        let ordered = active.items.sorted { $0.order < $1.order }
+        let target = try context.target(for: active, mode: .resume)
+        try context.work.scene.open(target)
+        let (state, host) = try await openBegunItem(in: context, itemID: ordered[0].itemID, target: target)
+        try chooseCouldNotVerify(host)
+        let sourceApp = SourceAppSnapshotV1(build: "round-prepared-cold-reopen", version: "1.0")
+
+        host.service.beforeParentTargetAcknowledgementForTesting = {
+            throw CompletionInjectedFailure.lostAcknowledgement
+        }
+        do {
+            _ = try await host.finish(recordedByName: "Prepared reopen recorder", sourceApp: sourceApp)
+            XCTFail("The real finalizer must reach its lost parent acknowledgement")
+        } catch {
+            XCTAssertEqual(error as? CompletionInjectedFailure, .lostAcknowledgement)
+        }
+        host.service.beforeParentTargetAcknowledgementForTesting = nil
+        let prepared = try XCTUnwrap(host.checkpoint)
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(prepared)
+        XCTAssertEqual(prepared.state, .committing)
+        XCTAssertEqual(payload.phase, .preparedFinalization)
+        XCTAssertEqual(host.stage, .preparedFinalization)
+        XCTAssertNil(host.editor)
+        let attempt = try XCTUnwrap(payload.finalizationAttempt)
+        let mutationID = try MutationIDV1(rawValue: attempt.identifiers.mutationID)
+        let writer = context.work.store.workspaceWriter
+        let receipt = try XCTUnwrap(writer.durableReceipt(mutationID: mutationID))
+        let sourceDraftID = host.source.sourceCheckpoint.draftID
+        state.dismissCapture()
+        await host.retire()
+
+        // A new host adopts the same durable attempt; opening and displaying it
+        // neither finalizes automatically nor adds a Round step.
+        let beforeOpen = try writer.currentRevision()
+        let beforeProgress = try context.access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID).chain
+        XCTAssertEqual(beforeProgress.nodes.map { $0.step.action }, [.enter])
+        let resumed = try ProductionCheckRunnerItemCapturePresentationV1(source: host.source,
+            target: target, scene: context.work.scene, access: context.access)
+        XCTAssertEqual(resumed.checkpoint, prepared)
+        XCTAssertNil(resumed.editor)
+        XCTAssertEqual(resumed.stage, .preparedFinalization)
+        XCTAssertEqual(try writer.currentRevision(), beforeOpen)
+        XCTAssertEqual(try context.access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID).chain,
+                       beforeProgress)
+        XCTAssertEqual(try writer.durableReceipt(mutationID: mutationID), receipt)
+
+        let result = try await resumed.finish(recordedByName: "Prepared reopen recorder", sourceApp: sourceApp)
+        let committed = try XCTUnwrap(resumed.checkpoint)
+        let committedPayload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(committed)
+        XCTAssertEqual(committed.state, .committed)
+        XCTAssertEqual(committedPayload.phase, .preparedFinalization)
+        XCTAssertEqual(committedPayload.finalizationAttempt, attempt)
+        XCTAssertEqual(resumed.stage, .completed)
+        XCTAssertNil(resumed.editor)
+        XCTAssertEqual(result.progress.chain.nodes.map { $0.step.action }, [.enter, .complete])
+        XCTAssertFalse(try XCTUnwrap(result.progress.chain.nodes.last).isPendingRoundEffect)
+        XCTAssertEqual(result.progress.chain.currentRound.items.first { $0.itemID == ordered[0].itemID }?.disposition,
+                       .completed)
+        XCTAssertEqual(try writer.durableReceipt(mutationID: mutationID), receipt)
+        let settled = try writer.currentRevision()
+        let replay = try await resumed.finish(recordedByName: "Prepared reopen recorder", sourceApp: sourceApp)
+        XCTAssertEqual(replay.progress.chain, result.progress.chain)
+        XCTAssertEqual(try writer.currentRevision(), settled)
+        XCTAssertEqual(try writer.durableReceipt(mutationID: mutationID), receipt)
+        await resumed.retire()
+    }
 
     @MainActor
-    private func openBegunItem(in context: V23RoundRouteHarness, itemID: UUID, target: NavigationTargetV1,
+    func testAuthenticatedCommittingEditingCheckpointCannotOfferOrPerformFinish() async throws {
+        let fixture = try await makeFixture("round-item-malformed-phase-state")
+        defer { fixture.cleanUp() }
+        let seed = try await V23RoundRouteHarness.make(in: fixture, label: "round-item-malformed-phase-state")
+        let context = try await seed.addingDraftItems(1)
+        let active = try await startActualRound(in: context, recorder: "Malformed pair start")
+        let ordered = active.items.sorted { $0.order < $1.order }
+        let target = try context.target(for: active, mode: .resume)
+        try context.work.scene.open(target)
+        let (state, host) = try await openBegunItem(in: context, itemID: ordered[0].itemID, target: target)
+        let parent = try XCTUnwrap(host.checkpoint)
+        XCTAssertEqual(parent.state, .active)
+        XCTAssertEqual(try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent).phase, .editing)
+        state.dismissCapture()
+        await host.retire()
+
+        // Generic C36 permits ACTIVE -> COMMITTING. Persist that real successor
+        // with its unchanged editing payload: it is not a prepared finalization
+        // and must not acquire finish authority merely from its state.
+        let malformed = try FieldDraftCheckpointV1(draftID: parent.draftID, workspaceID: parent.workspaceID,
+            scope: parent.scope, purpose: parent.purpose, codec: parent.codec,
+            baseCanonicalRevision: parent.baseCanonicalRevision, draftRevision: parent.draftRevision + 1,
+            payloadData: parent.payloadData, stageIDs: parent.stageIDs, resumeAnchor: parent.resumeAnchor,
+            state: .committing, lastDurableMutationID: parent.lastDurableMutationID,
+            lastReceiptSHA256: parent.lastReceiptSHA256, updatedAt: parent.updatedAt,
+            mutationID: MutationIDV1(rawValue: UUID()))
+        let writer = context.work.store.workspaceWriter
+        let adapter = try writer.makeFieldDraftLifecycleAdapter(modelContext: context.work.store.modelContext)
+        let receipt = try adapter.compareAndSwap(checkpoint: malformed,
+            expectedDraftRevision: parent.draftRevision, expectedBaseRevision: parent.baseCanonicalRevision)
+        XCTAssertEqual(try writer.durableReceipt(mutationID: malformed.mutationID), receipt)
+        XCTAssertFalse(context.work.store.modelContext.hasChanges)
+
+        let sourceDraftID = host.source.sourceCheckpoint.draftID
+        let beforeOpen = try writer.currentRevision()
+        let beforeProgress = try context.access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID).chain
+        let refused = try ProductionCheckRunnerItemCapturePresentationV1(source: host.source,
+            target: target, scene: context.work.scene, access: context.access)
+        XCTAssertEqual(refused.checkpoint, malformed)
+        XCTAssertEqual(try CheckRunnerItemDraftCodecV1.validateCheckpoint(malformed).phase, .editing)
+        XCTAssertNil(refused.editor)
+        XCTAssertEqual(refused.stage, .unavailable)
+        do {
+            _ = try await refused.finish(recordedByName: "Malformed pair recorder",
+                sourceApp: SourceAppSnapshotV1(build: "round-malformed-phase-state", version: "1.0"))
+            XCTFail("An authenticated but unprepared lifecycle pair must not finish")
+        } catch {
+            XCTAssertEqual(error as? ProductionCheckRunnerItemCaptureFailureV1, .missingEditor)
+        }
+        XCTAssertEqual(try refused.service.readCurrentDraft(source: refused.source), malformed)
+        XCTAssertEqual(try writer.currentRevision(), beforeOpen)
+        XCTAssertEqual(try context.access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID).chain,
+                       beforeProgress)
+        XCTAssertEqual(try writer.durableReceipt(mutationID: malformed.mutationID), receipt)
+        XCTAssertFalse(context.work.store.modelContext.hasChanges)
+        await refused.retire()
+    }
+}
+
+fileprivate extension V23ProductionFourRootShellTestSupport {
+
+    @MainActor
+    func openBegunItem(in context: V23RoundRouteHarness, itemID: UUID, target: NavigationTargetV1,
                                state existing: ProductionRoundSessionPresentationV1? = nil) async throws
         -> (ProductionRoundSessionPresentationV1, ProductionCheckRunnerItemCapturePresentationV1) {
         let state: ProductionRoundSessionPresentationV1
@@ -357,7 +493,7 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
     }
 
     @MainActor
-    private func chooseCouldNotVerify(_ host: ProductionCheckRunnerItemCapturePresentationV1) throws {
+    func chooseCouldNotVerify(_ host: ProductionCheckRunnerItemCapturePresentationV1) throws {
         try host.openCouldNotVerify()
         XCTAssertEqual(host.stage, .outcome(photosIncomplete: true))
         let presentation = try XCTUnwrap(host.outcomePresentation)

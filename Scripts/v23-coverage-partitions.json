@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "298866ef6d784d169cb149ad7a0522bc8f302ac4",
+  "generatedAtHead": "2ed5b4911a6bc94c0027350170438333f9944c50",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1155,7 +1155,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 986.2,
+      "estimatedSeconds": 1106.2,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1311,6 +1311,8 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerCompletesAndRefusesForeignReceiptAndBinding",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesChangedCurrentPointerWithoutCompletion",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion",
+        "FieldEvidenceAppTests/V23ProductionRoundItemCompletionSupplementalTests/testAuthenticatedCommittingEditingCheckpointCannotOfferOrPerformFinish",
+        "FieldEvidenceAppTests/V23ProductionRoundItemCompletionSupplementalTests/testPreparedFinalizationColdHostReopenIsReadOnlyAndResumesOriginalOnce",
         "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45H01RawAwakeBoundaryRejectsLateFinalDespiteClampedReport",
         "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests/testV23P04C45I01SessionOriginIncludesSetupAndPostStopCallbackLatency"
       ]
@@ -4038,10 +4040,12 @@
     {
       "id": "S38",
       "tier": "D50C",
-      "estimatedSeconds": 1020.0,
+      "estimatedSeconds": 1140.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2ColdRootCreationOwnTemporaryRejectsForeignRegularSiblingBeforeEffect",
         "FieldEvidenceAppTests/V23EraseLateColdReplaySupplementalTests/testDeleteCommittedThenAfterCleanupColdReplayRequiresCompleteAuthority",
+        "FieldEvidenceAppTests/V23EraseLateColdReplaySupplementalTests/testOriginalRegistryPolicySettlementRefusesActualLeafDrift",
+        "FieldEvidenceAppTests/V23EraseLateColdReplaySupplementalTests/testOriginalRegistryPolicySettlementReprovesItsGenuineCurrentImage",
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testChangedCreatedAssetPostimageRefusesWithoutCompensationEffects",
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testColdEligibilityResolvesRealPlanAndSingleAssetCompensationRetainsSitePlacementAndHistory",
         "FieldEvidenceAppTests/V23FirstSignExecutableCompensationTests/testCompensatedAssetIdentityCannotBeRecreatedAndReversalReceiptReplaysCold",

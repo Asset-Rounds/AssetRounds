@@ -11144,6 +11144,10 @@ final class EraseRouterOperationV1 {
     private var originalAuxiliaryPhaseCASUncertain = false
     private var originalAuxiliaryRegistryObservations:
         [EraseSchema2ColdRegistryObservationAttemptV1] = []
+    private var originalRegistryPolicyEffects: Set<OriginalEraseRegistryPolicyEffectV1> = []
+    private var originalRegistryPolicyEffectInFlight: OriginalEraseRegistryPolicyEffectV1?
+    private var originalRegistryPolicyEffectFailed = false
+    private var originalRegistryPolicyImages: [OriginalEraseRegistryPolicyImageV1] = []
     private enum OriginalAuxiliaryRegistryObservationScope: Equatable {
         case preFirstReaderRecordProbe
         case firstRosterCensus
@@ -11955,6 +11959,8 @@ final class EraseRouterOperationV1 {
         originalAuxiliaryRegistryObservationScope =
             .preFirstReaderRecordProbe
         do {
+            try registry.settleOriginalEraseInitialRegistryPolicy(
+                operation: self, activity: readerProbeActivity)
             try registry.requireOriginalEraseRetainedReaderRecordAbsent(
                 operation: self, activity: readerProbeActivity)
             originalAuxiliaryRegistryObservationScope = nil
@@ -13788,6 +13794,181 @@ final class EraseRouterOperationV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         return first
+    }
+
+    /// A distinct policy-effect admission; observation admission below does
+    /// not issue it. Each of the four existing owned effects is once-only.
+    func beginOriginalRegistryPolicyEffect(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        guard originalRegistryPolicyEffectInFlight == nil,
+              !originalRegistryPolicyEffects.contains(effect) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalRegistryPolicyEffectAuthority(
+            registry: registry, activity: activity, effect: effect)
+        originalRegistryPolicyEffects.insert(effect)
+        originalRegistryPolicyEffectInFlight = effect
+    }
+
+    private func requireOriginalRegistryPolicyEffectAuthority(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        guard let router, !detached, !detaching,
+              !originalAuxiliaryRegistryObservationFailed,
+              !originalAuxiliaryPhaseCASUncertain,
+              !originalRegistryPolicyEffectFailed,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              preparationFailureWitness == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try registry.requireOriginalRegistryPolicyEffectActivity(activity)
+        switch effect {
+        case .initial:
+            guard originalAuxiliaryRegistryObservationScope == .preFirstReaderRecordProbe,
+                  !originalAuxiliaryFirstCaptureAttempted,
+                  originalAuxiliaryFirstObserver == nil,
+                  originalAuxiliaryFirstCaptureOwner == nil,
+                  originalAuxiliaryRosterAdmission == nil,
+                  originalAuxiliaryFirstLeaseCensus == nil,
+                  preparationWriterPhase == .absent,
+                  let source = preparationSourceWriter,
+                  exclusion.matchesOriginalEraseAuxiliaryPhase(
+                    registry: registry, activity: activity, writer: source.token) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .retainedReader:
+            guard originalAuxiliaryRegistryObservationScope == nil,
+                  originalTargetReaderInFlight,
+                  originalAuxiliaryProjectedIntent?.phase == .pointerSwitched,
+                  originalAuxiliaryRosterAdmission != nil,
+                  preparationWriterPhase == .absent else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .targetWriter:
+            guard originalAuxiliaryRegistryObservationScope == nil,
+                  let transition = originalWriterTransition,
+                  transition.registry === registry,
+                  transition.targetPublicationStarted,
+                  !transition.oldCloseStarted, !transition.projected,
+                  originalWriterPublicationProjection == nil,
+                  preparationWriterPhase == .constructing else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .oldWriterClose:
+            guard originalAuxiliaryRegistryObservationScope == nil,
+                  let transition = originalWriterTransition,
+                  transition.registry === registry, transition.oldCloseStarted,
+                  !transition.projected,
+                  originalWriterPublicationProjection != nil,
+                  originalOldWriterReleaseProjection == nil,
+                  preparationWriterPhase == .constructing else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    func requireOriginalRegistryPolicyEffect(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        guard originalRegistryPolicyEffects.contains(effect),
+              originalRegistryPolicyEffectInFlight == effect else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalRegistryPolicyEffectAuthority(
+            registry: registry, activity: activity, effect: effect)
+    }
+
+    func completeOriginalRegistryPolicyEffect(
+        _ image: OriginalEraseRegistryPolicyImageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        try requireOriginalRegistryPolicyEffect(
+            registry: registry, activity: activity, effect: effect)
+        guard image.belongs(to: self, registry: registry, effect: effect),
+              originalRegistryPolicyImages.count < 4,
+              !originalRegistryPolicyImages.contains(where: { $0 === image }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalRegistryPolicyImages.append(image)
+        originalRegistryPolicyEffectInFlight = nil
+    }
+
+    func failOriginalRegistryPolicyEffect() {
+        originalRegistryPolicyEffectFailed = true
+        originalAuxiliaryRegistryObservationFailed = true
+    }
+
+    func reproveCompletedOriginalRegistryPolicyImage(
+        _ image: OriginalEraseRegistryPolicyImageV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        guard originalRegistryPolicyEffectInFlight == nil,
+              originalRegistryPolicyEffects.contains(effect),
+              originalRegistryPolicyImages.last === image,
+              image.belongs(to: self, registry: registry, effect: effect) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalRegistryPolicyEffectAuthority(
+            registry: registry, activity: activity, effect: effect)
+    }
+
+    /// Lexical reproof for this actual read attempt. The existing complete
+    /// read admission remains the authority; a policy image cannot substitute
+    /// for its current phase, active ticket or closed shutdown witness.
+    func originalRegistryPolicyReadReproof(
+        attempt: EraseSchema2ColdRegistryObservationAttemptV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws -> @MainActor () throws -> Void {
+        let scope = originalAuxiliaryRegistryObservationScope
+        let writerPhase = preparationWriterPhase
+        let intentPhase = originalAuxiliaryProjectedIntent?.phase
+        let physicalStage = originalPhysicalTransitionInFlight
+        return { [self] in
+            guard !originalRegistryPolicyEffectFailed,
+                  !originalAuxiliaryRegistryObservationFailed,
+                  originalAuxiliaryRegistryObservationScope == scope,
+                  preparationWriterPhase == writerPhase,
+                  originalAuxiliaryProjectedIntent?.phase == intentPhase,
+                  originalPhysicalTransitionInFlight == physicalStage,
+                  preparationRegistry === registry,
+                  originalAuxiliaryRegistryObservations.count == 1,
+                  originalAuxiliaryRegistryObservations[0] === attempt,
+                  !attempt.isCheckedClosed else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard let router, !detached, !detaching else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+#if DEBUG
+            if scope == .physicalTransition,
+               let physicalStage,
+               physicalStage == .shutdownAliasRelease || physicalStage == .drainedShutdown {
+                guard let witness = originalShutdownWitness else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try requireOriginalShutdownWitness(witness, registry: registry)
+                try router.requireOriginalErasePhysicalShutdownObservation(self, stage: physicalStage)
+            } else {
+                try router.requireEraseRetirementOperation(self)
+            }
+#else
+            try router.requireEraseRetirementOperation(self)
+#endif
+        }
     }
 
     /// Registry retains each transient registry-leaf FD here before open.

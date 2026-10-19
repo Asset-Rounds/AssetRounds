@@ -569,7 +569,7 @@ FACT_SCHEMA_V2 = "v23-cold-payload-data-facts.v2"
 QUALIFICATION_CONTRACT_SCHEMA_V2 = "v23-cold-qualification-contract.v2"
 EMITTED_NATIVE_SOURCE_PATH_V2 = "Scripts/v23-native-ci.py"
 # Exact Native candidate Source dependency; independent review/current binding remain Root prerequisites.
-EMITTED_NATIVE_SOURCE_SHA256_V2 = "7CDC2C72C2BEF8EB911E2AC433A5B4F4B38B66621E0E6B43435D9D0162F2FF57"
+EMITTED_NATIVE_SOURCE_SHA256_V2 = "AC0B70F23C181EB0868DBB5A86AD770350CBE2374F239485DF516A892417241C"
 STRONGER_CLAIMS_V2 = ("totalPolicyCallCounts", "exhaustiveAppKernelLifetimeCohorts",
                       "perPIDDescriptorRetirement", "exactRepeatCounts")
 

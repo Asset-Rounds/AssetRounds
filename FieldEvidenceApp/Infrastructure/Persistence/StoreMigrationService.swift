@@ -19094,6 +19094,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     /// Retained only for the exact actual handle's maintenance release. A
     /// failed write/rename/fsync never adopts an unrelated preexisting temp.
     private final class TemporalReleaseAttempt {
+        var originalRegistryPolicyImage: OriginalEraseRegistryPolicyImageV1?
         let token: GenerationLeaseTokenV1
         let original: Int32
         let originalSnapshot: FileSnapshot
@@ -19362,6 +19363,16 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private var coldSchema2NamespaceCloseAttempt: ColdEraseSchema2RegistryControlCloseAttemptV1?
     private var coldSchema2NamespaceCloseReceipt: ColdEraseSchema2RegistryControlCloseReceiptV1?
     private var originalEraseAuxiliaryPolicyUncertainDescriptors: [Int32] = []
+    private var originalRegistryPolicyImage: OriginalEraseRegistryPolicyImageV1?
+    private var originalRegistryPolicyUncertain = false
+    private var originalRegistryPolicyFailure: Error?
+    private var originalRegistryPolicyCloseFailures: [Error] = []
+    private var originalRegistryPolicyInitialUnlockFailure:
+        (returned: Int32, savedErrno: Int32)?
+#if DEBUG
+    @MainActor static var originalRegistryPolicySettledForTesting:
+        (@MainActor (URL, @MainActor () throws -> Void) throws -> Void)?
+#endif
     private var originalEraseAuxiliaryScratchNoRepairUncertain = false
     private var originalEraseAuxiliaryScratchControlPolicyUncertain = false
     private var originalEraseScratchCleanupEffectUncertain = false
@@ -22624,7 +22635,8 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
 #endif
             throw Self.uncertainOwnerFailure()
         }
-        guard !originalEraseRetainedReaderAbsenceUncertain,
+        guard !originalRegistryPolicyUncertain,
+              !originalEraseRetainedReaderAbsenceUncertain,
               !originalEraseRetainedReaderEffectUncertain,
               !originalEraseWriterProjectionUncertain,
               !originalErasePointerEffectUncertain,
@@ -24721,6 +24733,414 @@ final class EraseC05ColdRegistryObservationAttemptV1 {
     }
 }
 
+/// These four existing original-operation effects are the only issuers. A
+/// read-only census, phase reproof or shutdown observation cannot issue one.
+enum OriginalEraseRegistryPolicyEffectV1: Hashable {
+    case initial, retainedReader, targetWriter, oldWriterClose
+}
+
+/// Actual checked request/disposition for one exact registry inode and byte
+/// image. Pending observation alone can never construct this receipt.
+final class OriginalEraseRegistryPolicyImageV1 {
+    fileprivate weak var operation: EraseRouterOperationV1?
+    fileprivate weak var registry: GenerationLeaseRegistryV1?
+    let effect: OriginalEraseRegistryPolicyEffectV1
+    fileprivate let bytes: Data
+    fileprivate let preparedFact: String
+    fileprivate let flags: UInt32
+    fileprivate let policy: TemporalPolicyObservationV1
+    fileprivate let disposition: ProtectedFileVerificationDispositionV1
+    fileprivate var canonicalFact: String?
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        effect: OriginalEraseRegistryPolicyEffectV1, bytes: Data,
+        preparedFact: String, flags: UInt32,
+        policy: TemporalPolicyObservationV1,
+        disposition: ProtectedFileVerificationDispositionV1) {
+        self.operation = operation; self.registry = registry
+        self.effect = effect; self.bytes = bytes
+        self.preparedFact = preparedFact; self.flags = flags
+        self.policy = policy; self.disposition = disposition
+    }
+
+    func belongs(to operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        effect: OriginalEraseRegistryPolicyEffectV1) -> Bool {
+        self.operation === operation && self.registry === registry
+            && self.effect == effect && canonicalFact != nil
+    }
+}
+
+extension GenerationLeaseRegistryV1 {
+    /// Narrow same-file reproof of the existing retained activity. This
+    /// validates the same handle; it grants no policy effect or G entry.
+    @MainActor
+    func requireOriginalRegistryPolicyEffectActivity(
+        _ activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try activity.validateSharedNormalizationRegistry(self)
+    }
+
+    /// One explicit effect BEFORE the first read-only census. The operation
+    /// admits this first request before the first capture/roster/publication;
+    /// a failure poisons the retained owners and never becomes a retry grant.
+    @MainActor
+    func settleOriginalEraseInitialRegistryPolicy(
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            Self.processMutationLock.lock()
+            defer { Self.processMutationLock.unlock() }
+            guard generationMutationLockDepth == 0,
+                  originalRegistryPolicyInitialUnlockFailure == nil else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let entered = flock(mutationLockDescriptor, LOCK_EX)
+            let entryErrno = errno
+            guard entered == 0 else {
+                throw Self.identityFailure(errorNumber: entryErrno)
+            }
+            generationMutationLockDepth = 1
+            var firstError: (any Error)?
+            do {
+                try verify()
+                try activity.validateSharedNormalizationRegistry(self)
+                // A genuine later operation must mint its own image under
+                // its current ticket/EX/G/census; it cannot reuse an older
+                // operation's receipt. Its predecessor remains on that owner.
+                guard originalRegistryPolicyImage?.operation !== operation,
+                      !originalRegistryPolicyUncertain else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let image = try makeOriginalRegistryPolicyImage(
+                    operation: operation, activity: activity, effect: .initial,
+                    name: Self.registryName, expectedBytes: nil)
+                image.canonicalFact = image.preparedFact
+                try operation.completeOriginalRegistryPolicyEffect(image,
+                    registry: self, activity: activity, effect: .initial)
+                originalRegistryPolicyImage = image
+#if DEBUG
+                try Self.originalRegistryPolicySettledForTesting?(
+                    leaseURL.appendingPathComponent(Self.registryName), {
+                        _ = try self.readOriginalEraseAuxiliaryRegistryLocked(
+                            operation: operation)
+                    })
+#endif
+                try activity.validateSharedNormalizationRegistry(self)
+                try verify()
+            } catch {
+                firstError = error
+            }
+            // This effect owns one actual G completion. A failed unlock
+            // retains depth and the completed image as uncertain evidence;
+            // neither a later lock nor an equal image repairs that failure.
+            let unlocked = flock(mutationLockDescriptor, LOCK_UN)
+            let unlockErrno = errno
+            if unlocked == 0 {
+                generationMutationLockDepth = 0
+            } else {
+                originalRegistryPolicyInitialUnlockFailure = (unlocked, unlockErrno)
+                if firstError == nil {
+                    firstError = Self.identityFailure(errorNumber: unlockErrno)
+                }
+            }
+            if let firstError { throw firstError }
+        } catch {
+            poisonOriginalRegistryPolicy(operation: operation, error: error)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func poisonOriginalRegistryPolicy(
+        operation: EraseRouterOperationV1, error: Error
+    ) {
+        if originalRegistryPolicyFailure == nil { originalRegistryPolicyFailure = error }
+        originalRegistryPolicyUncertain = true
+        operation.failOriginalRegistryPolicyEffect()
+    }
+
+    /// Called only in the existing owned writer, after its exact replacement
+    /// bytes are durable and BEFORE its final prepared FULL image is captured.
+    /// Its receipt is retained on that actual writer attempt across rename.
+    @MainActor
+    private func makeOriginalRegistryPolicyImage(
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1,
+        name: String, expectedBytes: Data?, originalDescriptor: Int32? = nil
+    ) throws -> OriginalEraseRegistryPolicyImageV1 {
+        guard generationMutationLockDepth == 1,
+              !originalRegistryPolicyUncertain,
+              originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty,
+              (effect == .initial && name == Self.registryName && expectedBytes == nil)
+                || (effect != .initial && name == Self.registryTemporaryName && expectedBytes != nil)
+        else { throw Self.uncertainOwnerFailure() }
+        let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+        var opened: Int32 = -1
+        var closeAttempted = false
+        do {
+            try operation.beginOriginalRegistryPolicyEffect(
+                registry: self, activity: activity, effect: effect)
+            try operation.retainOriginalEraseAuxiliaryRegistryObservation(
+                attempt: attempt, registry: self)
+            func requireAuthority() throws {
+                guard self.generationMutationLockDepth == 1,
+                      !self.originalRegistryPolicyUncertain,
+                      self.originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try operation.requireOriginalRegistryPolicyEffect(
+                    registry: self, activity: activity, effect: effect)
+                try self.requireNoMigrationReservationLocked()
+                try self.verify()
+                if effect != .initial {
+                    guard let originalDescriptor, let prior = self.originalRegistryPolicyImage,
+                          prior.operation === operation, prior.registry === self else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    var held = stat(), named = stat(), after = stat()
+                    guard Darwin.fstat(originalDescriptor, &held) == 0,
+                          Darwin.fstatat(self.leaseDescriptor, Self.registryName,
+                            &named, AT_SYMLINK_NOFOLLOW) == 0,
+                          Self.selectedControlFullStatEqualV1(held, named),
+                          prior.canonicalFact == Self.originalEraseRetainedFullFact(held),
+                          prior.flags == held.st_flags,
+                          try Self.readAll(from: originalDescriptor) == prior.bytes,
+                          Darwin.fstat(originalDescriptor, &after) == 0,
+                          Self.selectedControlFullStatEqualV1(held, after) else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                }
+            }
+            try requireAuthority()
+            opened = Darwin.openat(leaseDescriptor, name,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard opened >= 0 else { throw Self.mappedFailure() }
+            try attempt.retain(opened)
+            func image() throws -> (fact: String, flags: UInt32, bytes: Data, information: stat) {
+                try requireAuthority()
+                var held = stat(), named = stat()
+                guard Darwin.fstat(opened, &held) == 0,
+                      Darwin.fstatat(self.leaseDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      Self.selectedControlFullStatEqualV1(held, named),
+                      held.st_mode & S_IFMT == S_IFREG, held.st_nlink == 1,
+                      held.st_size >= 0, held.st_size <= off_t(Self.maximumControlFileBytes) else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let raw = try Self.readAll(from: opened)
+                var after = stat()
+                guard Darwin.fstat(opened, &after) == 0,
+                      Self.selectedControlFullStatEqualV1(held, after),
+                      Darwin.fstatat(self.leaseDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      Self.selectedControlFullStatEqualV1(held, named),
+                      raw.count == Int(held.st_size) else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try requireAuthority()
+                return (Self.originalEraseRetainedFullFact(held), held.st_flags, raw, held)
+            }
+            let before = try image()
+            let decoded = try RegistryStateV1.decodeCanonical(from: before.bytes)
+            if effect == .initial {
+                try operation.requirePreparationLeaseCensus(decoded.leases, registry: self)
+            } else {
+                guard before.bytes == expectedBytes,
+                      let prior = originalRegistryPolicyImage,
+                      prior.operation === operation, prior.registry === self,
+                      prior.canonicalFact != nil else { throw Self.uncertainOwnerFailure() }
+            }
+            var parent = stat(), namedParent = stat()
+            guard Darwin.fstat(leaseDescriptor, &parent) == 0,
+                  Darwin.fstatat(operationsDescriptor, Self.leaseDirectoryName,
+                    &namedParent, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.selectedControlFullStatEqualV1(parent, namedParent) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let parentFact = Self.originalEraseRetainedFullFact(parent)
+            let parentFlags = parent.st_flags
+            var requestEntered = false
+            var requestedFact: String?
+            func witness() throws -> String {
+                let current = try image()
+                var parentNow = stat(), parentNamed = stat()
+                guard Darwin.fstat(self.leaseDescriptor, &parentNow) == 0,
+                      Darwin.fstatat(self.operationsDescriptor, Self.leaseDirectoryName,
+                        &parentNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                      Self.selectedControlFullStatEqualV1(parentNow, parentNamed),
+                      Self.originalEraseRetainedFullFact(parentNow) == parentFact,
+                      parentNow.st_flags == parentFlags,
+                      current.bytes == before.bytes, current.flags == before.flags,
+                      try Self.originalEraseRetainedStableFact(current.fact, through: 9)
+                        == Self.originalEraseRetainedStableFact(before.fact, through: 9) else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                if !requestEntered {
+                    guard current.fact == before.fact else { throw Self.uncertainOwnerFailure() }
+                } else if let requestedFact {
+                    guard current.fact == requestedFact else { throw Self.uncertainOwnerFailure() }
+                } else {
+                    // The single immediately preceding checked setter owns
+                    // this ctime-only edge. Freeze its actual afterimage now;
+                    // every later getter/close uses exact FULL equality.
+                    requestedFact = current.fact
+                }
+                return before.fact + "|" + String(before.flags)
+            }
+            let disposition = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(
+                try Self.controlKind(for: name), at: leaseURL.appendingPathComponent(name),
+                retainUncertainDescriptor: { self.originalEraseAuxiliaryPolicyUncertainDescriptors.append($0) },
+                willRequestCompleteProtection: {
+                    _ = try witness()
+                    guard !requestEntered else { throw Self.uncertainOwnerFailure() }
+                    requestEntered = true
+                }, unchangedWitness: witness)
+            _ = try witness()
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                try Self.controlKind(for: name), at: leaseURL.appendingPathComponent(name),
+                retainUncertainDescriptor: { self.originalEraseAuxiliaryPolicyUncertainDescriptors.append($0) })
+            _ = try witness()
+            try Self.requireOriginalRegistryPolicyDisposition(disposition, policy: policy)
+            if disposition == .simulatorFileProtectionUnsupported {
+                guard requestEntered else { throw Self.uncertainOwnerFailure() }
+            }
+            let after = try image()
+            guard after.fact == (requestedFact ?? before.fact),
+                  policy.device == UInt64(after.information.st_dev),
+                  policy.inode == UInt64(after.information.st_ino),
+                  policy.linkCount == UInt64(after.information.st_nlink),
+                  policy.mode == UInt16(after.information.st_mode),
+                  policy.isDirectory == false else {
+                throw Self.uncertainOwnerFailure()
+            }
+            closeAttempted = true
+            do { try attempt.closeChecked() }
+            catch {
+                originalEraseAuxiliaryPolicyUncertainDescriptors.append(opened)
+                originalRegistryPolicyCloseFailures.append(error)
+                throw error
+            }
+            try requireAuthority()
+            var namedAfterClose = stat()
+            guard Darwin.fstatat(leaseDescriptor, name, &namedAfterClose, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.originalEraseRetainedFullFact(namedAfterClose) == after.fact,
+                  namedAfterClose.st_flags == after.flags else {
+                throw Self.uncertainOwnerFailure()
+            }
+            return OriginalEraseRegistryPolicyImageV1(operation: operation, registry: self,
+                effect: effect, bytes: after.bytes, preparedFact: after.fact,
+                flags: after.flags, policy: policy, disposition: disposition)
+        } catch {
+            if !closeAttempted {
+                closeAttempted = true
+                do { try attempt.closeChecked() }
+                catch {
+                    if opened >= 0 { originalEraseAuxiliaryPolicyUncertainDescriptors.append(opened) }
+                    originalRegistryPolicyCloseFailures.append(error)
+                }
+            }
+            poisonOriginalRegistryPolicy(operation: operation, error: error)
+            throw error
+        }
+    }
+
+    /// The actual owned rename, not a discovered equal pathname, is the sole
+    /// successor edge. Caller proves its descriptor and rename before entry.
+    @MainActor
+    private func publishOriginalRegistryPolicyImage(
+        _ image: OriginalEraseRegistryPolicyImageV1?, descriptor: Int32,
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        effect: OriginalEraseRegistryPolicyEffectV1
+    ) throws {
+        do {
+            guard generationMutationLockDepth == 1,
+                  !originalRegistryPolicyUncertain, let image,
+                  image.operation === operation, image.registry === self,
+                  image.effect == effect else { throw Self.uncertainOwnerFailure() }
+            if image.canonicalFact == nil {
+                try operation.requireOriginalRegistryPolicyEffect(
+                    registry: self, activity: activity, effect: effect)
+            } else {
+                try operation.reproveCompletedOriginalRegistryPolicyImage(image,
+                    registry: self, activity: activity, effect: effect)
+            }
+            var held = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  Darwin.fstatat(leaseDescriptor, Self.registryName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.selectedControlFullStatEqualV1(held, named),
+                  held.st_flags == image.flags,
+                  try Self.originalEraseRetainedStableFact(Self.originalEraseRetainedFullFact(held), through: 9)
+                    == Self.originalEraseRetainedStableFact(image.preparedFact, through: 9),
+                  try Self.readAll(from: descriptor) == image.bytes else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let fact = Self.originalEraseRetainedFullFact(held)
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  Self.selectedControlFullStatEqualV1(held, after),
+                  Darwin.fstatat(leaseDescriptor, Self.registryName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.selectedControlFullStatEqualV1(held, named) else { throw Self.uncertainOwnerFailure() }
+            if let canonical = image.canonicalFact {
+                guard canonical == fact, originalRegistryPolicyImage === image else {
+                    throw Self.uncertainOwnerFailure()
+                }
+            } else {
+                image.canonicalFact = fact
+                try operation.completeOriginalRegistryPolicyEffect(image,
+                    registry: self, activity: activity, effect: effect)
+                originalRegistryPolicyImage = image
+            }
+        } catch {
+            poisonOriginalRegistryPolicy(operation: operation, error: error)
+            throw error
+        }
+    }
+
+    /// Pure receipt/image reproof inside the existing retained read admission.
+    /// It never requests policy, repairs a leaf or accepts an opaque pending.
+    @MainActor
+    private func requireOriginalRegistryPolicyImage(
+        operation: EraseRouterOperationV1, information: stat,
+        policy: TemporalPolicyObservationV1, bytes: Data? = nil
+    ) throws {
+        guard !originalRegistryPolicyUncertain,
+              let image = originalRegistryPolicyImage,
+              image.operation === operation, image.registry === self,
+              image.canonicalFact == Self.originalEraseRetainedFullFact(information),
+              image.flags == information.st_flags,
+              information.st_mode & S_IFMT == S_IFREG, information.st_nlink == 1,
+              policy.device == UInt64(information.st_dev),
+              policy.inode == UInt64(information.st_ino),
+              policy.linkCount == UInt64(information.st_nlink),
+              policy.mode == UInt16(information.st_mode),
+              policy.isDirectory == false,
+              image.policy == policy,
+              bytes == nil || bytes == image.bytes else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try Self.requireOriginalRegistryPolicyDisposition(image.disposition, policy: policy)
+    }
+
+    private static func requireOriginalRegistryPolicyDisposition(
+        _ disposition: ProtectedFileVerificationDispositionV1,
+        policy: TemporalPolicyObservationV1
+    ) throws {
+        if disposition == .verifiedComplete && policy.state == .strictComplete { return }
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+        guard disposition == .simulatorFileProtectionUnsupported,
+              policy.state == .pendingSimulatorRequest else {
+            throw Self.uncertainOwnerFailure()
+        }
+#else
+        throw Self.uncertainOwnerFailure()
+#endif
+    }
+}
+
 struct TemporalGenerationRegistryObservationV1 {
     let leases: [GenerationLeaseTokenV1]
     let registryBytes: Data
@@ -25477,6 +25897,7 @@ extension GenerationLeaseRegistryV1 {
     private func finishTemporalReplacementLocked(_ attempt: TemporalReleaseAttempt,
         capturePreRenameFullFact: Bool = false,
         causalIO: EraseAbortCheckedSnapshotIOV1? = nil,
+        beforePreparedSnapshot: ((Int32) throws -> Void)? = nil,
         observeAfterRename: () throws -> TemporalGenerationRegistryObservationV1) throws {
     try attempt.requireCertainDescriptors()
     if !attempt.renamed {
@@ -25542,6 +25963,7 @@ extension GenerationLeaseRegistryV1 {
                   try Self.regularFileSnapshot(attempt.temporary, causalIO: causalIO) == before else { throw Self.identityFailure() }
             _ = try ProtectedFilePolicyV1.observeTemporalPolicy(.generationLeaseControlTemporary,
                 at: leaseURL.appendingPathComponent(Self.registryTemporaryName))
+            try beforePreparedSnapshot?(attempt.temporary)
             attempt.preparedSnapshot = try Self.regularFileSnapshot(attempt.temporary, causalIO: causalIO)
         }
         guard let prepared = attempt.preparedSnapshot,
@@ -25755,6 +26177,7 @@ final class GenerationLeaseAllocationAttemptV1 {
     fileprivate var originalEraseRetainedReplacementBytes: Data?
     fileprivate var originalEraseRetainedPriorSnapshot:
         GenerationLeaseRegistryV1.FileSnapshot?
+    fileprivate var originalRegistryPolicyImage: OriginalEraseRegistryPolicyImageV1?
     fileprivate var originalEraseRetainedTemporarySnapshot:
         GenerationLeaseRegistryV1.FileSnapshot?
     fileprivate var originalEraseRetainedRecordDurable = false
@@ -26995,6 +27418,10 @@ extension GenerationLeaseRegistryV1 {
                         throw Self.uncertainOwnerFailure()
                     }
                 })
+            allocation.originalRegistryPolicyImage = try makeOriginalRegistryPolicyImage(
+                operation: operation, activity: activity, effect: .retainedReader,
+                name: Self.registryTemporaryName, expectedBytes: replacement,
+                originalDescriptor: original)
             let prepared = try
                 requireOriginalEraseRetainedPublicationFile(
                     descriptor: temporary,
@@ -27035,6 +27462,9 @@ extension GenerationLeaseRegistryV1 {
                     descriptor: temporary, bytes: replacement,
                     prepared: prepared, beforeRename: beforeRename)
             allocation.originalEraseRetainedRenameUncertain = false
+            try publishOriginalRegistryPolicyImage(allocation.originalRegistryPolicyImage,
+                descriptor: temporary, operation: operation, activity: activity,
+                effect: .retainedReader)
             let afterNames = try requireOriginalEraseRetainedLeaseNames(
                 record: true, temporary: false,
                 allocation: allocation)
@@ -31272,8 +31702,18 @@ extension GenerationLeaseRegistryV1 {
             try treeIO.selectedControlContextV1(.effect, parent: leaseDescriptor, name: Self.registryName)
             try finishTemporalReplacementLocked(attempt,
                 capturePreRenameFullFact: true, causalIO: treeIO,
+                beforePreparedSnapshot: { _ in
+                    try treeIO.selectedControlSemanticCallV1 {
+                        attempt.originalRegistryPolicyImage = try self.makeOriginalRegistryPolicyImage(
+                            operation: operation, activity: activity, effect: .targetWriter,
+                            name: Self.registryTemporaryName, expectedBytes: attempt.replacementBytes,
+                            originalDescriptor: attempt.original)
+                    }
+                },
                 observeAfterRename: {
-                    try observeOriginalEraseAuxiliaryRegistryLocked(
+                    try self.publishOriginalRegistryPolicyImage(attempt.originalRegistryPolicyImage,
+                        descriptor: attempt.temporary, operation: operation, activity: activity, effect: .targetWriter)
+                    return                     try observeOriginalEraseAuxiliaryRegistryLocked(
                         operation: operation)
                 })
             let effect = try rawOwner.sealFrameAndAdvance(to: .post)
@@ -31538,8 +31978,18 @@ extension GenerationLeaseRegistryV1 {
                 try treeIO.selectedControlContextV1(.effect, parent: leaseDescriptor, name: Self.registryName)
                 try finishTemporalReplacementLocked(attempt,
                     capturePreRenameFullFact: true, causalIO: treeIO,
+                    beforePreparedSnapshot: { _ in
+                        try treeIO.selectedControlSemanticCallV1 {
+                            attempt.originalRegistryPolicyImage = try self.makeOriginalRegistryPolicyImage(
+                                operation: operation, activity: activity, effect: .oldWriterClose,
+                                name: Self.registryTemporaryName, expectedBytes: attempt.replacementBytes,
+                                originalDescriptor: attempt.original)
+                        }
+                    },
                     observeAfterRename: {
-                        try observeOriginalEraseAuxiliaryRegistryLocked(
+                        try self.publishOriginalRegistryPolicyImage(attempt.originalRegistryPolicyImage,
+                            descriptor: attempt.temporary, operation: operation, activity: activity, effect: .oldWriterClose)
+                        return                         try observeOriginalEraseAuxiliaryRegistryLocked(
                             operation: operation)
                     })
                 let effect = try rawOwner.sealFrameAndAdvance(to: .post)
@@ -32575,6 +33025,9 @@ extension GenerationLeaseRegistryV1 {
 #endif
         try operation.retainOriginalEraseAuxiliaryRegistryObservation(
             attempt: attempt, registry: self)
+        let reproveRead = try operation.originalRegistryPolicyReadReproof(
+            attempt: attempt, registry: self)
+        try reproveRead()
 #if DEBUG
         diagnosticStage = .registryOpen
 #endif
@@ -32636,9 +33089,18 @@ extension GenerationLeaseRegistryV1 {
             diagnosticPolicyState = policy.state
             diagnosticStage = .registryPolicyGuard
 #endif
-            guard policy.state == .strictComplete,
-                  originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+            guard originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try reproveRead()
+            if originalRegistryPolicyImage != nil || policy.state != .strictComplete {
+                var information = stat()
+                guard Darwin.fstat(descriptor, &information) == 0,
+                      FileSnapshot(information) == before else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try requireOriginalRegistryPolicyImage(operation: operation,
+                    information: information, policy: policy)
             }
 #if DEBUG
             diagnosticStage = .registryRead
@@ -32659,6 +33121,15 @@ extension GenerationLeaseRegistryV1 {
 #if DEBUG
             diagnosticStage = .registryDecode
 #endif
+            if originalRegistryPolicyImage != nil || policy.state != .strictComplete {
+                var information = stat()
+                guard Darwin.fstat(descriptor, &information) == 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try requireOriginalRegistryPolicyImage(operation: operation,
+                    information: information, policy: policy, bytes: bytes)
+            }
+            try reproveRead()
             let tokens = try RegistryStateV1.decodeCanonical(
                 from: bytes).leases
             observed = TemporalGenerationRegistryObservationV1(
@@ -32674,16 +33145,32 @@ extension GenerationLeaseRegistryV1 {
             diagnosticFirstStage = diagnosticStage
             diagnosticTerminalStage = .registryFailureClose
 #endif
-            try attempt.closeChecked()
+            let firstError = error
+            if originalRegistryPolicyImage?.operation === operation {
+                poisonOriginalRegistryPolicy(operation: operation, error: firstError)
+            }
+            do {
+                try attempt.closeChecked()
 #if DEBUG
-            diagnosticTerminalStage = diagnosticFirstStage
+                diagnosticTerminalStage = diagnosticFirstStage
 #endif
-            throw error
+            } catch {
+                originalEraseAuxiliaryPolicyUncertainDescriptors.append(descriptor)
+                originalRegistryPolicyCloseFailures.append(error)
+                poisonOriginalRegistryPolicy(operation: operation, error: error)
+            }
+            throw firstError
         }
 #if DEBUG
         diagnosticStage = .registryFinalClose
 #endif
-        try attempt.closeChecked()
+        do { try attempt.closeChecked() }
+        catch {
+            originalEraseAuxiliaryPolicyUncertainDescriptors.append(descriptor)
+            originalRegistryPolicyCloseFailures.append(error)
+            poisonOriginalRegistryPolicy(operation: operation, error: error)
+            throw error
+        }
 #if DEBUG
         diagnosticCompleted = true
 #endif

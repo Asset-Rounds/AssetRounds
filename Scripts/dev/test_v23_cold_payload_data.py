@@ -2,7 +2,8 @@
 
 Root runs this source after independent review. These fixtures use the actual
 published cold-contract constructors, with one synthetic declared partition.
-No existing predicate, census, workflow or test expectation is changed.
+The current V2 Native fixture succeeds the authenticated historical fixture;
+historical originals keep their old reader/Source scope. No predicate is reduced.
 """
 import atexit
 import contextlib
@@ -22,6 +23,8 @@ SPEC = importlib.util.spec_from_file_location("cold_payload_data_candidate", PAT
 M = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(M)
 SOURCE_ROOT = PATH.parents[2]
+HISTORICAL_NATIVE_FIXTURE_OBJECT = "298866ef6d784d169cb149ad7a0522bc8f302ac4:Scripts/v23-native-ci.py"
+HISTORICAL_NATIVE_FIXTURE_SHA256 = "7CDC2C72C2BEF8EB911E2AC433A5B4F4B38B66621E0E6B43435D9D0162F2FF57"
 _COLD_FIXTURE_PARENT = None
 
 
@@ -50,13 +53,15 @@ class ColdPayloadDataTests(unittest.TestCase):
         native_fixture = None
         if isinstance(self, ColdPayloadDataV2Tests):
             import subprocess
-            # V2 reviews one exact parser Source, not each later CI profile.
-            # Authenticate that historical fixture before importing any bytes.
-            native_fixture = subprocess.check_output(
+            # Preserve/authenticate the predecessor without approving it for this reader.
+            self.historical_native_fixture = subprocess.check_output(
                 ["git", "--no-optional-locks", "show",
-                 "298866ef6d784d169cb149ad7a0522bc8f302ac4:" + M.EMITTED_NATIVE_SOURCE_PATH_V2],
+                 HISTORICAL_NATIVE_FIXTURE_OBJECT],
                 cwd=SOURCE_ROOT, env=dict(os.environ, GIT_OPTIONAL_LOCKS="0",
                     GIT_NO_REPLACE_OBJECTS="1", GIT_NO_LAZY_FETCH="1"))
+            self.assertEqual(M.sha(self.historical_native_fixture), HISTORICAL_NATIVE_FIXTURE_SHA256)
+            # Current Source is approved only through the exact singleton/review binding.
+            native_fixture = (SOURCE_ROOT / M.EMITTED_NATIVE_SOURCE_PATH_V2).read_bytes()
             self.assertEqual(M.sha(native_fixture), M.EMITTED_NATIVE_SOURCE_SHA256_V2)
             self.assertIn(M.EMITTED_NATIVE_SOURCE_PATH_V2, self.contract["SOURCES"])
         for name in self.contract["SOURCES"]:
@@ -793,13 +798,38 @@ class ColdPayloadDataV2Tests(unittest.TestCase):
                 with self.assertRaisesRegex(M.Refused, "closed cold DATA v2 input"):
                     self.read_v2(expected)
 
+    def test_reviewed_current_native_parser_loads_and_recomputes_retained_raw(self):
+        path = M.EMITTED_NATIVE_SOURCE_PATH_V2
+        facts = {"sourceSHA256": {path: M.sha((self.source / path).read_bytes())}}
+        fences, consumed = M.ReadFences(), []
+        proof = json.loads(self.clean_proof)
+        try:
+            native = M._emitted_native_v2(self.source, fences, facts)
+            self.assertEqual(native["__name__"], "_cold_data_native_v2")
+            observed = fences.access(self.original / "artifacts/S01" /
+                native["COLD_DURABLE_ROOT"] / "EMITTED.jsonl", lambda descriptor:
+                native["_cold_durable_parse"](descriptor, proof["context"], proof["bindingSHA256"],
+                    lambda: None, lambda stream, line: consumed.append((stream, line))))
+            self.assertEqual(observed, proof["observed"])
+            self.assertEqual(len(consumed), 2, "both synthetic committed frames were really parsed")
+            self.assertEqual({stream for stream, _ in consumed}, set(observed["streamStarts"]))
+        finally:
+            fences.finish()
+
+    def test_current_native_facts_drift_is_refused_before_executable_loading(self):
+        path = M.EMITTED_NATIVE_SOURCE_PATH_V2
+        self.assertEqual(M.sha((self.source / path).read_bytes()), M.EMITTED_NATIVE_SOURCE_SHA256_V2)
+        with mock.patch.object(M, "exec", create=True) as load:
+            with self.assertRaisesRegex(M.Refused, "exact reviewed/frozen Native parser Source"):
+                M._emitted_native_v2(self.source, M.ReadFences(), {"sourceSHA256": {path: "0" * 64}})
+            load.assert_not_called()
+
     def test_unreviewed_native_source_is_refused_before_executable_loading(self):
         native = self.source / M.EMITTED_NATIVE_SOURCE_PATH_V2
         self.assertEqual(M.sha(native.read_bytes()), M.EMITTED_NATIVE_SOURCE_SHA256_V2)
-        variants = [("unreviewed", b"raise AssertionError('unreviewed Native must never execute')\n")]
-        current = (SOURCE_ROOT / M.EMITTED_NATIVE_SOURCE_PATH_V2).read_bytes()
-        if M.sha(current) != M.EMITTED_NATIVE_SOURCE_SHA256_V2:
-            variants.append(("current-unreviewed", current))
+        variants = [("unreviewed", b"raise AssertionError('unreviewed Native must never execute')\n"),
+                    ("historical-approved-for-predecessor-only", self.historical_native_fixture),
+                    ("reviewed-source-raw-drift", native.read_bytes() + b"\n")]
         for label, raw in variants:
             with self.subTest(source=label):
                 native.write_bytes(raw)

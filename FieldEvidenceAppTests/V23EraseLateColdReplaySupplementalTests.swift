@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class V23EraseLateColdReplaySupplementalTests: XCTestCase {
+#if DEBUG
+    func testOriginalRegistryPolicySettlementReprovesItsGenuineCurrentImage() async throws {
+        let harness = try KernelConformanceProductionHarnessV1(label: "registry-policy-current-image")
+        defer { harness.cleanup() }
+        let result = try await harness.exerciseOriginalRegistryPolicyImageControl(tamper: false)
+        XCTAssertTrue(result.provedCurrentImage)
+        XCTAssertFalse(result.rejectedChangedImage)
+    }
+
+    func testOriginalRegistryPolicySettlementRefusesActualLeafDrift() async throws {
+        let harness = try KernelConformanceProductionHarnessV1(label: "registry-policy-hostile-image")
+        defer { harness.cleanup() }
+        let result = try await harness.exerciseOriginalRegistryPolicyImageControl(tamper: true)
+        XCTAssertTrue(result.provedCurrentImage)
+        XCTAssertTrue(result.rejectedChangedImage)
+    }
+#endif
+
     func testDeleteCommittedThenAfterCleanupColdReplayRequiresCompleteAuthority() async throws {
         // Supplemental I01 prefix; the full fault matrices remain separate.
         let boundaries = ["DELETE_COMMITTED_PHASE", "ERASE_AFTER_CLEANUP"]

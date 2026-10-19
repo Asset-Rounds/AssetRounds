@@ -5147,7 +5147,7 @@ def cold_emitted_retained_proof(gate, worker, record, event_raw, plan):
 COLD_RETAINED_READER_V2_PATH = "Scripts/dev/v23-retained-payload.py"
 COLD_RETAINED_READER_V2_SHA256 = "598B646AC72F0E70B8164593C67EB91A9AE167A1F0E200F9A1BAC07C1A048EA1"  # Exact candidate Source; genuine companion review/composition required.
 COLD_PAYLOAD_DATA_V2_PATH = "Scripts/dev/v23-cold-payload-data.py"
-COLD_PAYLOAD_DATA_V2_SHA256 = "C8654B355C6AEC3BC2F18431EB0B1CA1C0834D157689B34D7888A8C84252A584"  # Transitive original-tree dependency; not a plan.sources key.
+COLD_PAYLOAD_DATA_V2_SHA256 = "CA41E079F2761C4251021674D555639D82FFB84B4CFAC39664B0CBDF8C7FC54D"  # Transitive original-tree dependency; not a plan.sources key.
 COLD_PAYLOAD_RECOMPUTATION_SCHEMA_V2 = "v23-cold-payload-recomputation.v2"
 COLD_PAYLOAD_RECOMPUTATION_NOTE_V1 = "INCOMPLETE: qualification lifecycle and independent cold review remain disabled"
 

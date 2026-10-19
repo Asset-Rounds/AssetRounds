@@ -98,9 +98,14 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
     var stage: ProductionCheckRunnerItemCaptureStageV1 {
         guard let checkpoint,
               let payload = try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint) else { return .unavailable }
-        if checkpoint.state == .committed { return .completed }
-        guard checkpoint.state == .active else { return .unavailable }
-        if payload.phase == .preparedFinalization { return .preparedFinalization }
+        // The durable finalization attempt is COMMITTING until its receipt is
+        // acknowledged. A payload phase alone never grants lifecycle authority.
+        switch (checkpoint.state, payload.phase) {
+        case (.committing, .preparedFinalization): return .preparedFinalization
+        case (.committed, .preparedFinalization): return .completed
+        case (.active, .editing): break
+        default: return .unavailable
+        }
         switch payload.field.begin {
         case .notBegun: return editor == nil ? .unavailable : .preflight
         case .prepared: return .interruptedBegin

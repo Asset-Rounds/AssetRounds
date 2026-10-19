@@ -3464,6 +3464,52 @@ final class KernelConformanceProductionHarnessV1 {
         throw KernelConformanceFixtureFailureV1.incompleteCoverage(boundary)
     }
 
+#if DEBUG
+    /// Stop at the real first policy image, before unrelated lifecycle debt.
+    /// The actual Router/EX/G/registry owners and checked reader remain in use.
+    /// A hostile write is confined to this disposable retained fixture; it is
+    /// deliberately not restored or cleaned beneath an uncertain owner.
+    func exerciseOriginalRegistryPolicyImageControl(tamper: Bool) async throws
+        -> (provedCurrentImage: Bool, rejectedChangedImage: Bool) {
+        struct ControlStop: Error {}
+        let ownedRoot = root.standardizedFileURL.path + "/"
+        let previous = GenerationLeaseRegistryV1.originalRegistryPolicySettledForTesting
+        var proved = false
+        var refused = false
+        GenerationLeaseRegistryV1.originalRegistryPolicySettledForTesting = { url, reprove in
+            try previous?(url, reprove)
+            guard url.standardizedFileURL.path.hasPrefix(ownedRoot) else { return }
+            guard !proved else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("registry-policy-control-reentered")
+            }
+            try reprove() // the actual operation-retained read consumes this real image
+            proved = true
+            if tamper {
+                var bytes = try Data(contentsOf: url)
+                bytes.append(0x0A)
+                try bytes.write(to: url) // hostile same-leaf raw/metadata drift
+                do {
+                    try reprove()
+                } catch let error as GenerationLeaseRegistryFailureV1 {
+                    guard error == .uncertainOwner else { throw error }
+                    refused = true
+                }
+                guard refused else {
+                    throw KernelConformanceFixtureFailureV1.incompleteCoverage("registry-policy-drift-not-refused")
+                }
+            }
+            throw ControlStop()
+        }
+        defer { GenerationLeaseRegistryV1.originalRegistryPolicySettledForTesting = previous }
+        do {
+            _ = try await exerciseEraseFaultBoundary("ERASE_AFTER_CLEANUP")
+        } catch is ControlStop {
+            return (proved, refused)
+        }
+        throw KernelConformanceFixtureFailureV1.incompleteCoverage("registry-policy-control-not-reached")
+    }
+#endif
+
     func exerciseProductionFaultBoundaries(
         _ boundaries: [String]
     ) async throws -> [KernelConformanceFaultBoundaryReceiptV1] {

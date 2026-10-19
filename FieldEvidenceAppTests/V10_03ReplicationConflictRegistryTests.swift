@@ -63,7 +63,7 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let workspaceID = WorkspaceID()
         let mutationID = try MutationIDV1(rawValue: UUID())
         let predecessor = UUID(uuidString: "00000000-0000-0000-0000-000000002201")!
-        let first = AssetSuccessorLinkV1(
+        let first = try AssetSuccessorLinkV1.canonical(
             linkID: UUID(uuidString: "00000000-0000-0000-0000-000000002202")!,
             workspaceID: workspaceID,
             predecessorAssetID: predecessor,
@@ -71,10 +71,9 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             predecessorLinkID: nil,
             revision: 1,
             mutationID: mutationID,
-            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
-            linkSHA256: String(repeating: "a", count: 64)
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600)
         )
-        let conflicting = AssetSuccessorLinkV1(
+        let conflicting = try AssetSuccessorLinkV1.canonical(
             linkID: UUID(uuidString: "00000000-0000-0000-0000-000000002204")!,
             workspaceID: workspaceID,
             predecessorAssetID: predecessor,
@@ -82,8 +81,7 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             predecessorLinkID: first.linkID,
             revision: 2,
             mutationID: mutationID,
-            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
-            linkSHA256: String(repeating: "a", count: 64)
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600)
         )
         XCTAssertThrowsError(try AssetSuccessorLinkV1.validateAcyclic([first, conflicting])) { error in
             XCTAssertEqual(error as? AssetSemanticContractFailureV1, .duplicateValue)
