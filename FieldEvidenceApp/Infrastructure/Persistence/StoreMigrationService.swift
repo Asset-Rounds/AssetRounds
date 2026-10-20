@@ -30498,6 +30498,11 @@ final class GenerationWriterAllocationAttemptV1 {
         guard !preparationAcquisitionStarted, !acquisitionStarted,
               !restoreAcquisitionStarted, !closed, !sealedForRetirement,
               token == nil, handle == nil else {
+#if DEBUG
+            C25TargetClosedErrorDiagnosticV1.emit(owner: "original-writer",
+                stage: "acquire-entry",
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try expected.requirePreparationWriterAllocation(self,
@@ -31597,6 +31602,12 @@ extension GenerationLeaseRegistryV1 {
               allocation.token == nil,
               preparationWriterPublications[ObjectIdentifier(allocation)] == nil
         else {
+#if DEBUG
+            let diagnosticSavedErrno = errno
+            defer { errno = diagnosticSavedErrno }
+            _ = Self.uncertainOwnerFailure(
+                operation: "original-writer.publish.initial-binding")
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try oldWriter.requireExactRegistry(self)
@@ -31628,6 +31639,12 @@ extension GenerationLeaseRegistryV1 {
                   prior.count < Self.maximumActiveLeaseCount,
                   Set(prior.map(\.leaseID)).count == prior.count,
                   oldWriter.token.epoch != allocation.generationEpoch else {
+#if DEBUG
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                _ = Self.uncertainOwnerFailure(
+                    operation: "original-writer.publish.prior-registry")
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             let firstNames = try originalEraseWriterLeaseNames(
@@ -31723,6 +31740,12 @@ extension GenerationLeaseRegistryV1 {
                 leases: prior + [token]).leases
             guard try readOriginalEraseAuxiliaryRegistryLocked(
                     operation: operation) == dual else {
+#if DEBUG
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                _ = Self.uncertainOwnerFailure(
+                    operation: "original-writer.publish.dual-registry")
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             let handle = try GenerationLeaseHandleV1(registry: self,

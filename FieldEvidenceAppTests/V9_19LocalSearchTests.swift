@@ -612,6 +612,30 @@ final class V9_19LocalSearchTests: XCTestCase {
         let coordinator = SearchCoordinatorV1(index: harness.store)
         XCTAssertEqual(SearchCoordinatorV1.normalize("cafe\u{301}"), SearchCoordinatorV1.normalize("Café"))
         XCTAssertEqual(SearchCoordinatorV1.normalize("\u{200F}مضخة\u{202C}"), "مضخة")
+        let printableASCII = " !\"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnopqrstuvwxyz[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+        let asciiInputs = (0...127).map { String(decoding: [UInt8($0)], as: UTF8.self) }
+        let asciiExpected = Array(repeating: "", count: 32) + printableASCII.map { String($0) } + [""]
+        XCTAssertEqual(asciiExpected.count, 128)
+        for (byte, expected) in asciiExpected.enumerated() {
+            XCTAssertEqual(SearchCoordinatorV1.normalize(asciiInputs[byte]), expected, "ASCII byte \(byte)")
+        }
+        XCTAssertEqual(SearchCoordinatorV1.normalize(asciiInputs.joined()), printableASCII)
+        XCTAssertEqual(SearchCoordinatorV1.normalize(""), "")
+        XCTAssertEqual(SearchCoordinatorV1.normalize(asciiInputs.prefix(32).joined() + "\u{007f}"), "")
+        XCTAssertEqual(SearchCoordinatorV1.normalize(" A\u{0000}\tB\nC\r\u{001f}D\u{007f}  E_F-/G! "), " abcd  e_f-/g! ")
+        let unicodeCases: [(input: String, expected: String)] = [
+            ("Café", "cafe"),
+            ("cafe\u{301}", "cafe"),
+            ("ＰＵＭＰ　Ａ－０１", "pump a-01"),
+            ("\u{200F}مضخة\u{202C}", "مضخة"),
+            (" A\u{0000}É\u{202E}Z\t ", " aez "),
+            ("\u{00a0}Café\u{00a0}", " cafe "),
+            ("ﬃ", "ffi"),
+            (" A🙂B ", " a🙂b "),
+        ]
+        for value in unicodeCases {
+            XCTAssertEqual(SearchCoordinatorV1.normalize(value.input), value.expected)
+        }
         let indexURL = harness.root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
             .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
         let initialEnvelopeBeforeSearches = try Data(contentsOf: indexURL)
@@ -1732,6 +1756,35 @@ final class C57MyDayLocalSearchProjectionTests: XCTestCase {
             query: "ready", workspaceID: plan.key.workspaceID, records: first
         )
         XCTAssertEqual(ready.map(\.membershipID), [plan.items[0].membershipID])
+        XCTAssertEqual(first.map(\.readiness), [.ready, .notReady])
+        XCTAssertTrue(first[1].normalizedTokens.contains("ready"))
+        XCTAssertTrue(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "ready", workspaceID: plan.key.workspaceID, records: [first[1]]
+        ).isEmpty)
+        XCTAssertEqual(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: " READY! ", workspaceID: plan.key.workspaceID, records: [first[0]]
+        ).map(\.membershipID), [plan.items[0].membershipID])
+        XCTAssertEqual(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "not ready", workspaceID: plan.key.workspaceID, records: first
+        ).map(\.membershipID), [plan.items[1].membershipID])
+        XCTAssertEqual(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "rea", workspaceID: plan.key.workspaceID, records: first
+        ).map(\.membershipID), first.map(\.membershipID))
+        XCTAssertEqual(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "my day", workspaceID: plan.key.workspaceID, records: first
+        ), first)
+        XCTAssertTrue(SearchCoordinatorV1.myDayReadyQueryMatches(
+            readiness: .notReady, otherSearchableFields: ["Ready pump"]
+        ))
+        XCTAssertTrue(SearchCoordinatorV1.myDayReadyQueryMatches(
+            readiness: .notReady, otherSearchableFields: ["readymade"]
+        ))
+        XCTAssertFalse(SearchCoordinatorV1.myDayReadyQueryMatches(
+            readiness: .notReady, otherSearchableFields: ["already serviced"]
+        ))
+        XCTAssertFalse(SearchCoordinatorV1.myDayReadyQueryMatches(
+            readiness: .blocked, otherSearchableFields: ["pump"]
+        ))
         XCTAssertThrowsError(try C57MyDaySearchRebuildBoundaryV1.records(
             plans: [plan], readiness: []
         ))

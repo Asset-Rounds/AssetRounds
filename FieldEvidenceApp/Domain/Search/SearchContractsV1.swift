@@ -174,6 +174,16 @@ enum SearchContractValidationV1 {
     static func validDate(_ value: Date) -> Bool { value.timeIntervalSinceReferenceDate.isFinite }
 
     static func normalizeSearchText(_ value: String) -> String {
+        if value.utf8.allSatisfy({ $0 < 0x80 }) {
+            var normalizedASCII: [UInt8] = []
+            normalizedASCII.reserveCapacity(value.utf8.count)
+            for byte in value.utf8 {
+                guard byte >= 0x20, byte != 0x7f else { continue }
+                let lowered: UInt8 = byte >= 0x41 && byte <= 0x5a ? byte + 0x20 : byte
+                normalizedASCII.append(lowered)
+            }
+            return String(decoding: normalizedASCII, as: UTF8.self)
+        }
         let safeScalars = value.unicodeScalars.filter {
             !CharacterSet.controlCharacters.contains($0)
                 && !bidiFormattingScalars.contains($0.value)

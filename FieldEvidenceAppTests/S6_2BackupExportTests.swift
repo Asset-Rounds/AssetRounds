@@ -4400,26 +4400,36 @@ private extension S6_2BackupExportTests {
                     XCTAssertEqual(try photo.checkpoint().state, .committed)
                     clock.value = attempt.terminalCheckpointUpdatedAt.addingTimeInterval(1)
                 }
-                diagnosticStage = "parent-\(index)-finalization"
+                diagnosticStage = "parent-\(index)-finalization/read-current"
                 let current = try owners.service.read(draftID: bound.draftID)
+                diagnosticStage = "parent-\(index)-finalization/prepare-inputs"
                 let base = 10 + index * 10
                 ids.enqueue([uuid(base + 1), uuid(base + 2), uuid(base + 3), uuid(base + 4)])
+                diagnosticStage = "parent-\(index)-finalization/prepare"
                 let finalizing = try await owners.service.prepareFinalization(draftID: bound.draftID,
                     expectedCheckpointSHA256: current.checkpointSHA256,
                     sourceApp: .init(build: "42", version: "4.0")) {}
+                diagnosticStage = "parent-\(index)-finalization/prepared-proof"
                 let attempt = try XCTUnwrap(CheckRunnerItemDraftCodecV1.validateCheckpoint(finalizing).finalizationAttempt)
                 XCTAssertEqual(attempt.identifiers.mutationID, uuid(base + 1))
                 XCTAssertEqual(attempt.identifiers.packetID, uuid(base + 2))
                 XCTAssertEqual(attempt.identifiers.stableRootID, uuid(base + 3))
                 XCTAssertEqual(attempt.identifiers.reportID, uuid(base + 4))
+                diagnosticStage = "parent-\(index)-finalization/resume"
                 let terminal = try await owners.service.resumeFinalization(draftID: bound.draftID) {}
+                diagnosticStage = "parent-\(index)-finalization/terminal-proof"
                 XCTAssertEqual(terminal.state, .committed)
+                diagnosticStage = "parent-\(index)-finalization/target-evidence"
                 let proof = try XCTUnwrap(coordinator.workspaceWriter.checkRunnerItemFinalizationEvidence(
                     workspaceID: workspaceID, draftID: bound.draftID))
+                diagnosticStage = "parent-\(index)-finalization/target-proof"
                 XCTAssertNotNil(proof.target)
+                diagnosticStage = "parent-\(index)-finalization/report-read"
                 let report = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Report>())
                     .first { $0.id == attempt.identifiers.reportID })
+                diagnosticStage = "parent-\(index)-finalization/report-proof"
                 XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue)
+                diagnosticStage = "parent-\(index)-finalization/returned"
                 if index == 0 {
                     diagnosticStage = "parent-0-render-report"
                     let dependencies = try coordinator.packageLifecycleDependencies(

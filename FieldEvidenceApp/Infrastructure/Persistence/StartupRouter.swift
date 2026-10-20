@@ -17049,6 +17049,11 @@ final class EraseRouterOperationV1 {
               let coordinator = preparationCoordinator,
               let exclusion = originalExclusion else {
             originalWriterProjectionUncertain = true
+#if DEBUG
+            let diagnosticSavedErrno = errno
+            defer { errno = diagnosticSavedErrno }
+            print("ORIGINAL_ACTIVATION_V1 stage=writer-projection-retain-binding-refused")
+#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         do {
@@ -17062,6 +17067,11 @@ final class EraseRouterOperationV1 {
                         $0.leaseID.uuidString.lowercased()
                             < $1.leaseID.uuidString.lowercased()
                     }) else {
+#if DEBUG
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_ACTIVATION_V1 stage=writer-projection-retain-roster-refused")
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             originalWriterPublicationProjection = projection

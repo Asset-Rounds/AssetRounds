@@ -1647,6 +1647,11 @@ final class StoreSessionCoordinator: ObservableObject {
                     oldWriter: oldWriter)
             guard let writerProjection = allocation
                     .originalEraseRetainedWriterPublicationProjection else {
+#if DEBUG
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_ACTIVATION_V1 stage=writer-projection-return-missing")
+#endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             try operation.retainOriginalEraseWriterPublicationProjection(

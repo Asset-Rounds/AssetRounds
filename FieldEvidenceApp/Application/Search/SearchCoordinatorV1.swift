@@ -1139,13 +1139,32 @@ extension SearchCoordinatorV1 {
         let tokens = normalizedTokens(query)
         guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
         let matches = records.filter { record in
-            tokens.allSatisfy { queryToken in
+            if tokens == ["ready"], !Self.myDayReadyQueryMatches(
+                readiness: record.readiness,
+                otherSearchableFields: [
+                    "my day", record.sourceKind, record.sourceState.rawValue,
+                    record.hasDueAt ? "due date" : "no due date",
+                    record.hasEstimate ? "estimated" : "no estimate",
+                ]
+            ) {
+                return false
+            }
+            return tokens.allSatisfy { queryToken in
                 record.normalizedTokens.contains { indexedToken in
                     indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
                 }
             }
         }.sorted { $0.projectionIdentity < $1.projectionIdentity }
         return Array(matches.prefix(maximumResults))
+    }
+
+    static func myDayReadyQueryMatches(
+        readiness: MyDayReadinessV1,
+        otherSearchableFields: [String]
+    ) -> Bool {
+        readiness == .ready || otherSearchableFields.contains { field in
+            normalizedTokens(field).contains { $0 == "ready" || $0.hasPrefix("ready") }
+        }
     }
 }
 
