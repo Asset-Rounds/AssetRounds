@@ -5387,11 +5387,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let evidenceCardBody = try boundedSource(evidenceCardSource,
             from: "struct AssetRoundsEvidenceCard", before: "struct AssetRounds")
         XCTAssertTrue(evidenceCardBody.contains(".padding(DesignTokens.Spacing.space16)"))
+        // Current live-source contract only. Historical final-review provenance for
+        // the in-flight Cancel transition remains UNKNOWN/HOLD, not approved here.
+        let currentPreflightCancelGuard = "                .disabled(isBeginning)\n"
+        let currentPreflightCancelComposition =
+            "AssetRoundsSecondaryAction(\"Cancel — no check started\", action: cancel)\n" +
+                currentPreflightCancelGuard +
+                "                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)\n" +
+                "                .accessibilityHidden(focusedField == .timeZone)"
+        XCTAssertEqual(currentPreflightCancelGuard.utf8.count, 39)
+        XCTAssertEqual(currentPreflightCancelComposition.utf8.count, 253)
+        XCTAssertEqual(
+            Data(currentPreflightCancelComposition.utf8).sha256,
+            "E1D7B28393C8442B50B651F614E5A0660614EF920199A283A070C8B7118DFF4E"
+        )
+        XCTAssertEqual(
+            currentPreflightCancelComposition.components(
+                separatedBy: currentPreflightCancelGuard
+            ).count - 1,
+            1
+        )
+        let preflightCancelBeforeInFlightGuard = currentPreflightCancelComposition
+            .replacingOccurrences(of: currentPreflightCancelGuard, with: "")
+        XCTAssertEqual(preflightCancelBeforeInFlightGuard.utf8.count, 214)
+        XCTAssertEqual(
+            Data(preflightCancelBeforeInFlightGuard.utf8).sha256,
+            "8621ABA07744201F92DCA3B11E2842547803BF5BF35ACCB655E1E13D9DA2255A"
+        )
         for action in [
             #"AssetRoundsPrimaryAction("Begin check", action: begin)"#,
-            "AssetRoundsSecondaryAction(\"Cancel — no check started\", action: cancel)\n" +
-                "                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)\n" +
-                "                .accessibilityHidden(focusedField == .timeZone)",
+            currentPreflightCancelComposition,
         ] {
             XCTAssertEqual(doublePreflightProductSource.components(separatedBy: action).count - 1, 1)
         }
@@ -15302,10 +15327,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
         try assertFile(
             recordWorkSourcePath,
-            byteCount: 16_217,
-            sha256: "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5"
+            byteCount: 16_328,
+            sha256: "95301E3734FFD922852F235A1872E275585BA241410D0116207AF83451CD7381"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
+        let recordWorkNativeObservationAddition =
+            "        #if DEBUG\n" +
+                "        .nativeScreenObservationWitnessV1(Self.screenAccessibilityIdentifier)\n" +
+                "        #endif\n"
+        XCTAssertEqual(recordWorkNativeObservationAddition.utf8.count, 111)
+        XCTAssertEqual(
+            Data(recordWorkNativeObservationAddition.utf8).sha256,
+            "0FA8075E949A1BAEECD3C7747FB20691C7B5D45502518EEAFA59F97778AD0330"
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: recordWorkNativeObservationAddition
+            ).count - 1,
+            1
+        )
+        let recordWorkBeforeNativeObservation = recordWorkSource
+            .replacingOccurrences(of: recordWorkNativeObservationAddition, with: "")
+        XCTAssertEqual(recordWorkBeforeNativeObservation.utf8.count, 16_217)
+        XCTAssertEqual(
+            Data(recordWorkBeforeNativeObservation.utf8).sha256,
+            "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5"
+        )
         let recordWorkDateSemanticComposition =
             "                    DatePicker(\n" +
                 "                        selection: $performedDate,\n" +
@@ -15351,6 +15398,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let recordWorkTabBarRouteComposition =
             "        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)\n" +
+                recordWorkNativeObservationAddition +
                 "        .modifier(RecordWorkTabBarVisibility())\n" +
                 "        .onAppear {"
         let recordWorkTabBarVisibilityModifier =
@@ -17381,8 +17429,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                16_217,
-                "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5",
+                16_328,
+                "95301E3734FFD922852F235A1872E275585BA241410D0116207AF83451CD7381",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +
@@ -17502,8 +17550,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 // observation witnesses on the Settings screen and its restore row; recomputed
                 // from the real bytes with SHA-256; no Release, owner or styling change.
                 "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-                62_240,
-                "8355FDC161413C8EA80D680D01A12879D35B1D658EC0FAFADBC75B3AE3E4FCB9",
+                62_611,
+                "B612D4FE2AD568CC3EB09375933DF8122FA4CB700D9CADBBBD6E12E4F691DBF8",
                 [
                     #"AssetRoundsPrimaryNavigationLink("Back up current data") {"#,
                     #"AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)"#,
@@ -17521,6 +17569,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1
             ),
         ]
+        // Only the reviewed owning-file DEBUG capability overload is removed by
+        // this inverse; both pre-existing native observation witnesses stay.
+        let appShellCurrentSource = try text("FieldEvidenceApp/Features/Shell/AppShellView.swift")
+        let appShellContentAccessOverloadAddition =
+            "\n" +
+                "    /// Test hosts only: also installs the caller's existing render capability.\n" +
+                "    func reminderSettingsSectionForTesting(\n" +
+                "        _ section: ReminderSettingsSectionV1?,\n" +
+                "        contentAccess: AppAccessPresentationV1.ContentAccess\n" +
+                "    ) -> some View {\n" +
+                "        reminderSettingsSectionForTesting(section)\n" +
+                "            .environment(\\.appContentAccess, contentAccess)\n" +
+                "    }\n"
+        XCTAssertEqual(appShellContentAccessOverloadAddition.utf8.count, 371)
+        XCTAssertEqual(
+            Data(appShellContentAccessOverloadAddition.utf8).sha256,
+            "F5B5D5D1338613EDE57BD9EAE5F16122B8C3FCD25DF7FA2241BDF1ED0FA77A95"
+        )
+        XCTAssertEqual(
+            appShellCurrentSource.components(
+                separatedBy: appShellContentAccessOverloadAddition
+            ).count - 1,
+            1
+        )
+        let appShellBeforeContentAccessOverload = appShellCurrentSource
+            .replacingOccurrences(of: appShellContentAccessOverloadAddition, with: "")
+        XCTAssertEqual(appShellBeforeContentAccessOverload.utf8.count, 62_240)
+        XCTAssertEqual(
+            Data(appShellBeforeContentAccessOverload.utf8).sha256,
+            "8355FDC161413C8EA80D680D01A12879D35B1D658EC0FAFADBC75B3AE3E4FCB9"
+        )
         let canonicalOwnerMarkers = [
             "AssetRoundsPrimaryAction",
             "AssetRoundsSecondaryAction",

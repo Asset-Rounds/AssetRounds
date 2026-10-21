@@ -28,8 +28,11 @@ Windows), else C:/AssetRounds-v23-review-evidence on Windows and
                             a collected, terminal failure whose summary proves a
                             setup, artifact or runner cause. Failed or
                             interrupted tests, compile errors, build/test or
-                            toolchain-verification step failures, cancellations
-                            and heads that have a gate run are never rerun.
+                            toolchain-verification step failures, cancelled
+                            workflows, ledger cancellations and heads that have
+                            a gate run are never rerun. A failed workflow's
+                            cancelled shared producer needs complete same-job
+                            hosted-runner-not-acquired annotation proof.
   cancel --run RUN_ID --reason TEXT
                             recorded development kind only: an intent ledger
                             record, `gh run cancel` for the active ledgered
@@ -170,6 +173,7 @@ INFRA_SETUP_STEPS = frozenset({
 INFRA_ARTIFACT_STEPS = frozenset({"Upload build evidence", "Upload V23 shared coverage payload"})
 INFRA_RUNNER_STEPS = frozenset({"Remove owned isolated Simulator", "Post Check out the exact revision",
                                 "Complete job"})
+INFRA_RUNNER_MAX_ANNOTATIONS = 500  # At most five complete 100-row API pages.
 
 # Shared-build route, bound to the committed route source (b215af48): the
 # producer/consumer job names come from ios-ci.yml (reusable caller name +
@@ -626,14 +630,169 @@ def shared_partitions(head, plan):
             "partitionIDs": list(identifiers), "selectors": {x: list(by_id[x]) for x in identifiers}}
 
 
-def infra_failure_classification(summary, jobs, run_id, head, selection):
+def unacquired_shared_producer(summary, jobs, run_id, head, selection):
+    """The one no-start shape that may request positive hosted-runner proof.
+
+    No runner and no steps alone do not establish a cause. In particular this
+    does not admit a cancelled workflow, an allocated producer or any app work.
+    """
+    if (selection != SHARED_SELECTION_ID or summary.get("route") != "shared-build"
+            or (summary.get("runID"), summary.get("head"), summary.get("selection"))
+            != (run_id, head, selection) or summary.get("conclusion") != "failure"):
+        return None
+    tests, build, steps = summary.get("tests"), summary.get("build"), summary.get("steps")
+    if (not isinstance(tests, dict) or not tests
+            or any(not isinstance(t, dict) or t.get("result") != "NotStarted"
+                   or t.get("seconds") is not None or t.get("lines", 0) != 0 or t.get("failures", []) != []
+                   for t in tests.values())
+            or not isinstance(build, dict) or build.get("logPresent") is not False
+            or any(key not in build or build[key] is not None for key in
+                   ("stepConclusion", "stepSeconds", "succeeded", "swiftErrors", "swiftWarnings"))
+            or not isinstance(steps, list)
+            or any(not isinstance(s, dict) or s.get("job") != SHARED_SELECTION_JOB for s in steps)
+            or not isinstance(jobs, list) or not jobs or any(not isinstance(j, dict) for j in jobs)):
+        return None
+    producers = [j for j in jobs if j.get("name") == SHARED_PRODUCER_JOB]
+    if len(producers) != 1:
+        return None
+    job = producers[0]
+    producer = summary.get("producer")
+    canonical_job = producer.get("job") if isinstance(producer, dict) else None
+    if (not isinstance(canonical_job, dict) or type(canonical_job.get("id")) is not int
+            or any(canonical_job.get(key) != job.get(field) for key, field in
+                   (("id", "id"), ("name", "name"), ("status", "status"),
+                    ("conclusion", "conclusion"), ("runnerName", "runner_name")))):
+        return None
+    identifier = job.get("id")
+    if (type(identifier) is not int or identifier <= 0
+            or sum(j.get("id") == identifier for j in jobs) != 1
+            or type(job.get("run_id")) is not int or job["run_id"] != run_id or job.get("head_sha") != head
+            or type(job.get("run_attempt")) is not int or job["run_attempt"] != 1
+            or job.get("status") != "completed" or job.get("conclusion") != "cancelled"
+            or type(job.get("runner_id")) is not int or job["runner_id"] != 0
+            or job.get("runner_name") != "" or type(job.get("runner_group_id")) is not int
+            or job["runner_group_id"] != 0
+            or job.get("runner_group_name") != "" or job.get("steps") != []
+            or job.get("labels") != ["macos-26"]
+            or not isinstance(job.get("check_run_url"), str)
+            or re.fullmatch(rf"https://api\.github\.com/repos/{re.escape(REPO)}/check-runs/[1-9][0-9]*",
+                            job["check_run_url"]) is None
+            or job.get("html_url") != f"https://github.com/{REPO}/actions/runs/{run_id}/job/{identifier}"
+            or any(j.get("status") != "completed" or j.get("conclusion") not in ("success", "skipped")
+                   or (j.get("name") != SHARED_SELECTION_JOB
+                       and (j.get("conclusion") != "skipped" or j.get("steps") != []))
+                   for j in jobs if j is not job)):
+        return None
+    return job
+
+
+def unacquired_runner_proof_error(proof, summary, jobs, run_id, head, selection):
+    """Validate complete parsed API responses; never trust a notice or a supplied cause."""
+    job = unacquired_shared_producer(summary, jobs, run_id, head, selection)
+    if job is None or not isinstance(proof, dict):
+        return "not the exact failed-workflow/no-start shared producer"
+    check_path = job["check_run_url"].removeprefix("https://api.github.com/")
+    check_id = int(check_path.rsplit("/", 1)[1])
+    responses = proof.get("responses")
+    check = responses.get("checkRun") if isinstance(responses, dict) else None
+    output = check.get("output") if isinstance(check, dict) else None
+    count = output.get("annotations_count") if isinstance(output, dict) else None
+    if type(count) is not int or not 1 <= count <= INFRA_RUNNER_MAX_ANNOTATIONS:
+        return "missing or out-of-bounds annotation census"
+    annotation_paths = [check_path + f"/annotations?per_page={PAGE_SIZE}&page={page}"
+                        for page in range(1, (count + PAGE_SIZE - 1) // PAGE_SIZE + 1)]
+    paths = {"run": f"repos/{REPO}/actions/runs/{run_id}", "checkRun": check_path,
+             "annotations": annotation_paths, "checkRunAfter": check_path}
+    if (proof.get("apiPaths") != paths or type(proof.get("collectedJobsCount")) is not int
+            or proof["collectedJobsCount"] != len(jobs)
+            or not isinstance(responses, dict) or set(responses) != set(paths)):
+        return "missing complete same-endpoint responses or job census"
+    try:
+        digests = {key: sha256((json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                         ensure_ascii=True, allow_nan=False) + "\n").encode("utf-8"))
+                   for key, value in responses.items()}
+    except (TypeError, ValueError):
+        return "API response is not finite JSON"
+    if proof.get("responseCanonicalJSONSHA256") != digests:
+        return "parsed API response digest mismatch"
+    observed, check, after, pages = (responses[k] for k in ("run", "checkRun", "checkRunAfter", "annotations"))
+    if not all(isinstance(value, dict) for value in (observed, check, after)):
+        return "malformed run or check-run response"
+    if (type(observed.get("id")) is not int or type(observed.get("run_attempt")) is not int
+            or (observed.get("id"), observed.get("head_sha"), observed.get("head_branch"), observed.get("event"),
+         observed.get("path"), observed.get("run_attempt"), observed.get("status"), observed.get("conclusion"))
+            != (run_id, head, BRANCH, "workflow_dispatch", WORKFLOW_PATH, 1, "completed", "failure")):
+        return "workflow identity, attempt or failed conclusion mismatch"
+    suite = check.get("check_suite")
+    if (check != after or type(check.get("id")) is not int or check["id"] != check_id
+            or check.get("head_sha") != head
+            or check.get("status") != "completed" or check.get("conclusion") != "cancelled"
+            or check.get("details_url") != job["html_url"]
+            or check.get("url") != job["check_run_url"] or not isinstance(check.get("output"), dict)
+            or check["output"].get("annotations_url") != job["check_run_url"] + "/annotations"):
+        return "same-job check-run identity or before/after fence mismatch"
+    if (type(observed.get("check_suite_id")) is not int or observed["check_suite_id"] <= 0
+            or not isinstance(suite, dict) or type(suite.get("id")) is not int
+            or suite["id"] != observed["check_suite_id"]
+            or (isinstance(suite, dict) and (("head_sha" in suite and suite["head_sha"] != head)
+                or ("head_branch" in suite and suite["head_branch"] != BRANCH)))):
+        return "check-suite identity differs from the workflow/head"
+    if (not isinstance(pages, list) or len(pages) != len(annotation_paths)
+            or any(not isinstance(page, list) or len(page) != min(PAGE_SIZE, count - index * PAGE_SIZE)
+                   for index, page in enumerate(pages))):
+        return "incomplete or out-of-bounds annotation census"
+    annotations = [annotation for page in pages for annotation in page]
+    if any(not isinstance(a, dict) or not isinstance(a.get("path"), str)
+           or not isinstance(a.get("message"), str) or type(a.get("start_line")) is not int
+           or type(a.get("end_line")) is not int or not 1 <= a["start_line"] <= a["end_line"]
+           for a in annotations):
+        return "malformed annotation row"
+    failures = [a for a in annotations if a.get("annotation_level") == "failure"]
+    if (len(failures) != 1 or failures[0].get("path") != ".github"
+            or failures[0].get("start_line") != 1 or failures[0].get("end_line") != 1
+            or failures[0].get("message") !=
+            "The job was not acquired by Runner of type hosted even after multiple attempts"
+            or any(a.get("annotation_level") not in ("failure", "notice") for a in annotations)):
+        return "no unique exact hosted-runner-not-acquired failure annotation"
+    return None
+
+
+def observe_unacquired_runner_proof(observed, jobs_body, job):
+    """Retain full JSON from controlled API endpoints, not a raw-provider-byte claim."""
+    count = jobs_body.get("total_count")
+    if type(count) is not int or count != len(jobs_body["jobs"]):
+        raise SystemExit("unacquired hosted runner proof requires the complete collected job census")
+    check_path = job["check_run_url"].removeprefix("https://api.github.com/")
+    check = api(check_path)
+    output = check.get("output") if isinstance(check, dict) else None
+    annotations_count = output.get("annotations_count") if isinstance(output, dict) else None
+    if type(annotations_count) is not int or not 1 <= annotations_count <= INFRA_RUNNER_MAX_ANNOTATIONS:
+        raise SystemExit("unacquired hosted runner annotation census is missing or exceeds the bounded pages")
+    annotation_paths = [check_path + f"/annotations?per_page={PAGE_SIZE}&page={page}"
+                        for page in range(1, (annotations_count + PAGE_SIZE - 1) // PAGE_SIZE + 1)]
+    responses = {"run": observed, "checkRun": check, "annotations": [api(path) for path in annotation_paths],
+                 "checkRunAfter": api(check_path)}
+    return {"observedAtUTC": now(), "collectedJobsCount": count,
+            "serialization": "Full parsed JSON returned by api; digests are canonical JSON, not provider raw bytes",
+            "apiPaths": {"run": f"repos/{REPO}/actions/runs/{job['run_id']}", "checkRun": check_path,
+                         "annotations": annotation_paths, "checkRunAfter": check_path},
+            "responses": responses,
+            "responseCanonicalJSONSHA256": {
+                key: sha256((json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                       ensure_ascii=True, allow_nan=False) + "\n").encode("utf-8"))
+                for key, value in responses.items()}}
+
+
+def infra_failure_classification(summary, jobs, run_id, head, selection, runner_proof=None):
     """(refusals, causes) for an infrastructure rerun of one collected original.
 
     Fail closed. Failed or interrupted tests, compile errors and any run that did
     not conclude "failure" refuse. Each failing job's first failing step must be
     a setup, artifact or runner step; once that job's tests executed, only an
     artifact or runner step. A failed job with no failing step is a runner
-    failure. Anything else (build, test, validation or budget steps) refuses."""
+    failure. A cancelled no-start shared producer additionally needs complete
+    same-job hosted-runner-not-acquired proof; generic cancellations refuse.
+    Anything else (build, test, validation or budget steps) refuses."""
     identity = (summary.get("runID"), summary.get("head"), summary.get("selection"))
     if identity != (run_id, head, selection):
         return [f"summary identity {identity} is not {(run_id, head, selection)}"], []
@@ -679,6 +838,13 @@ def infra_failure_classification(summary, jobs, run_id, head, selection):
     for job in jobs:
         if job.get("conclusion") == "failure" and job.get("name") not in first:
             causes.append({"job": job.get("name"), "step": None, "conclusion": "failure", "category": "runner"})
+    if runner_proof is not None:
+        error = unacquired_runner_proof_error(runner_proof, summary, jobs, run_id, head, selection)
+        if error is not None:
+            refusals.append("unacquired hosted runner proof refused: " + error)
+        else:
+            causes.append({"job": SHARED_PRODUCER_JOB, "step": None, "conclusion": "cancelled",
+                           "category": "runner", "proof": "same-job hosted-runner-not-acquired annotation"})
     if not causes and not refusals:
         refusals.append("no failing step or failed job proves a setup, artifact or runner failure")
     return refusals, causes
@@ -725,13 +891,19 @@ def infra_retry_admission(head, selection, resolved, resolved_sha, run_id, reaso
             or not (directory / "jobs.json").is_file():
         raise SystemExit(f"run {run_id} is not collected; collect --run {run_id} and audit it first")
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    jobs = json.loads((directory / "jobs.json").read_text(encoding="utf-8")).get("jobs", [])
-    refusals, causes = infra_failure_classification(summary, jobs, run_id, head, selection)
+    jobs_raw = (directory / "jobs.json").read_bytes()
+    jobs_body = json.loads(jobs_raw.decode("utf-8"))
+    jobs = jobs_body.get("jobs", [])
+    job = unacquired_shared_producer(summary, jobs, run_id, head, selection)
+    runner_proof = observe_unacquired_runner_proof(observed, jobs_body, job) if job is not None else None
+    refusals, causes = infra_failure_classification(summary, jobs, run_id, head, selection, runner_proof)
     if refusals:
         raise SystemExit(f"run {run_id} is not an infrastructure failure: " + "; ".join(refusals))
-    return retry_path, {"infraRetryOf": run_id, "infraRetryReason": reason,
-                        "infraRetryEvidence": {"summarySHA256": sha256(summary_path.read_bytes()),
-                                               "conclusion": summary.get("conclusion"), "causes": causes}}
+    evidence = {"summarySHA256": sha256(summary_path.read_bytes()),
+                "conclusion": summary.get("conclusion"), "causes": causes}
+    if runner_proof is not None:
+        evidence.update(jobsSHA256=sha256(jobs_raw), runnerNotAcquiredProof=runner_proof)
+    return retry_path, {"infraRetryOf": run_id, "infraRetryReason": reason, "infraRetryEvidence": evidence}
 
 
 def phase1_gates():

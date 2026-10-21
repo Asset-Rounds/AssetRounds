@@ -497,7 +497,7 @@ final class S6_2BackupExportTests: XCTestCase {
         XCTAssertEqual(validated.records.evidenceQuality, expectedQuality)
         XCTAssertEqual(validated.records.fastSurveyInbox, expectedInbox)
         XCTAssertEqual(validated.records.mutationHistory, archiveHistory)
-        let recordBytes = try XCTUnwrap(validated.members["records.json"])
+        let recordBytes = try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: validated)
         XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(validated.records).data, recordBytes)
         // Use the full admitted archive rather than a partial synthetic envelope:
         // its populated C10/C11 fields retain their genuine cross-family graph.
@@ -822,7 +822,7 @@ final class S6_2BackupExportTests: XCTestCase {
             diagnosticStage = "import-validation"
             let validated = try importer.stageAndValidate(selectedPackageURL: package)
             defer { try? importer.discard(validated) }
-            XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
+            XCTAssertEqual(validated.manifest.backupSchemaVersion, 5)
             let expectedPersistentVersion = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
             let expectedRecordsVersion = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
             XCTAssertEqual(harness.session.storeSchemaRelease.versionIdentifier.major, expectedPersistentVersion)
@@ -860,7 +860,7 @@ final class S6_2BackupExportTests: XCTestCase {
                 XCTAssertEqual($0 as? LocationContractFailureV1, .invalidValue)
             }
 
-            let recordsData = try XCTUnwrap(validated.members["records.json"])
+            let recordsData = try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: validated)
             let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
             XCTAssertEqual(decodedRecords.recordsSchemaVersion, expectedRecordsVersion)
             XCTAssertEqual(
@@ -4892,13 +4892,15 @@ private extension S6_2BackupExportTests {
             s6_2PhotoRestoreAttributionV1("journey.current-import.returned", context: label)
 #endif
             let currentRecords = current.records
-            let currentRecordsData = try XCTUnwrap(current.members["records.json"])
+            let currentRecordsData = try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: current)
+            let currentLogicalBasis = try canonicalBasis(harness)
+            XCTAssertEqual(currentLogicalBasis.recordsData, currentRecordsData)
             let currentHistory = try CheckRunnerPhotoBackupHistoryV1.project(
                 source: current.manifest.source, records: current.records)
             let currentPlan = try CheckRunnerPhotoBackupRestorePlanV1.resolve(
                 history: currentHistory, entries: current.manifest.entries,
                 metadata: { try XCTUnwrap(current.members[$0]) })
-            let currentMembers = current.manifest.entries
+            let currentMembers = currentLogicalBasis.memberInventory
             let retainedReport = try XCTUnwrap(currentRecords.reports.first { $0.id == uuid(609) })
             XCTAssertEqual(retainedReport.pdfState, "ready")
             let retainedPDFPath = try XCTUnwrap(retainedReport.pdfRelativePath)
@@ -5028,8 +5030,10 @@ private extension S6_2BackupExportTests {
                 makeUUID: { self.uuid(790) }, scopedAccess: .alreadyAuthorized)
             let current = try currentImporter.stageAndValidate(selectedPackageURL: currentArchive)
             let records = current.records
-            let recordsData = try XCTUnwrap(current.members["records.json"])
-            let members = current.manifest.entries
+            let recordsData = try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: current)
+            let currentLogicalBasis = try canonicalBasis(harness)
+            XCTAssertEqual(currentLogicalBasis.recordsData, recordsData)
+            let members = currentLogicalBasis.memberInventory
             let history = try CheckRunnerPhotoBackupHistoryV1.project(
                 source: current.manifest.source, records: records)
             let retainedPhotoDraftIDs = Set(history.children.map { $0.payload.childDraftID })
@@ -6084,7 +6088,8 @@ extension S6_2BackupExportTests {
             ),
             receipt
         )
-        XCTAssertEqual(validated.members["records.json"], try BackupCanonicalEncoderV1().encodeRecords(validated.records).data)
+        XCTAssertEqual(try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: validated),
+            try BackupCanonicalEncoderV1().encodeRecords(validated.records).data)
     }
 }
 

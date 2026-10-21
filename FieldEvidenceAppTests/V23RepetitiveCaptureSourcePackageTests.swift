@@ -461,6 +461,7 @@ final class RepetitiveCaptureSourcePackageFixture {
     private let records: V4BackupRecordsV1
     private let fileManager = FileManager.default
     private let phaseTrace: ((String) -> Void)?
+    private let rawDataWire: Bool
 
     init(discardSource: Bool = false, includeForeignOriginal: Bool = false,
          laterActiveSource: Bool = false, discardPendingSource: Bool = false,
@@ -477,6 +478,7 @@ final class RepetitiveCaptureSourcePackageFixture {
          foreignHistoryOnly: Bool = false,
          boundaryItemCount: Int? = nil, sourceOnly: Bool = false,
          extraActiveSourceRevisions: Int = 0,
+         rawDataWire: Bool = false,
          phaseTrace: ((String) -> Void)? = nil) throws {
         guard (0...512).contains(extraActiveSourceRevisions),
               extraActiveSourceRevisions == 0 || laterActiveSource,
@@ -487,6 +489,7 @@ final class RepetitiveCaptureSourcePackageFixture {
                 !directDiscardedSource && !staleExtraDiscardReceipt && !foreignHistoryOnly &&
                 boundaryItemCount == nil) else { throw WorkspaceMutationFailureV1.invalidCommand }
         self.phaseTrace = phaseTrace
+        self.rawDataWire = rawDataWire
         phaseTrace?("fixture-start")
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("v23-c36-source-\(UUID().uuidString)", isDirectory: true)
@@ -583,6 +586,11 @@ final class RepetitiveCaptureSourcePackageFixture {
         let validated = try ValidatedRepetitiveCaptureSourcePackageV2.validate(
             stagedPackageURL: value, using: BackupPackageValidatorV1())
         phaseTrace?("package-validator-complete")
+        if rawDataWire, case nil = recordsMutation {
+            // The maximum case preserves every original canonical Data byte,
+            // including complete history, not only graph cardinalities.
+            XCTAssertEqual(validated.records, records)
+        }
         return validated
     }
 
@@ -600,7 +608,12 @@ final class RepetitiveCaptureSourcePackageFixture {
         let directory = root.appendingPathComponent("\(name).fieldrecordbackup", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         phaseTrace?("records-encoder-start")
-        let encodedRecords = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        let rawPlan: BackupRawDataWireV1.Plan?
+        if rawDataWire { rawPlan = try BackupCanonicalEncoderV1().encodeRawDataRecords(records) }
+        else { rawPlan = nil }
+        let encodedRecords: Data
+        if let rawPlan { encodedRecords = rawPlan.metadata.data }
+        else { encodedRecords = try BackupCanonicalEncoderV1().encodeRecords(records).data }
         phaseTrace?("records-encoder-complete")
         let recordsData: Data
         if let recordsMutation {
@@ -617,10 +630,32 @@ final class RepetitiveCaptureSourcePackageFixture {
         // immediately below, on the exact bytes written here.
         if validateRecordsBeforeWriting {
             phaseTrace?("raw-decode-start")
-            _ = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
-            phaseTrace?("raw-decode-complete")
+            if rawPlan == nil {
+                _ = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
+                phaseTrace?("raw-decode-complete")
+            }
         }
         try recordsData.write(to: directory.appendingPathComponent("records.json"), options: .atomic)
+        if let rawPlan {
+            let rawURL = directory.appendingPathComponent(BackupRawDataWireV1.rawPath)
+            guard fileManager.createFile(atPath: rawURL.path, contents: nil) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let handle = try FileHandle(forWritingTo: rawURL)
+            do {
+                try rawPlan.slots.forEachChunk { try handle.write(contentsOf: $0) }
+                try handle.synchronize()
+                try handle.close()
+            } catch {
+                try? handle.close()
+                throw error
+            }
+            if validateRecordsBeforeWriting {
+                _ = try BackupCanonicalDecoderV1().decodeRawDataRecordsWithFacts(recordsData,
+                    rawData: Data(contentsOf: rawURL))
+                phaseTrace?("raw-decode-complete")
+            }
+        }
 
         var sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(
             with: try JSONEncoder.canonicalV1.encode(source)) as? [String: Any])
@@ -630,9 +665,16 @@ final class RepetitiveCaptureSourcePackageFixture {
         let entry = V4BackupEntryV1(byteCount: recordsData.count, mimeType: "application/json",
                                     path: "records.json",
                                     sha256: KernelCanonicalHashV1.sha256(recordsData))
+        var entries = [entry]
+        if let rawPlan {
+            entries.append(.init(byteCount: rawPlan.slots.byteCount,
+                mimeType: BackupRawDataWireV1.rawMIMEType, path: BackupRawDataWireV1.rawPath,
+                sha256: rawPlan.slots.sha256))
+        }
+        entries.sort { $0.path < $1.path }
         let manifest = V4BackupManifestV1(
-            backupSchemaVersion: 4, consumedEvaluationRootIDs: [],
-            declaredPayloadByteCount: recordsData.count, entries: [entry],
+            backupSchemaVersion: rawDataWire ? 5 : 4, consumedEvaluationRootIDs: [],
+            declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount }, entries: entries,
             exportedAt: Self.date, packs: [], source: decodedSource)
 #if DEBUG
         let encodedManifestData = try BackupCanonicalEncoderV1().encodeManifest(manifest).data

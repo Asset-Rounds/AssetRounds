@@ -7124,7 +7124,12 @@ class WorkflowWiringTests(unittest.TestCase):
             source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
             declared = re.findall(r"^    func (test\w+)\(", source, re.M)
             self.assertEqual(len(declared), len(set(declared)))
-            self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass])
+            # This historical pool stays frozen; envelope5 adds one separately
+            # full-census-covered method before the six original member tests.
+            later_methods = (["testEnvelope5RequiresTypedRawCompanionAndPreservesCombinedRecordsBudget"]
+                             if klass == "V23BackupManifestMemberTests" else [])
+            self.assertEqual(declared, later_methods + [s.rsplit("/", 1)[1] for s in expected
+                                                       if CI.selection_class(s) == klass])
         for selector in expected:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text()

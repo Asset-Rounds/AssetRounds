@@ -1702,9 +1702,28 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         )) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
+        // Quarantine denies live receipt authority without changing accepted history.
+        for mutationID in [reversalMutationID, acceptedReversal.mutationID] {
+            XCTAssertThrowsError(try reversalHarness.writer.durableReceipt(mutationID: mutationID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+            }
+        }
+        let postConflictSnapshot = try reversalHarness.store.exportSnapshot()
         XCTAssertEqual(
-            try reversalHarness.writer.durableReceipt(mutationID: reversalMutationID),
-            try reversalHarness.writer.durableReceipt(mutationID: acceptedReversal.mutationID)
+            postConflictSnapshot.receipts.map(\.envelopeData),
+            acceptedSemanticSnapshot.receipts.map(\.envelopeData)
+        )
+        XCTAssertEqual(
+            postConflictSnapshot.receipts.map(\.receiptData),
+            acceptedSemanticSnapshot.receipts.map(\.receiptData)
+        )
+        XCTAssertEqual(
+            postConflictSnapshot.receipts.map(\.reversalBasisData),
+            acceptedSemanticSnapshot.receipts.map(\.reversalBasisData)
+        )
+        XCTAssertEqual(
+            postConflictSnapshot.receipts.map(\.semanticReversalData),
+            acceptedSemanticSnapshot.receipts.map(\.semanticReversalData)
         )
         XCTAssertEqual(
             try reversalHarness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()),

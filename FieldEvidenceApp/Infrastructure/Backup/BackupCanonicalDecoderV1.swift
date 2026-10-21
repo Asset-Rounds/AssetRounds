@@ -745,11 +745,17 @@ enum C30EvidenceContextBackupDecoderV1 {
 /// Proof of the complete immutable value and canonical bytes accepted by the
 /// sole records decoder. Raw state and construction stay in this file.
 struct BackupCanonicalRecordsValidationFactsV1: Sendable {
+    enum WireFormat: Equatable, Sendable { case legacyJSON, rawDataV1 }
+    struct RawDescriptor: Equatable, Sendable { let sha256: String; let byteCount: Int }
+    let wireFormat: WireFormat
+    private let rawDescriptorValue: RawDescriptor?
     private let completeRecords: V4BackupRecordsV1
     private let canonicalSHA256: String
     private let canonicalByteCount: Int
 
-    fileprivate init(records: V4BackupRecordsV1, canonicalData: Data) {
+    fileprivate init(records: V4BackupRecordsV1, canonicalData: Data, rawData: Data? = nil) {
+        wireFormat = rawData == nil ? .legacyJSON : .rawDataV1
+        rawDescriptorValue = rawData.map { RawDescriptor(sha256: CanonicalJSONV1.sha256($0), byteCount: $0.count) }
         completeRecords = records
         canonicalSHA256 = CanonicalJSONV1.sha256(canonicalData)
         canonicalByteCount = canonicalData.count
@@ -760,6 +766,13 @@ struct BackupCanonicalRecordsValidationFactsV1: Sendable {
         return completeRecords
     }
 
+    func rawDescriptor(matching records: V4BackupRecordsV1) -> RawDescriptor? {
+        guard completeRecords == records else { return nil }
+        return rawDescriptorValue
+    }
+
+    /// For rawDataV1 this is the canonical metadata member, NEVER legacy JSON.
+    /// Its authority requires the companion raw descriptor and full manifest.
     func descriptor(matching records: V4BackupRecordsV1)
         -> (sha256: String, byteCount: Int)? {
         guard completeRecords == records else { return nil }
@@ -827,12 +840,33 @@ struct BackupCanonicalDecoderV1: Sendable {
     func decodeRecordsWithFacts(_ data: Data) throws -> (
         records: V4BackupRecordsV1, facts: BackupCanonicalRecordsValidationFactsV1
     ) {
+        try decodeRecordsWithFacts(data, rawData: nil,
+            maximumByteCount: StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
+    }
+
+    func decodeRawDataRecordsWithFacts(_ metadata: Data, rawData: Data,
+        maximumByteCount: Int64 = StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount
+    ) throws -> (records: V4BackupRecordsV1, facts: BackupCanonicalRecordsValidationFactsV1) {
+        try decodeRecordsWithFacts(metadata, rawData: rawData, maximumByteCount: maximumByteCount)
+    }
+
+    private func decodeRecordsWithFacts(_ data: Data, rawData: Data?, maximumByteCount: Int64)
+        throws -> (records: V4BackupRecordsV1, facts: BackupCanonicalRecordsValidationFactsV1) {
         try C34SceneNavigationBackupDecoderBoundaryV1.validate()
 #if DEBUG
         var recordsDecodePhase = "raw-records-decode"
 #endif
         do {
-            let value = try decoder().decode(V4BackupRecordsV1.self, from: data)
+            let recordDecoder = decoder()
+            let resolver = try rawData.map {
+                try BackupRawDataWireV1.Resolver(metadata: data, raw: $0,
+                                                maximumByteCount: maximumByteCount)
+            }
+            if let resolver {
+                recordDecoder.dataDecodingStrategy = .custom { try resolver.decode($0) }
+            }
+            let value = try recordDecoder.decode(V4BackupRecordsV1.self, from: data)
+            try resolver?.validateComplete()
 #if DEBUG
             recordsDecodePhase = "validatePartyAccountability"
 #endif
@@ -1004,6 +1038,16 @@ struct BackupCanonicalDecoderV1: Sendable {
 #if DEBUG
             recordsDecodePhase = "canonical-reencode"
 #endif
+            if let rawData {
+                let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(value,
+                    maximumByteCount: maximumByteCount)
+                guard plan.metadata.data == data, plan.slots.byteCount == rawData.count,
+                      plan.slots.sha256 == CanonicalJSONV1.sha256(rawData) else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+                return (value, BackupCanonicalRecordsValidationFactsV1(
+                    records: value, canonicalData: data, rawData: rawData))
+            }
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
 #if DEBUG
             recordsDecodePhase = "canonical-byte-equality"

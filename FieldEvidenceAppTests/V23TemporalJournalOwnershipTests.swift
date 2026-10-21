@@ -267,16 +267,26 @@ final class V23TemporalJournalOwnershipTests: XCTestCase {
         let promotionSeed = try promotionStore(root: promotionRoot, workspaceID: promotionFixture.workspaceID, effects: effects)
         try await promotionSeed.prepare(promotionFixture.reservation)
         let promotionJournal = journalURL(root: promotionRoot, workspaceID: promotionFixture.workspaceID)
+        let promotionInode = try inode(of: promotionJournal)
         let promotionObservation = JournalReadObservation()
         let promotionGrowth = try promotionStore(root: promotionRoot, workspaceID: promotionFixture.workspaceID, effects: effects, readBoundary: { phase in
             switch phase {
-            case .afterOpen: try promotionObservation.grow(promotionJournal)
-            case .accumulatedRead(let count): promotionObservation.record(count)
-            case .afterLeafStat: break
+            case .accumulatedRead(let count):
+                try promotionObservation.growDuringRead(promotionJournal, accumulated: count, expectedInode: promotionInode)
+            case .afterOpen, .afterLeafStat: break
             }
         })
-        await assertFails { _ = try await promotionGrowth.promotedContentExists(promotionFixture.reservation) }
+        do {
+            _ = try await promotionGrowth.promotedContentExists(promotionFixture.reservation)
+            XCTFail("expected promotion journal accumulation to exceed its read limit")
+        } catch {
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .limitExceeded)
+        }
         XCTAssertEqual(promotionObservation.maximum, 1_048_576)
+        XCTAssertEqual(promotionObservation.growthCount, 2)
+        XCTAssertGreaterThan(promotionObservation.callbackCount, 1)
+        XCTAssertEqual(try inode(of: promotionJournal), promotionInode)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: promotionJournal.path)[.size] as? NSNumber)?.intValue, 1_048_577)
         let promotionCounts = await effects.counts()
         XCTAssertEqual(promotionCounts.verify, 0)
         XCTAssertEqual(promotionCounts.remove, 0)
@@ -284,16 +294,76 @@ final class V23TemporalJournalOwnershipTests: XCTestCase {
         let retentionSeed = try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(generationRootURL: retentionRoot, workspaceID: retentionFixture.workspaceID)
         try await retentionSeed.prepareCleanup(retentionFixture.reservation)
         let retentionJournal = retentionJournalURL(root: retentionRoot, workspaceID: retentionFixture.workspaceID)
+        let retentionInode = try inode(of: retentionJournal)
         let retentionObservation = JournalReadObservation()
         let retentionGrowth = try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(generationRootURL: retentionRoot, workspaceID: retentionFixture.workspaceID, readBoundary: { phase in
             switch phase {
-            case .afterOpen: try retentionObservation.grow(retentionJournal)
-            case .accumulatedRead(let count): retentionObservation.record(count)
+            case .accumulatedRead(let count):
+                try retentionObservation.growDuringRead(retentionJournal, accumulated: count, expectedInode: retentionInode)
+            case .afterOpen, .afterLeafStat: break
+            }
+        })
+        do {
+            _ = try await retentionGrowth.pendingCleanups()
+            XCTFail("expected retention journal accumulation to exceed its read limit")
+        } catch {
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .limitExceeded)
+        }
+        XCTAssertEqual(retentionObservation.maximum, 1_048_576)
+        XCTAssertEqual(retentionObservation.growthCount, 2)
+        XCTAssertGreaterThan(retentionObservation.callbackCount, 1)
+        XCTAssertEqual(try inode(of: retentionJournal), retentionInode)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: retentionJournal.path)[.size] as? NSNumber)?.intValue, 1_048_577)
+
+        let promotionEarlyRoot = try makeDirectory("V23-promotion-after-open-growth")
+        defer { try? FileManager.default.removeItem(at: promotionEarlyRoot.deletingLastPathComponent()) }
+        let promotionEarlyEffects = JournalEffects()
+        let promotionEarlySeed = try promotionStore(root: promotionEarlyRoot, workspaceID: promotionFixture.workspaceID, effects: promotionEarlyEffects)
+        try await promotionEarlySeed.prepare(promotionFixture.reservation)
+        let promotionEarlyJournal = journalURL(root: promotionEarlyRoot, workspaceID: promotionFixture.workspaceID)
+        let promotionEarlyObservation = JournalReadObservation()
+        let promotionEarlyGrowth = try promotionStore(root: promotionEarlyRoot, workspaceID: promotionFixture.workspaceID, effects: promotionEarlyEffects, readBoundary: { phase in
+            switch phase {
+            case .afterOpen: try promotionEarlyObservation.grow(promotionEarlyJournal)
+            case .accumulatedRead(let count): promotionEarlyObservation.record(count)
             case .afterLeafStat: break
             }
         })
-        await assertFails { _ = try await retentionGrowth.pendingCleanups() }
-        XCTAssertEqual(retentionObservation.maximum, 1_048_576)
+        do {
+            _ = try await promotionEarlyGrowth.promotedContentExists(promotionFixture.reservation)
+            XCTFail("expected promotion journal growth before reading to be refused")
+        } catch {
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .interruption)
+        }
+        XCTAssertEqual(promotionEarlyObservation.growthCount, 1)
+        XCTAssertEqual(promotionEarlyObservation.maximum, 0)
+        XCTAssertEqual(promotionEarlyObservation.callbackCount, 0)
+        let promotionEarlyCounts = await promotionEarlyEffects.counts()
+        XCTAssertEqual(promotionEarlyCounts.verify, 0)
+        XCTAssertEqual(promotionEarlyCounts.remove, 0)
+
+        let retentionEarlyRoot = try makeDirectory("V23-retention-after-open-growth")
+        defer { try? FileManager.default.removeItem(at: retentionEarlyRoot.deletingLastPathComponent()) }
+        let retentionEarlySeed = try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(generationRootURL: retentionEarlyRoot, workspaceID: retentionFixture.workspaceID)
+        try await retentionEarlySeed.prepareCleanup(retentionFixture.reservation)
+        let retentionEarlyJournal = retentionJournalURL(root: retentionEarlyRoot, workspaceID: retentionFixture.workspaceID)
+        let retentionEarlyObservation = JournalReadObservation()
+        let retentionEarlyGrowth = try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(generationRootURL: retentionEarlyRoot, workspaceID: retentionFixture.workspaceID, readBoundary: { phase in
+            switch phase {
+            case .afterOpen: try retentionEarlyObservation.grow(retentionEarlyJournal)
+            case .accumulatedRead(let count): retentionEarlyObservation.record(count)
+            case .afterLeafStat: break
+            }
+        })
+        do {
+            _ = try await retentionEarlyGrowth.pendingCleanups()
+            XCTFail("expected retention journal growth before reading to be refused")
+        } catch {
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .interruption)
+        }
+        XCTAssertEqual(retentionEarlyObservation.growthCount, 1)
+        XCTAssertEqual(retentionEarlyObservation.maximum, 0)
+        XCTAssertEqual(retentionEarlyObservation.callbackCount, 0)
 
         let controlRoot = try makeDirectory("V23-temporal-valid-read-control")
         defer { try? FileManager.default.removeItem(at: controlRoot.deletingLastPathComponent()) }
@@ -439,18 +509,74 @@ private actor JournalEffects {
 private final class JournalReadObservation: @unchecked Sendable {
     private let lock = NSLock()
     private var observedMaximum = 0
+    private var observedCallbacks = 0
+    private var scheduledGrowthStages = 0
+    private var completedGrowthStages = 0
 
     var maximum: Int { lock.withLock { observedMaximum } }
+    var callbackCount: Int { lock.withLock { observedCallbacks } }
+    var growthCount: Int { lock.withLock { completedGrowthStages } }
 
     func record(_ count: Int) {
-        lock.withLock { observedMaximum = max(observedMaximum, count) }
+        lock.withLock {
+            observedMaximum = max(observedMaximum, count)
+            observedCallbacks += 1
+        }
     }
 
     func grow(_ url: URL) throws {
+        let firstGrowth = lock.withLock {
+            guard scheduledGrowthStages == 0 else { return false }
+            scheduledGrowthStages = 1
+            return true
+        }
+        guard firstGrowth else { throw TemporalEvidenceContractFailureV1.invalidValue }
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
-        try handle.seekToEnd()
+        let originalEnd = try handle.seekToEnd()
+        guard originalEnd > 0, originalEnd < 1_048_576 else { throw TemporalEvidenceContractFailureV1.invalidValue }
         try handle.write(contentsOf: Data(repeating: 0x61, count: 1_048_576))
+        guard try handle.seekToEnd() == originalEnd + 1_048_576 else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        try handle.close()
+        lock.withLock { completedGrowthStages += 1 }
+    }
+
+    func growDuringRead(_ url: URL, accumulated count: Int, expectedInode: ino_t) throws {
+        let stage = lock.withLock {
+            observedMaximum = max(observedMaximum, count)
+            observedCallbacks += 1
+            if scheduledGrowthStages == 0 {
+                scheduledGrowthStages = 1
+                return 1
+            }
+            if scheduledGrowthStages == 1, count == 1_048_576 {
+                scheduledGrowthStages = 2
+                return 2
+            }
+            return 0
+        }
+        guard stage != 0 else { return }
+        let handle = try FileHandle(forWritingTo: url)
+        defer { try? handle.close() }
+        var info = stat()
+        guard Darwin.fstat(handle.fileDescriptor, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
+              info.st_ino == expectedInode else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        let limit: UInt64 = 1_048_576
+        let originalEnd = try handle.seekToEnd()
+        if stage == 1 {
+            guard count > 0, UInt64(count) <= originalEnd, originalEnd < limit else {
+                throw TemporalEvidenceContractFailureV1.invalidValue
+            }
+            try handle.write(contentsOf: Data(repeating: 0x61, count: Int(limit - originalEnd)))
+        } else {
+            guard count == 1_048_576, originalEnd == limit else { throw TemporalEvidenceContractFailureV1.invalidValue }
+            try handle.write(contentsOf: Data([0x61]))
+        }
+        let expectedEnd = stage == 1 ? limit : limit + 1
+        guard try handle.seekToEnd() == expectedEnd else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        try handle.close()
+        lock.withLock { completedGrowthStages += 1 }
     }
 }
 

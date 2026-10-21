@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "2ed5b4911a6bc94c0027350170438333f9944c50",
+  "generatedAtHead": "3930004b0790f211ad72409dbc4a967d2cce23f3",
   "sweepOrder": [
     "S01",
     "S02",
@@ -42,7 +42,8 @@
     "S35",
     "S36",
     "S37",
-    "S38"
+    "S38",
+    "S41"
   ],
   "partitions": [
     {
@@ -769,7 +770,7 @@
     {
       "id": "S08",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1559.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_07CompatibilityCorpusIntegration/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS42PDFRecovery/testC33S42PDFRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -787,6 +788,7 @@
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testC05DerivativeOwnerConstructorsAdmitMarkerAndOriginalAtCurrentSchema",
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testDecoderRoundTripsTypedMembersAndRejectsUnknownFields",
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testDraftStagingMemberUsesTypedUUIDsAndHonorsSchemaFloor",
+        "FieldEvidenceAppTests/V23BackupManifestMemberTests/testEnvelope5RequiresTypedRawCompanionAndPreservesCombinedRecordsBudget",
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testTemporalOriginalUsesOwnerConstructorAndHonorsSchemaFloor",
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testTypedMemberPathsAndMIMEsRejectMalformedVariantsWithValidControls",
         "FieldEvidenceAppTests/V23BackupManifestMemberTests/testTypedMembersRetainManifestHashOrderTotalSourceAndSchemaPredicates",
@@ -1896,7 +1898,7 @@
     {
       "id": "S20",
       "tier": "D50C",
-      "estimatedSeconds": 1510.6,
+      "estimatedSeconds": 1570.6,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -1938,6 +1940,7 @@
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testC24AccessibleDocumentTypedAnchor",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testC25SurveyDefinitionTypedAnchor",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testC26SurveySessionTypedAnchor",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testEnvelope5DirectoryImportRetainsEveryLegacyLogicalBoundary",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testGoldenMixedPackageStagesValidatesAndRecomputesSummary",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testInvalidFamiliesAndCapacityFailClosedAndCleanStage",
@@ -3858,12 +3861,13 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1680.0,
+      "estimatedSeconds": 1740.0,
       "selectors": [
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testActualWriterThumbnailOnlyDescriptorOwnsPreparedOriginal",
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedInboxRetainsOriginalAndThumbnailDescriptors",
         "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedQualityOwnsSubjectComparisonAndWaiverAcrossAllHistory",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testEveryEnrolledV4TupleRoundTripsAndValidatesActualPackage",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testEveryExistingLogicalTupleRoundTripsEnvelope5AndRetainsLegacyReader",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalEmptyC52ShapePreservesPhysicalBytesAndRejectsOtherShapes",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalManifestTuplesRemainExplicitAndForeignBackupVersionsFail",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testLegacyC08RetainsPopulatedMappingProfileAndRejectsForeignWorkspace",
@@ -4126,6 +4130,22 @@
         "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests/testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed",
         "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests/testV23P04C07I01InterruptionJournalReplaySearchExportAndReceiptsAreBounded",
         "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests/testV23P04C07R01RecoveryLifecycleDeleteEraseCompatibilityAndForwardFixStayCanonical"
+      ]
+    },
+    {
+      "id": "S41",
+      "tier": "D50C",
+      "estimatedSeconds": 540.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testCallbacksMayDecodeHistoryBeforeDraftsAndReverseHistoryFieldOrder",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testCanonicalMetadataRejectsUnknownDuplicateFractionalAndNullReferences",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testCombinedDecodedBudgetCannotBeDoubledByTwoMembers",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testCompleteSmallGraphAndBothReversalKindsRoundTripWithoutChangingLegacyBytes",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testLegacyArchivePathProfileRejectsRawMemberAndNewProfileKeepsTypedPath",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testRangePreflightRejectsAliasOverlapGapTailOverflowAndLegacyTokenBeforeCopies",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testRawMemberIntegrityMissingExtraAndVersionMismatchesFailPackageAdmission",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testReferencesCannotEscapeClosedCodingPathsOrDuplicateConsumption",
+        "FieldEvidenceAppTests/V23BackupRawDataWireV1Tests/testUnconsumedRawRangesCannotProduceCompleteFacts"
       ]
     }
   ]

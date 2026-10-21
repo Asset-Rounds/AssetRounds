@@ -827,7 +827,7 @@ private extension BackupPackageValidatorV1 {
         try validateManifestBounds(manifest)
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
-            entry.path == "records.json" ? nil : entry.path.split(separator: "/").first.map(String.init)
+            entry.path.contains("/") ? entry.path.split(separator: "/").first.map(String.init) : nil
         })
 #if DEBUG
         validationPhase = "member-enumeration"
@@ -876,6 +876,29 @@ private extension BackupPackageValidatorV1 {
         let decodedRecords = try {
             guard let recordsData = members["records.json"] else {
                 throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            if manifest.backupSchemaVersion == BackupRawDataWireV1.backupSchemaVersion {
+                guard let rawDescriptor = members.descriptors[BackupRawDataWireV1.rawPath] else {
+                    throw BackupPackageValidationErrorV1.invalidPackage
+                }
+                if rawDescriptor.byteCount == 0 {
+                    // mmap requires a nonempty file; retain the incumbent held,
+                    // bounded and digest-checked empty-file reader instead.
+                    guard let raw = members[BackupRawDataWireV1.rawPath], raw.isEmpty else {
+                        throw BackupPackageValidationErrorV1.invalidPackage
+                    }
+                    return try decoder.decodeRawDataRecordsWithFacts(recordsData, rawData: raw,
+                        maximumByteCount: limits.maximumUncompressedEntryByteCount)
+                }
+                var decoded: (records: V4BackupRecordsV1, facts: BackupCanonicalRecordsValidationFactsV1)?
+                try members.inspectMapped(BackupRawDataWireV1.rawPath,
+                    maximumByteCount: limits.maximumUncompressedEntryByteCount,
+                    cancellation: cancellation) { raw in
+                    decoded = try decoder.decodeRawDataRecordsWithFacts(recordsData, rawData: raw,
+                        maximumByteCount: limits.maximumUncompressedEntryByteCount)
+                }
+                guard let decoded else { throw BackupPackageValidationErrorV1.invalidPackage }
+                return decoded
             }
             return try decoder.decodeRecordsWithFacts(recordsData)
         }()
@@ -967,7 +990,8 @@ private extension BackupPackageValidatorV1 {
             }
             switch try itemType(value) {
             case .regular:
-                guard name == "manifest.json" || name == "records.json",
+                guard name == "manifest.json" || name == "records.json"
+                        || name == BackupRawDataWireV1.rawPath,
                       result.files.insert(name).inserted else {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
@@ -1133,7 +1157,8 @@ private extension BackupPackageValidatorV1 {
             sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
              (3, let workspaceID?, let replicaID?),
-             (4, let workspaceID?, let replicaID?):
+             (4, let workspaceID?, let replicaID?),
+             (5, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -1160,6 +1185,8 @@ private extension BackupPackageValidatorV1 {
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
+        try BackupRawDataWireV1.validateManifest(manifest,
+            maximumByteCount: limits.maximumUncompressedEntryByteCount)
         var aggregate: Int64 = 0
         var foldedPaths = Set<String>()
         for entry in manifest.entries {
@@ -3769,7 +3796,7 @@ private extension BackupPackageValidatorV1 {
             guard groups.allSatisfy(\.isEmpty) else { throw invalid() }
             return
         }
-        guard manifest.backupSchemaVersion == 4,
+        guard (manifest.backupSchemaVersion == 4 || manifest.backupSchemaVersion == 5),
               BackupSchemaAdmissionV1.matches(manifest, records: records),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
@@ -4133,6 +4160,9 @@ private extension BackupPackageValidatorV1 {
         cancellation: StreamingArchiveCancellationV1
     ) throws {
         var expected = Set(["manifest.json", "records.json"])
+        if manifest.backupSchemaVersion == BackupRawDataWireV1.backupSchemaVersion {
+            expected.insert(BackupRawDataWireV1.rawPath)
+        }
         if members.descriptors[PortableExchangeBackupMemberV2.path] != nil {
             _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
                 manifest: manifest,

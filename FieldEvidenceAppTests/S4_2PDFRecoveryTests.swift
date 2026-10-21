@@ -287,17 +287,97 @@ final class S4_2PDFRecoveryTests: XCTestCase {
                 XCTAssertNoThrow(try harness.close())
             }
             let before = try immutableAuthority(in: harness)
+            var observedPrePolicyFinal = false
             let recovery = try ReportRecoveryService(
                 modelContext: harness.context,
                 lifecycleDependencies: harness.dependencies,
                 lifecycleProfile: harness.profile,
-                failureInjection: ReportRenderFailureInjection(failOnceAt: point)
+                failureInjection: ReportRenderFailureInjection(failOnceAt: point, beforeFailure: {
+                    guard point == .reread else { return }
+                    observedPrePolicyFinal = true
+                    XCTAssertFalse(self.fileManager.fileExists(atPath: self.stageURL(in: harness).path))
+                    XCTAssertNoThrow(try ProtectedFilePolicyV1.verify(.stagingFile, at: self.finalURL(in: harness)))
+                    XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.reportPDF, at: self.finalURL(in: harness)))
+                })
             )
 
             try recovery.reconcileAtStartup()
 
             try assertFailed(harness, label: "\(point)")
             XCTAssertEqual(try immutableAuthority(in: harness), before, "\(point)")
+            XCTAssertEqual(observedPrePolicyFinal, point == .reread)
+        }
+
+        for alteration in ["foreign-policy", "replaced-inode", "changed-bytes", "policy-ack"] {
+            let harness = try await makeHarness("phase-refusal-\(alteration)")
+            defer { XCTAssertNoThrow(try harness.close()) }
+            let before = try immutableAuthority(in: harness)
+            var retainedBytes: Data?
+            let point: ReportRenderFailurePoint = alteration == "policy-ack"
+                ? .finalPolicyAcknowledgement : .reread
+            let injection = ReportRenderFailureInjection(failOnceAt: point, beforeFailure: {
+                do {
+                    let target = self.finalURL(in: harness)
+                    let bytes = try Data(contentsOf: target)
+                    switch alteration {
+                    case "foreign-policy":
+                        try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: target)
+                    case "replaced-inode":
+                        let original = try self.fileManager.attributesOfItem(atPath: target.path)[.systemFileNumber] as? NSNumber
+                        XCTAssertNotNil(original)
+                        try bytes.write(to: target, options: .atomic)
+                        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: target)
+                        let replacement = try self.fileManager.attributesOfItem(atPath: target.path)[.systemFileNumber] as? NSNumber
+                        XCTAssertNotNil(replacement)
+                        XCTAssertNotEqual(original, replacement)
+                    case "changed-bytes":
+                        let original = try self.fileManager.attributesOfItem(atPath: target.path)
+                        let originalDevice = original[.systemNumber] as? NSNumber
+                        let originalInode = original[.systemFileNumber] as? NSNumber
+                        XCTAssertEqual(original[.type] as? FileAttributeType, .typeRegular)
+                        XCTAssertNotNil(originalDevice)
+                        XCTAssertNotNil(originalInode)
+                        try ProtectedFilePolicyV1.verify(.stagingFile, at: target)
+                        let changedBytes = Data("foreign replacement bytes".utf8)
+                        XCTAssertNotEqual(bytes, changedBytes)
+                        let writer = try FileHandle(forWritingTo: target)
+                        try writer.truncate(atOffset: 0)
+                        try writer.write(contentsOf: changedBytes)
+                        try writer.close()
+                        let afterWrite = try self.fileManager.attributesOfItem(atPath: target.path)
+                        XCTAssertEqual(afterWrite[.type] as? FileAttributeType, .typeRegular)
+                        XCTAssertEqual(afterWrite[.systemNumber] as? NSNumber, originalDevice)
+                        XCTAssertEqual(afterWrite[.systemFileNumber] as? NSNumber, originalInode)
+                        try ProtectedFilePolicyV1.verify(.stagingFile, at: target)
+                        let actualBytes = try Data(contentsOf: target)
+                        XCTAssertEqual(actualBytes, changedBytes)
+                        XCTAssertNotEqual(actualBytes, bytes)
+                    default:
+                        try ProtectedFilePolicyV1.verify(.reportPDF, at: target)
+                    }
+                    retainedBytes = try Data(contentsOf: target)
+                } catch {
+                    XCTFail("Could not establish \(alteration): \(error)")
+                }
+            })
+            let service = try ReportRenderService(
+                modelContext: harness.context,
+                lifecycleDependencies: harness.dependencies,
+                lifecycleProfile: harness.profile,
+                failureInjection: injection
+            )
+
+            XCTAssertThrowsError(try service.renderPendingReport(id: Fixture.reportID)) {
+                XCTAssertEqual($0 as? ReportRenderServiceError, .cleanupFailed, alteration)
+            }
+
+            XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), try XCTUnwrap(retainedBytes), alteration)
+            XCTAssertFalse(fileManager.fileExists(atPath: stageURL(in: harness).path), alteration)
+            XCTAssertEqual(harness.report.pdfState, ReportPDFState.pending.rawValue, alteration)
+            XCTAssertNil(harness.report.pdfRelativePath, alteration)
+            XCTAssertNil(harness.report.pdfSHA256, alteration)
+            XCTAssertEqual(try immutableAuthority(in: harness), before, alteration)
+            try harness.validateJournal()
         }
 
         let capacity = try await makeHarness("capacity")
@@ -917,13 +997,28 @@ private extension S4_2PDFRecoveryTests {
 
     @MainActor
     func seed(_ presence: NonReadyPresence, bytes: Data, in harness: RecoveryHarness) throws {
+        if case .absent = presence { return }
+        let root = harness.session.generationRootURL
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        try ReportPDFAnchoredFile.ensureDirectory(relativePath: ".staging/pdfs", within: root, rootIdentity: identity)
+        try ReportPDFAnchoredFile.ensureDirectory(relativePath: "pdfs", within: root, rootIdentity: identity)
         switch presence {
         case .absent:
             return
         case .stageOnly:
-            try write(bytes, to: stageURL(in: harness))
+            _ = try ReportPDFAnchoredFile.createRegularFile(
+                bytes, at: stageURL(in: harness), cleanupAt: finalURL(in: harness),
+                within: root, rootIdentity: identity
+            )
         case .finalOnly:
-            try write(bytes, to: finalURL(in: harness))
+            let fileIdentity = try ReportPDFAnchoredFile.createRegularFile(
+                bytes, at: finalURL(in: harness), cleanupAt: stageURL(in: harness),
+                within: root, rootIdentity: identity
+            )
+            try ReportPDFAnchoredFile.applyAndVerifyRegularFilePolicy(
+                .reportPDF, at: finalURL(in: harness), expectedIdentity: fileIdentity,
+                within: root, rootIdentity: identity
+            )
         }
     }
 

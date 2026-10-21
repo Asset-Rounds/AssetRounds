@@ -33,6 +33,11 @@ final class S5_2RecheckOutcomeTests: XCTestCase {
         let issue = try onlyIssue(id: harness.issueID, context: harness.context)
         XCTAssertEqual(issue.status, IssueStatus.resolved.rawValue)
         XCTAssertEqual(issue.resolvedByRecordID, result.recordID)
+        if issue.updatedAt != harness.completedAt {
+            let actualSeconds: Double = issue.updatedAt.timeIntervalSinceReferenceDate
+            let expectedSeconds: Double = harness.completedAt.timeIntervalSinceReferenceDate
+            print("TEST_RECHECK_RAW_DATE_OPERANDS actualSeconds=\(actualSeconds) actualBits=\(actualSeconds.bitPattern) expectedSeconds=\(expectedSeconds) expectedBits=\(expectedSeconds.bitPattern)")
+        }
         XCTAssertEqual(issue.updatedAt, harness.completedAt)
         let record = try onlyRecord(id: result.recordID, context: harness.context)
         XCTAssertEqual(record.stage, WorkflowStage.recheck.rawValue)

@@ -356,6 +356,8 @@ struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
 
 enum StreamingArchivePathProfileV1:String,Codable,Sendable{
     case backupV4="BACKUP_V4"
+    /// Reads legacy backups and the explicitly versioned opaque-Data transport.
+    case backupV5="BACKUP_V5"
     case surveyTemplate="SURVEY_TEMPLATE"
     case portableReviewRequest="PORTABLE_REVIEW_REQUEST"
 }

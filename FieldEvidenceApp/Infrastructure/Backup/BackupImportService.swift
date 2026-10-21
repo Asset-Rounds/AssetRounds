@@ -200,6 +200,7 @@ final class BackupImportService: @unchecked Sendable {
         self.archiveLimits = archiveLimits
         self.archiveService = StreamingArchiveService(
             limits: archiveLimits,
+            pathProfile: .backupV5,
             makeOperationID: makeUUID
         )
         self.fileManager = fileManager
@@ -949,9 +950,9 @@ private extension BackupImportService {
 
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
-            entry.path == "records.json"
-                ? nil
-                : entry.path.split(separator: "/").first.map(String.init)
+            entry.path.contains("/")
+                ? entry.path.split(separator: "/").first.map(String.init)
+                : nil
         })
         guard try sourceShape(
             root: root,
@@ -977,9 +978,9 @@ private extension BackupImportService {
             }
         }
         let expectedDirectoryCount = Set(manifest.entries.compactMap { entry in
-            entry.path == "records.json"
-                ? nil
-                : entry.path.split(separator: "/").first.map(String.init)
+            entry.path.contains("/")
+                ? entry.path.split(separator: "/").first.map(String.init)
+                : nil
         }).count
         let maximumEnumeratedItemCount = manifest.entries.count
             + expectedDirectoryCount + 1
@@ -1050,16 +1051,26 @@ private extension BackupImportService {
             sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
              (3, let workspaceID?, let replicaID?),
-             (4, let workspaceID?, let replicaID?):
+             (4, let workspaceID?, let replicaID?),
+             (5, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
         default:
             sourceIdentityIsValid = false
         }
+        // Envelope5 changes the wire, not logical import eligibility. Run
+        // every incumbent4 family predicate below, including lifecycle flags.
+        // The actual manifest version still controls identity and raw members.
+        let logicalBackupSchemaVersion: Int
+        if manifest.backupSchemaVersion == BackupRawDataWireV1.backupSchemaVersion {
+            logicalBackupSchemaVersion = 4
+        } else {
+            logicalBackupSchemaVersion = manifest.backupSchemaVersion
+        }
         let schemaPairIsValid: Bool
         switch (
-            manifest.backupSchemaVersion,
+            logicalBackupSchemaVersion,
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
@@ -1128,6 +1139,8 @@ private extension BackupImportService {
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupImportServiceError.invalidSource
         }
+        try BackupRawDataWireV1.validateManifest(manifest,
+            maximumByteCount: archiveLimits.maximumUncompressedEntryByteCount)
         var aggregate: Int64 = 0
         var foldedPaths = Set<String>()
         for entry in manifest.entries {

@@ -36,6 +36,32 @@ final class V23BackupSchemaAdmissionTests: XCTestCase {
         }
     }
 
+    func testEveryExistingLogicalTupleRoundTripsEnvelope5AndRetainsLegacyReader() throws {
+        for (persistent, version) in v4Pairs {
+            let records = try makeRecords(version)
+            let legacy = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(records)
+            var raw = Data()
+            try plan.slots.forEachChunk { raw.append($0) }
+            let decoded = try BackupCanonicalDecoderV1().decodeRawDataRecordsWithFacts(
+                plan.metadata.data, rawData: raw)
+            XCTAssertEqual(decoded.records, records)
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decoded.records).data, legacy)
+            XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(legacy), records)
+            try withPackage(records: plan.metadata.data, persistent: persistent, version: version,
+                backup: 5, rawData: raw) { url, manifestBytes in
+                let checked = try BackupPackageValidatorV1().validate(stagedPackageURL: url)
+                XCTAssertEqual(checked.records, records)
+                XCTAssertEqual(checked.manifest.backupSchemaVersion, 5)
+                XCTAssertEqual(try Data(contentsOf: url.appendingPathComponent("manifest.json")), manifestBytes)
+                XCTAssertEqual(try Data(contentsOf: url.appendingPathComponent(BackupRawDataWireV1.rawPath)), raw)
+            }
+            // Version5 is deliberate; the old singleton shape is still invalid.
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(
+                makeManifest(plan.metadata.data, backup: 5, persistent: persistent, version: version)))
+        }
+    }
+
     func testLegacyC08RetainsPopulatedMappingProfileAndRejectsForeignWorkspace() throws {
         let budget = try ImportStreamingBudgetV1(maximumSourceBytes: 1_024, maximumRows: 1,
             maximumColumns: 2, maximumCellBytes: 128, maximumScalarsPerCell: 128)
@@ -232,7 +258,7 @@ final class V23BackupSchemaAdmissionTests: XCTestCase {
             let encoded = try BackupCanonicalEncoderV1().encodeManifest(manifest).data
             XCTAssertEqual(try BackupCanonicalDecoderV1().decodeManifest(encoded), manifest)
         }
-        for (backup, persistent, records) in [(1, 3, 2), (2, 4, 3), (3, 5, 4), (5, 53, 52), (4, 54, 53)] {
+        for (backup, persistent, records) in [(1, 3, 2), (2, 4, 3), (3, 5, 4), (6, 53, 52), (4, 54, 53)] {
             XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeManifest(
                 makeManifest(bytes, backup: backup, persistent: persistent, version: records)))
         }
@@ -256,11 +282,17 @@ final class V23BackupSchemaAdmissionTests: XCTestCase {
             reinspectionExceptionQueue: queue, entityIdentityResolution: identity)
     }
 
-    private func makeManifest(_ bytes: Data, backup: Int = 4, persistent: Int, version: Int) -> V4BackupManifestV1 {
-        V4BackupManifestV1(backupSchemaVersion: backup, consumedEvaluationRootIDs: [],
-            declaredPayloadByteCount: bytes.count,
-            entries: [.init(byteCount: bytes.count, mimeType: "application/json", path: "records.json",
-                sha256: KernelCanonicalHashV1.sha256(bytes))],
+    private func makeManifest(_ bytes: Data, backup: Int = 4, persistent: Int, version: Int,
+                              rawData: Data? = nil) -> V4BackupManifestV1 {
+        var entries = [V4BackupEntryV1(byteCount: bytes.count, mimeType: "application/json", path: "records.json",
+            sha256: KernelCanonicalHashV1.sha256(bytes))]
+        if let rawData {
+            entries.append(.init(byteCount: rawData.count, mimeType: BackupRawDataWireV1.rawMIMEType,
+                path: BackupRawDataWireV1.rawPath, sha256: KernelCanonicalHashV1.sha256(rawData)))
+        }
+        entries.sort { $0.path < $1.path }
+        return V4BackupManifestV1(backupSchemaVersion: backup, consumedEvaluationRootIDs: [],
+            declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount }, entries: entries,
             exportedAt: Date(timeIntervalSince1970: 1_788_134_400), packs: [],
             source: .init(appBuild: "schema-admission-tests", appVersion: "23",
                 persistentSchemaVersion: persistent, replicaID: backup == 1 ? nil : replicaID,
@@ -269,14 +301,16 @@ final class V23BackupSchemaAdmissionTests: XCTestCase {
     }
 
     private func withPackage(records: Data, persistent: Int, version: Int,
+        backup: Int = 4, rawData: Data? = nil,
         body: (URL, Data) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "schema-admission-\(UUID().uuidString).fieldrecordbackup", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: root) }
         let manifest = try BackupCanonicalEncoderV1().encodeManifest(
-            makeManifest(records, persistent: persistent, version: version)).data
+            makeManifest(records, backup: backup, persistent: persistent, version: version, rawData: rawData)).data
         try records.write(to: root.appendingPathComponent("records.json"), options: .atomic)
+        if let rawData { try rawData.write(to: root.appendingPathComponent(BackupRawDataWireV1.rawPath)) }
         try manifest.write(to: root.appendingPathComponent("manifest.json"), options: .atomic)
         try body(root, manifest)
     }

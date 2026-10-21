@@ -4,6 +4,19 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V23BackupManifestMemberTests: XCTestCase {
+    func testEnvelope5RequiresTypedRawCompanionAndPreservesCombinedRecordsBudget() throws {
+        let raw = entry(path: BackupRawDataWireV1.rawPath, mimeType: BackupRawDataWireV1.rawMIMEType)
+        XCTAssertNoThrow(try encode(manifest(entries: [raw], backup: 5)))
+        assertInvalid(manifest(entries: [raw]))
+        assertInvalid(manifest(entries: [], backup: 5))
+        assertInvalid(manifest(entries: [entry(path: BackupRawDataWireV1.rawPath,
+            mimeType: "application/json")], backup: 5))
+        let consumesWholeBudget = V4BackupEntryV1(byteCount: 512 * 1_048_576,
+            mimeType: BackupRawDataWireV1.rawMIMEType, path: BackupRawDataWireV1.rawPath, sha256: raw.sha256)
+        // Each entry alone fits. Combined metadata+raw may never double the cap.
+        assertInvalid(manifest(entries: [consumesWholeBudget], backup: 5))
+    }
+
     func testDraftStagingMemberUsesTypedUUIDsAndHonorsSchemaFloor() throws {
         let draftID = id(10)
         let stageID = id(11)
@@ -227,6 +240,7 @@ private extension V23BackupManifestMemberTests {
 
     func manifest(
         entries additions: [V4BackupEntryV1],
+        backup: Int = 4,
         persistent: Int = LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
         records: Int = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
         sortEntries: Bool = true,
@@ -241,7 +255,7 @@ private extension V23BackupManifestMemberTests {
             entries.sort { $0.path < $1.path }
         }
         return V4BackupManifestV1(
-            backupSchemaVersion: 4,
+            backupSchemaVersion: backup,
             consumedEvaluationRootIDs: [],
             declaredPayloadByteCount: declaredPayloadByteCount
                 ?? entries.reduce(0) { $0 + $1.byteCount },

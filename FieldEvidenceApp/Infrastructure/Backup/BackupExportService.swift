@@ -1235,6 +1235,7 @@ final class BackupExportService {
     private struct StreamingSource: Equatable, Sendable {
         enum Location: Equatable, Sendable {
             case generatedRecords
+            case generatedRawRecords
             case generatedPortableExchangeSnapshot
             case generatedPhotoMetadata(String)
             case generationRelative(String)
@@ -1255,7 +1256,11 @@ final class BackupExportService {
         let recordsData: Data
         let portableExchangeSnapshotData: Data
         let mutationHistory: MutationHistorySnapshotV1
-        let checkpointBasis: BackupCanonicalCheckpointBasisV1
+        let checkpointBasis: BackupCanonicalCheckpointBasisV1?
+        let rawDataPlan: BackupRawDataWireV1.Plan?
+        let canonicalRecords: V4BackupRecordsV1
+        let workspaceIdentity: WorkspaceReplicaIdentityV1
+        let generationID: UUID
         let sources: [StreamingSource]
         let photoHistory: CheckRunnerPhotoBackupHistoryV1
         let generatedPhotoMetadata: [String: Data]
@@ -1362,6 +1367,7 @@ final class BackupExportService {
         self.archiveLimits = archiveLimits
         self.archiveService = StreamingArchiveService(
             limits: archiveLimits,
+            pathProfile: .backupV5,
             makeOperationID: makeUUID
         )
         self.now = now
@@ -1592,13 +1598,15 @@ final class BackupExportService {
         }
         let value = try buildStreamingPrepared(
             previewID: Self.checkpointBasisPreviewID,
-            exportedAt: Self.checkpointBasisExportedAt
+            exportedAt: Self.checkpointBasisExportedAt,
+            legacyCheckpointBasis: true
         )
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
         }
         try validateGenerationLease()
-        return value.checkpointBasis
+        guard let basis = value.checkpointBasis else { throw BackupExportServiceError.invalidAuthority }
+        return basis
     }
 
     /// Test-only compatibility fixture seam for producing the historic V1
@@ -1936,6 +1944,8 @@ final class BackupExportService {
         let recordsSource = stagingRoot.appendingPathComponent(
             ".backup-export-\(Self.uuid(frozen.preview.id))-records.json"
         )
+        let rawRecordsSource = stagingRoot.appendingPathComponent(
+            ".backup-export-\(Self.uuid(frozen.preview.id))-records-data.bin")
         let portableExchangeSnapshotSource = stagingRoot.appendingPathComponent(
             ".backup-export-\(Self.uuid(frozen.preview.id))-portable-exchange.json"
         )
@@ -1954,6 +1964,13 @@ final class BackupExportService {
                 expectedRootIdentity: stagingRootIdentity,
                 archiveLimits: archiveLimits
             ))
+            if let plan = frozen.rawDataPlan {
+                createdSources.append(try Self.writeOwnedStagingSource(
+                    byteCount: plan.slots.byteCount, isRawData: true,
+                    to: rawRecordsSource, expectedRootIdentity: stagingRootIdentity,
+                    archiveLimits: archiveLimits, cancellation: cancellation,
+                    chunks: { consume in try plan.slots.forEachChunk(consume) }))
+            }
             createdSources.append(try Self.writeOwnedStagingSource(
                 frozen.portableExchangeSnapshotData,
                 to: portableExchangeSnapshotSource,
@@ -1991,6 +2008,10 @@ final class BackupExportService {
                 case .generatedRecords:
                     sourceRootURL = stagingRoot
                     sourceRelativePath = recordsSource.lastPathComponent
+                    expectedSourceRootIdentity = stagingRootIdentity
+                case .generatedRawRecords:
+                    sourceRootURL = stagingRoot
+                    sourceRelativePath = rawRecordsSource.lastPathComponent
                     expectedSourceRootIdentity = stagingRootIdentity
                 case .generatedPortableExchangeSnapshot:
                     sourceRootURL = stagingRoot
@@ -2214,7 +2235,7 @@ private extension BackupExportService {
         for source in prepared.sources {
             let root: URL, relative: String, identity: StreamingArchiveRootIdentityV1
             switch source.location {
-            case .generatedRecords, .generatedPortableExchangeSnapshot, .generatedPhotoMetadata:
+            case .generatedRecords, .generatedRawRecords, .generatedPortableExchangeSnapshot, .generatedPhotoMetadata:
                 continue
             case .generationRelative(let path):
                 root = generationRootURL; relative = path; identity = generationIdentity
@@ -2250,18 +2271,20 @@ private extension BackupExportService {
         lockedPublicationStore = publicationStore
         defer { lockedPublicationStore = nil }
         guard !modelContext.hasChanges,
-              try currentStreamingWorkspaceIdentity() == prepared.checkpointBasis.workspaceIdentity,
-              try currentStreamingGenerationID() == prepared.checkpointBasis.generationID else {
+              try currentStreamingWorkspaceIdentity() == prepared.workspaceIdentity,
+              try currentStreamingGenerationID() == prepared.generationID else {
             throw BackupExportServiceError.stalePreview
         }
         let history = try MutationJournalStoreV1(modelContext: modelContext,
-            identity: prepared.checkpointBasis.workspaceIdentity,
-            generationID: prepared.checkpointBasis.generationID).exportSnapshot()
+            identity: prepared.workspaceIdentity,
+            generationID: prepared.generationID).exportSnapshot()
         guard history == prepared.mutationHistory else { throw BackupExportServiceError.stalePreview }
         let rows = try fetchRows()
         let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
         let records = try makeRecords(rows, deletionLedger: ledger, mutationHistory: history)
-        guard try BackupCanonicalEncoderV1().encodeRecords(records).data == prepared.recordsData,
+        guard let frozenPlan = prepared.rawDataPlan, records == prepared.canonicalRecords,
+              try BackupCanonicalEncoderV1().encodeRawDataRecords(records,
+                maximumByteCount: archiveLimits.maximumUncompressedEntryByteCount) == frozenPlan,
               try portableExchangeBackupSnapshotData(snapshotID: prepared.preview.id,
                 createdAt: prepared.manifest.exportedAt) == prepared.portableExchangeSnapshotData,
               !modelContext.hasChanges else { throw BackupExportServiceError.stalePreview }
@@ -2309,7 +2332,8 @@ private extension BackupExportService {
     private func buildStreamingPrepared(
         previewID: UUID,
         exportedAt: Date,
-        photoSnapshot: PhotoStreamingSnapshot? = nil
+        photoSnapshot: PhotoStreamingSnapshot? = nil,
+        legacyCheckpointBasis: Bool = false
     ) throws -> StreamingPrepared {
 #if DEBUG
         var backupTracePhase = "identity"
@@ -2408,15 +2432,26 @@ private extension BackupExportService {
         backupTracePhase = "canonical-records"
 #endif
         let recordsData: Data
-        let semanticRecordsData: Data
+        let semanticRecordsData: Data?
+        let rawDataPlan: BackupRawDataWireV1.Plan?
         let portableExchangeSnapshotData: Data
         do {
-            recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            if legacyCheckpointBasis {
+                // Logical journal/checkpoint bytes retain their exact old producer.
+                recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
 #if DEBUG
-            backupTracePhase = "canonical-semantic"
+                backupTracePhase = "canonical-semantic"
 #endif
-            semanticRecordsData = try BackupCanonicalEncoderV1()
-                .encodeSemanticRecords(records).data
+                semanticRecordsData = try BackupCanonicalEncoderV1()
+                    .encodeSemanticRecords(records).data
+                rawDataPlan = nil
+            } else {
+                let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(records,
+                    maximumByteCount: archiveLimits.maximumUncompressedEntryByteCount)
+                recordsData = plan.metadata.data
+                rawDataPlan = plan
+                semanticRecordsData = nil
+            }
 #if DEBUG
             backupTracePhase = "portable-exchange"
 #endif
@@ -2431,8 +2466,8 @@ private extension BackupExportService {
         backupTracePhase = "record-budgets"
 #endif
         guard Int64(recordsData.count) <= archiveLimits.maximumUncompressedEntryByteCount,
-              Int64(semanticRecordsData.count)
-                <= archiveLimits.maximumUncompressedEntryByteCount else {
+              semanticRecordsData.map({ Int64($0.count)
+                <= archiveLimits.maximumUncompressedEntryByteCount }) ?? true else {
             throw BackupExportServiceError.invalidAuthority
         }
 
@@ -2446,6 +2481,11 @@ private extension BackupExportService {
             sha256: CanonicalJSONV1.sha256(recordsData),
             location: .generatedRecords
         )]
+        if let plan = rawDataPlan {
+            sources.append(StreamingSource(path: BackupRawDataWireV1.rawPath,
+                mimeType: BackupRawDataWireV1.rawMIMEType, byteCount: plan.slots.byteCount,
+                sha256: plan.slots.sha256, location: .generatedRawRecords))
+        }
         sources.append(StreamingSource(
             path: PortableExchangeBackupMemberV2.path,
             mimeType: PortableExchangeBackupMemberV2.mimeType,
@@ -2752,7 +2792,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
         let manifest = V4BackupManifestV1(
-            backupSchemaVersion: 4,
+            backupSchemaVersion: legacyCheckpointBasis ? 4 : BackupRawDataWireV1.backupSchemaVersion,
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
@@ -2780,18 +2820,23 @@ private extension BackupExportService {
                 <= archiveLimits.maximumUncompressedEntryByteCount else {
             throw BackupExportServiceError.invalidAuthority
         }
-        let checkpointBasis = BackupCanonicalCheckpointBasisV1(
-            workspaceIdentity: sourceIdentity,
-            generationID: generationID,
-            persistentSchemaVersion: manifest.source.persistentSchemaVersion,
-            recordsSchemaVersion: manifest.source.recordsSchemaVersion,
-            packageReleases: packageReleases,
-            workspaceRevision: mutationHistory.workspaceRevision,
-            lastLocalSequence: mutationHistory.lastLocalSequence,
-            recordsData: recordsData,
-            semanticRecordsData: semanticRecordsData,
-            memberInventory: entries
-        )
+        let checkpointBasis: BackupCanonicalCheckpointBasisV1?
+        if let semanticRecordsData {
+            checkpointBasis = BackupCanonicalCheckpointBasisV1(
+                workspaceIdentity: sourceIdentity,
+                generationID: generationID,
+                persistentSchemaVersion: manifest.source.persistentSchemaVersion,
+                recordsSchemaVersion: manifest.source.recordsSchemaVersion,
+                packageReleases: packageReleases,
+                workspaceRevision: mutationHistory.workspaceRevision,
+                lastLocalSequence: mutationHistory.lastLocalSequence,
+                recordsData: recordsData,
+                semanticRecordsData: semanticRecordsData,
+                memberInventory: entries
+            )
+        } else {
+            checkpointBasis = nil
+        }
 #if DEBUG
         backupTraceCompleted = true
 #endif
@@ -2809,6 +2854,8 @@ private extension BackupExportService {
             portableExchangeSnapshotData: portableExchangeSnapshotData,
             mutationHistory: mutationHistory,
             checkpointBasis: checkpointBasis,
+            rawDataPlan: rawDataPlan, canonicalRecords: records,
+            workspaceIdentity: sourceIdentity, generationID: generationID,
             sources: sources,
             photoHistory: photoHistory,
             generatedPhotoMetadata: generatedPhotoMetadata
@@ -5656,11 +5703,25 @@ private extension BackupExportService {
         expectedRootIdentity: StreamingArchiveRootIdentityV1,
         archiveLimits: StreamingArchiveLimitsV1
     ) throws -> OwnedStagingSource {
+        try writeOwnedStagingSource(byteCount: data.count, isRawData: false,
+            to: url, expectedRootIdentity: expectedRootIdentity, archiveLimits: archiveLimits,
+            chunks: { consume in try consume(data) })
+    }
+
+    private nonisolated static func writeOwnedStagingSource(
+        byteCount: Int, isRawData: Bool, to url: URL,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1,
+        archiveLimits: StreamingArchiveLimitsV1,
+        cancellation: StreamingArchiveCancellationV1 = .none,
+        chunks: (_ consume: (Data) throws -> Void) throws -> Void
+    ) throws -> OwnedStagingSource {
         let value = url.standardizedFileURL
         let stagingRoot = value.deletingLastPathComponent()
         guard value.lastPathComponent.hasPrefix(".backup-export-"),
-              value.lastPathComponent.hasSuffix(".json"),
-              Int64(data.count) <= archiveLimits.maximumUncompressedEntryByteCount,
+              (value.lastPathComponent.hasSuffix(".json")
+                || (isRawData && value.lastPathComponent.hasSuffix("-records-data.bin"))),
+              byteCount >= 0,
+              Int64(byteCount) <= archiveLimits.maximumUncompressedEntryByteCount,
               try Self.itemType(at: value) == nil else {
             throw BackupExportServiceError.invalidAuthority
         }
@@ -5772,28 +5833,30 @@ private extension BackupExportService {
                 throw BackupExportServiceError.sourceChanged
             }
         }
-        try data.withUnsafeBytes { raw in
-            var offset = 0
-            while offset < raw.count {
-                let requested = min(
-                    archiveLimits.bufferByteCount,
-                    raw.count - offset
-                )
-                var count: Int
-                repeat {
-                    count = Darwin.write(
-                        descriptor,
-                        raw.baseAddress?.advanced(by: offset),
-                        requested
-                    )
-                } while count < 0 && errno == EINTR
-                guard count > 0 else {
-                    throw BackupExportServiceError.writeFailed
-                }
-                offset += count
+        var writtenByteCount = 0
+        try chunks { data in
+            try cancellation.checkpoint()
+            let next = writtenByteCount.addingReportingOverflow(data.count)
+            guard !next.overflow, next.partialValue <= byteCount else {
+                throw BackupExportServiceError.writeFailed
             }
+            try data.withUnsafeBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    try cancellation.checkpoint()
+                    let requested = min(archiveLimits.bufferByteCount, raw.count - offset)
+                    var count: Int
+                    repeat {
+                        count = Darwin.write(descriptor,
+                            raw.baseAddress?.advanced(by: offset), requested)
+                    } while count < 0 && errno == EINTR
+                    guard count > 0 else { throw BackupExportServiceError.writeFailed }
+                    offset += count
+                }
+            }
+            writtenByteCount = next.partialValue
         }
-        guard Darwin.fsync(descriptor) == 0 else {
+        guard writtenByteCount == byteCount, Darwin.fsync(descriptor) == 0 else {
             throw BackupExportServiceError.writeFailed
         }
         var information = stat()
@@ -5803,7 +5866,7 @@ private extension BackupExportService {
               information.st_nlink == 1,
               information.st_dev == expectedDevice,
               information.st_ino == expectedInode,
-              information.st_size == Int64(data.count),
+              information.st_size == Int64(byteCount),
               Darwin.fstatat(
                 parent,
                 value.lastPathComponent,
@@ -5813,7 +5876,7 @@ private extension BackupExportService {
               pathInformation.st_dev == expectedDevice,
               pathInformation.st_ino == expectedInode,
               pathInformation.st_nlink == 1,
-              pathInformation.st_size == Int64(data.count) else {
+              pathInformation.st_size == Int64(byteCount) else {
             throw BackupExportServiceError.writeFailed
         }
         guard Darwin.fsync(parent) == 0 else {

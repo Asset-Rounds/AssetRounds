@@ -24,8 +24,8 @@ from p02_c02_contracts import (
     SOURCE_PATHS, ContractError, lifecycle_contract,
 )
 
-READER_VERSION = "p02-c02-current-sources-v5"
-CURRENT_TUPLE = (4, 53, 52)
+READER_VERSION = "p02-c02-current-sources-v6"
+CURRENT_TUPLE = (5, 53, 52)
 HISTORICAL_TUPLE = (3, 4, 3)
 HISTORICAL_READER = "Scripts/v23/verify_p02_c02_contracts.py"
 HISTORICAL_READER_SHA256 = "263ad480ed2b58d431d00a1b1d1b22cdf74242c04bf46c5079c7278b1cd7b3b5"
@@ -40,7 +40,8 @@ JOURNAL = "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalC
 CATALOG = "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift"
 CHECKPOINT_CONTRACTS = "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift"
 CHECKPOINT_TESTS = "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
-EXTRA_SOURCE_PATHS = (JOURNAL, CATALOG, CHECKPOINT_CONTRACTS, CHECKPOINT_TESTS)
+RAW_WIRE = "FieldEvidenceApp/Infrastructure/Backup/BackupRawDataWireV1.swift"
+EXTRA_SOURCE_PATHS = (JOURNAL, CATALOG, CHECKPOINT_CONTRACTS, CHECKPOINT_TESTS, RAW_WIRE)
 # Closed dependency roster for this reader, including its historical provenance.
 # The historical generator and card manifest are not executed or regenerated.
 INPUT_PATHS = tuple(SOURCE_PATHS) + EXTRA_SOURCE_PATHS + (
@@ -442,7 +443,9 @@ def exact_initializer(text: str, declaration: str, expected: str, label: str) ->
     code, structure = swift_masks(text)
     matches = list(re.finditer(re.escape(declaration), structure))
     require(len(matches) == 1, f'{label}: unique real value declaration missing')
-    assignment = re.match(r'\s*=\s*', structure[matches[0].end():])
+    # Operand strings are masked to whitespace only in structure. Keep their
+    # opening token as the boundary; code still masks comments, not literals.
+    assignment = re.match(r'\s*=\s*', code[matches[0].end():])
     require(assignment is not None, f'{label}: value initializer missing')
     start = matches[0].end() + assignment.end()
     depth = 0
@@ -1162,7 +1165,7 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
             return true
         default:
-            return backup == 4 && v4Pairs.contains {
+            return (backup == 4 || backup == 5) && v4Pairs.contains {
                 $0.persistent == persistent && $0.records == records
             }
         }
@@ -1187,18 +1190,55 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
         ('static let activeCompatibilityID', 'v53CompatibilityID'),
     ):
         exact_initializer(registry, declaration, expected, 'genuine current registry bindings')
+    wire = block(source[RAW_WIRE], 'enum BackupRawDataWireV1')
+    for declaration, expected in (
+        ('static let backupSchemaVersion', '5'),
+        ('static let rawPath', '"records-data.bin"'),
+        ('static let rawMIMEType', '"application/octet-stream"'),
+    ):
+        exact_initializer(wire, declaration, expected, 'current raw wire identity')
+    owned_depth(wire, 'static func validateCombinedByteCount(', 'current raw wire combined budget')
+    pins(wire, ('static func validateCombinedByteCount(metadata: Int64, raw: Int64, maximum: Int64) throws',),
+         'current raw wire combined budget signature')
+    exact_body(block(wire, 'static func validateCombinedByteCount('), '''
+        let total = metadata.addingReportingOverflow(raw)
+        let effectiveMaximum = min(maximum,
+            StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
+        guard metadata >= 0, raw >= 0, effectiveMaximum >= 0, !total.overflow,
+              total.partialValue <= effectiveMaximum else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    ''', 'current raw wire combined budget')
+    owned_depth(wire, 'static func validateManifest(', 'current raw wire manifest')
+    exact_body(block(wire, 'static func validateManifest('), '''
+        let raw = manifest.entries.filter { $0.path == rawPath }
+        guard manifest.backupSchemaVersion == backupSchemaVersion else {
+            guard raw.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        let metadata = manifest.entries.filter { $0.path == "records.json" }
+        guard metadata.count == 1, raw.count == 1,
+              let json = metadata.first, let bytes = raw.first,
+              json.mimeType == "application/json", bytes.mimeType == rawMIMEType else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        try validateCombinedByteCount(metadata: Int64(json.byteCount), raw: Int64(bytes.byteCount),
+                                      maximum: maximumByteCount)
+    ''', 'current raw wire manifest')
     exporter = source['FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift']
     streaming = block(exporter, 'private func buildStreamingPrepared(')
     ordered(streaming, ('mutationHistory = try MutationJournalStoreV1(',
                         ').exportSnapshot()', 'let records = try makeRecords(',
                         'let source = V4BackupSourceV1(', 'let manifest = V4BackupManifestV1(',
-                        'let checkpointBasis = BackupCanonicalCheckpointBasisV1('),
-            'genuine archive4 history/export/basis order')
+                        'let checkpointBasis: BackupCanonicalCheckpointBasisV1?',
+                        'checkpointBasis = BackupCanonicalCheckpointBasisV1('),
+            'genuine current wire/logical history/export/basis order')
     pins(streaming, (
         'modelContext: modelContext, identity: sourceIdentity, generationID: generationID',
         'deletionLedger: deletionLedger, mutationHistory: mutationHistory',
         'persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion',
-        'recordsSchemaVersion: records.recordsSchemaVersion', 'backupSchemaVersion: 4',
+        'recordsSchemaVersion: records.recordsSchemaVersion',
+        'backupSchemaVersion: legacyCheckpointBasis ? 4 : BackupRawDataWireV1.backupSchemaVersion',
         'replicaID: sourceIdentity.replicaID.rawValue',
         'sourceGenerationID: generationID, workspaceID: sourceIdentity.workspaceID.rawValue',
         'persistentSchemaVersion: manifest.source.persistentSchemaVersion',
@@ -1209,6 +1249,39 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
         'recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data',
         'semanticRecordsData = try BackupCanonicalEncoderV1().encodeSemanticRecords(records).data',
     ), 'actual current export tuple/history/basis')
+    # Bind the actual default in the declaration, outside the extracted body.
+    pins(exporter, ('private func buildStreamingPrepared(previewID: UUID, exportedAt: Date, '
+                    'photoSnapshot: PhotoStreamingSnapshot? = nil, legacyCheckpointBasis: Bool = false)',),
+         'actual current export tuple/history/basis')
+    owned_depth(streaming, 'if legacyCheckpointBasis',
+                'actual current export tuple/history/basis branch owner', braces=1)
+    logical, raw = branch_pair(production(streaming), 'if legacyCheckpointBasis')
+    exact_body(logical, '''
+        recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        semanticRecordsData = try BackupCanonicalEncoderV1().encodeSemanticRecords(records).data
+        rawDataPlan = nil
+    ''', 'actual current export tuple/history/basis logical branch')
+    exact_body(raw, '''
+        let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(records,
+            maximumByteCount: archiveLimits.maximumUncompressedEntryByteCount)
+        recordsData = plan.metadata.data
+        rawDataPlan = plan
+        semanticRecordsData = nil
+    ''', 'actual current export tuple/history/basis raw branch')
+    owned_depth(streaming, 'if let semanticRecordsData',
+                'actual current export tuple/history/basis inventory owner')
+    logical_basis, no_basis = branch_pair(production(streaming), 'if let semanticRecordsData')
+    exact_body(logical_basis, '''
+        checkpointBasis = BackupCanonicalCheckpointBasisV1(
+            workspaceIdentity: sourceIdentity, generationID: generationID,
+            persistentSchemaVersion: manifest.source.persistentSchemaVersion,
+            recordsSchemaVersion: manifest.source.recordsSchemaVersion,
+            packageReleases: packageReleases,
+            workspaceRevision: mutationHistory.workspaceRevision,
+            lastLocalSequence: mutationHistory.lastLocalSequence,
+            recordsData: recordsData, semanticRecordsData: semanticRecordsData, memberInventory: entries)
+    ''', 'actual current export tuple/history/basis logical inventory')
+    exact_body(no_basis, 'checkpointBasis = nil', 'actual current export tuple/history/basis raw inventory')
     records = block(exporter, 'private func makeRecords(')
     pins(records, (
         'guard history.schemaVersion == MutationHistorySnapshotV1.schemaVersion else',
@@ -1226,10 +1299,12 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
         try validateGenerationLease()
         guard !modelContext.hasChanges else { throw BackupExportServiceError.contextHasChanges }
         let value = try buildStreamingPrepared(
-            previewID: Self.checkpointBasisPreviewID, exportedAt: Self.checkpointBasisExportedAt)
+            previewID: Self.checkpointBasisPreviewID, exportedAt: Self.checkpointBasisExportedAt,
+            legacyCheckpointBasis: true)
         guard !modelContext.hasChanges else { throw BackupExportServiceError.contextHasChanges }
         try validateGenerationLease()
-        return value.checkpointBasis
+        guard let basis = value.checkpointBasis else { throw BackupExportServiceError.invalidAuthority }
+        return basis
     ''', 'current checkpoint clean context and generation lease')
     validator = source['FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift']
     bounds = block(validator, 'func validateManifestBounds(')
@@ -1245,7 +1320,8 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
         case (1, nil, nil): sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
              (3, let workspaceID?, let replicaID?),
-             (4, let workspaceID?, let replicaID?):
+             (4, let workspaceID?, let replicaID?),
+             (5, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero && replicaID != zero && workspaceID != replicaID
         default: sourceIdentityIsValid = false
         }
@@ -1262,6 +1338,8 @@ def verify_current_backup(source: Mapping[str, str]) -> None:
               manifest.entries.count <= limits.maximumEntryCount, manifest.declaredPayloadByteCount >= 0 else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
+        try BackupRawDataWireV1.validateManifest(manifest,
+            maximumByteCount: limits.maximumUncompressedEntryByteCount)
         var aggregate: Int64 = 0
         var foldedPaths = Set<String>()
         for entry in manifest.entries {
@@ -1545,7 +1623,8 @@ def verify_checkpoint_history(source: Mapping[str, str]) -> None:
          'ordinary backup transport retains mutation history')
     exact_body(block(transport, 'if let mutationHistory = records.mutationHistory'), '''
         fields["mutationHistory"] = try Self.mutationHistory(
-            mutationHistory, receiptStableKeys: ordinaryValidation?.receiptStableKeys)
+            mutationHistory, receiptStableKeys: ordinaryValidation?.receiptStableKeys,
+            rawDataSlots: rawDataSlots)
     ''', 'ordinary backup transport retains mutation history')
     owned_depth(transport, 'if let mutationHistory = records.mutationHistory',
                 'ordinary backup transport retains mutation history')
@@ -1556,8 +1635,16 @@ def verify_checkpoint_history(source: Mapping[str, str]) -> None:
                   'guard Self.valid(validation) else',
                   'guard fields.removeValue(forKey: key) == .array([]) else'),
          'retained exact historical empty service-request shape')
-    decoder = block(source['FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift'],
-                    'func decodeRecordsWithFacts(')
+    decoder_source = source['FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift']
+    exact_body(block(decoder_source, 'func decodeRecordsWithFacts(_ data: Data) throws -> ('), '''
+        try decodeRecordsWithFacts(data, rawData: nil,
+            maximumByteCount: StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
+    ''', 'strict full backup canonical decode legacy wrapper')
+    exact_body(block(decoder_source, 'func decodeRawDataRecordsWithFacts('), '''
+        try decodeRecordsWithFacts(metadata, rawData: rawData, maximumByteCount: maximumByteCount)
+    ''', 'strict full backup canonical decode raw wrapper')
+    decoder = block(decoder_source,
+                    'private func decodeRecordsWithFacts(_ data: Data, rawData: Data?, maximumByteCount: Int64)')
     ordered(decoder, ('try Self.validateLightingDayInventory(value)',
                       'let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data',
                       'if canonical != data', '.encodeLegacyEmptyServiceRequestRecords(value)',
@@ -1566,7 +1653,42 @@ def verify_checkpoint_history(source: Mapping[str, str]) -> None:
     owned_depth(real_decoder, 'do ', 'strict full backup canonical decode history seam')
     owned_depth(block(real_decoder, 'do '), 'if canonical != data',
                 'strict full backup canonical decode history seam')
-    no_return_before(real_decoder, 'if canonical != data', 'strict full backup canonical decode history seam')
+    decode_body = block(real_decoder, 'do ')
+    owned_depth(decode_body, 'if let rawData', 'strict full backup canonical decode raw branch')
+    raw_branch = block(decode_body, 'if let rawData')
+    exact_body(raw_branch, '''
+        let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(value,
+            maximumByteCount: maximumByteCount)
+        guard plan.metadata.data == data, plan.slots.byteCount == rawData.count,
+              plan.slots.sha256 == CanonicalJSONV1.sha256(rawData) else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        return (value, BackupCanonicalRecordsValidationFactsV1(
+            records: value, canonicalData: data, rawData: rawData))
+    ''', 'strict full backup canonical decode raw branch')
+    for head in ('let resolver = try rawData.map', 'if let resolver',
+                 'try resolver?.validateComplete()'):
+        owned_depth(decode_body, head, 'strict full backup canonical decode raw resolver')
+    ordered(decode_body, ('let resolver = try rawData.map',
+                          'let value = try recordDecoder.decode(V4BackupRecordsV1.self, from: data)',
+                          'try resolver?.validateComplete()',
+                          'try Self.validateLightingDayInventory(value)', 'if let rawData'),
+            'strict full backup canonical decode raw resolver')
+    exact_body(block(decode_body, 'let resolver = try rawData.map'), '''
+        try BackupRawDataWireV1.Resolver(metadata: data, raw: $0,
+                                        maximumByteCount: maximumByteCount)
+    ''', 'strict full backup canonical decode raw resolver')
+    exact_body(block(decode_body, 'if let resolver'), '''
+        recordDecoder.dataDecodingStrategy = .custom { try resolver.decode($0) }
+    ''', 'strict full backup canonical decode raw resolver')
+    # Only this fully verified raw branch may return before the legacy check.
+    # Removing its exact span preserves the incumbent no-other-early-return test.
+    _, decoder_structure = swift_masks(real_decoder)
+    raw_start = decoder_structure.index('if let rawData')
+    raw_open = decoder_structure.index('{', raw_start)
+    raw_end = raw_open + len(raw_branch) + 2
+    legacy_decoder = real_decoder[:raw_start] + real_decoder[raw_end:]
+    no_return_before(legacy_decoder, 'if canonical != data', 'strict full backup canonical decode history seam')
     exact_body(block(real_decoder, 'if canonical != data'), '''
         let legacy = try BackupCanonicalEncoderV1().encodeLegacyEmptyServiceRequestRecords(value)
         guard legacy == data else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
@@ -1889,7 +2011,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ContractError, OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
         print(f'{READER_VERSION}: REFUSED: {error}', file=sys.stderr)
         return 1
-    print(f'{READER_VERSION}: current Source predicates verified; tuple=4/53/52 commands=63 tests=6 recordFields=77; '
+    print(f'{READER_VERSION}: current Source predicates verified; shippingTuple=5/53/52 checkpointTuple=4/53/52 commands=63 tests=6 recordFields=77; '
           'Source-only, no card rebind/native/acceptance credit')
     return 0
 

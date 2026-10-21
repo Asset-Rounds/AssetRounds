@@ -3866,7 +3866,8 @@ private extension BackupRestoreService {
         case (let workspaceID?, let replicaID?):
             guard package.manifest.backupSchemaVersion == 2
                     || package.manifest.backupSchemaVersion == 3
-                    || package.manifest.backupSchemaVersion == 4,
+                    || package.manifest.backupSchemaVersion == 4
+                    || package.manifest.backupSchemaVersion == 5,
                   workspaceID != replicaID else {
                 throw BackupRestoreServiceError.invalidPackage
             }

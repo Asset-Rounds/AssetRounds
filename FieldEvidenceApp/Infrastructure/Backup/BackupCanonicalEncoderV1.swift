@@ -92,6 +92,20 @@ struct BackupCanonicalEncoderV1: Sendable {
         }
     }
 
+    /// Envelope 5 shares all incumbent logical validation and field encoding;
+    /// only the closed opaque-Data slots receive transport references.
+    func encodeRawDataRecords(_ records: V4BackupRecordsV1,
+        maximumByteCount: Int64 = StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount
+    ) throws -> BackupRawDataWireV1.Plan {
+        try C34SceneNavigationBackupEncoderBoundaryV1.validate()
+        let validation = try Self.ordinaryValidationFacts(records)
+        guard Self.valid(validation) else { throw BackupCanonicalEncodingErrorV1.invalidRecords }
+        let slots = try BackupRawDataWireV1.Slots(records: records, maximumByteCount: maximumByteCount)
+        let fields = try Self.recordFields(records, ordinaryValidation: validation, rawDataSlots: slots)
+        return try BackupRawDataWireV1.Plan(metadata: encoded(.object(fields)), slots: slots,
+                         maximumByteCount: maximumByteCount)
+    }
+
     /// Decoder-only compatibility for the historical C52 all-three-absent
     /// shape. Normal exports always emit the complete canonical families.
     func encodeLegacyEmptyServiceRequestRecords(
@@ -266,7 +280,8 @@ struct BackupCanonicalEncoderV1: Sendable {
 
     private static func recordFields(
         _ records: V4BackupRecordsV1,
-        ordinaryValidation: OrdinaryRecordsValidationFacts? = nil
+        ordinaryValidation: OrdinaryRecordsValidationFacts? = nil,
+        rawDataSlots: BackupRawDataWireV1.Slots? = nil
     ) throws -> [String: CanonicalJSONValueV1] {
         var fields: [String: CanonicalJSONValueV1] = [
             "assets": .array(records.assets.map(Self.asset)),
@@ -335,7 +350,13 @@ struct BackupCanonicalEncoderV1: Sendable {
             fields["workPackets"] = .array(try records.workPackets.map(Self.workPacketRecord))
         }
         if records.recordsSchemaVersion >= 15 {
-            fields["fieldDrafts"] = .array(try records.fieldDrafts.map(Self.fieldDraftRecord))
+            if let slots = rawDataSlots {
+                fields["fieldDrafts"] = .array(try records.fieldDrafts.enumerated().map { index, record in
+                    try Self.fieldDraftRecord(record, dataToken: slots.token(for: .fieldDraft(index)))
+                })
+            } else {
+                fields["fieldDrafts"] = .array(try records.fieldDrafts.map(Self.fieldDraftRecord))
+            }
         }
         if records.recordsSchemaVersion >= 16 {
             fields["packageEvolution"] = .array(try records.packageEvolution.map(Self.packageEvolutionRecord))
@@ -526,7 +547,8 @@ struct BackupCanonicalEncoderV1: Sendable {
         if let mutationHistory = records.mutationHistory {
             fields["mutationHistory"] = try Self.mutationHistory(
                 mutationHistory,
-                receiptStableKeys: ordinaryValidation?.receiptStableKeys
+                receiptStableKeys: ordinaryValidation?.receiptStableKeys,
+                rawDataSlots: rawDataSlots
             )
         }
         return fields
@@ -2007,6 +2029,18 @@ private extension BackupCanonicalEncoderV1 {
         ])
     }
 
+    private static func fieldDraftRecord(_ value: V16BackupFieldDraftRecordV1,
+        dataToken: CanonicalJSONValueV1) throws -> CanonicalJSONValueV1 {
+        guard let revision = Int(exactly: value.revision), !value.canonicalData.isEmpty else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        return .object([
+            "canonicalData": dataToken,
+            "id": CanonicalJSONV1.uuid(value.id), "kind": .string(value.kind.rawValue),
+            "revision": .integer(revision), "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
+        ])
+    }
+
     static func packageEvolutionRecord(_ value: V17BackupPackageEvolutionRecordV1) throws -> CanonicalJSONValueV1 {
         guard let revision = Int(exactly: value.revision), !value.canonicalData.isEmpty else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
@@ -2168,7 +2202,8 @@ private extension BackupCanonicalEncoderV1 {
             sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
              (3, let workspaceID?, let replicaID?),
-             (4, let workspaceID?, let replicaID?):
+             (4, let workspaceID?, let replicaID?),
+             (5, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -2198,7 +2233,8 @@ private extension BackupCanonicalEncoderV1 {
               manifest.entries == manifest.entries.sorted(by: { $0.path < $1.path }),
               Set(manifest.entries.map(\.path)).count == manifest.entries.count,
               manifest.entries.allSatisfy({
-                  validEntry($0, recordsSchemaVersion: manifest.source.recordsSchemaVersion)
+                  validEntry($0, recordsSchemaVersion: manifest.source.recordsSchemaVersion,
+                             backupSchemaVersion: manifest.backupSchemaVersion)
               }),
               manifest.entries.filter({ $0.path == "records.json" }).count == 1,
               manifest.packs == manifest.packs.sorted(by: packOrder),
@@ -2215,6 +2251,7 @@ private extension BackupCanonicalEncoderV1 {
             total = next
         }
         return total == manifest.declaredPayloadByteCount
+            && (try? BackupRawDataWireV1.validateManifest(manifest)) != nil
     }
 
     static func sortedUniqueIDs(_ values: [UUID]) -> Bool {
@@ -2222,7 +2259,8 @@ private extension BackupCanonicalEncoderV1 {
         return Set(values).count == values.count && strings == strings.sorted()
     }
 
-    static func validEntry(_ value: V4BackupEntryV1, recordsSchemaVersion: Int) -> Bool {
+    static func validEntry(_ value: V4BackupEntryV1, recordsSchemaVersion: Int,
+                           backupSchemaVersion: Int = 4) -> Bool {
         guard value.byteCount >= 0,
               isLowercaseSHA256(value.sha256),
               value.path == value.path.precomposedStringWithCanonicalMapping else {
@@ -2231,6 +2269,9 @@ private extension BackupCanonicalEncoderV1 {
         switch pathKind(value.path) {
         case .records:
             return value.mimeType == "application/json"
+        case .recordsData:
+            return backupSchemaVersion == BackupRawDataWireV1.backupSchemaVersion
+                && value.mimeType == BackupRawDataWireV1.rawMIMEType
         case .portableExchange:
             return value.mimeType == PortableExchangeBackupMemberV2.mimeType
         case .media, .thumbnail:
@@ -2258,13 +2299,14 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     enum PathKind {
-        case records, portableExchange, media, thumbnail, snapshot, pdf
+        case records, recordsData, portableExchange, media, thumbnail, snapshot, pdf
         case draftStaging, contentOriginal, derivativePublication
         case draftPhoto(CheckRunnerPhotoBackupMemberKeyV1.Role)
     }
 
     static func pathKind(_ path: String) -> PathKind? {
         if path == "records.json" { return .records }
+        if path == BackupRawDataWireV1.rawPath { return .recordsData }
         if path == PortableExchangeBackupMemberV2.path { return .portableExchange }
         let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         if components.count == 3, components[0] == "draft-staging" {
@@ -2505,7 +2547,8 @@ private extension BackupCanonicalEncoderV1 {
 
     static func mutationHistory(
         _ value: MutationHistorySnapshotV1,
-        receiptStableKeys: [String]? = nil
+        receiptStableKeys: [String]? = nil,
+        rawDataSlots: BackupRawDataWireV1.Slots? = nil
     ) throws -> CanonicalJSONValueV1 {
         guard validMutationHistoryOrder(value, receiptStableKeys: receiptStableKeys),
               value.workspaceRevision <= UInt64(Int.max),
@@ -2545,7 +2588,20 @@ private extension BackupCanonicalEncoderV1 {
                     ]),
                 ])
             }),
-            "receipts": .array(value.receipts.map(mutationReceiptRecord)),
+            "receipts": .array(try value.receipts.enumerated().map { index, record in
+                guard let slots = rawDataSlots else { return mutationReceiptRecord(record) }
+                var fields: [String: CanonicalJSONValueV1] = [
+                    "envelopeData": try slots.token(for: .history(index, .envelopeData)),
+                    "receiptData": try slots.token(for: .history(index, .receiptData)),
+                ]
+                if record.reversalBasisData != nil {
+                    fields["reversalBasisData"] = try slots.token(for: .history(index, .reversalBasisData))
+                }
+                if record.semanticReversalData != nil {
+                    fields["semanticReversalData"] = try slots.token(for: .history(index, .semanticReversalData))
+                }
+                return .object(fields)
+            }),
             "schemaVersion": .integer(value.schemaVersion),
             "workspaceRevision": .integer(Int(value.workspaceRevision)),
         ])

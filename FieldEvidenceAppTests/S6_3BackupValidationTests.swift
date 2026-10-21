@@ -116,6 +116,94 @@ final class S6_3BackupValidationTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testEnvelope5DirectoryImportRetainsEveryLegacyLogicalBoundary() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "import-logical-boundaries-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let importer = try BackupImportService(generationRootURL: session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max }),
+            scopedAccess: .alreadyAuthorized)
+        let workspaceID = WorkspaceID(rawValue: uuid(92_001))
+        func package(backup: Int, persistent: Int, version: Int) throws -> (URL, V4BackupRecordsV1) {
+            let parts: PartsStockBackupSnapshotV1? = version >= 40
+                ? try .init(workspaceID: workspaceID, parts: [], locations: [], movements: [],
+                    uses: [], reversals: [], returns: [], abandonments: []) : nil
+            let records = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [],
+                mutationHistory: .init(workspaceRevision: 0, lastLocalSequence: 0,
+                    receipts: [], quarantines: [], entityRevisions: []),
+                packets: [], recordsSchemaVersion: version, reports: [], sites: [],
+                workflowRecords: [], partsStockSnapshot: parts)
+            let metadata: Data
+            let raw: Data?
+            if backup == 5 {
+                let plan = try BackupCanonicalEncoderV1().encodeRawDataRecords(records)
+                metadata = plan.metadata.data
+                var bytes = Data()
+                try plan.slots.forEachChunk { bytes.append($0) }
+                raw = bytes
+            } else {
+                metadata = try BackupCanonicalEncoderV1().encodeRecords(records).data
+                raw = nil
+            }
+            var entries = [V4BackupEntryV1(byteCount: metadata.count, mimeType: "application/json",
+                path: "records.json", sha256: KernelCanonicalHashV1.sha256(metadata))]
+            if let raw {
+                entries.append(.init(byteCount: raw.count, mimeType: BackupRawDataWireV1.rawMIMEType,
+                    path: BackupRawDataWireV1.rawPath, sha256: KernelCanonicalHashV1.sha256(raw)))
+            }
+            entries.sort { $0.path < $1.path }
+            let manifest = V4BackupManifestV1(backupSchemaVersion: backup, consumedEvaluationRootIDs: [],
+                declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount }, entries: entries,
+                exportedAt: Date(timeIntervalSince1970: 1_788_134_400), packs: [],
+                source: .init(appBuild: "import-logical-boundary-tests", appVersion: "23",
+                    persistentSchemaVersion: persistent, replicaID: uuid(92_002),
+                    recordsSchemaVersion: version, sourceGenerationID: uuid(92_003),
+                    workspaceID: workspaceID.rawValue))
+            let directory = root.appendingPathComponent(
+                "logical-\(backup)-\(persistent).fieldrecordbackup", isDirectory: true)
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: false)
+            try metadata.write(to: directory.appendingPathComponent("records.json"))
+            if let raw { try raw.write(to: directory.appendingPathComponent(BackupRawDataWireV1.rawPath)) }
+            try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(
+                to: directory.appendingPathComponent("manifest.json"))
+            return (directory, records)
+        }
+        // Independent pairs for every incumbent predicate-bearing branch:
+        // V23...V29, lighting/assistance, C49, C53 and C55 lifecycle/search.
+        let guardedPairs = [(23, 22), (24, 23), (25, 24), (26, 25), (27, 26),
+                            (28, 27), (29, 28), (31, 30), (32, 31), (37, 36),
+                            (40, 39), (41, 40)]
+        for backup in [4, 5] {
+            for (persistent, version) in guardedPairs {
+                let (directory, records) = try package(backup: backup, persistent: persistent, version: version)
+                let checked = try BackupPackageValidatorV1().validate(stagedPackageURL: directory)
+                XCTAssertEqual(checked.records, records)
+                let staged = try importer.stageAndValidate(selectedPackageURL: directory)
+                XCTAssertEqual(staged.records, records)
+                XCTAssertEqual(staged.manifest.backupSchemaVersion, backup)
+                try importer.discard(staged)
+                XCTAssertFalse(fileManager.fileExists(atPath: staged.stagedPackageURL.path))
+            }
+            // Record decoding admits C57's42/41, but the incumbent DIRECTORY
+            // import switch is narrower. This says nothing about archive-route
+            // eligibility. Tuple membership alone incorrectly widened5 here.
+            let (directory, records) = try package(backup: backup, persistent: 42, version: 41)
+            let checked = try BackupPackageValidatorV1().validate(stagedPackageURL: directory)
+            XCTAssertEqual(checked.records, records)
+            XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: directory)) {
+                XCTAssertEqual($0 as? BackupImportServiceError, .invalidSource)
+            }
+            let staging = try StoreGenerationFactory.backupImportStagingDirectory(
+                containing: session.generationRootURL)
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: staging.path), [])
+        }
+    }
+
     func testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored() throws {
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent("photo-backup-stream-\(UUID().uuidString)", isDirectory: true)
@@ -329,7 +417,7 @@ final class S6_3BackupValidationTests: XCTestCase {
             try BackupCanonicalEncoderV1().encodeManifest(validated.manifest).data
         )
         XCTAssertEqual(
-            try XCTUnwrap(validated.members["records.json"]),
+            try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: validated),
             try BackupCanonicalEncoderV1().encodeRecords(validated.records).data
         )
         for entry in validated.manifest.entries {
@@ -1232,7 +1320,7 @@ private extension S6_3BackupValidationTests {
         let before = try archiveFact(archive)
         let directory = archive.deletingLastPathComponent().appendingPathComponent(
             "independent-members-\(UUID().uuidString)", isDirectory: true)
-        let extraction = try StreamingArchiveService().extract(archive, to: directory)
+        let extraction = try StreamingArchiveService(pathProfile: .backupV5).extract(archive, to: directory)
         XCTAssertEqual(extraction.archiveSHA256, before.sha256)
         XCTAssertEqual(try archiveFact(archive), before)
         return directory
@@ -2981,7 +3069,7 @@ extension S6_3BackupValidationTests {
             )
             XCTAssertEqual(
                 try BackupCanonicalEncoderV1().encodeRecords(validated.records).data,
-                try XCTUnwrap(validated.members["records.json"])
+                try BackupRawDataWireTestSupport.logicalRecordsData(afterChecking: validated)
             )
         }
     }

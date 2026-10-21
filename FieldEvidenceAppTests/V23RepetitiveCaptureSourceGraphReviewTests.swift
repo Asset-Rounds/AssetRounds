@@ -356,10 +356,17 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             print("C36_SOURCE_GRAPH_PHASE kind=maximumGraph phase=\(phase) elapsedMillis=\(elapsed)")
         }
         let fixture = try RepetitiveCaptureSourcePackageFixture(
-            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, phaseTrace: trace)
+            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, rawDataWire: true, phaseTrace: trace)
         defer { fixture.removePackages() }
 
         let package = try fixture.validatedPackage()
+        XCTAssertEqual(package.validatedPackage.manifest.backupSchemaVersion, 5)
+        let recordEntries = package.validatedPackage.manifest.entries.filter {
+            $0.path == "records.json" || $0.path == BackupRawDataWireV1.rawPath
+        }
+        XCTAssertEqual(recordEntries.count, 2)
+        XCTAssertLessThanOrEqual(recordEntries.reduce(Int64(0)) { $0 + Int64($1.byteCount) },
+            StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
         trace("graph-review-start")
         let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
             sourcePackage: package)
@@ -824,9 +831,16 @@ final class V23RepetitiveCaptureSourceGraphReviewTests: XCTestCase {
             print("C36_SOURCE_GRAPH_PHASE kind=compactReference phase=\(phase) elapsedMillis=\(elapsed)")
         }
         let fixture = try RepetitiveCaptureSourcePackageFixture(
-            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, phaseTrace: trace)
+            boundaryItemCount: ScanToWorkLimitsV1.maximumSelection, rawDataWire: true, phaseTrace: trace)
         defer { fixture.removePackages() }
         let package = try fixture.validatedPackage()
+        XCTAssertEqual(package.validatedPackage.manifest.backupSchemaVersion, 5)
+        let recordEntries = package.validatedPackage.manifest.entries.filter {
+            $0.path == "records.json" || $0.path == BackupRawDataWireV1.rawPath
+        }
+        XCTAssertEqual(recordEntries.count, 2)
+        XCTAssertLessThanOrEqual(recordEntries.reduce(Int64(0)) { $0 + Int64($1.byteCount) },
+            StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
         trace("graph-review-start")
         let reviewed = try RepetitiveCaptureSourceGraphReviewV2.review(
             sourcePackage: package)

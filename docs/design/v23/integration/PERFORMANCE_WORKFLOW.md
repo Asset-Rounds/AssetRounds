@@ -1,5 +1,15 @@
 Current helper routing, owner update October17 (AGENTS decision41): every new assignment uses GPT-6.1 Sol with extra-high (`xhigh`) reasoning. Active Astra lanes save and stop at safe boundaries; scoped Sol successors reuse their handoffs. Preserve historical attribution and completed reviews.
 
+## Authoring baseline and final-after paths — C1980, 2026-10-20 UTC
+
+Root names every already-created baseline carrier in the assignment. For future authoring allocations, export the immutable before/path and the active owned leaf; leave the final-after destination absent until the author publishes it. Do not prepopulate a candidate after directory with another baseline copy. Existing C1972 before/after baseline replicas stay preserved and its final-after contains the candidate. C1978 preserves before as the authentic baseline and its manifest-named after now contains the authored candidate. Read each actual manifest rather than infer candidate bytes from a directory name. Authors verify and reuse the named authentic baseline rather than EXCL-creating the same file again. Preserve genuine prior refusals; no artifact overwrite, execution, gate or review rule changes. This removes avoidable duplicate carriers and the observed EXCL-before handoff refusal.
+
+## Storage disposition refresh — 2026-10-20 UTC
+
+Run39184041358's42 ZIPs are already retired under genuine Root C1592 (`ROOT_GENUINELY_ADOPTED_COMPLETE_ACTUAL_EXACT42_ZIP_ONLY_RELEASE_DATA.json`,13420/fac1af6d110d18ceed1d7a97efea359feafe8e5e3e2153a381e499dc58d47634). The operation is CLOSED_CONSUMED_NO_REPLAY; all42 targets were absent. Never reissue that selection or count its historical allocation as new reclaim. C1939's finite records-only handoff and exact references are in `.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c1939-older391840-retirement-disposition-records-readonly-v1/HANDOFF.md`.
+
+Its separate41 extracted namespaces/54,725 files remain protected at the latest relevant retained C1626 point. Data-fork proof is adopted, but material metadata capture, consumer and extracted release were unselected; current physical allocation and exclusive reclaim remain UNKNOWN. The old31GiB metadata-capture floor and current binding gaps are under finite C1941 review only, with no policy change or effect selected. Current39381786452/index5/E13 cloud and typed-consumer work is a distinct candidate in ACTIVE_BRIEF. The October19 candidate figures and C1410 selection below retain their historical scope.
+
 
 ## Current storage dispositions — 2026-10-19 UTC
 
@@ -642,3 +652,17 @@ Root prospectively selects the existing committed dispatcher plus exactly one co
 ### C1754 current continuation — 2026-10-20 UTC
 
 C1744 selected the existing prescribed committed prun API as a portable Python protocol route on exact W1725 current7, separate from the unselected historical C688/C595 native30GiB enclosure. Actual399CI3workers617s+45selection2workers740s passed once; all2826/raw/mode/nativeframes/index/config/history5/interpreter conserved. This is not a new runner/floor waiver or Swift/native claim. Reuse those exact results only with complete current coupling review, including final6 coordinationMD C1753; never repeat unchanged suites merely for Primary integration of identical Source. C1751 same nonauthor reviewer closes composition/current DATA/final candidate afterimages. Existing direct dispatcher+onecollector remains the native hosted route; no carrier-copy/PRE/OUTER implementation recipe is added as a prerequisite.
+
+
+### C2011/C2015 — preserve exact transport without replaying completed work
+
+When preparing a new finite packet intake from a retained template, first replace the embedded metadata hex with a placeholder, make explicit operand substitutions, and bind exact ASCII JSON hex last. Check syntax and decoded metadata ID/revision/length before any directory or GET effect. Broad numeric replacement after binding hex corrupted C2011 V1 metadata before command line3; preserve that refusal and recover the same unconsumed link with corrected Source. Never replay executed retained scripts or acquire a second link to recover an output-limited observation. V2 actual intake closed naturally once and retained complete evidence. This is a transport implementation note, not a new admission/review tier.
+
+Use only runtime helpers actually exposed by functions.exec. C2015 record publication first referenced unavailable TextEncoder and stopped before any exec_command/file effect; recovery encoded the already retained ASCII tool result with character codes, preserving the error. The completed focused control run was not repeated. Direct pinned portable exec with separate retained stdout/stderr and natural tool closure gives actual results at that exact synthetic scope; it does not prove loaded-image/native/global filesystem qualification.
+
+
+### C2083 owner timing and finite parallel lanes (2026-10-21 UTC)
+
+Decision43 carries the one mandatory first hosted feedback obligation from pre-app393 to ONE genuinely changed, exactly reviewed INCOMPLETE correction checkpoint. It creates no repeated-unverified-checkpoint, test/suite/storage-floor/gate waiver. Reuse C2071/C2072 completed Source/tooling/composition work and bind only real policy/record deltas; do not rerun462 passed portable checks solely for MD. Root alone integrates/commits/pushes/dispatches after ordinary exact reviews and protected-lifecycle controls. New hosted execution retains strict>30GiB and actual compilecompleteapp+testmodules before all methods.
+
+M4 priority: same minimal inert C2059/C2065 receiver correction/review then current42 G3-G5/171roles22components/lifecycle/privatecaller preparation under existing15GiB+64MiB retirement controls. Optional old41 metadata successor stays disjoint/HELD; old21GiB permission is consumed. Reuse archive author+nonauthor for finite F2outside-reader/F3typed-contract Source preparation only when useful. No broad unchanged scans, large hydration, duplicate collectors, reset questions or speculative reclaim. Root received C2060 Source/review once C2076; all46 resident custody joins support the actual BLOCKED review, not effect authority.

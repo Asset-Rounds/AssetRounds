@@ -1234,6 +1234,8 @@ private extension StreamingArchiveService {
             } else {
                 valid = false
             }
+        } else if pathProfile == .backupV5, components == [BackupRawDataWireV1.rawPath] {
+            valid = mimeType == BackupRawDataWireV1.rawMIMEType
         } else if components == ["manifest.json"] || components == ["records.json"] {
             valid = mimeType == "application/json"
         } else if components == ["review-exchange", "snapshot.json"] {

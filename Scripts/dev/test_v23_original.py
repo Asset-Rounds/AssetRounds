@@ -2082,6 +2082,429 @@ class InfraRetryDispatchTests(unittest.TestCase):
                 self.assert_refused(root, retry_harness(root), "was cancelled through this ledger")
 
 
+def unacquired_runner_fixture(annotation_count=4):
+    """Synthetic identities, authentic failed-workflow/cancelled-job shape from 39481436028.
+
+    Job and check-run IDs deliberately differ: their explicit URL relationship,
+    not accidental numerical equality in the original, authenticates the proof.
+    """
+    job_id, check_id, suite_id = 4321, 9876, 5432
+    check_url = f"https://api.github.com/repos/{REPO}/check-runs/{check_id}"
+    job_url = f"https://github.com/{REPO}/actions/runs/{SINGLE_RUN}/job/{job_id}"
+    producer = {"id": job_id, "name": NEW.SHARED_PRODUCER_JOB, "run_id": SINGLE_RUN,
+                "head_sha": HEAD, "run_attempt": 1, "status": "completed", "conclusion": "cancelled",
+                "runner_id": 0, "runner_name": "", "runner_group_id": 0, "runner_group_name": "",
+                "steps": [], "labels": ["macos-26"], "check_run_url": check_url, "html_url": job_url}
+    jobs = {"total_count": 2, "jobs": [
+        {"id": 4320, "name": NEW.SHARED_SELECTION_JOB, "status": "completed", "conclusion": "success"},
+        producer]}
+    summary = {"runID": SINGLE_RUN, "head": HEAD, "selection": NEW.SHARED_SELECTION_ID,
+               "conclusion": "failure", "route": "shared-build",
+               "producer": {"job": {"id": job_id, "name": NEW.SHARED_PRODUCER_JOB, "status": "completed",
+                                     "conclusion": "cancelled", "runnerName": ""}},
+               "build": {"logPresent": False, "stepConclusion": None, "stepSeconds": None,
+                         "succeeded": None, "swiftErrors": None, "swiftWarnings": None},
+               "tests": {s: {"result": "NotStarted", "seconds": None, "lines": 0, "failures": []}
+                         for s in plan()["unitTestSelectors"]},
+               "steps": step_records((("Validate shared build selection", "success"),), NEW.SHARED_SELECTION_JOB)}
+    run = dict(FIXTURE_RUN, id=SINGLE_RUN, head_sha=HEAD, head_branch=NEW.BRANCH,
+               event="workflow_dispatch", path=NEW.WORKFLOW_PATH, run_attempt=1,
+               status="completed", conclusion="failure", check_suite_id=suite_id)
+    check = {"id": check_id, "url": check_url, "head_sha": HEAD, "status": "completed",
+             "conclusion": "cancelled", "details_url": job_url,
+             "check_suite": {"id": suite_id, "head_sha": HEAD, "head_branch": NEW.BRANCH},
+             "output": {"annotations_count": annotation_count, "annotations_url": check_url + "/annotations"}}
+    annotations = [{"path": ".github", "start_line": 1, "end_line": 1, "annotation_level": "failure",
+                    "message": "The job was not acquired by Runner of type hosted even after multiple attempts"}]
+    annotations += [{"path": ".github", "start_line": 1, "end_line": 1, "annotation_level": "notice",
+                     "message": f"macOS arm64 capacity notice {i}"} for i in range(annotation_count - 1)]
+    return {"summary": summary, "jobs": jobs, "run": run, "check": check, "annotations": annotations}
+
+
+class UnacquiredRunnerHarness(DispatchHarness):
+    def __init__(self, root, fixture):
+        super().__init__(NEW, root, NEW.SHARED_SELECTION_ID, head=HEAD, parent=PARENT, resolved=plan(),
+                         known_runs=[{"id": SINGLE_RUN}], run_records={SINGLE_RUN: fixture["run"]})
+        self.fixture = copy.deepcopy(fixture)
+        self.check_after = None
+        self.check_reads = 0
+        self.api_error = None
+        self.proof_at_dispatch = None
+
+    def subprocess_run(self, argv, **kwargs):
+        if argv[:2] == ["gh", "workflow"]:
+            attempt = self.root / "v23-original-attempts" / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.infra-retry.json"
+            self.proof_at_dispatch = json.loads(attempt.read_bytes())["infraRetryEvidence"]["runnerNotAcquiredProof"]
+        return super().subprocess_run(argv, **kwargs)
+
+    def api(self, path):
+        check_path = self.fixture["jobs"]["jobs"][-1]["check_run_url"].removeprefix("https://api.github.com/")
+        if path == check_path or path.startswith(check_path + "/annotations?"):
+            self.calls.append(("api", path))
+            if self.api_error is not None:
+                raise self.api_error
+            if path == check_path:
+                self.check_reads += 1
+                value = self.check_after if self.check_reads > 1 and self.check_after is not None else self.fixture["check"]
+                return copy.deepcopy(value)
+            page = int(re.search(r"&page=(\d+)$", path).group(1))
+            return copy.deepcopy(self.fixture["annotations"][(page - 1) * 100:page * 100])
+        return super().api(path)
+
+
+def stage_unacquired_original(test, fixture):
+    temporary = tempfile.TemporaryDirectory()
+    test.addCleanup(temporary.cleanup)
+    root = Path(temporary.name)
+    directory = root / str(SINGLE_RUN)
+    directory.mkdir()
+    dispatch = {"runID": SINGLE_RUN, "head": HEAD, "parent": PARENT, "selection": NEW.SHARED_SELECTION_ID,
+                "kind": "development", "resolvedSelection": plan(), "resolvedSelectionSHA256": sha(canonical(plan())),
+                "url": f"https://github.com/{REPO}/actions/runs/{SINGLE_RUN}", "requestedAtUTC": FIXED_NOW}
+    for leaf, value in (("dispatch.json", dispatch), ("summary.json", fixture["summary"]),
+                        ("jobs.json", fixture["jobs"]), ("manifest.json", {"runID": SINGLE_RUN, "files": {}})):
+        (directory / leaf).write_bytes(canonical(value))
+    attempts = root / "v23-original-attempts"
+    attempts.mkdir()
+    (attempts / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.json").write_bytes(b'{"original":true}\n')
+    write_ledger(root, [{key: dispatch[key] for key in
+                        ("runID", "head", "parent", "selection", "kind", "url", "requestedAtUTC")}])
+    return root
+
+
+class UnacquiredHostedRunnerClassificationTests(unittest.TestCase):
+    def proof(self, fixture):
+        harness = UnacquiredRunnerHarness(Path("unused-fixture-root"), fixture)
+        with mock.patch.object(NEW, "api", harness.api), mock.patch.object(NEW, "now", lambda: FIXED_NOW):
+            return NEW.observe_unacquired_runner_proof(fixture["run"], fixture["jobs"], fixture["jobs"]["jobs"][-1])
+
+    def classify(self, fixture, proof):
+        return NEW.infra_failure_classification(fixture["summary"], fixture["jobs"]["jobs"], SINGLE_RUN,
+                                                HEAD, NEW.SHARED_SELECTION_ID, proof)
+
+    def rehash_responses(self, proof):
+        proof["responseCanonicalJSONSHA256"] = {key: sha(canonical(value))
+                                                for key, value in proof["responses"].items()}
+
+    def test_positive_exact_proof_keeps_workflow_failure_and_cancelled_job_truthful(self):
+        fixture = unacquired_runner_fixture()
+        before = copy.deepcopy(fixture)
+        proof = self.proof(fixture)
+        refusals, causes = self.classify(fixture, proof)
+        self.assertEqual(refusals, [])
+        self.assertEqual(causes, [{"job": NEW.SHARED_PRODUCER_JOB, "step": None, "conclusion": "cancelled",
+                                  "category": "runner", "proof": "same-job hosted-runner-not-acquired annotation"}])
+        self.assertEqual(fixture, before)
+        self.assertNotEqual(fixture["check"]["id"], fixture["jobs"]["jobs"][-1]["id"])
+        self.assertEqual(proof["responses"]["annotations"], [fixture["annotations"]])
+
+    def test_cancelled_job_without_positive_proof_and_notice_only_are_refused(self):
+        fixture = unacquired_runner_fixture()
+        refusals, causes = self.classify(fixture, None)
+        self.assertEqual(causes, [])
+        self.assertIn("no failing step or failed job proves", refusals[0])
+        for replacement in ("capacity notice", "The user cancelled this job"):
+            with self.subTest(replacement):
+                value = unacquired_runner_fixture()
+                value["annotations"][0].update(annotation_level="notice", message=replacement)
+                refusals, causes = self.classify(value, self.proof(value))
+                self.assertEqual(causes, [])
+                self.assertTrue(any("no unique exact" in text for text in refusals), refusals)
+
+    def test_foreign_job_run_head_attempt_check_suite_and_endpoints_are_refused(self):
+        paths = [("run", "id"), ("run", "head_sha"), ("run", "run_attempt"),
+                 ("run", "conclusion"), ("checkRun", "id"), ("checkRun", "url"),
+                 ("checkRun", "head_sha"), ("checkRun", "details_url"), ("checkRun", "conclusion")]
+        for key, field in paths:
+            with self.subTest(key=key, field=field):
+                fixture = unacquired_runner_fixture()
+                proof = self.proof(fixture)
+                original = proof["responses"][key][field]
+                proof["responses"][key][field] = original + 1 if type(original) is int else "foreign"
+                if key == "checkRun":
+                    proof["responses"]["checkRunAfter"] = copy.deepcopy(proof["responses"]["checkRun"])
+                self.rehash_responses(proof)
+                refusals, causes = self.classify(fixture, proof)
+                self.assertTrue(refusals)
+                self.assertEqual(causes, [])
+        for field, value in (("id", 999), ("head_sha", OTHER_HEAD), ("head_branch", "foreign")):
+            fixture = unacquired_runner_fixture()
+            proof = self.proof(fixture)
+            for key in ("checkRun", "checkRunAfter"):
+                proof["responses"][key]["check_suite"][field] = value
+            self.rehash_responses(proof)
+            self.assertTrue(self.classify(fixture, proof)[0])
+
+    def test_allocated_started_or_app_evidence_never_qualifies(self):
+        cases = ("runner", "runner-name", "step", "test", "test-log", "build", "consumer", "duplicate-producer")
+        for label in cases:
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                proof = self.proof(fixture)
+                producer = fixture["jobs"]["jobs"][-1]
+                if label == "runner": producer["runner_id"] = 77
+                elif label == "runner-name": producer["runner_name"] = "allocated"
+                elif label == "step": producer["steps"] = [{"name": "Set up job", "conclusion": "success"}]
+                elif label == "test": next(iter(fixture["summary"]["tests"].values()))["result"] = "Passed"
+                elif label == "test-log": next(iter(fixture["summary"]["tests"].values()))["lines"] = 1
+                elif label == "build": fixture["summary"]["build"]["logPresent"] = True
+                elif label == "consumer": fixture["summary"]["steps"] += step_records(
+                    (("Run targeted tests", "success"),), consumer_job_name("S01"))
+                else: fixture["jobs"]["jobs"].append(copy.deepcopy(producer))
+                refusals, causes = self.classify(fixture, proof)
+                self.assertTrue(refusals)
+                self.assertFalse(any(c.get("proof") for c in causes))
+
+    def test_malformed_incomplete_changed_and_digest_mismatched_proof_is_refused(self):
+        for label in ("missing", "malformed", "digest", "endpoint", "partial-page", "extra-failure", "changed-fence"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                proof = self.proof(fixture)
+                if label == "missing": del proof["responses"]["checkRunAfter"]
+                elif label == "malformed": proof["responses"]["annotations"] = [None]
+                elif label == "digest": proof["responseCanonicalJSONSHA256"]["run"] = "0" * 64
+                elif label == "endpoint": proof["apiPaths"]["annotations"] = ["repos/foreign/check-runs/1/annotations"]
+                elif label == "partial-page": proof["responses"]["annotations"][0].pop()
+                elif label == "extra-failure": proof["responses"]["annotations"][0][-1]["annotation_level"] = "failure"
+                else: proof["responses"]["checkRunAfter"]["details_url"] = "foreign"
+                if label != "digest": self.rehash_responses(proof)
+                refusals, causes = self.classify(fixture, proof)
+                self.assertTrue(refusals)
+                self.assertEqual(causes, [])
+
+    def test_complete_multiple_annotation_pages_are_retained_and_missing_page_refuses(self):
+        fixture = unacquired_runner_fixture(101)
+        proof = self.proof(fixture)
+        self.assertEqual([len(page) for page in proof["responses"]["annotations"]], [100, 1])
+        self.assertEqual(self.classify(fixture, proof)[0], [])
+        proof["responses"]["annotations"].pop()
+        self.rehash_responses(proof)
+        self.assertTrue(self.classify(fixture, proof)[0])
+
+    def test_workflow_check_suite_membership_is_mandatory_not_optional(self):
+        for label in ("missing-run", "null-run", "boolean-run", "foreign-run",
+                      "missing-check", "null-check", "boolean-check", "foreign-check"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                proof = self.proof(fixture)
+                run = proof["responses"]["run"]
+                if label == "missing-run": run.pop("check_suite_id")
+                elif label.endswith("run"):
+                    run["check_suite_id"] = {"null-run": None, "boolean-run": True, "foreign-run": 987654}[label]
+                else:
+                    for key in ("checkRun", "checkRunAfter"):
+                        if label == "missing-check": proof["responses"][key].pop("check_suite")
+                        elif label == "null-check": proof["responses"][key]["check_suite"] = None
+                        else: proof["responses"][key]["check_suite"]["id"] = True if label == "boolean-check" else 987654
+                self.rehash_responses(proof)
+                refusals, causes = self.classify(fixture, proof)
+                self.assertTrue(any("check-suite identity" in text for text in refusals), refusals)
+                self.assertEqual(causes, [])
+
+    def test_canonical_summary_producer_must_match_the_same_no_runner_job(self):
+        for label in ("missing", "missing-job", "foreign-id", "foreign-name", "status", "conclusion", "runner"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                proof = self.proof(fixture)
+                if label == "missing": fixture["summary"].pop("producer")
+                elif label == "missing-job": fixture["summary"]["producer"].pop("job")
+                else:
+                    field, value = {"foreign-id": ("id", 987654), "foreign-name": ("name", "unrelated"),
+                                    "status": ("status", "in_progress"), "conclusion": ("conclusion", "failure"),
+                                    "runner": ("runnerName", "allocated")}[label]
+                    fixture["summary"]["producer"]["job"][field] = value
+                refusals, causes = self.classify(fixture, proof)
+                self.assertTrue(refusals)
+                self.assertEqual(causes, [])
+
+
+class UnacquiredHostedRunnerDispatchTests(unittest.TestCase):
+    def stage(self, fixture=None):
+        fixture = unacquired_runner_fixture() if fixture is None else fixture
+        root = stage_unacquired_original(self, fixture)
+        return root, UnacquiredRunnerHarness(root, fixture)
+
+    def assert_no_effects(self, root, harness, before):
+        self.assertFalse(harness.dispatched)
+        self.assertEqual(tree_bytes(root), before)
+        self.assertFalse(any(call[0] == "subprocess" and call[1][:2] == ("gh", "workflow")
+                             for call in harness.calls))
+
+    def test_positive_once_retry_retains_full_proof_before_dispatch_and_preserves_original(self):
+        root, harness = self.stage(unacquired_runner_fixture(101))
+        original = tree_bytes(root / str(SINGLE_RUN))
+        old_attempt = (root / "v23-original-attempts" / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.json").read_bytes()
+        harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+        self.assertTrue(harness.dispatched)
+        retry_path = root / "v23-original-attempts" / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.infra-retry.json"
+        attempt = json.loads(retry_path.read_bytes())
+        record = json.loads((root / str(RUN) / "dispatch.json").read_bytes())
+        evidence = attempt["infraRetryEvidence"]
+        self.assertEqual(record["infraRetryEvidence"], evidence)
+        self.assertEqual(evidence["jobsSHA256"], sha((root / str(SINGLE_RUN) / "jobs.json").read_bytes()))
+        proof = evidence["runnerNotAcquiredProof"]
+        self.assertEqual(harness.proof_at_dispatch, proof)
+        self.assertEqual(proof["responses"]["run"], harness.fixture["run"])
+        self.assertEqual(proof["responses"]["checkRun"], harness.fixture["check"])
+        self.assertEqual(proof["responses"]["checkRunAfter"], harness.fixture["check"])
+        self.assertEqual([a for page in proof["responses"]["annotations"] for a in page], harness.fixture["annotations"])
+        self.assertEqual(proof["responseCanonicalJSONSHA256"],
+                         {key: sha(canonical(value)) for key, value in proof["responses"].items()})
+        self.assertEqual(tree_bytes(root / str(SINGLE_RUN)), original)
+        self.assertEqual((root / "v23-original-attempts" / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.json").read_bytes(), old_attempt)
+        self.assertEqual([row["runID"] for row in ledger_lines(root)], [SINGLE_RUN, RUN])
+        self.assertEqual((record["head"], record["resolvedSelectionSHA256"]), (HEAD, sha(canonical(plan()))))
+        self.assertEqual(evidence["conclusion"], "failure")
+        self.assertEqual(evidence["causes"][0]["conclusion"], "cancelled")
+        check_calls = [i for i, call in enumerate(harness.calls) if call[0] == "api" and "check-runs/" in call[1]]
+        post = next(i for i, call in enumerate(harness.calls) if call[0] == "subprocess" and call[1][:2] == ("gh", "workflow"))
+        self.assertEqual(len(check_calls), 4)
+        self.assertLess(max(check_calls), post)
+        before = tree_bytes(root)
+        with self.assertRaisesRegex(SystemExit, "already had its one infrastructure rerun"):
+            UnacquiredRunnerHarness(root, harness.fixture).dispatch(
+                kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+        self.assertEqual(tree_bytes(root), before)
+
+    def test_missing_notice_only_foreign_and_changed_proof_refuse_before_effects(self):
+        for label in ("notice", "wrong-head", "wrong-job", "wrong-check", "wrong-suite", "partial", "changed", "API-error"):
+            with self.subTest(label):
+                root, harness = self.stage()
+                if label == "notice": harness.fixture["annotations"][0]["annotation_level"] = "notice"
+                elif label == "wrong-head": harness.fixture["check"]["head_sha"] = OTHER_HEAD
+                elif label == "wrong-job": harness.fixture["check"]["details_url"] += "9"
+                elif label == "wrong-check": harness.fixture["check"]["id"] += 1
+                elif label == "wrong-suite": harness.fixture["check"]["check_suite"]["id"] += 1
+                elif label == "partial": harness.fixture["annotations"].pop()
+                elif label == "changed": harness.check_after = dict(harness.fixture["check"], status="in_progress")
+                else: harness.api_error = subprocess.CalledProcessError(1, ["gh", "api"])
+                before = tree_bytes(root)
+                with self.assertRaises((SystemExit, subprocess.CalledProcessError)):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+
+    def test_malformed_or_oversized_annotation_count_and_incomplete_job_census_refuse(self):
+        for label in ("missing-output", "wrong-output", "missing-count", "zero", "oversized", "boolean", "jobs-count"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                if label == "jobs-count": fixture["jobs"]["total_count"] += 1
+                root, harness = self.stage(fixture)
+                if label == "missing-output": harness.fixture["check"].pop("output")
+                elif label == "wrong-output": harness.fixture["check"]["output"] = "malformed"
+                elif label == "missing-count": harness.fixture["check"]["output"].pop("annotations_count")
+                elif label != "jobs-count":
+                    harness.fixture["check"]["output"]["annotations_count"] = {
+                        "zero": 0, "oversized": NEW.INFRA_RUNNER_MAX_ANNOTATIONS + 1, "boolean": True}[label]
+                before = tree_bytes(root)
+                with self.assertRaises(SystemExit):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+
+    def test_workflow_cancel_and_ledger_cancel_still_refuse_without_proof_reads(self):
+        for label in ("workflow-cancel", "cancel-intent", "cancel-complete"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                if label == "workflow-cancel":
+                    fixture["summary"]["conclusion"] = fixture["run"]["conclusion"] = "cancelled"
+                root, harness = self.stage(fixture)
+                if label != "workflow-cancel":
+                    write_ledger(root, [{"event": label, "runID": SINGLE_RUN, "head": HEAD,
+                                         "selection": NEW.SHARED_SELECTION_ID}])
+                before = tree_bytes(root)
+                with self.assertRaises(SystemExit):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+                self.assertFalse(any(call[0] == "api" and "check-runs/" in call[1] for call in harness.calls))
+
+    def test_started_allocated_foreign_endpoint_and_app_evidence_refuse_without_proof_reads(self):
+        for label in ("runner", "steps", "foreign-endpoint", "test", "build"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                producer = fixture["jobs"]["jobs"][-1]
+                if label == "runner": producer["runner_id"] = 7
+                elif label == "steps": producer["steps"] = [{"name": "Set up job", "conclusion": "success"}]
+                elif label == "foreign-endpoint": producer["check_run_url"] = "https://api.github.com/repos/foreign/repo/check-runs/9876"
+                elif label == "test": next(iter(fixture["summary"]["tests"].values()))["result"] = "Failed"
+                else: fixture["summary"]["build"]["swiftErrors"] = 1
+                root, harness = self.stage(fixture)
+                before = tree_bytes(root)
+                with self.assertRaises(SystemExit):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+                self.assertFalse(any(call[0] == "api" and "check-runs/" in call[1] for call in harness.calls))
+
+    def test_existing_gate_cold_stale_resolver_terminal_collection_and_once_fences_precede_proof(self):
+        for label in ("kind", "gate-ledger", "cold", "stale", "resolver", "unterminal", "uncollected", "retry-marker"):
+            with self.subTest(label):
+                root, harness = self.stage()
+                directory = root / str(SINGLE_RUN)
+                if label == "gate-ledger":
+                    write_ledger(root, [{"runID": RUN, "head": HEAD, "selection": NEW.SHARED_SELECTION_ID, "kind": "gate"}])
+                elif label == "stale":
+                    write_ledger(root, [{"runID": RUN, "head": HEAD, "selection": NEW.SHARED_SELECTION_ID, "kind": "development"}])
+                elif label in ("cold", "resolver"):
+                    record = json.loads((directory / "dispatch.json").read_bytes())
+                    record["coldOriginal" if label == "cold" else "resolvedSelectionSHA256"] = True if label == "cold" else "0" * 64
+                    (directory / "dispatch.json").write_bytes(canonical(record))
+                elif label == "unterminal": harness.run_records[SINGLE_RUN]["status"] = "in_progress"
+                elif label == "uncollected": (directory / "manifest.json").unlink()
+                elif label == "retry-marker":
+                    (root / "v23-original-attempts" / f"{HEAD}-{NEW.SHARED_SELECTION_ID}.infra-retry.json").write_bytes(b"{}\n")
+                before = tree_bytes(root)
+                with self.assertRaises(SystemExit):
+                    harness.dispatch(kind="gate" if label == "kind" else "development",
+                                     infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+                self.assertFalse(any(call[0] == "api" and "check-runs/" in call[1] for call in harness.calls))
+
+    def test_missing_null_boolean_or_foreign_suite_membership_refuses_before_effects(self):
+        for label in ("missing-run", "null-run", "boolean-run", "foreign-run",
+                      "missing-check", "null-check", "boolean-check", "foreign-check"):
+            with self.subTest(label):
+                root, harness = self.stage()
+                if label == "missing-run": harness.run_records[SINGLE_RUN].pop("check_suite_id")
+                elif label.endswith("run"):
+                    harness.run_records[SINGLE_RUN]["check_suite_id"] = {
+                        "null-run": None, "boolean-run": True, "foreign-run": 987654}[label]
+                elif label == "missing-check": harness.fixture["check"].pop("check_suite")
+                elif label == "null-check": harness.fixture["check"]["check_suite"] = None
+                else: harness.fixture["check"]["check_suite"]["id"] = True if label == "boolean-check" else 987654
+                before = tree_bytes(root)
+                with self.assertRaisesRegex(SystemExit, "check-suite identity"):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+
+    def test_collected_jobs_keep_strict_utf8_decoding_before_proof_or_effects(self):
+        for encoding in ("utf-16", "utf-32", "utf-8-sig"):
+            with self.subTest(encoding):
+                root, harness = self.stage()
+                jobs_path = root / str(SINGLE_RUN) / "jobs.json"
+                jobs_path.write_bytes(jobs_path.read_bytes().decode("utf-8").encode(encoding))
+                before = tree_bytes(root)
+                with self.assertRaises((UnicodeError, ValueError)):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+                self.assertFalse(any(call[0] == "api" and "check-runs/" in call[1] for call in harness.calls))
+
+    def test_missing_foreign_or_allocated_summary_producer_refuses_before_proof_or_effects(self):
+        for label in ("missing", "missing-job", "foreign-id", "foreign-name", "status", "conclusion", "runner"):
+            with self.subTest(label):
+                fixture = unacquired_runner_fixture()
+                if label == "missing": fixture["summary"].pop("producer")
+                elif label == "missing-job": fixture["summary"]["producer"].pop("job")
+                else:
+                    field, value = {"foreign-id": ("id", 987654), "foreign-name": ("name", "unrelated"),
+                                    "status": ("status", "in_progress"), "conclusion": ("conclusion", "failure"),
+                                    "runner": ("runnerName", "allocated")}[label]
+                    fixture["summary"]["producer"]["job"][field] = value
+                root, harness = self.stage(fixture)
+                before = tree_bytes(root)
+                with self.assertRaises(SystemExit):
+                    harness.dispatch(kind="development", infra_retry_of=SINGLE_RUN, reason=REASON)
+                self.assert_no_effects(root, harness, before)
+                self.assertFalse(any(call[0] == "api" and "check-runs/" in call[1] for call in harness.calls))
+
+
 # --------------------------------------------------------------------------
 # Cancellation.
 # --------------------------------------------------------------------------

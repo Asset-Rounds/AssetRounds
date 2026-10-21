@@ -108,6 +108,26 @@ enum ReportPDFAnchoredFile {
         let inode: ino_t
     }
 
+    // Only the renderer's current attempt carries this phase across promotion;
+    // ordinary recovery callers still infer the strict kind from the path.
+    fileprivate enum AttemptOwnedPolicy {
+        case staging(RootIdentity)
+        case reportPDF(RootIdentity)
+
+        var identity: RootIdentity {
+            switch self {
+            case .staging(let identity), .reportPDF(let identity): return identity
+            }
+        }
+
+        var kind: OwnedFileKindV1 {
+            switch self {
+            case .staging: return .stagingFile
+            case .reportPDF: return .reportPDF
+            }
+        }
+    }
+
     static func rootIdentity(at rootURL: URL) throws -> RootIdentity {
         let descriptor = try openGenerationRootDescriptor(rootURL)
         defer { Darwin.close(descriptor) }
@@ -218,6 +238,37 @@ enum ReportPDFAnchoredFile {
         within rootURL: URL,
         rootIdentity: RootIdentity
     ) throws {
+        try removeMatchingRegularFile(
+            at: url, expectedData: expectedData, quarantineAt: quarantineURL,
+            within: rootURL, rootIdentity: rootIdentity,
+            policyKind: inferredRegularFileKind(for: url), expectedIdentity: nil
+        )
+    }
+
+    fileprivate static func removeAttemptOwnedRegularFile(
+        at url: URL,
+        expectedData: Data,
+        policy: AttemptOwnedPolicy,
+        quarantineAt quarantineURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try removeMatchingRegularFile(
+            at: url, expectedData: expectedData, quarantineAt: quarantineURL,
+            within: rootURL, rootIdentity: rootIdentity,
+            policyKind: policy.kind, expectedIdentity: policy.identity
+        )
+    }
+
+    private static func removeMatchingRegularFile(
+        at url: URL,
+        expectedData: Data,
+        quarantineAt quarantineURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity,
+        policyKind: OwnedFileKindV1,
+        expectedIdentity: RootIdentity?
+    ) throws {
         try withParentDescriptor(
             of: url,
             within: rootURL,
@@ -235,8 +286,11 @@ enum ReportPDFAnchoredFile {
                 throw Failure.cleanupFailed
             }
             do {
+                if let expectedIdentity, expectedIdentity != identity {
+                    throw Failure.cleanupFailed
+                }
                 try ProtectedFilePolicyV1.verify(
-                    inferredRegularFileKind(for: url),
+                    policyKind,
                     at: url
                 )
                 guard try directoryIdentity(parent) == expectedParent,
@@ -277,6 +331,7 @@ enum ReportPDFAnchoredFile {
     static func applyAndVerifyRegularFilePolicy(
         _ kind: OwnedFileKindV1,
         at url: URL,
+        expectedIdentity: RootIdentity,
         within rootURL: URL,
         rootIdentity: RootIdentity
     ) throws {
@@ -287,8 +342,10 @@ enum ReportPDFAnchoredFile {
         ) { parent, leaf in
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw Failure.invalidAuthority }
-            defer { _ = Darwin.close(descriptor) }
+            var closeAttempted = false
+            defer { if !closeAttempted { _ = Darwin.close(descriptor) } }
             let expected = try regularFileIdentity(descriptor)
+            guard expected == expectedIdentity else { throw Failure.invalidAuthority }
             let expectedParent = try directoryIdentity(parent)
             try ProtectedFilePolicyV1.applyAndVerify(
                 kind,
@@ -306,6 +363,8 @@ enum ReportPDFAnchoredFile {
                   Darwin.fsync(parent) == 0 else {
                 throw Failure.invalidAuthority
             }
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else { throw Failure.invalidAuthority }
         }
     }
 
@@ -397,8 +456,8 @@ enum ReportPDFAnchoredFile {
         cleanupAt cleanupURL: URL,
         within rootURL: URL,
         rootIdentity: RootIdentity
-    ) throws {
-        try withParentDescriptor(
+    ) throws -> RootIdentity {
+        return try withParentDescriptor(
             of: url,
             within: rootURL,
             rootIdentity: rootIdentity
@@ -476,6 +535,7 @@ enum ReportPDFAnchoredFile {
             guard Darwin.close(descriptor) == 0 else {
                 throw Failure.cleanupFailed
             }
+            return createdIdentity
         }
     }
 
@@ -776,6 +836,7 @@ enum ReportRenderFailurePoint: Equatable, Sendable {
     case stageWrite
     case promotion
     case reread
+    case finalPolicyAcknowledgement
     case readySave
     case readyCommitAcknowledgement
     case failedStateSave
@@ -784,14 +845,17 @@ enum ReportRenderFailurePoint: Equatable, Sendable {
 @MainActor
 final class ReportRenderFailureInjection {
     private var pending: ReportRenderFailurePoint?
+    private let beforeFailure: (@MainActor () -> Void)?
 
-    init(failOnceAt point: ReportRenderFailurePoint) {
+    init(failOnceAt point: ReportRenderFailurePoint, beforeFailure: (@MainActor () -> Void)? = nil) {
         pending = point
+        self.beforeFailure = beforeFailure
     }
 
     func consume(_ point: ReportRenderFailurePoint) -> Bool {
         guard pending == point else { return false }
         pending = nil
+        beforeFailure?()
         return true
     }
 }
@@ -1089,9 +1153,11 @@ final class ReportRenderService {
         )
         var ownsStage = false
         var ownsFinal = false
+        var ownedPolicy: ReportPDFAnchoredFile.AttemptOwnedPolicy? = nil
         do {
+            let createdIdentity: ReportPDFAnchoredFile.RootIdentity
             do {
-                try ReportPDFAnchoredFile.createRegularFile(
+                createdIdentity = try ReportPDFAnchoredFile.createRegularFile(
                     rendered.data,
                     at: paths.stageURL,
                     cleanupAt: paths.finalURL,
@@ -1104,10 +1170,14 @@ final class ReportRenderService {
                 throw ReportRenderServiceError.writeFailed
             }
             ownsStage = true
+            ownedPolicy = .staging(createdIdentity)
             if failureInjection?.consume(.stageWrite) == true {
                 throw ReportRenderServiceError.writeFailed
             }
-            try applyPolicy(.stagingFile, at: paths.stageURL)
+            // A policy request without a checked acknowledgement grants no cleanup phase.
+            ownedPolicy = nil
+            try applyPolicy(.stagingFile, at: paths.stageURL, expectedIdentity: createdIdentity)
+            ownedPolicy = .staging(createdIdentity)
             try verify(
                 paths.stageURL,
                 expectedData: rendered.data,
@@ -1131,7 +1201,12 @@ final class ReportRenderService {
             if failureInjection?.consume(.reread) == true {
                 throw ReportRenderServiceError.bytesMismatch
             }
-            try applyPolicy(.reportPDF, at: paths.finalURL)
+            ownedPolicy = nil
+            try applyPolicy(.reportPDF, at: paths.finalURL, expectedIdentity: createdIdentity)
+            if failureInjection?.consume(.finalPolicyAcknowledgement) == true {
+                throw ReportRenderServiceError.writeFailed
+            }
+            ownedPolicy = .reportPDF(createdIdentity)
             try verify(
                 paths.finalURL,
                 expectedData: rendered.data,
@@ -1194,13 +1269,15 @@ final class ReportRenderService {
                         try removeAttemptOwned(
                             paths.stageURL,
                             quarantineAt: paths.finalURL,
-                            expectedData: rendered.data
+                            expectedData: rendered.data,
+                            policy: ownedPolicy
                         )
                     } else if finalType != nil {
                         try removeAttemptOwned(
                             paths.finalURL,
                             quarantineAt: paths.stageURL,
-                            expectedData: rendered.data
+                            expectedData: rendered.data,
+                            policy: ownedPolicy
                         )
                     }
                 }
@@ -1218,7 +1295,8 @@ final class ReportRenderService {
                         try removeAttemptOwned(
                             paths.finalURL,
                             quarantineAt: paths.stageURL,
-                            expectedData: rendered.data
+                            expectedData: rendered.data,
+                            policy: ownedPolicy
                         )
                     }
                 }
@@ -1232,12 +1310,15 @@ final class ReportRenderService {
     private func removeAttemptOwned(
         _ url: URL,
         quarantineAt quarantineURL: URL,
-        expectedData: Data
+        expectedData: Data,
+        policy: ReportPDFAnchoredFile.AttemptOwnedPolicy?
     ) throws {
+        guard let policy else { throw ReportRenderServiceError.cleanupFailed }
         do {
-            try ReportPDFAnchoredFile.removeMatchingRegularFile(
+            try ReportPDFAnchoredFile.removeAttemptOwnedRegularFile(
                 at: url,
                 expectedData: expectedData,
+                policy: policy,
                 quarantineAt: quarantineURL,
                 within: generationRootURL,
                 rootIdentity: rootIdentity
@@ -1252,12 +1333,14 @@ final class ReportRenderService {
 
     private func applyPolicy(
         _ kind: OwnedFileKindV1,
-        at url: URL
+        at url: URL,
+        expectedIdentity: ReportPDFAnchoredFile.RootIdentity
     ) throws {
         do {
             try ReportPDFAnchoredFile.applyAndVerifyRegularFilePolicy(
                 kind,
                 at: url,
+                expectedIdentity: expectedIdentity,
                 within: generationRootURL,
                 rootIdentity: rootIdentity
             )

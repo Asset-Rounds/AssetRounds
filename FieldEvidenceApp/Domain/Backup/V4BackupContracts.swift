@@ -75,7 +75,7 @@ enum BackupSchemaAdmissionV1 {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
             return true
         default:
-            return backup == 4 && v4Pairs.contains {
+            return (backup == 4 || backup == 5) && v4Pairs.contains {
                 $0.persistent == persistent && $0.records == records
             }
         }

@@ -49,6 +49,20 @@ struct ValidatedRepetitiveCaptureSourcePackageV2: Equatable, Sendable {
               Int64(records.byteCount) == recordsDescriptor.byteCount else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
+        if package.manifest.backupSchemaVersion == BackupRawDataWireV1.backupSchemaVersion {
+            guard validation.recordsFacts.wireFormat == .rawDataV1,
+                  let raw = validation.recordsFacts.rawDescriptor(matching: package.records),
+                  let descriptor = package.members.descriptors[BackupRawDataWireV1.rawPath],
+                  let entry = package.manifest.entries.first(where: { $0.path == BackupRawDataWireV1.rawPath }),
+                  raw.sha256 == descriptor.sha256, Int64(raw.byteCount) == descriptor.byteCount,
+                  raw.sha256 == entry.sha256, raw.byteCount == entry.byteCount else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+        } else {
+            guard validation.recordsFacts.wireFormat == .legacyJSON else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+        }
         try cancellation.checkpoint()
         return Self(validatedPackage: package,
                     manifestJSONSHA256: manifest.sha256,

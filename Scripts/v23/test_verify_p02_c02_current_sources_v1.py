@@ -23,6 +23,7 @@ BACKUP_CONTRACTS = 'FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift'
 MUTATION_CONTRACTS = 'FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift'
 EVIDENCE_TESTS = 'FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests.swift'
 ERASE = 'FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift'
+DECODER_IMPLEMENTATION = 'private func decodeRecordsWithFacts(_ data: Data, rawData: Data?, maximumByteCount: Int64)'
 
 
 class CurrentC02SourceReaderTests(unittest.TestCase):
@@ -46,6 +47,22 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
 
     def test_real_current_source_bundle_preserves_historical_and_current_predicates(self) -> None:
         reader.verify_inputs(self.inputs)
+        for declaration, expected in (
+            ('static let operand = "records-data.bin"\nstatic let following = 5',
+             '"records-data.bin"'),
+            ('static let operand = /* fixed comment */\n    "application/octet-stream"\n',
+             '"application/octet-stream"'),
+            ('static let operand = #"fixed;{data}"#\nstatic let following = 5',
+             '#"fixed;{data}"#'),
+            ('static let operand = (1 + 2)\nstatic let following = 5', '(1 + 2)'),
+        ):
+            with self.subTest(initializer=declaration):
+                reader.exact_initializer(declaration, 'static let operand', expected,
+                                         'fixed initializer boundary')
+        missing_raw_wire = dict(self.inputs)
+        del missing_raw_wire[reader.RAW_WIRE]
+        with self.assertRaisesRegex(reader.ContractError, 'current reader input closure differs'):
+            reader.verify_inputs(missing_raw_wire)
 
     def test_missing_and_comment_only_recovery_are_refused(self) -> None:
         path = PERSISTENCE + 'StoreSessionCoordinator.swift'
@@ -90,7 +107,10 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
         for old, new, reason in (
             ('static let persistentSchemaVersion = 53', 'static let persistentSchemaVersion = 54', 'current tuple enrollment'),
             ('static let recordsSchemaVersion = 52', 'static let recordsSchemaVersion = 53', 'current tuple enrollment'),
-            ('return backup == 4 && v4Pairs.contains', 'return backup >= 3 && v4Pairs.contains', 'tuple admission'),
+            ('return (backup == 4 || backup == 5) && v4Pairs.contains', 'return backup >= 3 && v4Pairs.contains', 'tuple admission'),
+            ('return (backup == 4 || backup == 5) && v4Pairs.contains', 'return backup == 4 && v4Pairs.contains', 'tuple admission'),
+            ('return (backup == 4 || backup == 5) && v4Pairs.contains', 'return backup == 5 && v4Pairs.contains', 'tuple admission'),
+            ('return (backup == 4 || backup == 5) && v4Pairs.contains', 'return (backup == 4 || backup == 5 || backup == 6) && v4Pairs.contains', 'tuple admission'),
             ('case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):',
              'case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 53, 52):', 'tuple admission'),
             ('        (5, 4),', '        (54, 53),\n        (5, 4),', '49 enrolled archive4 pairs'),
@@ -111,6 +131,10 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
     def test_current_export_must_use_real_history_and_actual_records_version(self) -> None:
         path = BACKUP + 'BackupExportService.swift'
         for old, new in (
+            ('legacyCheckpointBasis: Bool = false', 'legacyCheckpointBasis: Bool = true'),
+            ('backupSchemaVersion: legacyCheckpointBasis ? 4 : BackupRawDataWireV1.backupSchemaVersion',
+             'backupSchemaVersion: legacyCheckpointBasis ? 5 : 4'),
+            ('rawDataPlan = plan', 'rawDataPlan = nil'),
             ('deletionLedger: deletionLedger,\n            mutationHistory: mutationHistory',
              'deletionLedger: deletionLedger,\n            mutationHistory: nil'),
             ('persistentSchemaVersion: LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,',
@@ -125,11 +149,61 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
                      'explicit legacy/current projection')
 
     def test_missing_package_tuple_validation_is_refused(self) -> None:
+        for declaration, reason in (
+            ('static let operand = "wrong"\nstatic let decoy = "expected"',
+             'concrete initializer differs'),
+            ('static let operand = "expected" + ".suffix"\n',
+             'concrete initializer differs'),
+            ('static let operand = /* "expected" */ "wrong"\n',
+             'concrete initializer differs'),
+            ('let decoy = #"static let operand = "expected""#\n'
+             'static let operand = "wrong"\n', 'concrete initializer differs'),
+            ('static let operand\nstatic let decoy = "expected"\n',
+             'value initializer missing'),
+            ('static let operand = "expected"\nstatic let operand = "expected"\n',
+             'unique real value declaration missing'),
+            ('static let operand = ("expected"\nstatic let following = 5\n',
+             'concrete initializer differs'),
+        ):
+            with self.subTest(initializer=declaration):
+                with self.assertRaisesRegex(reader.ContractError, reason):
+                    reader.exact_initializer(declaration, 'static let operand', '"expected"',
+                                             'fixed initializer boundary')
+        for old, new, reason in (
+            ('static let backupSchemaVersion = 5', 'static let backupSchemaVersion = 6', 'current raw wire identity'),
+            ('static let rawPath = "records-data.bin"', 'static let rawPath = "other.bin"', 'current raw wire identity'),
+            ('static let rawMIMEType = "application/octet-stream"', 'static let rawMIMEType = "text/plain"', 'current raw wire identity'),
+            ('static let rawPath = "records-data.bin"',
+             'static let rawPath = "other.bin"\n    static let decoy = "records-data.bin"',
+             'current raw wire identity'),
+            ('static let rawPath = "records-data.bin"',
+             'static let rawPath = "records-data.bin" + ".suffix"', 'current raw wire identity'),
+            ('static let rawPath = "records-data.bin"',
+             'static let rawPath = /* "records-data.bin" */ "other.bin"', 'current raw wire identity'),
+            ('static let rawPath = "records-data.bin"',
+             'static let rawPath = #"records-data.bin"#', 'current raw wire identity'),
+            ('metadata.addingReportingOverflow(raw)', 'metadata.addingReportingOverflow(0)', 'current raw wire combined budget'),
+            ('min(maximum,', 'max(maximum,', 'current raw wire combined budget'),
+            ('guard raw.isEmpty else', 'guard true else', 'current raw wire manifest'),
+            ('raw.count == 1,', 'raw.count <= 1,', 'current raw wire manifest'),
+            ('bytes.mimeType == rawMIMEType', 'true', 'current raw wire manifest'),
+        ):
+            with self.subTest(raw_wire=old):
+                self.rejects(reader.verify_current_backup, self.changed(reader.RAW_WIRE, old, new), reason)
         path = BACKUP + 'BackupPackageValidatorV1.swift'
         self.rejects(reader.verify_current_backup,
                      self.changed(path, 'let schemaPairIsValid = BackupSchemaAdmissionV1.supports(',
                                   'let schemaPairIsValid = permissiveSchemaAdmission('),
                      'package current/historical tuple')
+
+        self.rejects(reader.verify_current_backup,
+                     self.changed(path, 'try BackupRawDataWireV1.validateManifest(manifest,',
+                                  'try permissiveRawManifest(manifest,'),
+                     'package current/historical tuple and identity rejection')
+        self.rejects(reader.verify_current_backup,
+                     self.changed(BACKUP + 'BackupExportService.swift', 'legacyCheckpointBasis: true',
+                                  'legacyCheckpointBasis: false'),
+                     'current checkpoint clean context and generation lease')
 
     def test_closed_command_roster_rejects_missing_extra_duplicate_and_reorder(self) -> None:
         text = self.source[MUTATION_CONTRACTS]
@@ -705,7 +779,7 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
                                      'case implicitExtraCommand\n    case createFirstSign = "create_first_sign"')
         self.full_refusal(source, 'closed ordered63 commands')
         for old, new in (
-            ('return backup == 4 && v4Pairs.contains {', 'return true || backup == 4 && v4Pairs.contains {'),
+            ('return (backup == 4 || backup == 5) && v4Pairs.contains {', 'return true || backup == 4 && v4Pairs.contains {'),
             ('switch (backup, persistent, records) {', 'if true { return true }; switch (backup, persistent, records) {'),
         ):
             with self.subTest(mutation=new):
@@ -726,8 +800,30 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
              'guard legacy == data else {\n                    return (value, BackupCanonicalRecordsValidationFactsV1(records: value, canonicalData: data))'),
         ):
             with self.subTest(mutation=new):
-                self.full_refusal(self.scoped_changed(path, 'func decodeRecordsWithFacts(', old, new),
+                self.full_refusal(self.scoped_changed(path, DECODER_IMPLEMENTATION, old, new),
                                   'strict full backup canonical decode history seam')
+
+        for old, new in (
+            ('plan.metadata.data == data', 'true'),
+            ('plan.slots.byteCount == rawData.count', 'true'),
+            ('plan.slots.sha256 == CanonicalJSONV1.sha256(rawData)', 'true'),
+            ('try resolver?.validateComplete()', ''),
+        ):
+            with self.subTest(raw_decoder=old):
+                self.full_refusal(self.scoped_changed(path, DECODER_IMPLEMENTATION, old, new),
+                                  'strict full backup canonical decode')
+        for declaration, old, new in (
+            ('func decodeRecordsWithFacts(_ data: Data) throws -> (', 'rawData: nil,', 'rawData: Data(),'),
+            ('func decodeRawDataRecordsWithFacts(', 'rawData: rawData,', 'rawData: nil,'),
+        ):
+            with self.subTest(wrapper=declaration):
+                self.full_refusal(self.scoped_changed(path, declaration, old, new),
+                                  'strict full backup canonical decode')
+        source = self.scoped_changed(BACKUP + 'BackupCanonicalEncoderV1.swift',
+            'private static func recordFields(\n        _ records: V4BackupRecordsV1,',
+            'receiptStableKeys: ordinaryValidation?.receiptStableKeys,\n                rawDataSlots: rawDataSlots',
+            'receiptStableKeys: ordinaryValidation?.receiptStableKeys,\n                rawDataSlots: nil')
+        self.full_refusal(source, 'ordinary backup transport retains mutation history')
 
     def wrapped_owned_seam(self, path: str, declaration: str, head: str, *,
                            guard: bool = False, alternate: bool = False,
@@ -835,7 +931,7 @@ class CurrentC02SourceReaderTests(unittest.TestCase):
             (BACKUP + 'BackupCanonicalEncoderV1.swift', 'private static func recordFields(\n        _ records: V4BackupRecordsV1,',
              'if let mutationHistory = records.mutationHistory',
              'ordinary backup transport retains mutation history', 'unused closure'),
-            (BACKUP + 'BackupCanonicalDecoderV1.swift', 'func decodeRecordsWithFacts(',
+            (BACKUP + 'BackupCanonicalDecoderV1.swift', DECODER_IMPLEMENTATION,
              'if canonical != data', 'strict full backup canonical decode history seam', 'unused closure'),
             (ERASE, 'func validateEmptyGenerationRows(', 'if let identity',
              'all empty generation history dimensions', 'unused closure'),

@@ -70,7 +70,19 @@ final class V23ProductionRoundSessionTransitionPresentationTests: V23ProductionF
                 reachedSuspension = true
                 switch change {
                 case "reportsOnly":
-                    try context.work.scene.setPath([reportTarget], for: .reports)
+                    let originalScene = try XCTUnwrap(context.work.scene.snapshot)
+                    let reportsOnlyPaths = originalScene.paths.map {
+                        $0.root == .reports
+                            ? SceneRootPathV1(root: .reports, targets: [reportTarget])
+                            : $0
+                    }
+                    let reportsOnlyScene = try SceneNavigationSnapshotV1(
+                        workspaceID: originalScene.workspaceID,
+                        selectedRoot: originalScene.selectedRoot,
+                        paths: reportsOnlyPaths,
+                        snapshotID: UUID())
+                    try context.work.sceneAccess.save(reportsOnlyScene)
+                    try context.work.scene.restore()
                     XCTAssertEqual(context.work.scene.snapshot?.selectedRoot, .work)
                 case "workABA":
                     try context.work.scene.open(context.work.target(expectedRevision: nil))
