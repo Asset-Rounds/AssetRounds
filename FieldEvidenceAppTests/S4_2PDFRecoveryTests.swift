@@ -295,9 +295,13 @@ final class S4_2PDFRecoveryTests: XCTestCase {
                 failureInjection: ReportRenderFailureInjection(failOnceAt: point, beforeFailure: {
                     guard point == .reread else { return }
                     observedPrePolicyFinal = true
-                    XCTAssertFalse(self.fileManager.fileExists(atPath: self.stageURL(in: harness).path))
-                    XCTAssertNoThrow(try ProtectedFilePolicyV1.verify(.stagingFile, at: self.finalURL(in: harness)))
-                    XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.reportPDF, at: self.finalURL(in: harness)))
+                    do {
+                        XCTAssertFalse(self.fileManager.fileExists(atPath: self.stageURL(in: harness).path))
+                        XCTAssertNoThrow(try ProtectedFilePolicyV1.verify(.stagingFile, at: self.finalURL(in: harness)))
+                        XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.reportPDF, at: self.finalURL(in: harness)))
+                    } catch {
+                        XCTFail("Could not verify pre-policy final PDF: \(error)")
+                    }
                 })
             )
 

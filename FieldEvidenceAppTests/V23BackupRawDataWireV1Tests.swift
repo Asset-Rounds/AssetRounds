@@ -225,15 +225,42 @@ final class V23BackupRawDataWireV1Tests: XCTestCase {
     }
 
     func testLegacyArchivePathProfileRejectsRawMemberAndNewProfileKeepsTypedPath() throws {
-        XCTAssertThrowsError(try StreamingArchiveService().validatePathAndMIME(
-            BackupRawDataWireV1.rawPath, mimeType: BackupRawDataWireV1.rawMIMEType))
-        let reader = StreamingArchiveService(pathProfile: .backupV5)
-        XCTAssertNoThrow(try reader.validatePathAndMIME(BackupRawDataWireV1.rawPath,
-            mimeType: BackupRawDataWireV1.rawMIMEType))
-        for path in ["records-data.BIN", "records-data.bin/extra", "../records-data.bin"] {
-            XCTAssertThrowsError(try reader.validatePathAndMIME(path, mimeType: BackupRawDataWireV1.rawMIMEType))
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("raw-path-profile-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let payload = Data([0x5a])
+        try payload.write(to: root.appendingPathComponent("payload"))
+        let attributes = try FileManager.default.attributesOfItem(atPath: root.path)
+        let identity = StreamingArchiveRootIdentityV1(
+            device: try XCTUnwrap(attributes[.systemNumber] as? NSNumber).uint64Value,
+            inode: try XCTUnwrap(attributes[.systemFileNumber] as? NSNumber).uint64Value)
+        func entry(_ path: String, mimeType: String) -> StreamingArchiveWriteEntryV1 {
+            StreamingArchiveWriteEntryV1(path: path, mimeType: mimeType,
+                sourceRootURL: root, sourceRelativePath: "payload",
+                expectedSourceRootIdentity: identity,
+                expectedUncompressedByteCount: Int64(payload.count),
+                expectedContentSHA256: KernelCanonicalHashV1.sha256(payload), compression: .stored)
         }
-        XCTAssertThrowsError(try reader.validatePathAndMIME(BackupRawDataWireV1.rawPath, mimeType: "application/json"))
+        // Exercise the writer's existing entry point, which validates the same
+        // path/MIME pair before observing the owned source file.
+        XCTAssertThrowsError(try StreamingArchiveService().sourceObservation(entry(
+            BackupRawDataWireV1.rawPath, mimeType: BackupRawDataWireV1.rawMIMEType))) {
+            XCTAssertEqual($0 as? StreamingArchiveFailureV1, .hostilePath)
+        }
+        let reader = StreamingArchiveService(pathProfile: .backupV5)
+        XCTAssertNoThrow(try reader.sourceObservation(entry(BackupRawDataWireV1.rawPath,
+            mimeType: BackupRawDataWireV1.rawMIMEType)))
+        for path in ["records-data.BIN", "records-data.bin/extra", "../records-data.bin"] {
+            XCTAssertThrowsError(try reader.sourceObservation(entry(path,
+                mimeType: BackupRawDataWireV1.rawMIMEType))) {
+                XCTAssertEqual($0 as? StreamingArchiveFailureV1, .hostilePath)
+            }
+        }
+        XCTAssertThrowsError(try reader.sourceObservation(entry(BackupRawDataWireV1.rawPath,
+            mimeType: "application/json"))) {
+            XCTAssertEqual($0 as? StreamingArchiveFailureV1, .hostilePath)
+        }
     }
 
     private func rawData(_ plan: BackupRawDataWireV1.Plan) throws -> Data {
