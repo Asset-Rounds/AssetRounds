@@ -1104,28 +1104,77 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion, workspaceID != SearchContractValidationV1.zeroUUID,
-              SearchContractValidationV1.validID(sourceStableID), SearchContractValidationV1.validID(fieldID),
+              Self.isValidProjectionID(sourceStableID), Self.isValidProjectionID(fieldID),
               normalizedTokens.count <= SearchContractLimitsV1.maximumProjectionTokens,
               !normalizedTokens.isEmpty,
               Set(normalizedTokens).count == normalizedTokens.count,
-              normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
-              SearchContractValidationV1.validDisplayText(displayIdentity, maximumBytes: 240),
+              normalizedTokens.allSatisfy(Self.isCanonicalProjectionToken),
+              Self.isValidProjectionDisplayText(displayIdentity, maximumBytes: 240),
               locationBreadcrumb.count <= SearchContractLimitsV1.maximumBreadcrumbComponents,
-              locationBreadcrumb.allSatisfy({ SearchContractValidationV1.validDisplayText($0, maximumBytes: 160) }),
-              SearchContractValidationV1.validDisplayText(status, maximumBytes: 120),
+              locationBreadcrumb.allSatisfy({ Self.isValidProjectionDisplayText($0, maximumBytes: 160) }),
+              Self.isValidProjectionDisplayText(status, maximumBytes: 120),
               Set(openWorkStableIDs).count == openWorkStableIDs.count,
-              openWorkStableIDs.allSatisfy({ SearchContractValidationV1.validID($0) }),
-              permittedSnippet.map({ SearchContractValidationV1.validDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
+              openWorkStableIDs.allSatisfy({ Self.isValidProjectionID($0) }),
+              permittedSnippet.map({ Self.isValidProjectionDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
               dueAt.map(SearchContractValidationV1.validDate) ?? true,
               SearchContractValidationV1.validDate(sourceTimestamp) else { throw SearchContractFailureV1.invalidField }
+    }
+
+    // These positive-only ASCII paths preserve the generic validators for
+    // every other value, including whitespace, controls and all Unicode.
+    private static func isValidProjectionID(_ value: String) -> Bool {
+        if !value.isEmpty,
+           value.utf8.count <= SearchContractLimitsV1.maximumIdentifierBytes,
+           value.utf8.allSatisfy({ $0 >= 0x21 && $0 <= 0x7e }) {
+            return true
+        }
+        return SearchContractValidationV1.validID(value)
+    }
+
+    private static func isValidProjectionDisplayText(_ value: String, maximumBytes: Int) -> Bool {
+        if !value.isEmpty,
+           value.utf8.count <= maximumBytes,
+           value.utf8.allSatisfy({ $0 >= 0x20 && $0 <= 0x7e }),
+           value.utf8.contains(where: { $0 != 0x20 }) {
+            return true
+        }
+        return SearchContractValidationV1.validDisplayText(value, maximumBytes: maximumBytes)
+    }
+
+    private static func isCanonicalProjectionToken(_ value: String) -> Bool {
+        // Only positively admit the already-canonical ASCII vocabulary here.
+        // All other input keeps the complete general token validation path.
+        if !value.isEmpty,
+           value.utf8.count <= SearchContractLimitsV1.maximumNormalizedTokenBytes,
+           value.utf8.allSatisfy({ byte in
+               (byte >= 0x61 && byte <= 0x7a) || (byte >= 0x30 && byte <= 0x39)
+           }) {
+            return true
+        }
+        return SearchContractValidationV1.isCanonicalSearchToken(value)
     }
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.projectionIdentity < rhs.projectionIdentity }
 
     static func validateProjection(_ records: [Self], against registry: SearchableFieldRegistryV1) throws -> [Self] {
         guard records.count <= SearchContractLimitsV1.maximumProjectionRecords else { throw SearchContractFailureV1.limitExceeded }
-        let sorted = records.sorted()
-        guard Set(sorted.map(\.projectionIdentity)).count == sorted.count else { throw SearchContractFailureV1.duplicateProjection }
+        var previousIdentity: String?
+        var strictlyOrdered = true
+        for record in records {
+            let identity = record.projectionIdentity
+            if let previousIdentity, !(previousIdentity < identity) {
+                strictlyOrdered = false
+                break
+            }
+            previousIdentity = identity
+        }
+        let sorted: [Self]
+        if strictlyOrdered {
+            sorted = records
+        } else {
+            sorted = records.sorted()
+            guard Set(sorted.map(\.projectionIdentity)).count == sorted.count else { throw SearchContractFailureV1.duplicateProjection }
+        }
         for record in sorted {
             try record.validate()
             let field = try registry.descriptor(fieldID: record.fieldID, sourceKind: record.sourceKind)
@@ -1250,7 +1299,26 @@ struct SearchIndexProjectionV1: Codable, Equatable, Sendable {
         self.source = source
         self.index = index
         self.records = try SearchIndexProjectionRecordV1.validateProjection(records, against: registry)
-        try validate()
+        // validateProjection has already sorted, bounded, deduplicated and
+        // validated these immutable records against the registry. Only their
+        // source/index binding remains to be checked in this constructor.
+        try validateSourceBinding()
+    }
+
+    private func validateSourceBinding() throws {
+        guard schemaVersion == Self.schemaVersion,
+              source.workspaceID != SearchContractValidationV1.zeroUUID,
+              source.generationID != SearchContractValidationV1.zeroUUID,
+              source.workspaceID == index.workspaceID,
+              source.generationID == index.generationID,
+              index.projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+              index.indexedCommitRevision == source.commitRevision,
+              records.allSatisfy({
+                  $0.workspaceID == source.workspaceID && $0.sourceRevision <= source.commitRevision
+              }) else {
+            throw index.indexedCommitRevision > source.commitRevision
+                ? SearchContractFailureV1.indexAheadOfSource : SearchContractFailureV1.staleIndex
+        }
     }
 
     func validate() throws {

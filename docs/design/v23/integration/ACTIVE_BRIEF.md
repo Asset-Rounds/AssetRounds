@@ -1,52 +1,44 @@
-# AssetRounds V23/S10 — current continuation, 2026-10-22 UTC
+# AssetRounds V23/S10 — current continuation, October22 UTC
+Goal ACTIVE. All five Phase1 gates OPEN0/5; SourceReady=false; releaseReady=false; accepted named exceptions EMPTY.
+Read AGENTS.md and PERFORMANCE_WORKFLOW.md; CURRENT_INTEGRATION.md and VERIFICATION_DUE.md retain exact historical failures, HOLDs and obligations.
+Root alone integrates, commits, pushes, dispatches and messages M4. Future helpers on both Macs: Sol6.1/xhigh (decision48); preserve completed reviews' actual attribution.
 
-Goal ACTIVE: verified Phase 1 merge. All five gates OPEN (0/5); SourceReady=false; releaseReady=false.
-Read AGENTS.md, CURRENT_INTEGRATION.md, MERGE_READINESS.md, VERIFICATION_DUE.md and PERFORMANCE_WORKFLOW.md.
-Preserve owner drafts/config/untracked work, every original/failure/partial/HOLD/ledger and online-only historical archive.
+## Source and next hosted feedback
+Branch codex/v23-s10-integration-20260910. HEAD and live GitHub origin ffbc9697cadaa1f1560eb673e5f4081d7eefce9a; tree5ca0d3d3cd6af0a0da4f56f12148ccd4e9a45a9a.
+Main/originmain remain b1d04ae5e684aa9c6807af655089efa1df8a7ed6. No newer hosted run, checkpoint or main advancement.
+Last full39381786452/head10e:3434PASS/309FAIL/3Interrupted/57NotStarted; current whole-suite/causal totals UNKNOWN. d542 compilerfail/28NotStarted and every earlier original remain preserved.
+Next mandatory full: c2019-reviewed-backup-report-fixture-stabilization-full3815-development-v1, v23-shared-coverage-d50x,3815methods/41orderedpartitions/max5.
+Pinned GitHub26.6/17F113+iOS26.2/23C54; own app+test-module build before no-rebuild fanout. All existing S01D90S/other40D50C/producer/outer/boot budgets retained.
+Decision47 permits strict>22GiB ONLY for one published-ffbc full lifecycle, using existing sampled12/11/1/10GiB controls; not a hard quota. Actual Source/history/context/reservation/admission/sole-collector/execution review/dispatch still pending.
+An ordinary verified R6 checkpoint may carry full feedback debt, but its future head retains ordinary>30GiB unless separate applicable authority exists. Do not transfer decision47 or relabel a consumed original.
 
-## Current Source and completed diagnostic feedback
-Work in this Dropbox repository on codex/v23-s10-integration-20260910.
-HEAD/origin d542b2b34ec549e7a8df965934bee10b7c82df29; tree27e5d7c5ca376e93479eee7822199d9513079166.
-Main stays b1d04ae5e684aa9c6807af655089efa1df8a7ed6. No new Root stage/commit/push/hosted dispatch at this record point.
-Canonical two Swift corrections: PDF68204/b25fd6f9; backup22288/e2a73328. Nine prospective owned paths; ownerconfig/drafts excluded.
-C2295 incremental catalog-excluded app/unit/UI-module diagnostic BUILD SUCCEEDED/exit0; zero compiler errors. Complete DATA adopted; not a clean/resource-complete qualified build.
-C2297 backup7/7PASS/0fail/skip,exit0,45.584s; complete independent DATA13913/cf9eb307 and Root4093/1f0d3424 adopted.
-C2300 two old-failed fixture methods2/2PASS,exit0,30.689s. C2301 Search3PASS1FAIL,exit65; query888ms>unchanged250ms.
-C2303 whole unchanged PDF method1/1PASS/0fail/skip,exit0,50.767s controller/25.594s method;12 real retained store fixtures.
-Combined complete DATA28545/f41bca90, genuine M4assessment11019/795838fe and ZIP60707693/34a5adc8 received/hashverified; Root6724/f078ffb3 genuinely adopted.
-All selected native jobs CLOSED/groups absent/deviceShutdown/no resource stop. Exact2831Source/212Products/3platform libraries conserved.
-Total14 distinct diagnostics13PASS1FAIL; three historical failed selectors now locally pass. Never subtract these into an invented full-suite total.
-Last full39381786452/head10e:3434PASS/309FAIL/3Interrupted/57NotStarted. Current full-suite and causal failure totals UNKNOWN.
-D50 original39698210292/d542 compile refusal/28NotStarted and all earlier failures/HOLDs remain preserved.
-Current Bridge18/18+DATA16171/430a4859, unchanged census3815/41 and tooling applicability19663/2851c567 identify no additional suite/generator run for this exact two-fix delta.
+## Search R6 — code integrated, unpublished
+Exact reviewed3Source afterimages are now unstaged in Primary. Root integration6112/d7ebb962 conserved all7 prior modified tracked files, index and HEAD; no commit/push. Preserve owner .codex/config.toml/drafts/untracked.
+Frozen W remains ffbc+3Search; completepatch25711/33d7f7e0, SourceReview16056/4bd3a67d. W and its Products are unchanged by Primary integration.
+Compile07 child/controller0,994Swift tasks,0compilererrors; DATA34684/f6c538a9 adopted999/e211a16b. Actual local27.1/27A9275+SDK27.1/24A94232+Swift6.4/macOS27.0.1 diagnostic/catalog-excluded scope only; Products unqualified.
+Ordinary affected13 component supported by10actualR6PASS (native08three+native10seven) +3reviewed unchanged R3 path reuses. Native10 DATA49392/3a4732a0 adopted4851/3e42356d; all28groups/deviceclosedtrue, Source/Products conserved.
+Sol independent technical readiness41980/f94b8042 PASS; current tooling applicability22689/9f31d3b6+Bridgejoin9343/572a64dd adopted2540/3910669e. Current census/order/13 inclusion verified.
+R6 carried-forward3815/41 plan36129/9a7a016f and11-path composition checklist10278/5cbbffaf are prepared. Full11-path proposal/patch/prospective tree is frozen in N/root-r6-complete-publication-packet-v1; V2 carries only the two current operational-record updates below, preserving V1. Same Sol reviewer is closing final composition; actual commit/dispatch/results PENDING. Optional R6 completion is not a prerequisite to ffbc full feedback.
+Keep all native01–10 failures/partials/UNKNOWNs at their original scopes, including native09sevenNOT_STARTED/deviceclosureUNKNOWN. Later passes never rewrite earlier results.
 
-## Immediate checkpoint and parallel Search lane
-Ordinary two-fix candidate independent Sol6.1/xhigh PASS29392/eedaf2cf; genuine Rootadoption2143/4163c85b. Same-reviewer truthful final-record concordance then explicit9path integration publication; actualcommit/push PENDING.
-Ordinary changedSwift compile+bothaffected applicability closes for these two methods only; incremental/catalog-excluded limitations remain. No blanket Products, full-sweep or gate credit.
-C2294 human timing extension remains PENDING/uninvoked. Decision44 remains PDF-only/adopted/unconsumed; ordinary verification uses neither exception.
-Mandatory pinned GitHub full3815/41 remains due after the bounded checkpoint; all candidate gates/genuine owner review/mainFF/exact-main remain due.
-Question c2019-reviewed-backup-report-fixture-stabilization-full3815-development-v1; v23-shared-coverage-d50x, own full app/test compile before max5 no-rebuild partitions.
-Hosted actual newhead/context/reservation/Products/attempt/claim/dispatch/run remain PENDING; ordinary strict>30GiB unchanged.
-Future Search R2 patch10817/50da2641, support15464/49a66652 and independent SourcePASS23654/a0485f87 remain isolated in c2302/source-worktrees/search-latency-correction-d542.
-Only Store/Contracts/V9test changed there; coordinator read-only. Root adopts Source/coupling only; compilation/12 affected tests/latency UNVERIFIED. Keep separate from current two-fix checkpoint.
+## M4 — connected, same job
+Chat01a12bb7-3a96-7461-af37-c7839e6950d2; hostremote-control:env_e_6acda4db465483298fdf348a7b9b5c76. Refresh inventory after host-change errors.
+Current turn01a164c2-2376-7943-ad17-7a041df20fa3, cursor9173f0cd-76f6-47d8-9e56-b3cdcd54c5dc:3, active/connected after transient route failure. No restart/duplicate/reconnect request.
+Exact1050 COMPLETE: naturalexit0/groupabsent,1050removed/1050durable; independent Sol DATA31136/8e6fa946. Primary received actual packet2239517/506ebadd/all167 members and handoff96412/c8e3de7b, adopted4712/0e8a0120 in S/m4_exact1050_intake_v1/current1050_and1991. Observed732471296B free increase counted once; exclusive APFS reclaim UNKNOWN. Private19 originals remain M4; optional sharedRESULTS timestamp annotation rounding does not change exact authoritative manifest.
+At17:26Z M4available16184594432B, pair11 gap112424555B and hosted22GiB gap7437725697B; dated observations, no admission.
+Separate1991 final Sol review16949/e175e988 received exactly; genuine Primary oncechoice7592/e65068cd selected/consumed. M4 reports1991 durable removals and224628736B before/after gain; complete independent DATA/courier/Primary adoption PENDING, no exclusive reclaim or admission inferred. Latest reported pair11 gap38545003B; same bounded helper assesses only retained candidates/no new effect selected.
+One available Sol helper is assigned small read-only ffbc-ready-checkout/C2277-C2282 controller/current-binding notes for eventual decision47 setup. No constructor/native/dispatch/collector selected.
+Archive22/42 preserved; remaining20raw3207294661B and all51339extracted leaves stay protected. Use current42 route; older all41 is optional and decision42's21GiB exception was consumedC2027. No archive retirement selected.
 
-## Second Mac and capacity
-M4 chat01a12bb7-3a96-7461-af37-c7839e6950d2, AssetRounds M4 Search lane; host remote-control:env_e_6acda4db465483298fdf348a7b9b5c76.
-Prior Rootturn01a1616a safely COMPLETED; next Source/compiler-preparation turn01a16200-2630-7a70-a2cf-e5a5ff3c1df8 ACTIVE/error:null. Hostless compact wait works; lastcursor206e23a7-3932-47c5-aa2a-efd5d8fb4cb5:38.
-Same independent reviewer01a1521d-25a3-7e03-b604-3ec5a97401b3; old Source/Products/12fixtures held. Future Searchpacket92028/c36c283e delivered by exactprovider ID; prepare isolated completeSource/compilechoice only, no native selected.
-Official/M4 Xcode26.6/17F113,SDK26.5/23F81a,iOS26.2/23C54 DEBUG unsigned; Primary local Xcode27 development scope remains distinct.
-Fixed M4 evidence: /Users/rentamac/Library/Caches/AssetRounds-resume-20261002/evidence-newhead-after-c239-20261015.
-Seven exact reviewed PrimaryZIPs now7/7dataless:559947776B per-file allocation released. Dated free18787831808B (~17.5GiB); exclusive APFS gain UNKNOWN.
-Owner normal Finder Make online-only succeeded; cloud versions retained, no Root delete/force/settings action. Leave healthy Dropbox running.
-Finite cache/DD/log/old-origin scans found no new material-safe candidate; park exhausted lanes. Required debug/runtime/active Codex files stay protected.
-Archive preservation22/42 complete; remaining20(indices22..41)3207294661B. All42raw/51339opaque leaves protected; no new archive/retirement effect selected.
-Archival floor15GiB+64MiB+selectedreserve and ordinary hostedstrict>30GiB remain; current M4 fresh free UNKNOWN. C2263Source/C2267intake adopted, consumed Pair11 custody gaps preserved.
-Retirement needs complete preservation/DATA/current consumer-lifecycle-ownership-identity-capacity checks, independent review and separate Root choice; potential9956380672B is not proved exclusive gain.
+## Primary storage and current helpers
+Primary T07 exact997 closed0/DATA11365/5b97052f adopted1003/1f5c751a; observed1472884736B free gain counted once. Prior T03/T04/M4K605/997/online-only results remain recorded; never rerun/recount them.
+At16:38Z Primaryfree15791140864B/internal and21904637952B/external; dated observations only. External cannot substitute M4 pair11 capacity.
+T05 capture71712 CLOSED0/DATA32150/ae60a21d adopted1666/6865ad0e. Separate reviewed effect80551/PID48916 CLOSED1/groupabsent:0unlinks/0durable, first-leaf control FULL11 refusal. Exact point body unchanged; flags0→64/ctime changed after pinning, actorUNKNOWN. Handoff30578/832c3718 in A/sol_t05_effect_preparation_v1 retains all60 outputs/closure; complete failed DATA queued after R6 review. Once consumed/no replay/repair/new attempt. Entire C+B7083556864 retained; honest interim ceiling7499415551 remains analytical, not observed. No reclaim or app/gate credit.
+Preserve all Source/Git/Products/dSYMs, drafts, originals/failures/HOLDs/ledgers/manifests, required runtimes, online-only archives and historical evidence. No broad hydration or unchanged failing-original retry.
 
-## Durable continuation and ownership
-R=.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1; D=R/c2193-root-final-failed-data-and-held-transport-correction-intake-v1.
-Latest D/ROOT_CURRENT_C2305_COMPLETE_RUNTIME_DATA_AND_ACTUAL_ONLINE_ONLY_RECOVERY.json5055/f6f921fb; full runtime adoption ROOT_C2305_GENUINE_COMPLETE_COMBINED_RUNTIME_DATA_ADOPTION.json6724/f078ffb3.
-Dated third-Mac nine-path recovery349591/1efd6e82+addendum independentPASS6576/4361bddd and passive14rowledger review10524/e388ec7b remain; final current payload is separate.
-Receiving/current attempts-claims-remote-original reconciliation and host/toolchain/filesystem/capacity admission remain due; never initialize an empty ledger or claim native readiness from portability metadata.
-Root alone integrates/commits/pushes/dispatches/messagesM4. Helpers gpt-6.1-sol/xhigh; actual serving/Fast UNEXPOSED; reuse useful helpers and park exhausted scans.
-No PR/history rewrite/account/password/settings/signing/distribution/release operation; main advances only through all genuine gates and owner review.
+## Paths and boundaries
+R=.codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1; S=R/c2302-two-mac-storage-and-third-mac-portability-v1; N=S/primary27_1_search_diagnostic_preparation; A=S/primary_closed_r3_object_metadata.
+W=S/source-worktrees/search-r2-portable-ci-ffbc (historical name, frozen R6). See N/ROOT_ACTUAL_REVIEWED_R6_PRIMARY_WORKING_TREE_INTEGRATION.json for exact Primary afterimages and adoption.
+Keep active evidence-root lifecycle identities fixed; actual next execution uses current reviewed bindings, not historical aliases. Preserve every consumed question and sole collector.
+All same-head gates/coldqualification/qualifiedUI/independent phase review/genuineownerreview/mainFF/exact-main/fullV23/S10/privacy/data-safety/physical obligations remain. No PR/historyrewrite/accounts/passwords/settings/signing/distribution.
+Fold reviewed records into the next real checkpoint. Complete prior dense brief is preserved at .codex-temp/resume-20261002/verification/c90-root-final-correction-composition-v1/c2302-two-mac-storage-and-third-mac-portability-v1/ROOT_ACTIVE_BRIEF_BEFORE_CONSOLIDATION_20261022T165757Z.md.

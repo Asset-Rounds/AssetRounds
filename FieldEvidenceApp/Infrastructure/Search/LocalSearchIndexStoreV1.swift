@@ -123,8 +123,7 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   source.generationID == index.generationID,
                   index.indexedCommitRevision == source.commitRevision,
                   records.count <= SearchContractLimitsV1.maximumProjectionRecords,
-                  records == records.sorted(),
-                  Set(records.map(\.projectionIdentity)).count == records.count,
+                  Self.recordsAreStrictlyOrdered(records),
                   records.filter({ $0.sourceKind == .party }).allSatisfy({
                       SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
                   }),
@@ -187,7 +186,21 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   }) else {
                 throw LocalSearchIndexStoreFailureV1.corruptStore
             }
-            try records.forEach { try $0.validate() }
+            // Every record's immutable fields were validated by its throwing
+            // initializer or decoder. Keep this boundary's separate metadata,
+            // ordering, source-binding and privacy checks above.
+        }
+
+        private static func recordsAreStrictlyOrdered(
+            _ records: [SearchIndexProjectionRecordV1]
+        ) -> Bool {
+            var previousIdentity: String?
+            for record in records {
+                let identity = record.projectionIdentity
+                if let previousIdentity, !(previousIdentity < identity) { return false }
+                previousIdentity = identity
+            }
+            return true
         }
 
         func materialize(registry: SearchableFieldRegistryV1) throws -> SearchIndexProjectionV1 {
@@ -236,10 +249,7 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                     indexedCommitRevision: projection.index.indexedCommitRevision
                 )
                 guard source == projection.source,
-                      index == projection.index,
-                      projection.records == projection.records.sorted(),
-                      Set(projection.records.map(\.projectionIdentity)).count
-                        == projection.records.count else {
+                      index == projection.index else {
                     throw LocalSearchIndexStoreFailureV1.corruptStore
                 }
                 try projection.validateStructure()

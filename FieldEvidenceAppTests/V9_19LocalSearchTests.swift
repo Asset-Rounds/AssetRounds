@@ -85,6 +85,120 @@ final class V9_19LocalSearchTests: XCTestCase {
         let index = try SearchIndexRevisionV1(workspaceID: source.workspaceID,
             generationID: source.generationID, indexedCommitRevision: 10)
         XCTAssertNoThrow(try SearchIndexProjectionV1(source: source, index: index, records: [], registry: registry))
+
+        let first = try record(id: "asset-1", text: "Asset 1", revision: 10)
+        let second = try record(id: "asset-2", text: "Asset 2", revision: 10)
+        let sorted = try SearchIndexProjectionV1(source: source, index: index,
+            records: [second, first], registry: registry)
+        XCTAssertEqual(sorted.records, [first, second])
+        XCTAssertNoThrow(try sorted.validate())
+        XCTAssertThrowsError(try SearchIndexProjectionV1(source: source, index: index,
+            records: [first, first], registry: registry)) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .duplicateProjection)
+        }
+        let future = try record(id: "asset-future", text: "Future", revision: 11)
+        XCTAssertThrowsError(try SearchIndexProjectionV1(source: source, index: index,
+            records: [future], registry: registry)) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .staleIndex)
+        }
+
+        // Distinct valid component strings can collide after the existing
+        // colon-delimited identity projection. Duplicate rejection must still
+        // precede registry admission and invalid source/index binding.
+        let collisionFirst = try record(id: "asset-1:asset_label", text: "First", revision: 10)
+        let collisionSecond = try record(id: "asset-1", fieldID: "asset_label:asset_identifier",
+            text: "Second", revision: 10)
+        XCTAssertEqual(collisionFirst.projectionIdentity, collisionSecond.projectionIdentity)
+        let ahead = try SearchIndexRevisionV1(workspaceID: source.workspaceID,
+            generationID: source.generationID, indexedCommitRevision: 11)
+        XCTAssertThrowsError(try SearchIndexProjectionV1(source: source, index: ahead,
+            records: [collisionFirst, collisionSecond], registry: registry)) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .duplicateProjection)
+        }
+        XCTAssertThrowsError(try SearchIndexProjectionV1(source: source, index: ahead,
+            records: [collisionSecond], registry: registry)) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .forbiddenField)
+        }
+
+        // Compare every projection text field with the unchanged generic
+        // validator, through construction, explicit validation and decoding.
+        func projectionFieldRecord(_ field: String, value: String) throws -> SearchIndexProjectionRecordV1 {
+            try SearchIndexProjectionRecordV1(
+                workspaceID: source.workspaceID, sourceKind: .asset,
+                sourceStableID: field == "sourceStableID" ? value : "asset-field-control",
+                sourceRevision: source.commitRevision,
+                fieldID: field == "fieldID" ? value : "asset_identifier",
+                normalizedTokens: ["asset"],
+                displayIdentity: field == "displayIdentity" ? value : "Asset control",
+                locationBreadcrumb: [field == "locationBreadcrumb" ? value : "Fixture"],
+                status: field == "status" ? value : "Open",
+                openWorkStableIDs: [field == "openWorkStableIDs" ? value : "work-control"],
+                permittedSnippet: field == "permittedSnippet" ? value : "Asset control",
+                sourceTimestamp: Date(timeIntervalSince1970: 1)
+            )
+        }
+        let fieldEncoder = JSONEncoder()
+        fieldEncoder.dateEncodingStrategy = .millisecondsSince1970
+        fieldEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let fieldDecoder = JSONDecoder()
+        fieldDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let fieldTemplateWire = try fieldEncoder.encode(projectionFieldRecord("", value: ""))
+        let fieldTemplate = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: fieldTemplateWire) as? [String: Any]
+        )
+        let fieldCases: [(key: String, maximumBytes: Int, isID: Bool, isArray: Bool)] = [
+            ("sourceStableID", SearchContractLimitsV1.maximumIdentifierBytes, true, false),
+            ("fieldID", SearchContractLimitsV1.maximumIdentifierBytes, true, false),
+            ("openWorkStableIDs", SearchContractLimitsV1.maximumIdentifierBytes, true, true),
+            ("displayIdentity", 240, false, false),
+            ("locationBreadcrumb", 160, false, true),
+            ("status", 120, false, false),
+            ("permittedSnippet", SearchContractLimitsV1.maximumSnippetBytes, false, false),
+        ]
+        let asciiFieldInputs = (0...127).map { String(decoding: [UInt8($0)], as: UTF8.self) }
+        let fieldBoundaryInputs = [
+            "", " ", "   ", "A Z", " A ", "A\tZ", "A\nZ", "A\rZ",
+            "A\u{0000}Z", "A\u{007f}Z", "Café", "cafe\u{301}", "مضخة", "ＰＵＭＰ", "🙂",
+            "\u{00a0}", "\u{00a0}Café\u{00a0}", "\u{200F}مضخة\u{202C}", "\u{200b}",
+            "\u{2028}", "\u{202f}", "A\u{0085}Z", "A\u{009f}Z", "A\u{202E}Z",
+        ]
+        for field in fieldCases {
+            let inputs = asciiFieldInputs + fieldBoundaryInputs + [
+                String(repeating: "a", count: field.maximumBytes - 1),
+                String(repeating: "a", count: field.maximumBytes),
+                String(repeating: "a", count: field.maximumBytes + 1),
+                String(repeating: "é", count: field.maximumBytes / 2),
+                String(repeating: "é", count: field.maximumBytes / 2) + "a",
+                String(repeating: "🙂", count: field.maximumBytes / 4),
+                String(repeating: "🙂", count: field.maximumBytes / 4) + "a",
+            ]
+            for (caseIndex, value) in inputs.enumerated() {
+                let expected = field.isID
+                    ? SearchContractValidationV1.validID(value)
+                    : SearchContractValidationV1.validDisplayText(value, maximumBytes: field.maximumBytes)
+                let label = "projection field \(field.key) case \(caseIndex)"
+                var wireObject = fieldTemplate
+                if field.isArray {
+                    wireObject[field.key] = [value]
+                } else {
+                    wireObject[field.key] = value
+                }
+                let wire = try JSONSerialization.data(withJSONObject: wireObject, options: [.sortedKeys])
+                if expected {
+                    let direct = try projectionFieldRecord(field.key, value: value)
+                    XCTAssertNoThrow(try direct.validate(), label)
+                    let decoded = try fieldDecoder.decode(SearchIndexProjectionRecordV1.self, from: wire)
+                    XCTAssertEqual(decoded, direct, label)
+                } else {
+                    XCTAssertThrowsError(try projectionFieldRecord(field.key, value: value), label) {
+                        XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField, label)
+                    }
+                    XCTAssertThrowsError(try fieldDecoder.decode(SearchIndexProjectionRecordV1.self, from: wire), label) {
+                        XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField, label)
+                    }
+                }
+            }
+        }
     }
 
     func testMetadataPoliciesTokenizeMultiwordStatesWithoutAdmittingPrivateFields() {
@@ -576,6 +690,53 @@ final class V9_19LocalSearchTests: XCTestCase {
         } catch let error as LocalSearchIndexStoreFailureV1 {
             XCTAssertEqual(error, .staleMutation)
         }
+
+        // A previously loaded actor must reread and reject the same hostile
+        // bytes as a cold actor; validation must never become a cache decision.
+        for alteration in ["unsorted", "duplicate", "identity-collision", "invalid-token", "foreign-workspace", "future-revision", "noncanonical-bytes"] {
+            let tampered = try makeHarness("validation-\(alteration)")
+            defer { tampered.cleanup() }
+            try await tampered.store.replaceProjection(source: revision, records: records, registry: registry)
+            let warm = try await tampered.store.projection(for: revision, registry: registry)
+            XCTAssertEqual(warm.records, records)
+            let url = tampered.root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
+                .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
+            let originalBytes = try Data(contentsOf: url)
+            var bytes: Data
+            if alteration == "noncanonical-bytes" {
+                bytes = originalBytes
+                bytes.append(0x20)
+            } else {
+                var envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: originalBytes) as? [String: Any])
+                var projection = try XCTUnwrap(envelope["projection"] as? [String: Any])
+                var rows = try XCTUnwrap(projection["records"] as? [[String: Any]])
+                switch alteration {
+                case "unsorted": rows.reverse()
+                case "duplicate": rows = [rows[0], rows[0]]
+                case "identity-collision":
+                    rows[0]["sourceStableID"] = "asset-1:asset_label"
+                    rows[1]["sourceStableID"] = "asset-1"
+                    rows[1]["fieldID"] = "asset_label:asset_identifier"
+                case "invalid-token": rows[0]["normalizedTokens"] = ["NONCANONICAL"]
+                case "foreign-workspace": rows[0]["workspaceID"] = "00000000-0000-4000-8000-000000000311"
+                default: rows[0]["sourceRevision"] = 43
+                }
+                projection["records"] = rows
+                envelope["projection"] = projection
+                bytes = try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
+            }
+            try bytes.write(to: url)
+            let cold = try LocalSearchIndexStoreV1(applicationSupportURL: tampered.root)
+            for store in [tampered.store, cold] {
+                do {
+                    _ = try await store.projection(for: revision, registry: registry)
+                    XCTFail("\(alteration) must fail closed after a fresh read")
+                } catch {
+                    XCTAssertEqual(error as? LocalSearchIndexStoreFailureV1, .corruptStore, alteration)
+                }
+                XCTAssertEqual(try Data(contentsOf: url), bytes, alteration)
+            }
+        }
     }
 
     func testV9_19H01SortingFilteringUnicodeAndPrivacyBoundary() async throws {
@@ -635,6 +796,83 @@ final class V9_19LocalSearchTests: XCTestCase {
         ]
         for value in unicodeCases {
             XCTAssertEqual(SearchCoordinatorV1.normalize(value.input), value.expected)
+        }
+        func projectionTokenRecord(_ token: String) throws -> SearchIndexProjectionRecordV1 {
+            try SearchIndexProjectionRecordV1(
+                workspaceID: revision.workspaceID, sourceKind: .asset,
+                sourceStableID: "token-control", sourceRevision: revision.commitRevision,
+                fieldID: "asset_identifier", normalizedTokens: [token],
+                displayIdentity: "Token control", locationBreadcrumb: [], status: "Open",
+                sourceTimestamp: Date(timeIntervalSince1970: 1)
+            )
+        }
+        func projectionTokenEncoder() -> JSONEncoder {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .millisecondsSince1970
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            return encoder
+        }
+        func projectionTokenDecoder() -> JSONDecoder {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            return decoder
+        }
+        let tokenIndex = try SearchIndexRevisionV1(
+            workspaceID: revision.workspaceID, generationID: revision.generationID,
+            indexedCommitRevision: revision.commitRevision
+        )
+        let tokenTemplateRecord = try projectionTokenRecord("asset")
+        let tokenTemplateWire = try projectionTokenEncoder().encode(tokenTemplateRecord)
+        let tokenTemplateObject = try JSONSerialization.jsonObject(with: tokenTemplateWire)
+        let tokenTemplate = try XCTUnwrap(tokenTemplateObject as? [String: Any])
+        let canonicalASCIITokens = Set("abcdefghijklmnopqrstuvwxyz0123456789".map { String($0) })
+        var projectionTokenCases: [(token: String, accepted: Bool)] = asciiInputs.map {
+            (token: $0, accepted: canonicalASCIITokens.contains($0))
+        }
+        let maximumTokenBytes = SearchContractLimitsV1.maximumNormalizedTokenBytes
+        projectionTokenCases.append(contentsOf: [
+            (token: "", accepted: false),
+            (token: "asset", accepted: true),
+            (token: "09999", accepted: true),
+            (token: "abcdefghijklmnopqrstuvwxyz0123456789", accepted: true),
+            (token: "asset-1", accepted: false),
+            (token: "asset_1", accepted: false),
+            (token: "a b", accepted: false),
+            (token: "a\u{0000}b", accepted: false),
+            (token: "a\u{007f}b", accepted: false),
+            (token: String(repeating: "a", count: maximumTokenBytes), accepted: true),
+            (token: String(repeating: "a", count: maximumTokenBytes + 1), accepted: false),
+            (token: "مضخة", accepted: true),
+            (token: "Café", accepted: false),
+            (token: "cafe\u{301}", accepted: false),
+            (token: "ＰＵＭＰ", accepted: false),
+            (token: "\u{200F}مضخة", accepted: false),
+        ])
+        for (caseIndex, tokenCase) in projectionTokenCases.enumerated() {
+            var wireObject = tokenTemplate
+            wireObject["normalizedTokens"] = [tokenCase.token]
+            let wire = try JSONSerialization.data(withJSONObject: wireObject, options: [.sortedKeys])
+            if tokenCase.accepted {
+                let direct = try projectionTokenRecord(tokenCase.token)
+                XCTAssertEqual(direct.normalizedTokens, [tokenCase.token], "token case \(caseIndex)")
+                let decoded = try projectionTokenDecoder().decode(
+                    SearchIndexProjectionRecordV1.self, from: wire
+                )
+                XCTAssertEqual(decoded, direct, "token case \(caseIndex)")
+                let materialized = try SearchIndexProjectionV1(
+                    source: revision, index: tokenIndex, records: [decoded], registry: registry
+                )
+                XCTAssertEqual(materialized.records, [direct], "token case \(caseIndex)")
+            } else {
+                XCTAssertThrowsError(try projectionTokenRecord(tokenCase.token)) {
+                    XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField, "token case \(caseIndex)")
+                }
+                XCTAssertThrowsError(try projectionTokenDecoder().decode(
+                    SearchIndexProjectionRecordV1.self, from: wire
+                )) {
+                    XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField, "token case \(caseIndex)")
+                }
+            }
         }
         let indexURL = harness.root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
             .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
