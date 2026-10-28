@@ -670,7 +670,7 @@ final class C49WorkResourceCorrectiveSubjectBoundaryTests: XCTestCase {
         let context = container.mainContext
         context.autosaveEnabled = false
         context.insert(try ActorSnapshotRow(fixture.recorder))
-        context.insert(try CorrectiveActionEventRow(action))
+        context.insert(try ActorSnapshotRow(fixture.verifier))
         try context.save()
 
         let replica = try WorkspaceReplicaIdentityV1(
@@ -679,6 +679,53 @@ final class C49WorkResourceCorrectiveSubjectBoundaryTests: XCTestCase {
         )
         let generationID = C49WriterRecoverySupportV1.id(2)
         let writerID = C49WriterRecoverySupportV1.id(3)
+        // Establish the original closed subject through C14's sole writer before
+        // attaching C49's one-shot failure. No journal revision is synthesized.
+        do {
+            let setupJournal = try MutationJournalStoreV1(
+                modelContext: context, identity: replica, generationID: generationID
+            )
+            let setupWriter = try WorkspaceWriterV1(
+                identity: replica,
+                generationID: generationID,
+                initialRevision: setupJournal.currentRevision(writerInstanceID: writerID),
+                clock: C49WriterRecoverySupportV1.Clock(),
+                idSource: C49WriterRecoverySupportV1.IDSource(value: writerID),
+                fileAuthority: C49WriterRecoverySupportV1.FileAuthority(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: context),
+                journalStore: setupJournal
+            )
+            defer { setupWriter.invalidate() }
+            let review = InspectionReviewCoordinatorV1(
+                writer: setupWriter,
+                lifecycle: InspectionReviewLifecycleAdapterV1(modelContext: context)
+            )
+            let policyMutation = try InspectionReviewMutationV1(
+                workspaceID: fixture.workspaceID, expectedRevision: 0,
+                mutationID: fixture.policy.mutationID,
+                postImage: .appendCorrectivePolicy(fixture.policy)
+            )
+            let policyReceipt = try review.apply(policyMutation)
+            XCTAssertEqual(policyReceipt.mutationReceipt.mutationID, fixture.policy.mutationID)
+            for event in fixture.actions.prefix(4) {
+                let mutation = try InspectionReviewMutationV1(
+                    workspaceID: fixture.workspaceID,
+                    expectedRevision: event.revision - 1,
+                    mutationID: event.mutationID,
+                    postImage: event.predecessorEventID == nil
+                        ? .appendCorrectiveEvent(event) : .appendCorrectiveEventSuccessor(event)
+                )
+                let receipt = try review.apply(mutation)
+                XCTAssertEqual(receipt.mutationReceipt.mutationID, event.mutationID)
+                XCTAssertEqual(receipt.mutationReceipt.postImages, try mutation.postImage.mutationPostImages)
+            }
+            let savedActions = try context.fetch(FetchDescriptor<CorrectiveActionEventRow>())
+                .map { try $0.value() }.sorted { $0.revision < $1.revision }
+            XCTAssertEqual(savedActions, Array(fixture.actions.prefix(4)))
+            XCTAssertEqual(savedActions.last, action)
+            XCTAssertEqual(action.state, .closed)
+            XCTAssertEqual(action.revision, 4)
+        }
         let journal = try MutationJournalStoreV1(
             modelContext: context,
             identity: replica,

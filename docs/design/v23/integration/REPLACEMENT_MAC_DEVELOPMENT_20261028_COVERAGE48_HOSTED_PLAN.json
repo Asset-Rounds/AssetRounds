@@ -1,0 +1,366 @@
+{
+  "state": "DRAFT_PROSPECTIVE_ONLY_NO_EXECUTION_SELECTED",
+  "utc": "2026-10-28T19:57:48.996354+00:00",
+  "question": "On the next exact reviewed successor to7331, compile the complete app/test modules using the pinned hosted DEVELOPMENT route and obtain broad feedback for every3823 method exactly once through48 reviewed timing-informed partitions. The meaningful payload is two reviewed fixture corrections plus bounded partition scheduling; this does not claim all269 historical failures fixed or individually corrected.",
+  "predecessor": {
+    "head": "87ae3fae2d5220294fb16d0bee4c8bb31ea933a6",
+    "run": 40701407208,
+    "stateAtPreparation": "COMPLETED_FAILURE; jobs31failed7success3cancelled. Sole collection closed exit0 and owner joined19:07:41; raw outcomes retained below, independent DATA active/pending. No replacement/reset of predecessor question.",
+    "rawCollectionReportedByRoot": {
+      "collectionExitCode": 0,
+      "ownerJoinedUTCClock": "19:07:41",
+      "methodCount": 3818,
+      "passed": 3208,
+      "failed": 269,
+      "interrupted": 4,
+      "notStarted": 337,
+      "buildErrors": 0,
+      "coverage": "EXACT_RAW",
+      "sharedChecks": "FAIL: S02/S03/S40 compileEvidence",
+      "missingNoRunnerPartitions": [
+        "S08",
+        "S13",
+        "S18"
+      ],
+      "independentDATA": "ACTIVE_PENDING; raw summary is not adopted DATA"
+    },
+    "scope": "Historical87ae outcome snapshot retained from template, not a fresh collection-status observation.",
+    "currentCollectionDATA": {
+      "state": "ADOPTED",
+      "reviewSHA256": "d9bb60697a880b59eddb829d792d4160b13df8df756baa9bc2d24fcda9470511",
+      "adoption": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/recovery/87ae-40701407208-collection-data-20261028/ROOT_ADOPTION.json",
+      "scope": "Historical87ae3818/41; retained earlier snapshot does not override this current adoption; sharedChecks3FAIL retained"
+    }
+  },
+  "payload": {
+    "authoringSource": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/worktrees/coverage48-fixtures-20261028",
+    "applicationBase": "7331b451a397bda69c79d211bb0eae58775e4bd8",
+    "recordedParentTree": "8d72625902ce17b68c3101815d940999b074dd28",
+    "compositionRecord": "/Users/palatis/AssetRounds-Diagnostics/coverage48-fixtures-20261028/COMPOSITION.json",
+    "compositionRecordSHA256": "d23754dbc26f977ade1a8102e8ae8ec3190a7d0e4054e7b5442b308002541f79",
+    "completeOwnedPatchSHA256": "3a81f18c0aaaf21828f2cb17e7b7b5309cf3f7ab2e13ef7aad7168aa9ddb9375",
+    "completeOwnedPatchBytes": 67692,
+    "actualDeltaPaths": [
+      "FieldEvidenceAppTests/V23ProductionMyDayCommitTests.swift",
+      "FieldEvidenceAppTests/V9_28InspectionReviewCorrectiveActionTests.swift",
+      "Scripts/v23-coverage-partitions.json"
+    ],
+    "actualDeltaPathCount": 3,
+    "retainedPinCount": 35,
+    "afterimageSHA256": {
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "bf295873529166be59c00c7099209f3b82d15140fa3f319b09e9b91550e5e680",
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift": "655737bad91a807e8e60235c708394f53cfeee793483d65d5e12de287d12ce72",
+      "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "5f5c774e80a5e1bcac526a53d0bdf52e658990414827e07471d61bb67381e27f",
+      "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": "0e388f6d0d5379114f1464acb642c15e4ed56e20b29b8d8979643f98d3af4da6",
+      "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift": "c1940a91a8f3e3dee52270386d2fbf150980e3878e48c87194b84cd30f6f1084",
+      "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "1310df051e5f5a6ff9168780a621247bba90d4063824fb3aa0e915efc1d5ba0e",
+      "FieldEvidenceAppTests/V23CompletedWorkSubjectTests.swift": "bbe59e502fb7b1834f4d5f283dde082d84e45ad7f7bd4a3647f55ce6373ce20b",
+      "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift": "8ad97dfb14c8c8b29429b5c7f5a64f45e8513d5c6c2389877b5a44307b815643",
+      "FieldEvidenceAppTests/V23ProductionMyDayPresentationTests.swift": "628779eb036f9749a28df83a358ef57abc2912b7374a6667047f2cea6c55d6e0",
+      "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift": "4a70949d453d8e773403b9a18398d9bb9713d333dca19f5c127d3b65e8d06ced",
+      "Scripts/v23/verify_p02_c08_contracts.py": "4a911f7e54f9cbadc73529ada4ca3287069f18382da4f10dae178363936f3cea",
+      "Scripts/v23/verify_p04_c43_contracts.py": "36aad649dc86685882ce95d05b80af4cf5d359f519b8aa9c48c99fe60fb7ca95",
+      "docs/design/v23/tooling/V23-P02-C08-tooling-manifest.json": "e34886d266fcb97dd0dd9e30fd7c40a1877f56aa587e72f701fb4911a9f18d7b",
+      "Scripts/v23/test_verify_p02_c08_current_hardening_v1.py": "c8bba74ace301f0a2a472c90edfd048e1ecc50715cd73f5c59b17426bb261f54",
+      "Scripts/v23/test_verify_p04_c43_current_hosted_sources_v1.py": "e3c943350c14485115ae594e553b36c07bfc286266f4743447c45450b5458f00",
+      "FieldEvidenceAppTests/S2SignSetupTests.swift": "c9b8df673462302cd838a92ec65d17fde6fd2766403fa2d35cc9bb71180dc00f",
+      "FieldEvidenceAppTests/S7_4DraftAccessPolicyTests.swift": "c8501fc430d450bbba1f994f08d9d64977d9dff4aa80c64318b921458094486b",
+      "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests.swift": "6a34a0fe030e935c3e8126c73e93bd53112ccfd58e721db8db9504c0b27bf048",
+      "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests.swift": "513e6e339c755a66c58bb183b0648a797ca1efeaa6bc03a59e76083b06e34187",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift": "f8a4b37b3cc05834cce12b8172554acd2b03f4652bf3c0e55a4fc02566ab4771",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift": "0f9818c27d895a6dfeeb3c9dfd45e8b99bdf7404c1a72c8fd6ec7a320ea47cb7",
+      "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift": "47b76ecbb0cba873744bbc131dff71496a4f13f961fd872f18ab9c0f05c3fcb1",
+      "FieldEvidenceApp/Features/CheckRunner/ProductionCheckRunnerItemCaptureHostV1.swift": "54f26bb40978faa1a42157d54eb1448d0bbbb78ad2439d6405c67186b7c3cfbe",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift": "71e7235d4f18afddd87682c992267a99386689d0e4a72c486016025c56e129bb",
+      "FieldEvidenceAppTests/S6_3BackupValidationTests.swift": "19bbb9f69da9912e2e88b6440a8042c7ca8a4c0aea0f54ce2c248e313292759d",
+      "Scripts/v23-coverage-partitions.json": "fa0b862a90b3c2b92ee19e7d396ff136385a6b5d9e81ed6b8ca99999c4864557",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift": "add262020ef53fb8329efc35ffdfc343736e49368bde9923f481393a86918e32",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift": "d7a3bed964928d95fbe553f2d8f08e9234ab95dc43013978716993b5ba6026bf",
+      "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift": "ddb9d400f49380e865878e9650bcce2c25ed02bb36eab94b2ce4a086e019e208",
+      "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift": "878df950a5281e5a3700cc8c8f930e18e48983d8240d6ae3d2821669203c75f4",
+      "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift": "b8a1f519bff3b7ddb40f6955332c023e13a9cfc697a20aed05b4b28aad65fb37",
+      "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift": "240f4354ee046515e1ffe653a61cebc6ffcbd6396b665ca70d76740ebeb8de56",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift": "ae1891634ee5394b7736676a30efd0c44926139d84154530e951885df2b51586",
+      "FieldEvidenceAppTests/V23ProductionMyDayCommitTests.swift": "9988ac0156a7fe422a9262f635fc5e3005e785a7692202553d5fef2f55d9e950",
+      "FieldEvidenceAppTests/V9_28InspectionReviewCorrectiveActionTests.swift": "5020fa2bd4f57c686fb2aec5e328ef2bc54e7e09ff0b4470b70e3029b6223db2"
+    },
+    "futureCommit": "PENDING_ACTUAL_COMMIT",
+    "futureTree": "PENDING_ACTUAL_COMMIT",
+    "cleanDispatchSource": "PENDING_ROOT_SELECTION",
+    "sourceChangeScope": "Two test-fixture corrections and one generated partition JSON; no production change. ImmediateErase tests31 is not a source change in this payload."
+  },
+  "coverage": {
+    "methods": 3823,
+    "uniqueMethods": 3823,
+    "partitions": 48,
+    "partitionSHA256": "fa0b862a90b3c2b92ee19e7d396ff136385a6b5d9e81ed6b8ca99999c4864557",
+    "orderedUnionTerminalLFSHA256": "410ac7f979b9031f3b31458078bcaa2226a5d0ba5abb2f2876a20ddb26eb381b",
+    "sweepOrder": [
+      "S01",
+      "S02",
+      "S42",
+      "S43",
+      "S44",
+      "S03",
+      "S45",
+      "S04",
+      "S05",
+      "S06",
+      "S07",
+      "S08",
+      "S09",
+      "S10",
+      "S11",
+      "S12",
+      "S39",
+      "S40",
+      "S46",
+      "S47",
+      "S48",
+      "S13",
+      "S14",
+      "S15",
+      "S16",
+      "S17",
+      "S18",
+      "S19",
+      "S20",
+      "S21",
+      "S22",
+      "S23",
+      "S24",
+      "S25",
+      "S26",
+      "S27",
+      "S28",
+      "S29",
+      "S30",
+      "S31",
+      "S32",
+      "S33",
+      "S34",
+      "S35",
+      "S36",
+      "S37",
+      "S38",
+      "S41"
+    ],
+    "tierCounts": {
+      "D90S": 1,
+      "D50C": 47
+    },
+    "priorCensusMethodsConserved": true,
+    "methodsAdded": [],
+    "methodsRemoved": [],
+    "unchangedPriorRowCount": 38,
+    "affectedLocalSelectors": [
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testAcknowledgedEraseAdmissionKeepsOnlyPrivateWriterAcrossPausesAndCallbackThrow",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution",
+      "FieldEvidenceAppTests/S2PersistenceLedgerTests/testUnacknowledgedEraseAdmissionPauseRejectsOriginalAuthorization",
+      "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testThrowingMultiAndSingleIdentityWriterGuardsPersistOnlyMatchingCommands",
+      "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testV23P03C05WorkspaceWriterCommitsExactTwoPostImagesAndCAS",
+      "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService",
+      "FieldEvidenceAppTests/V9_04StreamingArchiveTests/testArchiveProfilesPreserveExactPathMIMEAndContentAdmission",
+      "FieldEvidenceAppTests/V9_04StreamingArchiveTests/testV23P03C42StreamingArchivePreservesTypedCanonicalReceiptsWithinBounds",
+      "FieldEvidenceAppTests/V9_04StreamingArchiveTests/testV9_04H01HostilePathLinkBombTamperAndUnicodeCollisionCorpus",
+      "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedErasePreservesProtectedDataAndRequiresFreshActiveStartup",
+      "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedEraseRejectsOriginalAuthorizationABAAndReceiptReplayAfterConfigurationCycle",
+      "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testFullEraseReservationSurvivesBackgroundAndRejectsConfigurationBypasses",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testEvidenceMetadataReceiptsRetainUnrelatedWorkspaceSnapshotAndRejectMalformedAffectedShape",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02I01HostileBoundsPathsDigestAndInterruptedReplay",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02R01ImmutableOriginalAndRecoveryClosure",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08G01PreviewFirstImportBulkAndDeterministicExportGolden",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testFreshCreatePreparationEnrollsOnlyAbsentTargetsAndPreservesCAS",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testFreshPreparationLeavesAllowedNonCreateRequestUnchanged",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08A01CorrectionAndPoseRoundTripAlternate",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08AtomicBundleRegistrationIsExplicitAndFailClosed",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08C32AggregateRegistrationDoesNotAlterAssetPlanDigest",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08H01HostileBudgetIdentityAndFormulaSafety",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08I01ChunkBoundaryInterruptionAndResume",
+      "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08R01IdempotentRetryCompensationAndLifecycleRecovery",
+      "FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests/testV23P04C32I01CancellationChunkInterruptionAndRestoreNoPartialClaim",
+      "FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests/testV23P04C32R01ReceiptReplayBackupRestoreJournalReplicationAndPrivacyRecovery",
+      "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testPlanningConflictReviewAbsentRebaseExecutesReplaysAndColdReopens",
+      "FieldEvidenceAppTests/C49WorkResourceCorrectiveSubjectBoundaryTests/testC49EffectBeforeReceiptRetriesThroughRealWriterToOneRowAndReceipt"
+    ],
+    "affectedLocalSelectorCount": 32,
+    "prior30AffectedSelectorsPreserved": true,
+    "twoCorrectedFixtureSelectors": [
+      "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testPlanningConflictReviewAbsentRebaseExecutesReplaysAndColdReopens",
+      "FieldEvidenceAppTests/C49WorkResourceCorrectiveSubjectBoundaryTests/testC49EffectBeforeReceiptRetriesThroughRealWriterToOneRowAndReceipt"
+    ],
+    "allAffectedLocalSelectorsIncludedExactlyOnce": true,
+    "scope": "Full ordered partition union3823 once. Scheduling memberships/order intentionally change for reviewed timing grouping; do not claim old41 ordering unchanged. All32 affected selectors are included, not only the two corrected methods."
+  },
+  "verification": {
+    "priorCurrent33Snapshot": {
+      "compile21": {
+        "state": "PASS_ROOT_RESULT",
+        "plan": "/Users/palatis/AssetRounds-Diagnostics/replacement-xcode27-compile-20261028-21/PLAN.json",
+        "result": "/Users/palatis/AssetRounds-Diagnostics/replacement-xcode27-compile-20261028-21/RESULT.json",
+        "sourcePatchSHA256": "7aa73f35de1a459084de9e1b19113d328231391efec44e4b40e713d93340f477",
+        "independentDATA": "ADOPTED_BOUNDED_EXECUTION_SOURCE_CLOSURE_539a5b8097d05f947d32db659989adbb2adaff7a9d10ea618c269f5a0e1b2e56"
+      },
+      "tests30": {
+        "state": "ACTUAL11PASS0FAIL_ROOT_LOG_RESULT",
+        "plan": "/Users/palatis/AssetRounds-Diagnostics/replacement-xcode27-tests-20261028-30/PLAN.json",
+        "result": "/Users/palatis/AssetRounds-Diagnostics/replacement-xcode27-tests-20261028-30/RESULT.json",
+        "sourcePatchSHA256": "7aa73f35de1a459084de9e1b19113d328231391efec44e4b40e713d93340f477",
+        "independentDATA": "ADOPTED_BOUNDED_EXECUTION_SOURCE_CLOSURE_539a5b8097d05f947d32db659989adbb2adaff7a9d10ea618c269f5a0e1b2e56",
+        "scope": "Only the retained11 selectors; not complete3823 sweep",
+        "resourceLimitation": "INCOMPLETE: initialobserverbeforePLANFileNotFoundError; successfulsampleterminalonly, no during-run observation orpeak claim"
+      },
+      "ci06": {
+        "state": "399+45PASS0FAIL0ERROR0SKIP",
+        "actualSource": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/worktrees/import-create-cas-fix-20261028",
+        "actualSourcePatchSHA256": "a1a3b4dc8720d48d62782fccbaad17e06cffcde60373bc6db309812197518a6a",
+        "independentDATAReview": "/Users/palatis/AssetRounds-Diagnostics/helper-current-ci-pair06-independent-data-review-high-20261028.md",
+        "independentDATAReviewSHA256": "dddde031ad1a1d82776ee98be360c80df26b68e3c086ea7ab85d1d9ddaf56162",
+        "successorApplicabilityReview": "/Users/palatis/AssetRounds-Diagnostics/helper-import-create-cas-try-fix-independent-addendum-high-20261028.md",
+        "successorApplicabilityReviewSHA256": "6a1d2bf73524dd65c47acef9eb5d74347e1e33e5871896c29c64518511eb34ce",
+        "scope": "Execution stays on pre-try source; narrow reviewed try-token applicability plus corrected portable C08 readback does not rebind CI execution."
+      },
+      "priorScopedEvidence": {
+        "compile18": "PASS",
+        "tests28": "8PASS0FAIL0SKIP; adopted9c62794d; terminal-only resource sample",
+        "ci05": "399+45PASS0FAIL0ERROR0SKIP; adopted e7f3e4d6b85b42fe48116f8336e37d22eed4f6ebcd6d119643d41cd1dd9abf27",
+        "priorScopedNative": "Retained adopted24-27 results and historical failures; no combined current full-suite claim",
+        "couplingPreReview": "08dd9fdb1ac65ffe40bd03472c253302d02c5f5c8b6abb34f4e963c18a9dee13 conditionalPASS; exact finalsource/recordsreview pending",
+        "finalReview": "PENDING_EXACT_COMPOSITION_REVIEW",
+        "scope": "Historical current31 verification retained verbatim as predecessor evidence only; its pending/active language is not current33 status."
+      },
+      "finalReview": "PENDING_EXACT_CURRENT33_COMPOSITION_AND_PLAN_REVIEW"
+    },
+    "priorSnapshotScope": "Historical records retain actual source/execution identities; no inherited current-candidate compilation or CI PASS claim.",
+    "generated48SourceCouplingReview": {
+      "path": "/Users/palatis/AssetRounds-Diagnostics/helper-coverage48-generated-source-review-high-20261028.md",
+      "sha256": "f03de1ae3248f21963de78dcae2be79cb9d52711aacfe922c04c9887737a32a4",
+      "verdict": "PASS_SOURCE_AND_GENERATED_ARTIFACT_ONLY"
+    },
+    "unchangedSwiftCompile22Tests32": {
+      "dataReview": "/Users/palatis/AssetRounds-Diagnostics/helper-compile22-tests32-independent-data-review-high-20261028.md",
+      "sha256": "0339dd31cb69fbf943dce8f8869ad482d8c3ca2b01711fc7a6294d22f54f05d2",
+      "scope": "Existing adopted compile22/two-native-test evidence applies through reviewed unchanged Swift afterimages; no new execution on coverage48. Original41 partition binding and resource limits retained."
+    },
+    "ci07": {
+      "state": "CLOSED_INDEPENDENT_DATA_ADOPTED_WITH_THREE_OPTIONAL_BASELINE_SKIPS",
+      "nativeCI": {
+        "run": 399,
+        "successes": 399,
+        "skipped": 0
+      },
+      "selection": {
+        "run": 45,
+        "successes": 45,
+        "skipped": 0
+      },
+      "dispatcher": {
+        "run": 279,
+        "successes": 276,
+        "skipped": 3
+      },
+      "failures": 0,
+      "errors": 0,
+      "dataReview": "/Users/palatis/AssetRounds-Diagnostics/current-ci-pair-20261028-07/helper-ci07-independent-data-review-high-20261028.md",
+      "dataReviewSHA256": "e39f8f9f683b32b5c47250161699dc005a446f3e870c95e355b321da187f29b8",
+      "adoption": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/recovery/current-ci-pair07-data-20261028/ROOT_ADOPTION.json",
+      "scope": "Actual frozen35 coverage48 source; one incomplete sampled resource row17/unknown vanished bytes; no continuous compliance or native/gate claim; source-derived skip names not retained runtime events"
+    },
+    "finalReview": "PENDING_EXACT_SOURCE_RECORDS_PLAN_AND_CHECKPOINT_REVIEW",
+    "prospectivePlanReview": {
+      "sha256": "1410527d7940a692147650ba8ab5ab0e7c8b9797b92a4cc897ba33db322d3d21",
+      "scope": "Exact initialaa7041draft; current CI07 metadata addition included in pending final holistic review"
+    }
+  },
+  "existingDispatcherArgv": [
+    "/Users/palatis/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-I",
+    "-B",
+    "<ACTUAL_CLEAN_NEW_HEAD_SOURCE>/Scripts/dev/v23-original.py",
+    "dispatch",
+    "--selection",
+    "v23-shared-coverage-d50x",
+    "--kind",
+    "development"
+  ],
+  "existingCollectorArgv": [
+    "/Users/palatis/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-I",
+    "-B",
+    "<ACTUAL_CLEAN_NEW_HEAD_SOURCE>/Scripts/dev/v23-original.py",
+    "collect",
+    "--run",
+    "<ACTUAL_RUN_ID>"
+  ],
+  "environmentReuseFrom": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/recovery/c2282-controller-recovery-v1/a926-dispatch-adaptation/CALLER_BINDING.json",
+  "evidenceRoot": "/Users/palatis/AssetRounds-v23-hosted-evidence",
+  "controlParent": "/Users/palatis/AssetRounds-v23-hosted-controls",
+  "controls": "Reuse exact reviewed a926 dispatch and terminal-collection controller/observer/capture algorithms. Root selects new absent J paths and actual source/head/run/baseline bindings; independently review bounded binding delta. Never overwrite prior runtime J or create fresh evidence namespace.",
+  "resources": {
+    "ordinaryFreeStrictGreaterBytes": 32212254720,
+    "proposedInclusiveLifecycleBytes": 68719476736,
+    "residualBytes": 137438953472,
+    "closureTailBytes": 1073741824,
+    "admission": "baseline and immediately fresh free>192GiB+O and>30GiB;A+J<63GiB;V+newpositiveLoss<63GiB",
+    "stop": "allocation>=63GiB or carriedloss>=63GiB or free<=129GiB+O; failed/late sample stops",
+    "A": "PENDING_NEW_LIFECYCLE_ACTUAL_PAID_PREPARATION_AND_NONREFUNDABLE_CARRY",
+    "V": "PENDING_ACTUAL_OBSERVED_LOSS_CARRY",
+    "O": "PENDING_ACTUAL_CONCURRENT_RESERVATIONS",
+    "note": "Do not import prior candidate numerical A/V/O or one-time22GiB/14GiB exceptions. Preserve prior lifecycle highwaters and obligations separately; new candidate does not reset prior consumed state."
+  },
+  "pending": [
+    "CI07 fullthree-role DATA is adopted with three optional baseline skips and sampled-observation limitations; preserve actual scope.",
+    "Bind final exact source/records/plan checkpoint review and actual future commit/tree/publication; sourceCensusHead/timing provenance is not a dispatch binding.",
+    "Root separately admits clean exact new source/head, sole dispatcher/collector, concrete physical paths and fresh A/V/O/capacity. No run is selected by this draft.",
+    "Preserve all predecessor failures, interruptions, NotStarted, shared-check failures, consumed originals and gates. Broad feedback does not authorize separate unchanged failing-test retries.",
+    "Build complete app/test modules before fan-out. Collect all produced evidence once after exact whole-run terminal and reconcile full3823/48 including every affected selector.",
+    "Cold persistence/restore, all five same-head gates, genuine owner review, exact-main and privacy/physical/release requirements remain due."
+  ],
+  "credit": "DEVELOPMENT only; SourceReady=false, releaseReady=false, gates0/5, accepted exceptions empty. No signing/distribution/main advancement.",
+  "historicalTemplate": {
+    "path": "/Users/palatis/Dropbox/AssetRounds-Replacement-20261027/source/docs/design/v23/integration/REPLACEMENT_MAC_DEVELOPMENT_20261028_CURRENT33_HOSTED_PLAN.json",
+    "sha256": "4ce34bf0125026473a4224bc9b8f7963511934059980ebeaa47ff63ce78cda48",
+    "scope": "Preserved historical3823/41 plan; no execution authority transferred."
+  },
+  "executionLimits": {
+    "scope": "Existing values copied from unchanged current machinery; no override requested.",
+    "maxParallelConsumers": 5,
+    "producerTier": "D40P",
+    "budgetTupleOrder": [
+      "setup",
+      "build",
+      "test",
+      "ui",
+      "total"
+    ],
+    "budgetSeconds": {
+      "D40P": [
+        300,
+        2400,
+        0,
+        0,
+        3000
+      ],
+      "D50C": [
+        300,
+        0,
+        3000,
+        0,
+        3600
+      ],
+      "D90S": [
+        300,
+        0,
+        5400,
+        0,
+        6000
+      ]
+    },
+    "D90S": "Only the same incumbent singleton; no tier upgrades.",
+    "watchdogs": "All existing outer/job/setup/build/test/collection watchdogs unchanged; timers are not extended for the new grouping."
+  }
+}

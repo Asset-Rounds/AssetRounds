@@ -2150,7 +2150,12 @@ extension V23ProductionMyDayCommitTests {
         XCTAssertThrowsError(try access.executeReviewedPlanRebase(write)) { error in
             XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
         }
+        let published = expectation(description: "Foreground republishes reviewed My Day rebase access")
+        let observation = fixture.presentation.$permitsContentPresentation
+            .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
         fixture.presentation.receive(.sceneActive)
+        await fulfillment(of: [published], timeout: 30)
+        observation.cancel()
         let fresh = try XCTUnwrap(fixture.presentation.myDayAccess)
         let acknowledgement = try fresh.executeReviewedPlanRebase(write)
         XCTAssertEqual(acknowledgement.checkpoint, write.resolution.successorCheckpoint)

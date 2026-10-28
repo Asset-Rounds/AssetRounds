@@ -1,3 +1,11 @@
+# Coverage48 checkpoint proposal — current brief, INCOMPLETE DEVELOPMENT
+
+Parent7331 is published; this successor contains only two verified fixture corrections and a reviewed timing repartition to3823 methods/48 partitions. Compile22/tests32 PASS applies to unchanged Swift; tests31 immediate-Erase PASS and complete hosted87ae DATA are adopted at their exact scopes. Historical87ae269 failures are not current candidate totals. CI07 DATA is adopted:720 successes/3 optional-baseline skips/0 failures or errors; one incomplete resource sample retained. Separate native33 markers are excluded. Prospective48 plan is REPLACEMENT_MAC_DEVELOPMENT_20261028_COVERAGE48_HOSTED_PLAN.json; exact final candidate/plan review, new head/tree/publication and dispatch remain PENDING. Root alone integrates/publishes/dispatches.
+
+All gates0/5; SourceReady=false; releaseReady=false; mainb1 unchanged; full V23 and accepted S10 remain one app. See the appended Coverage48 entries in CURRENT_INTEGRATION.md, MERGE_READINESS.md and VERIFICATION_DUE.md for exact bindings, evidence limits and remaining obligations.
+
+## Preserved prior brief — historical import checkpoint proposal
+
 # Import CAS checkpoint proposal — INCOMPLETE DEVELOPMENT, October28 UTC
 
 All five Phase1 gates remain OPEN0/5; SourceReady=false; releaseReady=false; accepted exceptions EMPTY. Main remains b1d04ae5e684aa9c6807af655089efa1df8a7ed6. Full V23 with accepted S10 in one app remains required; Phase1 is intermediate. Full current coverage, cold persistence/restore, exact same-head gates, genuine owner review, exact-main verification, privacy/device protection and owner-reserved release obligations remain. Root alone integrates/commits/non-force pushes/dispatches; no approval, policy waiver or main advancement follows.
