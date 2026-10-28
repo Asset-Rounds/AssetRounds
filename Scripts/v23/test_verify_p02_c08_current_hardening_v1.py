@@ -268,5 +268,71 @@ class CurrentC08HardeningTests(unittest.TestCase):
                         reader.verify_current_source_hardening()
 
 
+    def test_duration_helper_errno_restore_cannot_be_removed(self) -> None:
+        policy = reader.CURRENT_C08_ERASE_DURATION_DECLARATIONS[0]
+        source = self.texts[policy[0]]
+        changed = source.replace("defer { errno = savedErrno }", "defer { _ = savedErrno }", 1)
+        self.assertNotEqual(source, changed)
+        with self.assertRaisesRegex(reader.VerificationError, "complete checked declaration differs"):
+            reader._current_c08_hardening_frame(changed,
+                reader._current_c08_swift_views(changed)[1], policy, "duration errno")
+
+    def test_duration_helper_raw_alias_and_interpolation_are_rejected(self) -> None:
+        for addition in ('\nlet alias = EraseDurationDiagnosticV1.self\n',
+                         '\nlet interpolation = "\\(EraseDurationDiagnosticV1.self)"\n'):
+            with self.subTest(addition=addition):
+                changed = self.texts[ERASE] + addition
+                texts = dict(self.texts, **{ERASE: changed})
+                codes = dict(self.codes, **{ERASE: reader._current_c08_swift_views(changed)[1]})
+                with self.assertRaisesRegex(reader.VerificationError, "unregistered raw helper reference"):
+                    reader._current_c08_erase_duration(texts, codes, self.frames[101])
+
+    def test_duration_reference_census_cannot_drop_real_caller(self) -> None:
+        rows = reader.CURRENT_C08_ERASE_DURATION_REFERENCES
+        # Preserve count: replacing the final caller by a duplicate tests the
+        # reference join itself, independently of complete body hash checks.
+        with patch.object(reader, 'CURRENT_C08_ERASE_DURATION_REFERENCES', rows[:-1] + rows[:1]):
+            with self.assertRaisesRegex(reader.VerificationError, "unregistered raw helper reference"):
+                reader._current_c08_erase_duration(self.texts, self.codes, self.frames[101])
+
+    def test_duration_output_offset_cannot_be_rebound_to_other_token(self) -> None:
+        with patch.object(reader, 'CURRENT_C08_ERASE_DURATION_PRINT_OFFSET',
+                          reader.CURRENT_C08_ERASE_DURATION_PRINT_OFFSET + 1):
+            with self.assertRaisesRegex(reader.VerificationError, "fixed output/DEBUG ownership differs"):
+                reader._current_c08_erase_duration(self.texts, self.codes, self.frames[101])
+
+    def test_duration_pointer_timing_cannot_omit_exit_counter(self) -> None:
+        policy = reader.CURRENT_C08_ERASE_DURATION_DECLARATIONS[1]
+        source = self.texts[policy[0]]
+        old = 'defer { EraseDurationDiagnosticV1.endBoundary(.pointerRead, started: durationDiagnosticStart) }'
+        self.assertEqual(source.count(old), 1)
+        changed = source.replace(old, '_ = durationDiagnosticStart', 1)
+        with self.assertRaisesRegex(reader.VerificationError, "complete checked declaration differs"):
+            reader._current_c08_hardening_frame(changed,
+                reader._current_c08_swift_views(changed)[1], policy, "duration pointer")
+
+
+
+    def test_duration_helper_cannot_lose_main_actor_isolation(self) -> None:
+        policy = reader.CURRENT_C08_ERASE_DURATION_DECLARATIONS[0]
+        source = self.texts[policy[0]]
+        changed = source.replace('@MainActor\nenum EraseDurationDiagnosticV1 {',
+                                 'enum EraseDurationDiagnosticV1 {', 1)
+        self.assertNotEqual(source, changed)
+        with self.assertRaisesRegex(reader.VerificationError, 'declaration/owner identity differs'):
+            reader._current_c08_hardening_frame(changed,
+                reader._current_c08_swift_views(changed)[1], policy, 'duration actor')
+
+
+    def test_duration_pointer_cannot_move_to_other_authority_owner(self) -> None:
+        policy = reader.CURRENT_C08_ERASE_DURATION_DECLARATIONS[1]
+        source = self.texts[policy[0]]
+        changed = source.replace('final class StoreRestoreGenerationAuthority {',
+                                 'final class OtherRestoreGenerationAuthority {', 1)
+        self.assertNotEqual(source, changed)
+        with self.assertRaisesRegex(reader.VerificationError, 'declaration/owner identity differs'):
+            reader._current_c08_hardening_frame(changed,
+                reader._current_c08_swift_views(changed)[1], policy, 'duration owner')
+
 if __name__ == '__main__':
     unittest.main()

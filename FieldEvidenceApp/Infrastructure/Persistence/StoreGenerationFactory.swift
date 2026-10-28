@@ -3,6 +3,76 @@ import Darwin
 import Foundation
 import SwiftData
 
+#if DEBUG
+import Dispatch
+
+/// Process-local MainActor interval counters; no owners, errors or file data.
+/// Nested durations are inclusive and must never be added as exclusive time.
+@MainActor
+enum EraseDurationDiagnosticV1 {
+    enum Boundary { case sourceValidation, pointerRead }
+    struct Interval {
+        let started: UInt64
+        let starts: UInt64
+        let sourceCalls: UInt64
+        let sourceNanoseconds: UInt64
+        let pointerCalls: UInt64
+        let pointerNanoseconds: UInt64
+    }
+    private static var starts: UInt64 = 0
+    private static var sourceCalls: UInt64 = 0
+    private static var sourceNanoseconds: UInt64 = 0
+    private static var pointerCalls: UInt64 = 0
+    private static var pointerNanoseconds: UInt64 = 0
+    private static var countersWrapped = false
+
+    static func beginBoundary() -> UInt64 {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        return DispatchTime.now().uptimeNanoseconds
+    }
+
+    static func endBoundary(_ boundary: Boundary, started: UInt64) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let elapsed = DispatchTime.now().uptimeNanoseconds &- started
+        switch boundary {
+        case .sourceValidation:
+            let calls = sourceCalls.addingReportingOverflow(1)
+            let duration = sourceNanoseconds.addingReportingOverflow(elapsed)
+            sourceCalls = calls.partialValue
+            sourceNanoseconds = duration.partialValue
+            countersWrapped = countersWrapped || calls.overflow || duration.overflow
+        case .pointerRead:
+            let calls = pointerCalls.addingReportingOverflow(1)
+            let duration = pointerNanoseconds.addingReportingOverflow(elapsed)
+            pointerCalls = calls.partialValue
+            pointerNanoseconds = duration.partialValue
+            countersWrapped = countersWrapped || calls.overflow || duration.overflow
+        }
+    }
+
+    static func beginInterval() -> Interval {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let next = starts.addingReportingOverflow(1)
+        starts = next.partialValue
+        countersWrapped = countersWrapped || next.overflow
+        return Interval(started: DispatchTime.now().uptimeNanoseconds,
+            starts: starts, sourceCalls: sourceCalls,
+            sourceNanoseconds: sourceNanoseconds, pointerCalls: pointerCalls,
+            pointerNanoseconds: pointerNanoseconds)
+    }
+
+    static func endInterval(_ interval: Interval) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        let wall = DispatchTime.now().uptimeNanoseconds &- interval.started
+        print("ERASE_DURATION_V1 boundary=advance-exit scope=main-actor-interval inclusive=true overlappingAdvance=\(starts != interval.starts) countersWrapped=\(countersWrapped) wallNs=\(wall) sourceCalls=\(sourceCalls &- interval.sourceCalls) sourceInclusiveNs=\(sourceNanoseconds &- interval.sourceNanoseconds) pointerCalls=\(pointerCalls &- interval.pointerCalls) pointerInclusiveNs=\(pointerNanoseconds &- interval.pointerNanoseconds)")
+    }
+}
+#endif
+
 /// Exact-existing current pointer for a durable C05 Erase preparation. The
 /// Router retains this owner before open. No ordinary Factory pointer helper
 /// (whose parent FD closes through defer) is used after the V3 marker.
@@ -20796,6 +20866,10 @@ final class StoreRestoreGenerationAuthority {
         binding: EraseRetirementBindingV1,
         exclusion: EraseRetirementExclusionV1) throws -> Data {
 #if DEBUG
+        let durationDiagnosticStart = EraseDurationDiagnosticV1.beginBoundary()
+        defer { EraseDurationDiagnosticV1.endBoundary(.pointerRead, started: durationDiagnosticStart) }
+#endif
+#if DEBUG
         print("C46_ERASE_ADVANCE_V1 stage=pointer-name-enter")
         let nameCategory = name == "current.json" ? 1 : name == "retired.json" ? 2 : 0
         print("C46_ERASE_POINTER_ENTRY_V1 terminalCloseAttempted=\(eraseRetirementTerminalCloseAttempted ? 1 : 0) nameCategory=\(nameCategory)")
@@ -34955,6 +35029,10 @@ extension StoreRestoreGenerationAuthority {
         }
 
         private func requireSourceUnchanged() throws {
+#if DEBUG
+            let durationDiagnosticStart = EraseDurationDiagnosticV1.beginBoundary()
+            defer { EraseDurationDiagnosticV1.endBoundary(.sourceValidation, started: durationDiagnosticStart) }
+#endif
             guard let exclusion, let original, manifestScope.binding == binding,
                   let store = manifestScope.store else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner

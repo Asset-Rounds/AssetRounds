@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftData
 import UIKit
 import XCTest
@@ -1828,6 +1829,182 @@ extension S2PersistenceLedgerTests {
     }
 
     @MainActor
+    func testAcknowledgedEraseAdmissionKeepsOnlyPrivateWriterAcrossPausesAndCallbackThrow() async throws {
+        try await exerciseOriginalEraseAdmissionPause(acknowledgeBeforePause: true)
+    }
+
+    @MainActor
+    func testUnacknowledgedEraseAdmissionPauseRejectsOriginalAuthorization() async throws {
+        try await exerciseOriginalEraseAdmissionPause(acknowledgeBeforePause: false)
+    }
+
+    private enum AdmissionPauseFailure: Error, Equatable {
+        case callbackReturnedByThrow
+        case unexpectedReservation
+    }
+
+    @MainActor
+    private func exerciseOriginalEraseAdmissionPause(acknowledgeBeforePause: Bool) async throws {
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        let root = try makeEraseApplicationSupportURL(in: sandbox)
+        let temporary = sandbox.appendingPathComponent("AdmissionTemporary", isDirectory: true)
+        try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
+        let suiteName = "S2AdmissionPause.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let gate = AppAccessGateV1(setting: .absentDisabled,
+            authentication: S2StartupAuthentication(outcomes: []),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource())
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+        try router.bindStartupAccessGate(gate)
+        let retainedOwner = S2EraseRootRetentionV1(root: sandbox, router: router)
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("The real source writer must be published before Erase admission")
+        }
+        retainedOwner.coordinator = coordinator
+        let originalWriter = coordinator.workspaceWriter
+        let originalRevision = try originalWriter.currentRevision()
+        let originalLeases = try writerLeaseIDs(in: root)
+        XCTAssertEqual(originalLeases.count, 1)
+        let originalRead = try await gate.beginContentRead(for: .startupRecovery)
+        let ticket = try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)
+        let operation = try router.eraseRetirementOperation(for: ticket)
+        let dependencies = try coordinator.packageLifecycleDependencies()
+        let pause = S2StartupPublicationPause()
+        defer { pause.resume() }
+        var reservation: AppAccessGateV1.EraseAdoptionToken?
+        var resumedCallback = false
+        var lateReservationFailure: AppAccessContractFailureV1?
+        var activationCount = 0
+        var completionCount = 0
+        let service = try router.configureEraseService(EraseAllService(
+            applicationSupportURL: root,
+            cachesDirectoryURL: sandbox.appendingPathComponent("Caches", isDirectory: true),
+            temporaryDirectoryURL: temporary, userDefaults: defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: suiteName,
+            privateSystemDiscoveryIndex: nil, notificationSystem: S2EmptyNotificationSystem(),
+            admitErase: { subject in
+                let issuedAuthorization = try await router.eraseAdmissionAuthorization(ticket, subject: subject)
+                let authorization = try XCTUnwrap(issuedAuthorization)
+                if acknowledgeBeforePause {
+                    let token = try await gate.reserveEraseAdoption(subject: subject, authorization: authorization)
+                    try router.recordEraseReservation(ticket, reservation: token)
+                    reservation = token
+                    do {
+                        _ = try await operation.withOriginalAdmissionAwait(
+                            subject: subject, coordinator: coordinator
+                        ) {
+                            XCTFail("A real admission callback cannot reenter its own scope")
+                            return token
+                        }
+                        XCTFail("Overlapping admission scopes must be rejected")
+                    } catch {
+                        XCTAssertEqual(error as? AppAccessContractFailureV1, .staleAttempt)
+                    }
+                }
+                await pause.suspend()
+                resumedCallback = true
+                if !acknowledgeBeforePause {
+                    do {
+                        _ = try await gate.reserveEraseAdoption(subject: subject, authorization: authorization)
+                    } catch {
+                        lateReservationFailure = error as? AppAccessContractFailureV1
+                        throw error
+                    }
+                    throw AdmissionPauseFailure.unexpectedReservation
+                }
+                throw AdmissionPauseFailure.callbackReturnedByThrow
+            }, didCompleteErase: { _ in completionCount += 1 }
+        ), operation: operation)
+        let task = Task<Error?, Never> { @MainActor in
+            do {
+                _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: DiagnosticsStore(applicationSupportURL: root), operation: operation,
+                    activate: { _ in activationCount += 1 }, lifecycleDependencies: dependencies)
+                return nil
+            } catch { return error }
+        }
+        do {
+            let reached = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+            guard reached == .completed else {
+                pause.resume()
+                _ = await task.value
+                return XCTFail("The actual service must reach its admission callback")
+            }
+            for discardPrepared in [false, true] {
+                await gate.sceneBecameInactive()
+                if discardPrepared { await gate.lock(reason: .returnedFromBackground) }
+                router.pauseForAppAccess(discardPrepared: discardPrepared)
+                await gate.sceneBecameActive()
+                do {
+                    try await gate.validateContentRead(originalRead, for: .startupRecovery)
+                    XCTFail("A paused Erase must never revive its old content token")
+                } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+                XCTAssertNil(router.entitlementProcessor)
+                if acknowledgeBeforePause {
+                    let token = try XCTUnwrap(reservation)
+                    try await gate.validateEraseAdoption(token)
+                    do {
+                        _ = try await gate.beginContentRead(for: .render)
+                        XCTFail("Acknowledged private Erase is not render authority")
+                    } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+                    do {
+                        try await gate.requireConfigurationMutationAdmission()
+                        XCTFail("An outstanding Erase reservation excludes configuration")
+                    } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .invalidTransition) }
+                    do {
+                        _ = try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)
+                        XCTFail("A paused original operation cannot admit a second Erase")
+                    } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .invalidTransition) }
+                    guard case .checking = router.route else {
+                        pause.resume()
+                        _ = await task.value
+                        return XCTFail("The admitted source must remain privately covered")
+                    }
+                    XCTAssertTrue(coordinator.workspaceWriter === originalWriter)
+                    XCTAssertEqual(try originalWriter.currentRevision(), originalRevision)
+                    XCTAssertEqual(try writerLeaseIDs(in: root), originalLeases)
+                } else {
+                    XCTAssertNil(reservation)
+                    XCTAssertThrowsError(try originalWriter.currentRevision()) {
+                        XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+                    }
+                }
+            }
+            pause.resume()
+            let failure = await task.value
+            XCTAssertTrue(resumedCallback)
+            XCTAssertNotNil(failure)
+            XCTAssertEqual(activationCount, 0)
+            XCTAssertEqual(completionCount, 0)
+            XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
+            if acknowledgeBeforePause {
+                XCTAssertEqual(failure as? AdmissionPauseFailure, .callbackReturnedByThrow)
+                XCTAssertEqual(try originalWriter.currentRevision(), originalRevision,
+                    "The returned failure retains its source until the next real revocation")
+                // The callback has thrown and its service frame has returned. The
+                // acknowledged reservation alone cannot preserve this writer now.
+                await gate.sceneBecameInactive()
+                router.pauseForAppAccess(discardPrepared: false)
+                XCTAssertThrowsError(try originalWriter.currentRevision()) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+                }
+                try await gate.validateEraseAdoption(try XCTUnwrap(reservation))
+            } else {
+                XCTAssertEqual(lateReservationFailure, .accessDenied)
+            }
+            XCTAssertNil(router.entitlementProcessor)
+            // Retain actual failed source/root ownership; no synthetic abort or
+            // unchecked physical deletion is used to make this control pass.
+        } catch {
+            let originalFailure = error
+            pause.resume()
+            _ = await task.value
+            throw originalFailure
+        }
+    }
+
+    @MainActor
     func testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator() async throws {
         let root = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
@@ -1867,6 +2044,9 @@ extension S2PersistenceLedgerTests {
     func testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry() async throws {
         let fixture = try await makePostAdoptionEraseFixture()
         defer { cleanupPostAdoptionEraseFixture(fixture) }
+        let (originalRetirement, originalProof, originalReceiptValue) = try fixture.operation.completedRetirement()
+        let originalReceipt = try XCTUnwrap(originalReceiptValue)
+        try assertErasedOperationsNamespaceAbsent(in: fixture.root)
 
         await fixture.gate.sceneBecameInactive()
         do {
@@ -1879,11 +2059,17 @@ extension S2PersistenceLedgerTests {
         await fixture.gate.lock(reason: .returnedFromBackground)
         fixture.router.pauseForAppAccess()
         XCTAssertNil(fixture.router.entitlementProcessor)
-        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
-            "Inactive or revoked pre-read execution must not construct a fresh writer")
-        guard case .checking = fixture.router.route else {
-            return XCTFail("Repeated inactive/background pauses must retain the private activation")
+        try assertErasedOperationsNamespaceAbsent(in: fixture.root)
+        guard case let .eraseCleanupPending(.retiring(held)) = fixture.router.route else {
+            return XCTFail("Repeated pauses must retain the exact completed retirement unpublished")
         }
+        XCTAssertTrue(held === fixture.operation)
+        let (retainedRetirement, retainedProof, retainedReceiptValue) = try held.completedRetirement()
+        let retainedReceipt = try XCTUnwrap(retainedReceiptValue)
+        XCTAssertTrue(retainedRetirement === originalRetirement)
+        XCTAssertTrue(retainedProof === originalProof)
+        XCTAssertEqual(retainedReceipt.subject, originalReceipt.subject)
+        XCTAssertEqual(retainedReceipt.reservation, originalReceipt.reservation)
 
         await fixture.gate.sceneBecameActive()
         try await fixture.router.finishRetiredEraseActivation(
@@ -1914,6 +2100,9 @@ extension S2PersistenceLedgerTests {
             willReadPostAdoptionCanonicalContent: { _ in canonicalReadCount += 1 }
         )
         defer { firstAwait.resume(); cleanupPostAdoptionEraseFixture(fixture) }
+        let (originalRetirement, originalProof, originalReceiptValue) = try fixture.operation.completedRetirement()
+        let originalReceipt = try XCTUnwrap(originalReceiptValue)
+        try assertErasedOperationsNamespaceAbsent(in: fixture.root)
 
         let stale = Task<Error?, Never> { @MainActor in
             do {
@@ -1938,11 +2127,19 @@ extension S2PersistenceLedgerTests {
         XCTAssertNotNil(staleFailure)
         XCTAssertEqual(canonicalReadCount, 0)
         XCTAssertNil(fixture.router.entitlementProcessor)
-        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
-            "Inactive or revoked pre-read execution must not construct a fresh writer")
-        guard case .checking = fixture.router.route else {
-            return XCTFail("The revoked pre-read execution must leave the activation unpublished")
+        // Completed Erase removed the whole lease namespace. A revoked
+        // pre-read execution must not recreate it, even as an empty registry.
+        try assertErasedOperationsNamespaceAbsent(in: fixture.root)
+        guard case let .eraseCleanupPending(.retiring(held)) = fixture.router.route else {
+            return XCTFail("The revoked execution must retain its exact completed retirement unpublished")
         }
+        XCTAssertTrue(held === fixture.operation)
+        let (retainedRetirement, retainedProof, retainedReceiptValue) = try held.completedRetirement()
+        let retainedReceipt = try XCTUnwrap(retainedReceiptValue)
+        XCTAssertTrue(retainedRetirement === originalRetirement)
+        XCTAssertTrue(retainedProof === originalProof)
+        XCTAssertEqual(retainedReceipt.subject, originalReceipt.subject)
+        XCTAssertEqual(retainedReceipt.reservation, originalReceipt.reservation)
 
         try await fixture.router.finishRetiredEraseActivation(
                 fixture.operation, accessGate: fixture.gate
@@ -1958,6 +2155,7 @@ extension S2PersistenceLedgerTests {
             fixture.oldWriterInstanceID)
         XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
         XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
     }
 
     @MainActor
@@ -2404,6 +2602,21 @@ extension S2PersistenceLedgerTests {
         XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 0)
         XCTAssertEqual(try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
             .mutableSemanticSHA256, checkpoint)
+    }
+
+    private func assertErasedOperationsNamespaceAbsent(
+        in root: URL, file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        // A missing/unreadable fixture root is not successful namespace
+        // retirement. Do not reinterpret registry read or parse errors as zero.
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        _ = try fileManager.contentsOfDirectory(atPath: root.path)
+        var information = stat()
+        let result = Darwin.lstat(root.appendingPathComponent("FieldEvidenceOperations").path, &information)
+        let observedErrno = errno
+        XCTAssertEqual(result, -1, "The retired operations namespace must remain absent", file: file, line: line)
+        XCTAssertEqual(observedErrno, ENOENT, "Only exact namespace absence is accepted", file: file, line: line)
     }
 
     private func writerLeaseIDs(in root: URL) throws -> Set<String> {

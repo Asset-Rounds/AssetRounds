@@ -2171,7 +2171,11 @@ struct EvidenceMetadataMutationReceiptV1: Codable, Equatable, Sendable {
         let expected = Dictionary(uniqueKeysWithValues: mutationReceipt.expectedRevision.entityRevisions.map {
             ($0.identity, $0.revision)
         })
-        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.map {
+        // The journal retains the full workspace snapshot; validate the exact affected projection.
+        let affectedSet = Set(affected)
+        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.filter {
+            affectedSet.contains($0.identity)
+        }.map {
             ($0.identity, $0.revision)
         })
         let evidenceKinds: Set<WorkspaceEntityKindV1> = [
@@ -2213,7 +2217,11 @@ struct EvidenceMetadataMutationReceiptV1: Codable, Equatable, Sendable {
         let expected = Dictionary(uniqueKeysWithValues: mutationReceipt.expectedRevision.entityRevisions.map {
             ($0.identity, $0.revision)
         })
-        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.map {
+        // The journal retains the full workspace snapshot; validate the exact affected projection.
+        let affectedSet = Set(affected)
+        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.filter {
+            affectedSet.contains($0.identity)
+        }.map {
             ($0.identity, $0.revision)
         })
         let evidenceKinds: Set<WorkspaceEntityKindV1> = [

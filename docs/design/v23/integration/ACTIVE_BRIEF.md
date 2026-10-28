@@ -1,44 +1,17 @@
-# AssetRounds V23/S10 — replacement Mac continuation, October 28 UTC
-Goal ACTIVE: finish full V23 with accepted S10 in one app. Phase 1 is intermediate.
-This is an INCOMPLETE DEVELOPMENT checkpoint proposal, not merge-ready.
-All five Phase 1 gates OPEN (0/5); SourceReady=false; releaseReady=false; accepted exceptions EMPTY.
-Base a9267f4972dd657ab5b65406c75255583a5c7e26; main remains b1d04ae5e684aa9c6807af655089efa1df8a7ed6.
-Current functional payload: 26 paths, patch4d5ae94d95aa964d91b7b775af46766847d77d6e0bb239a45f7bd9a4ce2c240f.
-Actual prospective commit/tree/publication remain pending until Root records them.
+# Current31 continuation — INCOMPLETE DEVELOPMENT proposal, October 28 UTC
 
-## Current code and verification
-Reviewed backup temporal projection preserves exact typed bytes and rejects contradictory/nonfinite inputs.
-Raw export cleanup admits its exact owned records-data.bin staging suffix; ownership safeguards remain.
-S10 recovery recognizes the exact already-saved action before fresh editor validation; dirty/stale actions remain denied.
-Live FirstSign fixtures use the real writer. Production FirstSign was restored; the feature-local save proposal was withheld.
-The golden backup oracle recognizes the exact root raw-record member; other binary path checks remain.
-Inherited proof/manual-save, startup diagnostics, fixture and C08/C43 corrections remain in this payload.
-Local compile14 PASS401.366s: macOS27.2/26B123, Xcode27.1/27A9275, SDK27.1/24A94232,
-iPhone17/iOS27.0/24A434, arm64, unsigned, deployment18.0. Local DEVELOPMENT only.
-Tests22 on prior fixture:23 methods,22PASS/1goldenFAIL. Tests23 on current fixture:5 methods,4PASS/1deferred-eraseFAIL.
-Golden/raw cleanup, full fractional backup/restore/reopen/second archive, S10 replay/retired-scene,
-all14 selected temporal methods, immediate erase/replacement and targeted My Day controls have scoped PASS evidence.
-Results from distinct attempts are not a new all-current full-suite result; all historical failures remain.
-Current CI02: native399/399 and selection45/45 PASS, no failures/errors/skips; independent DATA6bf1b80b adopted.
-Current C02/C08/C41/C42/C43/C44/C45 checks have exact bindings/reviews; no historical-card rewriting.
+Goal ACTIVE: finish full V23 with accepted S10 in one app. Phase 1 remains intermediate. All five Phase1 gates OPEN0/5; SourceReady=false; releaseReady=false; accepted exceptions EMPTY. Main remains b1d04ae5e684aa9c6807af655089efa1df8a7ed6.
 
-## Open blockers and next feedback
-Own post-close hostile-pointer and late-abandonment/cold-replay proof controls remain FAILED before intended assertions.
-Memory capture01–04 are NO_CAPTURE; none proves the retaining owner. Attempt05 is unselected.
-S2 deferred erase still fails lifecycle.query invalid-authority then staleAttempt after genuine admission/pause/resume.
-A separately isolated lexical admission-await correction has source review only; it is excluded from this checkpoint.
-Current complete census3818/41 adds three methods without removing or reassigning prior coverage.
-Next mandatory pinned GitHub full DEVELOPMENT sweep is specified in REPLACEMENT_MAC_DEVELOPMENT_20261028_HOSTED_PLAN.json.
-It must build its own complete app/test modules and execute all3818 methods; actual head/run/admission/results pending.
-Pinned route remains Xcode26.6/17F113, SDK26.5/23F81a, iPhone17/iOS26.2/23C54. No local27 evidence promotion.
-Last hosted a926 run40635323136:3361PASS/375FAIL/3Interrupted/76NotStarted,3815 total; all42 evidence ZIPs collected.
-That historical total excludes these local changes. Current whole-suite/causal totals remain UNKNOWN.
+Published predecessor is87ae3fae2d5220294fb16d0bee4c8bb31ea933a6. Proposed checkpoint worktree is worktrees/current31-checkpoint-20261028; tested functional source is worktrees/curation-receipt-snapshot-fix-20261028: exact31-path composition598624a13abda716bbe9706500da7534c71fff93e3aab3f94c959ed3e0802f40,306664bytes relative to a926; twelve paths differ from published87ae. The transient import32 diagnostic is excluded. Exact final checkpoint payload, review, commit/tree and publication: PENDING.
 
-## Ownership and preservation
-Root alone integrates/commits/non-force pushes/dispatches. No PR, main advance, signing, distribution or account changes.
-Owner resumed builds/tests after migration. Latest helper routing is Astra low/medium/high, up to10 useful helpers.
-Policy decisions52–54 and explicit owner resumption are restored in AGENTS.md; original copies remain in recovery.
-Source/worktrees/recovery are in /Users/palatis/Dropbox/AssetRounds-Replacement-20261027.
-Diagnostic originals are /Users/palatis/AssetRounds-Diagnostics; hosted originals are /Users/palatis/AssetRounds-v23-hosted-evidence.
-Preserve every prior failure/HOLD/partial, source, draft, Products and consumed question; never reset the existing ledger.
-See CURRENT_INTEGRATION and VERIFICATION_DUE for exact attempt/review references and remaining obligations.
+The new delta preserves the original writer only inside the exact acknowledged Erase admission await, adds real admission controls, corrects two postadoption fixtures against authentic retired-namespace/retained-operation evidence, adds DEBUG duration observations, fixes curation negative fixture coherence, and validates exact affected metadata receipt projections while retaining unrelated workspace snapshot revisions. C42 uses admitted UUID snapshot member names with its exact typed-byte round-trip assertions. No path, ownership, content-access, single-writer, receipt, coverage or watchdog rule is weakened.
+
+Compile18 full app/test modules PASS334.600740s; tests28 eight affected methods PASS on the exact31 composition. Adopted compile15/tests24, tests25, compile16/tests26 and tests27 supply scoped long lifecycle/admission evidence and corrected postadoption/G01 results; distinct sources are not one full-current suite. Tests24 timed out after five logged passes; its interrupted reservation selector later passed tests27. Tests25's two old-fixture failures and compile17's missing-limits compiler error remain preserved. Tests28 has terminal-only monitoring, not during-run resource evidence.
+
+CI05 complete native-CI399/399 and selection45/45 PASS, zero failures/errors/skips; independent DATAe7f3e4d6b85b42fe48116f8336e37d22eed4f6ebcd6d119643d41cd1dd9abf27 adopted in recovery/current-ci-pair05-data-20261028/ROOT_ADOPTION.json. Retained results are complete runner aggregates, not444 individual transcripts; resource observations remain sampled. Hosted87ae40701407208 remains RUNNING; no whole-run final totals. Current census3821/41 adds two S26 admission controls and one S17 metadata regression versus3818, with no removal/remap/order change.
+
+Next: obtain exact candidate/record/coupling review; preserve eventual hosted87ae collection/DATA; bind any selected successor full3821/41 plan prospectively. Own hostile-pointer/late-cold-replay proof failures remain open; memory01–04 remain NO_CAPTURE. Broader cold persistence/restore, full current coverage, all same-head gates, genuine owner review, exact-main, privacy/device protection and full V23 release obligations remain. Root alone integrates, commits, non-force pushes and dispatches. Preserve all originals and owner drafts.
+
+The new functional delta from87ae is12paths/74320bytes, SHA256fecf18e07bed931bcdc07d76cb9631e2e4cc3cd3ff26b3293cf2ca316dcfa719; the older a926-relative complete31 composition is a separate binding. Independent coupling pre-review08dd9fdb1ac65ffe40bd03472c253302d02c5f5c8b6abb34f4e963c18a9dee13 supports ordinary INCOMPLETE integration cadence conditionally; final exact candidate/docs review is PENDING. No new waiver follows from the nonterminal hosted original.
+
+REPLACEMENT_MAC_DEVELOPMENT_20261028_CURRENT31_HOSTED_PLAN.json is prospective NO_EXECUTION; actual new head/tree, admission, dispatch and outcomes remain PENDING. Root owns that separate plan. The isolated import32 compile19 PASS/tests29 G01 FAIL at commit invalidCommand is excluded from this checkpoint and not waived. Dedicated foreign/aborted/completed/later-allocation admission-conjunct controls, cancellation and cold metadata persistence/restore remain unproved at this narrow scope.

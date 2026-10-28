@@ -149,7 +149,11 @@ struct IntegrationEventProjectionV1: Sendable {
         let expected = Dictionary(uniqueKeysWithValues: receipt.expectedRevision.entityRevisions.map {
             ($0.identity, $0.revision)
         })
-        let resulting = Dictionary(uniqueKeysWithValues: receipt.resultingRevision.entityRevisions.map {
+        // Preserve unrelated workspace revisions in the receipt, selecting only affected entries.
+        let affectedSet = Set(identities)
+        let resulting = Dictionary(uniqueKeysWithValues: receipt.resultingRevision.entityRevisions.filter {
+            affectedSet.contains($0.identity)
+        }.map {
             ($0.identity, $0.revision)
         })
         guard receipt.postImages.count == 2,

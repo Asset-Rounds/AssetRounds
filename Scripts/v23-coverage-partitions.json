@@ -1347,7 +1347,7 @@
     {
       "id": "S17",
       "tier": "D50C",
-      "estimatedSeconds": 1616.0,
+      "estimatedSeconds": 1676.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesForeignOperationsChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesPostOpenV3HistoryDriftWithoutRepair",
@@ -1626,6 +1626,7 @@
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45T01FractionalReadbackRoundtripsPublishedAndAdoptedSnapshots",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testCurationPreviewRendersAvailableAndMissingOriginalWithoutInvokingActions",
+        "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testEvidenceMetadataReceiptsRetainUnrelatedWorkspaceSnapshotAndRejectMalformedAffectedShape",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02H01PrivacyBeforeMarkupAndReversibleAnnotation",
@@ -2782,11 +2783,12 @@
     {
       "id": "S26",
       "tier": "D50C",
-      "estimatedSeconds": 1531.5,
+      "estimatedSeconds": 1651.5,
       "selectors": [
         "FieldEvidenceAppTests/C32AssistanceAnchorV906DeletionRights/testC32V906DeletionRightsCompatibilityKeepsProposalAtExplicitReviewBoundary",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS83DiagnosticPrivacy/testC33S83DiagnosticPrivacyCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C49WorkResourceSearchBoundaryTests/testSearchProjectionCannotPromoteStockSnapshotToLiveInventory",
+        "FieldEvidenceAppTests/S2PersistenceLedgerTests/testAcknowledgedEraseAdmissionKeepsOnlyPrivateWriterAcrossPausesAndCallbackThrow",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testAppAccessRevocationDuringSuspendedStartupCannotPublishOrReviveCommerce",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testBootstrapPersistsReleasesAndReopensTheExactGenerationLedger",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testConfigurationNotificationStartupPreparesThenOrdinaryStartupAdoptsTheSameWriter",
@@ -2821,6 +2823,7 @@
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededStartupCannotPublishOrClearTheNewReadyOperation",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testToggleNotificationUsesSettledPreparedOwnerThenOrdinaryStartupAdoptsIt",
+        "FieldEvidenceAppTests/S2PersistenceLedgerTests/testUnacknowledgedEraseAdmissionPauseRejectsOriginalAuthorization",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testV23P03C54EncryptedEnvelopeAddsNoPersistentModelWriterOrLedgerFamily",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testValidatingCoordinatorConstructionReleasesLeaseAfterRealJournalFailure",
         "FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCaptureFreezesExactPromotedPackageAndSourceWorkflow",

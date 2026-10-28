@@ -1900,7 +1900,13 @@ final class StartupRouter: ObservableObject {
             route = .checking
             return
         }
-        if retainedEraseRetirementOperation != nil {
+        if let operation = retainedEraseRetirementOperation {
+            if preservesAcknowledgedEraseAdmission(operation) {
+                maintenanceRestoreSession = nil
+                maintenanceEraseSession = nil
+                route = .checking
+                return
+            }
             invalidateOperationAndPublishedWriter()
             return
         }
@@ -1968,6 +1974,26 @@ final class StartupRouter: ObservableObject {
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
         route = .checking
+    }
+
+    /// Acknowledged Erase admission owns a private continuation, not content
+    /// access. Only its exact lexical await may survive a scene cover here.
+    private func preservesAcknowledgedEraseAdmission(_ operation: EraseRouterOperationV1) -> Bool {
+        do {
+            try requireEraseRetirementOperation(operation)
+            let state = try awaitlessValidateEraseTicket(operation.ticket)
+            guard state.eraseAuthorizationIssued,
+                  let subject = state.eraseSubject,
+                  let reservation = state.acknowledgedReservation,
+                  reservation.subject == subject,
+                  !state.postAdoptionStartup, pendingErasedActivation == nil,
+                  let coordinator = state.source.coordinator else { return false }
+            try operation.requireAcknowledgedAdmissionAwait(
+                subject: subject, coordinator: coordinator)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func stopCommerce() {
@@ -11423,6 +11449,7 @@ final class EraseRouterOperationV1 {
     private var originalRetiredStageIdentityUncertain = false
     private var originalRetiredStageIdentityPublished = false
     private var preparationServiceFrame = false
+    private var originalAdmissionAwaitSubject: EraseAllOperationSubjectV1?
     private var completedTargetGenerationCreation = CompletedTargetGenerationCreationV1()
     private var completedSessionManifestAuthority: StoreRestoreGenerationAuthority?
     private var completedSessionManifestTargetID: UUID?
@@ -11492,6 +11519,46 @@ final class EraseRouterOperationV1 {
     }
 
     func endPreparationServiceFrame() { preparationServiceFrame = false }
+
+    /// The scope ends before the service revalidates its source or handles a
+    /// thrown admission. It neither grants gate access nor revives a writer.
+    func withOriginalAdmissionAwait(
+        subject: EraseAllOperationSubjectV1,
+        coordinator: StoreSessionCoordinator,
+        admission: @MainActor () async throws -> AppAccessGateV1.EraseAdoptionToken?
+    ) async throws -> AppAccessGateV1.EraseAdoptionToken? {
+        guard originalAdmissionAwaitSubject == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireOriginalAdmissionSourceFrame(coordinator: coordinator)
+        originalAdmissionAwaitSubject = subject
+        defer { originalAdmissionAwaitSubject = nil }
+        return try await admission()
+    }
+
+    fileprivate func requireAcknowledgedAdmissionAwait(
+        subject: EraseAllOperationSubjectV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalAdmissionAwaitSubject == subject else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireOriginalAdmissionSourceFrame(coordinator: coordinator)
+    }
+
+    private func requireOriginalAdmissionSourceFrame(coordinator: StoreSessionCoordinator) throws {
+        guard let router, preparationServiceFrame,
+              preparationCoordinator === coordinator, preparationSourceWriter != nil,
+              preparationFailureWitness == nil, preparationWriterPhase == .absent,
+              preparationWriterAllocation == nil, preparationTargetSession == nil,
+              preparationTargetWriter == nil, prepared == nil, drain == nil,
+              retirement == nil, !detached, !detaching,
+              originalExclusion == nil, transferredExclusion == nil,
+              !startedExclusionAcquisition, !originalPointerPublished else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try router.requireOriginalPreIntentLedgerSource(self, coordinator: coordinator)
+    }
 
     /// The first original-owner EX edge is after durable P and before any
     /// pointer, search, or auxiliary mutation. A failed acquisition remains

@@ -571,9 +571,13 @@ extension V9_04StreamingArchiveTests {
             try data.write(to: source.appendingPathComponent("receipt-\(offset)"))
             return data
         }
+        let memberPaths = [
+            "snapshots/ab000000-0000-0000-0000-000000000001.json",
+            "snapshots/ab000000-0000-0000-0000-000000000002.json",
+        ]
         let entries = try bytes.enumerated().map { offset, data in
             try writeEntry(
-                path: "c42-receipt-\(offset).json",
+                path: memberPaths[offset],
                 source: source.appendingPathComponent("receipt-\(offset)"),
                 data: data
             )
@@ -591,10 +595,10 @@ extension V9_04StreamingArchiveTests {
         let extracted = try service.extract(archive, to: extractionRoot)
 
         XCTAssertEqual(extracted.archiveSHA256, written.archiveSHA256)
-        XCTAssertEqual(written.index.entries.map(\.path), ["c42-receipt-0.json", "c42-receipt-1.json"])
+        XCTAssertEqual(written.index.entries.map(\.path), memberPaths)
         for (offset, expected) in values.enumerated() {
             let archivedBytes = try Data(
-                contentsOf: extractionRoot.appendingPathComponent("c42-receipt-\(offset).json")
+                contentsOf: extractionRoot.appendingPathComponent(memberPaths[offset])
             )
             XCTAssertEqual(archivedBytes, bytes[offset])
             XCTAssertEqual(

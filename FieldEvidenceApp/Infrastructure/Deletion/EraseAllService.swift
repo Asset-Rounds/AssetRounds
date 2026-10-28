@@ -3603,7 +3603,11 @@ final class EraseAllService {
         let reservation: AppAccessGateV1.EraseAdoptionToken?
         do {
             traceErasePhase("entry.admit")
-            reservation = try await admit(subject)
+            reservation = try await operation.withOriginalAdmissionAwait(
+                subject: subject, coordinator: coordinator
+            ) {
+                try await self.admit(subject)
+            }
             traceErasePhase("entry.revalidate-admission")
             try revalidateAdmission(
                 subject: subject,
@@ -15242,6 +15246,10 @@ final class EraseCleanupAfterRetirementV1 {
         if phase == .released { return true }
         running = true
         defer { running = false }
+#if DEBUG
+        let durationDiagnosticInterval = EraseDurationDiagnosticV1.beginInterval()
+        defer { EraseDurationDiagnosticV1.endInterval(durationDiagnosticInterval) }
+#endif
         if proof == nil {
 #if DEBUG
         print("C46_ERASE_ADVANCE_V1 stage=target-validation-enter")

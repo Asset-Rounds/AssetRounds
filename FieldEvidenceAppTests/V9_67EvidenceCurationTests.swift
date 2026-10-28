@@ -417,13 +417,36 @@ final class V9_67EvidenceCurationTests: XCTestCase {
             evidenceID: "c02-evidence-duplicate",
             contentID: fixture.sources[0].reference.contentID
         )
+        // An added association without a matching sequence is independently stale.
+        // A sequence cannot contain the same content twice, so retain this hostile
+        // input separately from the curation duplicate-provenance refusal below.
         XCTAssertThrowsError(try coordinator.eligibleSelection(
-            selectionID: "c02-selection-duplicate",
+            selectionID: "c02-selection-stale-sequence",
             workspaceID: fixture.workspace,
             currentSequence: fixture.currentSequence,
             associations: fixture.associations + [duplicateAssociation],
             references: fixture.references,
             originalProvenance: fixture.originalProvenance
+        )) { error in
+            XCTAssertEqual(error as? EvidenceCurationFailureV1, .staleReference)
+        }
+        XCTAssertThrowsError(try coordinator.eligibleSelection(
+            selectionID: "c02-selection-duplicate-provenance",
+            workspaceID: fixture.workspace,
+            currentSequence: fixture.currentSequence,
+            associations: fixture.associations,
+            references: fixture.references,
+            originalProvenance: fixture.originalProvenance + [fixture.originalProvenance[0]]
+        )) { error in
+            XCTAssertEqual(error as? EvidenceCurationFailureV1, .duplicateReference)
+        }
+
+        // The coordinator's provenance uniqueness and the selection's duplicate
+        // content/evidence refusal are separate boundaries.
+        XCTAssertThrowsError(try EvidenceCurationSelectionV1(
+            selectionID: "c02-selection-duplicate-content",
+            workspaceID: fixture.workspace,
+            orderedCandidates: [selection.orderedCandidates[0], selection.orderedCandidates[0]]
         )) { error in
             XCTAssertEqual(error as? EvidenceCurationFailureV1, .duplicateReference)
         }
@@ -464,7 +487,8 @@ final class V9_67EvidenceCurationTests: XCTestCase {
         XCTAssertThrowsError(try coordinator.eligibleSelection(
             selectionID: "c02-selection-derivative",
             workspaceID: fixture.workspace,
-            currentSequence: fixture.currentSequence,
+            currentSequence: try XCTUnwrap(makeC02SequenceHistory(
+                workspace: fixture.workspace, associations: [derivativeAssociation]).last),
             associations: [derivativeAssociation],
             references: [derivative.reference],
             originalProvenance: [derivative.provenance]
@@ -1115,6 +1139,113 @@ final class V9_67EvidenceCurationTests: XCTestCase {
         )
         XCTAssertThrowsError(try coordinator.replay(interrupted, requestSHA256: sequence.planSHA256)) { error in
             XCTAssertEqual(error as? EvidenceCurationFailureV1, .interrupted)
+        }
+    }
+
+    @MainActor
+    func testEvidenceMetadataReceiptsRetainUnrelatedWorkspaceSnapshotAndRejectMalformedAffectedShape() async throws {
+        let fixture = try makeFixture()
+        let committer = try C02WriterBackedCommitter(fixture: fixture)
+        let association = try XCTUnwrap(fixture.associations.last)
+        let sequence = try XCTUnwrap(fixture.sequenceHistory.last)
+        let mutation = try EvidenceMetadataMutationV1(
+            workspaceID: fixture.workspace,
+            mutationID: MutationIDV1(rawValue: XCTUnwrap(UUID(uuidString: association.mutationID))),
+            expectedSequenceRevision: sequence.revision - 1,
+            associationEvent: association,
+            sequenceSuccessor: sequence
+        )
+        let stored = try await committer.receipt(for: mutation)
+        let typed = try XCTUnwrap(stored)
+        let original = typed.mutationReceipt
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let originalBytes = try encoder.encode(original)
+        let affected = Set(try mutation.affectedIdentities)
+        let unrelated = original.resultingRevision.entityRevisions.filter { !affected.contains($0.identity) }
+        XCTAssertEqual(unrelated.count, 1, "The first association remains in the second seed's full snapshot")
+        XCTAssertEqual(original.resultingRevision.entityRevisions.count, 3)
+        let firstAssociation = try XCTUnwrap(fixture.associations.first)
+        let firstIdentity = try EvidenceMetadataMutationV1.associationEntityIdentity(
+            workspaceID: firstAssociation.workspaceID,
+            evidenceID: firstAssociation.evidenceID
+        )
+        let firstRevision = try XCTUnwrap(UInt64(exactly: firstAssociation.resultingEvidenceRevision))
+        XCTAssertEqual(unrelated, [WorkspaceEntityRevisionV1(identity: firstIdentity, revision: firstRevision)])
+        let rebuilt = try EvidenceMetadataMutationReceiptV1(mutation: mutation, mutationReceipt: original)
+        try rebuilt.validate()
+        let encoded = try JSONEncoder().encode(rebuilt)
+        let decoded = try JSONDecoder().decode(EvidenceMetadataMutationReceiptV1.self, from: encoded)
+        try decoded.validate()
+        XCTAssertEqual(decoded, typed)
+        XCTAssertEqual(decoded.mutationReceipt, original)
+
+        let projection = try IntegrationEventProjectionV1(
+            registry: IntegrationContractRegistryV1(releaseID: "c02-full-workspace-receipt",
+                definitions: EvidenceMetadataIntegrationContractV1.definitions(),
+                limits: IntegrationEventLimitsV1()),
+            limits: IntegrationEventLimitsV1()
+        )
+        try projection.validateEvidenceMetadataReplay([original])
+        let events = try projection.project(workspaceID: fixture.workspace, acceptedReceipts: [original])
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(try projection.project(workspaceID: fixture.workspace,
+            acceptedReceipts: [decoded.mutationReceipt]), events)
+        XCTAssertEqual(try encoder.encode(decoded.mutationReceipt), originalBytes)
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: originalBytes) as? [String: Any])
+        let resulting = try XCTUnwrap(object["resultingRevision"] as? [String: Any])
+        let revisions = try XCTUnwrap(resulting["entityRevisions"] as? [[String: Any]])
+        let target = try XCTUnwrap(original.resultingRevision.entityRevisions.firstIndex {
+            affected.contains($0.identity)
+        })
+        let unrelatedIndex = try XCTUnwrap(original.resultingRevision.entityRevisions.firstIndex {
+            !affected.contains($0.identity)
+        })
+        func changed(_ edit: (inout [String: Any]) throws -> Void) throws -> MutationReceiptV1 {
+            var copy = object
+            try edit(&copy)
+            return try JSONDecoder().decode(MutationReceiptV1.self,
+                from: JSONSerialization.data(withJSONObject: copy))
+        }
+        let missing = try changed { copy in
+            var result = resulting
+            var entries = revisions
+            entries.remove(at: target)
+            result["entityRevisions"] = entries
+            copy["resultingRevision"] = result
+        }
+        let wrong = try changed { copy in
+            var result = resulting
+            var entries = revisions
+            entries[target]["revision"] = original.resultingRevision.entityRevisions[target].revision + 1
+            result["entityRevisions"] = entries
+            copy["resultingRevision"] = result
+        }
+        let wrongExpected = try changed { copy in
+            var expected = try XCTUnwrap(copy["expectedRevision"] as? [String: Any])
+            var entries = try XCTUnwrap(expected["entityRevisions"] as? [[String: Any]])
+            entries.append(revisions[unrelatedIndex])
+            expected["entityRevisions"] = entries
+            copy["expectedRevision"] = expected
+        }
+        let extraImage = try changed { copy in
+            var images = try XCTUnwrap(copy["postImages"] as? [Any])
+            images.append(try XCTUnwrap(images.first))
+            copy["postImages"] = images
+        }
+        for (label, hostile) in [("missing affected revision", missing), ("wrong affected revision", wrong),
+                                 ("extra expected key", wrongExpected), ("extra post-image", extraImage)] {
+            // Check the projection's shape boundary directly as well as the full authenticated path.
+            XCTAssertThrowsError(try IntegrationEventProjectionV1.validateEvidenceMetadataReceiptShape(hostile), label)
+            XCTAssertThrowsError(try projection.validateEvidenceMetadataReplay([hostile]), label)
+            XCTAssertThrowsError(try projection.project(workspaceID: fixture.workspace, acceptedReceipts: [hostile]), label)
+            XCTAssertThrowsError(try EvidenceMetadataMutationReceiptV1(mutation: mutation, mutationReceipt: hostile), label)
+            var wrapper = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            wrapper["mutationReceipt"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hostile))
+            let hostileTyped = try JSONDecoder().decode(EvidenceMetadataMutationReceiptV1.self,
+                from: JSONSerialization.data(withJSONObject: wrapper))
+            XCTAssertThrowsError(try hostileTyped.validate(), label)
         }
     }
 
