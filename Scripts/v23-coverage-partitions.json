@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "a9267f4972dd657ab5b65406c75255583a5c7e26",
+  "generatedAtHead": "87ae3fae2d5220294fb16d0bee4c8bb31ea933a6",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1900,7 +1900,7 @@
     {
       "id": "S20",
       "tier": "D50C",
-      "estimatedSeconds": 1690.6,
+      "estimatedSeconds": 1810.6,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -2255,6 +2255,8 @@
         "FieldEvidenceAppTests/V9_56WorkResourceTests/testV23P03C49I01EffectBeforeReceiptAndJournalInterruptionsRetryDeterministically",
         "FieldEvidenceAppTests/V9_56WorkResourceTests/testV23P03C49I01ReplaceRestoreAndCloneForkRecoveryChainIsExplicit",
         "FieldEvidenceAppTests/V9_56WorkResourceTests/testV23P03C49R01FrozenAndAbsentPartReferencesRoundTripRowsAndBackup",
+        "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testFreshCreatePreparationEnrollsOnlyAbsentTargetsAndPreservesCAS",
+        "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testFreshPreparationLeavesAllowedNonCreateRequestUnchanged",
         "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08A01CorrectionAndPoseRoundTripAlternate",
         "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08AtomicBundleRegistrationIsExplicitAndFailClosed",
         "FieldEvidenceAppTests/V9_72ImportBulkEngineTests/testV23P04C08C32AggregateRegistrationDoesNotAlterAssetPlanDigest",

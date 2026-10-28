@@ -118,6 +118,19 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
     }
 }
 
+private final class C08FixedRequestMaterializer: ImportWorkspaceCommandMaterializingV1, @unchecked Sendable {
+    private let request: WorkspaceMutationRequestV1
+    private let lock = NSLock()
+    private var invocations = 0
+    init(_ request: WorkspaceMutationRequestV1) { self.request = request }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return invocations }
+    func materialize(_ context: ImportCommandMaterializationContextV1) throws -> WorkspaceMutationRequestV1 {
+        lock.lock(); defer { lock.unlock() }
+        invocations += 1
+        return request
+    }
+}
+
 @MainActor private final class C08Stack {
     let container: ModelContainer
     let context: ModelContext
@@ -214,6 +227,148 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let NFC = "caf\u{00e9}", nfd = "cafe\u{0301}"
         XCTAssertEqual(NFC, nfd.precomposedStringWithCanonicalMapping)
         XCTAssertThrowsError(try ImportMappedFieldV1(key: "asset_name", value: nfd))
+    }
+
+    func testFreshCreatePreparationEnrollsOnlyAbsentTargetsAndPreservesCAS() throws {
+        let (plan, bulk) = try C08.plan()
+        let stack = try c08Stack()
+        let preview = try stack.coordinator.preview(importPlan: plan, bulkPlan: bulk,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let begun = try stack.coordinator.begin(sessionID: C08.id(980_130), preview: preview,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let base = WorkspaceExpectedRevisionV1(snapshot: try stack.writer.currentRevision())
+        func context(_ expected: WorkspaceExpectedRevisionV1) throws -> ImportCommandMaterializationContextV1 {
+            try .init(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0],
+                command: plan.rows[0].commands[0], chunkIndex: 0,
+                mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: expected)
+        }
+        func expected(_ rows: [WorkspaceEntityRevisionV1]) throws -> WorkspaceExpectedRevisionV1 {
+            try .init(workspaceID: base.workspaceID, generationID: base.generationID,
+                writerInstanceID: base.writerInstanceID, workspaceRevision: base.workspaceRevision,
+                entityRevisions: rows)
+        }
+        let input = try context(base)
+        let raw = try C08CreateAssetMaterializer().materializeValidated(input)
+        let materializer = C08FixedRequestMaterializer(raw)
+        let registration = try ImportBulkMaterializerRegistrationV1(kind: .createAsset, materializer: materializer)
+        let prepared = try registration.prepareFreshRequest(input)
+        XCTAssertEqual(materializer.count, 1)
+        XCTAssertEqual(prepared.command, raw.command)
+        XCTAssertEqual(prepared.mutationID, raw.mutationID)
+        XCTAssertEqual(prepared.expectedRevision.workspaceID, base.workspaceID)
+        XCTAssertEqual(prepared.expectedRevision.generationID, base.generationID)
+        XCTAssertEqual(prepared.expectedRevision.writerInstanceID, base.writerInstanceID)
+        XCTAssertEqual(prepared.expectedRevision.workspaceRevision, base.workspaceRevision)
+        let asset = try WorkspaceEntityIdentityV1(kind: .asset, id: C08.id(980_111))
+        let site = try WorkspaceEntityIdentityV1(kind: .site, id: C08.id(980_110))
+        let session = try WorkspaceEntityIdentityV1(kind: .bulkSession, id: begun.sessionID)
+        let rows = Dictionary(uniqueKeysWithValues: prepared.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        XCTAssertEqual(rows[asset], 0); XCTAssertEqual(rows[site], 0); XCTAssertEqual(rows[session], 1)
+        XCTAssertEqual(Set(rows.keys), Set(base.entityRevisions.map(\.identity)).union([asset, site]))
+        for row in base.entityRevisions { XCTAssertEqual(rows[row.identity], row.revision) }
+        try context(prepared.expectedRevision).validate(materialized: prepared)
+        let enrolled = C08FixedRequestMaterializer(prepared)
+        XCTAssertEqual(try ImportBulkMaterializerRegistrationV1(kind: .createAsset, materializer: enrolled)
+            .prepareFreshRequest(context(prepared.expectedRevision)), prepared)
+        XCTAssertEqual(enrolled.count, 1)
+
+        let incumbent = try expected(base.entityRevisions + [.init(identity: asset, revision: 7)])
+        let incumbentContext = try context(incumbent)
+        let incumbentRaw = try C08CreateAssetMaterializer().materializeValidated(incumbentContext)
+        let incumbentPrepared = try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08FixedRequestMaterializer(incumbentRaw)).prepareFreshRequest(incumbentContext)
+        XCTAssertEqual(incumbentPrepared.expectedRevision.entityRevisions.first { $0.identity == asset }?.revision, 7)
+        XCTAssertEqual(incumbentPrepared.expectedRevision.entityRevisions.first { $0.identity == site }?.revision, 0)
+        XCTAssertThrowsError(try stack.writer.execute(incumbentPrepared)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleEntityRevision(asset))
+        }
+
+        guard case let .createFirstSign(value) = raw.command else { return XCTFail("Expected create fixture") }
+        let placementID = C08.id(980_131)
+        let placedCommand = WorkspaceCommandV1.createFirstSign(.init(siteID: value.siteID, newSite: value.newSite,
+            assetID: value.assetID, assetLabel: value.assetLabel, packID: value.packID,
+            packSchemaVersion: value.packSchemaVersion, packContentVersion: value.packContentVersion,
+            createdAt: value.createdAt, initialPlacementMutationID: raw.mutationID,
+            initialPlacementEventID: placementID,
+            initialPhysicalEpisodeID: try .init(rawValue: C08.id(980_132))))
+        let placed = try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08FixedRequestMaterializer(.init(mutationID: raw.mutationID,
+                expectedRevision: base, command: placedCommand))).prepareFreshRequest(input)
+        XCTAssertEqual(placed.command, placedCommand)
+        XCTAssertEqual(placed.expectedRevision.entityRevisions,
+            try expected(base.entityRevisions + [.init(identity: asset, revision: 0),
+                .init(identity: site, revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0)]).entityRevisions)
+
+        let arbitrary = try WorkspaceEntityIdentityV1(kind: .asset, id: C08.id(980_133))
+        let hostileBases = try [
+            expected(base.entityRevisions + [.init(identity: arbitrary, revision: 0)]),
+            expected(base.entityRevisions + [.init(identity: asset, revision: 9)]),
+            expected([]),
+            expected(base.entityRevisions.map { .init(identity: $0.identity, revision: $0.revision + 1) }),
+            WorkspaceExpectedRevisionV1(workspaceID: base.workspaceID, generationID: base.generationID,
+                writerInstanceID: C08.id(980_136), workspaceRevision: base.workspaceRevision,
+                entityRevisions: base.entityRevisions)
+        ]
+        for hostile in hostileBases {
+            let hostileMaterializer = C08FixedRequestMaterializer(.init(mutationID: raw.mutationID,
+                expectedRevision: hostile, command: raw.command))
+            XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+                materializer: hostileMaterializer).prepareFreshRequest(input)) {
+                XCTAssertEqual($0 as? ImportBulkFailureV1, .invalidValue)
+            }
+            XCTAssertEqual(hostileMaterializer.count, 1)
+        }
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08FixedRequestMaterializer(.init(mutationID: MutationIDV1(rawValue: C08.id(980_134)),
+                expectedRevision: base, command: raw.command))).prepareFreshRequest(input)) {
+            XCTAssertEqual($0 as? ImportBulkFailureV1, .invalidValue)
+        }
+        let wrongKind = C08FixedRequestMaterializer(raw)
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(kind: .updateAssetExactKey,
+            materializer: wrongKind).prepareFreshRequest(input)) {
+            XCTAssertEqual($0 as? ImportBulkFailureV1, .unsupportedSchema)
+        }
+        XCTAssertEqual(wrongKind.count, 0)
+        let unsupported = WorkspaceCommandV1.updateSiteTimeZone(.init(siteID: C08.id(980_110),
+            timeZoneID: "UTC", confirmedAt: C08.time))
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08FixedRequestMaterializer(.init(mutationID: raw.mutationID,
+                expectedRevision: base, command: unsupported))).prepareFreshRequest(input)) {
+            XCTAssertEqual($0 as? ImportBulkFailureV1, .unsupportedSchema)
+        }
+
+        // A genuine intervening lifecycle write must invalidate the captured CAS;
+        // preparation cannot refresh it or execute the counted create effect.
+        _ = try stack.coordinator.begin(sessionID: C08.id(980_135), preview: preview,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        XCTAssertThrowsError(try stack.writer.execute(prepared)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(stack.adapter.applyCount, 0)
+        XCTAssertNil(try stack.writer.durableReceipt(mutationID: raw.mutationID))
+    }
+
+    func testFreshPreparationLeavesAllowedNonCreateRequestUnchanged() throws {
+        let (plan, bulk) = try C08.atomicPlan()
+        let stack = try c08Stack()
+        let base = WorkspaceExpectedRevisionV1(snapshot: try stack.writer.currentRevision())
+        let input = try ImportCommandMaterializationContextV1(plan: plan,
+            rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0],
+            chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: base)
+        let command = WorkspaceCommandV1.applySavedSmartView(try .init(deletingID: C08.id(980_140),
+            workspaceID: plan.workspaceID.rawValue, stableID: "c08_saved_view", expectedDescriptorRevision: 1,
+            mutationID: input.mutationID.rawValue))
+        let raw = WorkspaceMutationRequestV1(mutationID: input.mutationID, expectedRevision: base, command: command)
+        let materializer = C08FixedRequestMaterializer(raw)
+        let registration = try ImportBulkMaterializerRegistrationV1(kind: .applyAtomicWorkspaceBundle,
+            materializer: materializer, allowedWorkspaceCommandKinds: [.applySavedSmartView])
+        XCTAssertEqual(try registration.prepareFreshRequest(input), raw)
+        XCTAssertEqual(materializer.count, 1)
+        XCTAssertEqual(stack.adapter.applyCount, 0)
     }
 
     func testV23P04C08A01CorrectionAndPoseRoundTripAlternate() throws {
@@ -429,7 +584,8 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let effectPreview = try effectCoordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let effectBegun = try effectCoordinator.begin(sessionID: C08.id(980_032), preview: effectPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let effectContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try effectStack.writer.currentRevision()))
-        let effectRequest = try C08CreateAssetMaterializer().materializeValidated(effectContext)
+        let effectRequest = try ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08CreateAssetMaterializer()).prepareFreshRequest(effectContext)
         _ = try effectStack.writer.execute(effectRequest)
         XCTAssertNotNil(try effectStack.writer.durableReceipt(mutationID: bulk.chunks[0].mutationIDs[0]))
         XCTAssertNil(try effectStack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
@@ -446,7 +602,8 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let mismatchedPreview = try mismatchedCoordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let mismatchedBegun = try mismatchedCoordinator.begin(sessionID: C08.id(980_033), preview: mismatchedPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let mismatchedContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try mismatchedStack.writer.currentRevision()))
-        _ = try mismatchedStack.writer.execute(C08MismatchedCreateAssetMaterializer().materializeValidated(mismatchedContext))
+        _ = try mismatchedStack.writer.execute(ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08MismatchedCreateAssetMaterializer()).prepareFreshRequest(mismatchedContext))
         XCTAssertThrowsError(try mismatchedCoordinator.commitFirstMissingChunk(session: mismatchedBegun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: true))
         XCTAssertEqual(mismatchedStack.adapter.applyCount, 1)
         XCTAssertEqual(try mismatchedStack.lifecycle.durableSession(sessionID: mismatchedBegun.sessionID), mismatchedBegun)
@@ -456,7 +613,8 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         let rejectingPreview = try rejectingStack.coordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let rejectingBegun = try rejectingStack.coordinator.begin(sessionID: C08.id(980_034), preview: rejectingPreview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
         let rejectingContext = try ImportCommandMaterializationContextV1(plan: plan, rowIdentity: plan.rows[0].identity, row: plan.rows[0], command: plan.rows[0].commands[0], chunkIndex: 0, mutationID: bulk.chunks[0].mutationIDs[0], expectedRevision: .init(snapshot: try rejectingStack.writer.currentRevision()))
-        _ = try rejectingStack.writer.execute(C08CreateAssetMaterializer().materializeValidated(rejectingContext))
+        _ = try rejectingStack.writer.execute(ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08CreateAssetMaterializer()).prepareFreshRequest(rejectingContext))
         XCTAssertThrowsError(try rejectingStack.coordinator.commitFirstMissingChunk(session: rejectingBegun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: true)) { error in
             XCTAssertEqual(error as? ImportBulkFailureV1, .unsupportedSchema)
         }
@@ -482,7 +640,8 @@ private struct C08MismatchedCreateAssetMaterializer: ImportWorkspaceCommandMater
         XCTAssertEqual(try C08CreateAssetMaterializer().materializeValidated(recoveryContext).mutationID, bulk.chunks[0].mutationIDs[0])
         // The real writer effect is durable while the authentic begun session
         // still lacks its C08 chunk receipt, matching I01's existing recovery edge.
-        _ = try stack.writer.execute(C08CreateAssetMaterializer().materializeValidated(recoveryContext))
+        _ = try stack.writer.execute(ImportBulkMaterializerRegistrationV1(kind: .createAsset,
+            materializer: C08CreateAssetMaterializer()).prepareFreshRequest(recoveryContext))
         XCTAssertNotNil(try stack.writer.durableReceipt(mutationID: bulk.chunks[0].mutationIDs[0]))
         XCTAssertNil(try stack.lifecycle.durableReceipt(workspaceID: plan.workspaceID, bulkPlan: bulk, chunkIndex: 0))
         XCTAssertEqual(try stack.lifecycle.durableSession(sessionID: begun.sessionID), begun)

@@ -47,6 +47,36 @@ struct ImportBulkMaterializerRegistrationV1: Sendable {
         self.allowedWorkspaceCommandKinds = allowed
     }
 
+    /// Prepare only a fresh request. Recorded replay keeps its original basis.
+    @MainActor
+    func prepareFreshRequest(_ context: ImportCommandMaterializationContextV1) throws -> WorkspaceMutationRequestV1 {
+        guard context.command.kind == kind else { throw ImportBulkFailureV1.unsupportedSchema }
+        let request = try materializer.materializeValidated(context)
+        guard allowedWorkspaceCommandKinds.contains(request.command.kind) else {
+            throw ImportBulkFailureV1.unsupportedSchema
+        }
+        // Specialized materializers own their authenticated scoped basis.
+        guard !(materializer is any ImportSessionTransitionMaterializingV1),
+              case .createFirstSign = request.command else { return request }
+        let base = context.expectedRevision
+        let known = Set(base.entityRevisions.map(\.identity))
+        let missing = try WorkspaceWriterV1.targetIdentities(for: request.command)
+            .filter { !known.contains($0) }
+        guard !missing.isEmpty else { return request }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: base.workspaceID, generationID: base.generationID,
+            writerInstanceID: base.writerInstanceID, workspaceRevision: base.workspaceRevision,
+            entityRevisions: base.entityRevisions + missing.map { .init(identity: $0, revision: 0) })
+        let preparedContext = try ImportCommandMaterializationContextV1(
+            plan: context.plan, rowIdentity: context.rowIdentity, row: context.row,
+            command: context.command, chunkIndex: context.chunkIndex,
+            mutationID: context.mutationID, expectedRevision: expected)
+        let prepared = WorkspaceMutationRequestV1(mutationID: request.mutationID,
+            expectedRevision: expected, command: request.command)
+        try preparedContext.validate(materialized: prepared)
+        return prepared
+    }
+
     private static let aggregateForbiddenWorkspaceCommandKinds: Set<WorkspaceCommandKindV1> = [
         .deleteAsset, .deleteSite, .eraseWorkspace, .restoreWorkspace,
         .archiveEntities, .finalizeCheck, .finalizeCorrection, .recordWork,
@@ -441,10 +471,7 @@ final class ImportBulkCoordinatorV1 {
             mutationID: chunk.mutationIDs[0],
             expectedRevision: expected
         )
-        let request = try registration.materializer.materializeValidated(context)
-        guard registration.allowedWorkspaceCommandKinds.contains(request.command.kind) else {
-            throw ImportBulkFailureV1.unsupportedSchema
-        }
+        let request = try registration.prepareFreshRequest(context)
 
         _ = try writer.execute(request)
         guard try writer.durableReceipt(mutationID: request.mutationID) != nil else {
