@@ -1555,7 +1555,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     }
 
     /// The portable original keeps its receipt-bound revision. A new live
-    /// preview additionally binds this writer's current Asset CAS authority.
+    /// preview binds this writer's Asset and deletion-ledger CAS authority.
     func firstSignReversalPlan(targetMutationID: MutationIDV1) throws -> SemanticReversalPlanV1 {
         try withProvenLease {
             let eligibility = try firstSignReversalEligibility(targetMutationID: targetMutationID)
@@ -1563,12 +1563,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 throw WorkspaceMutationFailureV1.invalidReversal
             }
             let current = try currentRevision()
-            let asset = try WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID)
+            let targets = try [
+                WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID),
+                WorkspaceEntityIdentityV1(kind: .deletionLedgerEntry, id: payload.assetID),
+            ].sorted { $0.stableKey < $1.stableKey }
             let revisions = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
             let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
                 generationID: current.generationID, writerInstanceID: current.writerInstanceID,
                 workspaceRevision: current.revision,
-                entityRevisions: [.init(identity: asset, revision: revisions[asset, default: 0])])
+                entityRevisions: targets.map { .init(identity: $0, revision: revisions[$0, default: 0]) })
             return try payload.semanticPlan(expectedRevision: expected)
         }
     }

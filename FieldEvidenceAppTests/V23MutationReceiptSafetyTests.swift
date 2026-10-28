@@ -2492,8 +2492,6 @@ extension V23MutationReceiptSafetyTests {
         let source = try ReceiptSafetyJournalNodeV1(workspaceID: base.workspaceID, replicaID: .init(rawValue: UUID()))
         let target = try ReceiptSafetyJournalNodeV1(workspaceID: base.workspaceID, replicaID: .init(rawValue: UUID()))
         defer { source.removeFiles(); target.removeFiles() }
-        source.context.insert(try ActorSnapshotRow(base.actor))
-        try source.context.save()
         let preparation = try source.journal.prepareCheckpoint(supplement: .init(contentEntries: [], reversalEligibility: []))
         _ = try source.journal.activatePreparedCheckpoint(preparation)
         _ = try source.writer.commitFieldDraft(base.ordinary(base.initial))

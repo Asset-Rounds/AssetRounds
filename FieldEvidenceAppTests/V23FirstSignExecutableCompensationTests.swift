@@ -128,6 +128,16 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         let s = try h.makeScenario(); _ = try h.writer.execute(s.request)
         let plan = try h.writer.firstSignReversalPlan(targetMutationID: s.mutationID)
         let payload = try XCTUnwrap(plan.firstSignCompensation)
+        let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID)
+        let ledgerIdentity = try WorkspaceEntityIdentityV1(kind: .deletionLedgerEntry, id: payload.assetID)
+        let expectedTargets = [
+            WorkspaceEntityRevisionV1(identity: assetIdentity, revision: 1),
+            WorkspaceEntityRevisionV1(identity: ledgerIdentity, revision: 0),
+        ].sorted { $0.identity.stableKey < $1.identity.stableKey }
+        XCTAssertEqual(plan.expectedRevision.entityRevisions, expectedTargets)
+        XCTAssertEqual(plan.expectedRevision.workspaceID, h.identity.workspaceID)
+        XCTAssertEqual(plan.expectedRevision.generationID, h.generationID)
+        XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 0)
         XCTAssertEqual(plan.expectedRevision.workspaceRevision, try h.writer.currentRevision().revision)
         XCTAssertEqual(plan.expectedRevision.writerInstanceID, try h.writer.currentRevision().writerInstanceID)
         _ = try h.writer.execute(.updateSiteTimeZone(.init(siteID: payload.siteID,
@@ -138,19 +148,52 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
             command: try payload.compensatingCommand())
         let counts = try h.rowCounts(in: h.context)
         XCTAssertThrowsError(try h.writer.executeSemanticReversal(stale, targetMutationID: s.mutationID,
-            plan: plan, compensatingMutationIDs: [id]))
+            plan: plan, compensatingMutationIDs: [id])) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
         XCTAssertEqual(try h.rowCounts(in: h.context), counts)
         XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 0)
         let refreshed = try h.writer.firstSignReversalPlan(targetMutationID: s.mutationID)
         XCTAssertEqual(refreshed.planDigest, plan.planDigest)
         XCTAssertEqual(refreshed.firstSignCompensation, plan.firstSignCompensation)
         XCTAssertNotEqual(refreshed.expectedRevision.workspaceRevision, plan.expectedRevision.workspaceRevision)
+        XCTAssertEqual(refreshed.expectedRevision.entityRevisions, expectedTargets)
+        // Missing or invented ledger authority must not be normalized at execution.
+        for ledgerRevision in [nil, UInt64(1)] {
+            let entries = [WorkspaceEntityRevisionV1(identity: assetIdentity, revision: 1)]
+                + (ledgerRevision.map { [WorkspaceEntityRevisionV1(identity: ledgerIdentity, revision: $0)] } ?? [])
+            let hostileExpected = try WorkspaceExpectedRevisionV1(
+                workspaceID: refreshed.expectedRevision.workspaceID,
+                generationID: refreshed.expectedRevision.generationID,
+                writerInstanceID: refreshed.expectedRevision.writerInstanceID,
+                workspaceRevision: refreshed.expectedRevision.workspaceRevision,
+                entityRevisions: entries)
+            let hostileID = try MutationIDV1(rawValue: UUID())
+            let hostile = WorkspaceMutationRequestV1(mutationID: hostileID,
+                expectedRevision: hostileExpected, command: try payload.compensatingCommand())
+            XCTAssertThrowsError(try h.writer.executeSemanticReversal(hostile,
+                targetMutationID: s.mutationID,
+                plan: payload.semanticPlan(expectedRevision: hostileExpected),
+                compensatingMutationIDs: [hostileID])) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1,
+                    ledgerRevision == nil ? .invalidCommand : .staleEntityRevision(ledgerIdentity))
+            }
+            XCTAssertEqual(try h.rowCounts(in: h.context), counts)
+            XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 0)
+            XCTAssertNil(try h.store.receipt(mutationID: hostileID))
+            XCTAssertFalse(h.context.hasChanges)
+        }
         let current = WorkspaceMutationRequestV1(mutationID: id, expectedRevision: refreshed.expectedRevision,
             command: try payload.compensatingCommand())
         _ = try h.writer.executeSemanticReversal(current, targetMutationID: s.mutationID,
             plan: refreshed, compensatingMutationIDs: [id])
         XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<Asset>()), 0)
         XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 1)
+        let receipt = try XCTUnwrap(h.store.receipt(mutationID: id))
+        XCTAssertEqual(receipt.expectedRevision.entityRevisions, expectedTargets)
+        XCTAssertEqual(try receipt.postImages.map { try $0.identity }, expectedTargets.map(\.identity))
+        XCTAssertEqual(receipt.postImages.map(\.revision), [2, 1])
+        try h.store.validateAll()
         XCTAssertFalse(h.context.hasChanges)
     }
 
@@ -174,7 +217,7 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         let draftBytes = try XCTUnwrap(h.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).first).canonicalData
         XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID))
         let reversalID = try MutationIDV1(rawValue: UUID())
-        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: reversalID)
+        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: reversalID, requireEligiblePreview: false)
         XCTAssertThrowsError(try h.writer.executeSemanticReversal(request, targetMutationID: s.mutationID,
             plan: payload.semanticPlan(expectedRevision: request.expectedRevision),
             compensatingMutationIDs: [reversalID]))
@@ -273,7 +316,8 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
             let placements = Dictionary(uniqueKeysWithValues:
                 try h.context.fetch(FetchDescriptor<AssetPlacementEventRow>()).map { ($0.id, $0.canonicalData) })
             let reversalID = try MutationIDV1(rawValue: UUID())
-            let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: reversalID)
+            let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: reversalID,
+                requireEligiblePreview: !includesCompensatedAsset)
             if includesCompensatedAsset {
                 XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID)) {
                     XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReversal)
@@ -326,7 +370,7 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         let before = try h.rowCounts(in: h.context)
         XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID))
         let id = try MutationIDV1(rawValue: UUID())
-        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id)
+        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id, requireEligiblePreview: false)
         XCTAssertThrowsError(try h.writer.executeSemanticReversal(request, targetMutationID: s.mutationID,
             plan: payload.semanticPlan(expectedRevision: request.expectedRevision),
             compensatingMutationIDs: [id]))
@@ -435,7 +479,7 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
             let before = try h.rowCounts(in: h.context)
             XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID))
             let id = try MutationIDV1(rawValue: UUID())
-            let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id)
+            let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id, requireEligiblePreview: false)
             XCTAssertThrowsError(try h.writer.executeSemanticReversal(request, targetMutationID: s.mutationID,
                 plan: payload.semanticPlan(expectedRevision: request.expectedRevision), compensatingMutationIDs: [id]))
             XCTAssertEqual(try h.rowCounts(in: h.context), before)
@@ -474,9 +518,8 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
     func testUnrelatedCalendarAndEvidenceAudienceMetadataRemainExactThroughCompensation() throws {
         let h = try harness(); defer { h.removeFiles() }
         let s = try h.makeScenario(); _ = try h.writer.execute(s.request)
-        let metadata = try independentMetadata(workspaceID: h.identity.workspaceID)
-        h.context.insert(metadata.calendar); h.context.insert(metadata.visibility)
-        try h.context.save()
+        let metadata = try independentMetadata(in: h)
+        try h.store.validateAll()
         let retained = (metadata.calendar.canonicalData, metadata.visibility.canonicalData)
         XCTAssertEqual(try metadata.calendar.value().workspaceID, h.identity.workspaceID)
         XCTAssertEqual(try metadata.visibility.value().workspaceID, h.identity.workspaceID)
@@ -495,7 +538,8 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         XCTAssertEqual(metadata.visibility.canonicalData, retained.1)
         _ = try metadata.calendar.value(); _ = try metadata.visibility.value()
         XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 1)
-        XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2)
+        // Original first sign + calendar + visibility + compensation are four real commits.
+        XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 4)
         try h.store.validateAll()
         XCTAssertFalse(h.context.hasChanges)
     }
@@ -505,8 +549,13 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         let h = try harness(); defer { h.removeFiles() }
         let s = try h.makeScenario(); _ = try h.writer.execute(s.request)
         let payload = try XCTUnwrap(h.store.reversalBasis(mutationID: s.mutationID)?.firstSignCompensation)
-        let metadata = try independentMetadata(workspaceID: h.identity.workspaceID)
-        h.context.insert(metadata.calendar); h.context.insert(metadata.visibility)
+        let metadata = try independentMetadata(in: h)
+        try h.store.validateAll()
+        let healthyPreview = try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID)
+        XCTAssertEqual(healthyPreview.eligibility, .eligible)
+        XCTAssertEqual(healthyPreview.portablePlan?.firstSignCompensation, payload)
+        // The original first sign and two independent metadata writes are genuine commits.
+        XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 3)
         let instant = Date(timeIntervalSince1970: 1_800_000_000)
         let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: h.identity.workspaceID,
             displayName: "C117 dependency recorder")
@@ -521,15 +570,31 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
             userObserved: UserObservedEvidenceContextV1(condition: .unknown, observationNoteCode: "C117_CONTEXT"),
             derivedSolar: nil, controlExpectation: nil, predecessor: nil, revision: 1,
             mutationID: MutationIDV1(rawValue: UUID()), recordedBy: snapshot, recordedAt: instant.addingTimeInterval(1))
-        let dependencyRow = try EvidenceContextRow(dependency); h.context.insert(dependencyRow)
-        try h.context.save()
+        _ = try h.writer.execute(.applyEvidenceContext(.appendContext(value: dependency, predecessor: nil)),
+            mutationID: dependency.mutationID)
+        let contextID = dependency.contextID
+        let dependencyRows = try h.context.fetch(FetchDescriptor<EvidenceContextRow>(
+            predicate: #Predicate { $0.contextID == contextID }))
+        XCTAssertEqual(dependencyRows.count, 1)
+        let dependencyRow = try XCTUnwrap(dependencyRows.first)
+        XCTAssertEqual(try dependencyRow.value(), dependency)
+        XCTAssertEqual(dependencyRow.canonicalData, try EvidenceContextCanonicalCodecV1.encode(dependency))
+        XCTAssertNotNil(try h.store.receipt(mutationID: dependency.mutationID))
+        // The typed dependency adds exactly one journalled commit, not an out-of-writer row.
+        XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 4)
+        try h.store.validateAll()
         let retained = (metadata.calendar.canonicalData, metadata.visibility.canonicalData, dependencyRow.canonicalData)
         let before = try h.rowCounts(in: h.context)
-        XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID))
+        XCTAssertThrowsError(try h.writer.firstSignReversalEligibility(targetMutationID: s.mutationID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReversal)
+        }
         let id = try MutationIDV1(rawValue: UUID())
-        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id)
+        let request = try reversalRequest(writer: h.writer, payload: payload, mutationID: id, requireEligiblePreview: false)
+        try h.store.validateAll()
         XCTAssertThrowsError(try h.writer.executeSemanticReversal(request, targetMutationID: s.mutationID,
-            plan: payload.semanticPlan(expectedRevision: request.expectedRevision), compensatingMutationIDs: [id]))
+            plan: payload.semanticPlan(expectedRevision: request.expectedRevision), compensatingMutationIDs: [id])) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidReversal)
+        }
         XCTAssertEqual(try h.rowCounts(in: h.context), before)
         XCTAssertEqual(metadata.calendar.canonicalData, retained.0)
         XCTAssertEqual(metadata.visibility.canonicalData, retained.1)
@@ -537,12 +602,14 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         XCTAssertEqual(try dependencyRow.value().assetID, payload.assetID)
         XCTAssertEqual(try h.context.fetchCount(FetchDescriptor<DeletionLedgerRow>()), 0)
         XCTAssertNil(try h.store.receipt(mutationID: id))
+        try h.store.validateAll()
         XCTAssertFalse(h.context.hasChanges)
     }
 
     @MainActor
-    private func independentMetadata(workspaceID: WorkspaceID) throws
+    private func independentMetadata(in h: FirstSignCompensationHarness) throws
         -> (calendar: ExceptionCalendarReleaseRow, visibility: EvidenceVisibilityRow) {
+        let workspaceID = h.identity.workspaceID
         let instant = Date(timeIntervalSince1970: 1_700_000_010.125)
         let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspaceID,
             displayName: "C117 calendar author")
@@ -551,13 +618,39 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
         let range = ScheduleLocalDateRangeV1(startsOn: try ScheduleLocalDateV1("2026-01-01"),
             endsOn: try ScheduleLocalDateV1("2026-12-31"))
         let calendar = try ExceptionCalendarReleaseV1(workspaceID: workspaceID, calendarID: UUID(),
-            releaseID: UUID(), name: "Independent calendar", ianaTimeZoneIdentifier: "UTC",
+            releaseID: UUID(), name: "Independent calendar", ianaTimeZoneIdentifier: "America/New_York",
             effectiveRange: range, baseIncludedWeekdays: [.monday, .tuesday, .wednesday, .thursday, .friday],
             revision: 1, mutationID: MutationIDV1(rawValue: UUID()), authoredBy: snapshot, authoredAt: instant)
         let visibility = try EvidenceVisibilityV1(visibilityID: UUID(), workspaceID: workspaceID,
             sensitivity: .routine, allowedAudiences: [.internalReview, .customerReport], effectiveAt: instant,
             mutationID: MutationIDV1(rawValue: UUID()))
-        return (try ExceptionCalendarReleaseRow(calendar), try EvidenceVisibilityRow(visibility))
+        let calendarMutation = try ScheduleMutationV1(workspaceID: workspaceID,
+            mutationID: calendar.mutationID, payload: .appendExceptionCalendarRelease(calendar, predecessor: nil))
+        _ = try h.writer.execute(.applySchedule(calendarMutation), mutationID: calendar.mutationID)
+        let visibilityMutation = try EvidenceAssuranceMutationV1(workspaceID: workspaceID,
+            expectedRevision: 0, mutationID: visibility.mutationID, postImage: .appendVisibility(visibility))
+        _ = try h.writer.execute(.applyEvidenceAssurance(visibilityMutation), mutationID: visibility.mutationID)
+
+        // Assert the actual writer-created rows, not detached model instances.
+        let releaseID = calendar.releaseID
+        let calendarRows = try h.context.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>(
+            predicate: #Predicate { $0.releaseID == releaseID }))
+        let visibilityID = visibility.visibilityID
+        let visibilityRows = try h.context.fetch(FetchDescriptor<EvidenceVisibilityRow>(
+            predicate: #Predicate { $0.visibilityID == visibilityID }))
+        XCTAssertEqual(calendarRows.count, 1)
+        XCTAssertEqual(visibilityRows.count, 1)
+        let calendarRow = try XCTUnwrap(calendarRows.first)
+        let visibilityRow = try XCTUnwrap(visibilityRows.first)
+        XCTAssertEqual(try calendarRow.value(), calendar)
+        XCTAssertEqual(try visibilityRow.value(), visibility)
+        XCTAssertEqual(calendarRow.canonicalData, try ScheduleCanonicalCodecV1.data(calendar))
+        XCTAssertEqual(visibilityRow.canonicalData, try EvidenceAssuranceCanonicalCodecV1.encode(visibility))
+        XCTAssertNotNil(try h.store.receipt(mutationID: calendar.mutationID))
+        XCTAssertNotNil(try h.store.receipt(mutationID: visibility.mutationID))
+        try h.store.validateAll()
+        XCTAssertFalse(h.context.hasChanges)
+        return (calendarRow, visibilityRow)
     }
 
     @MainActor
@@ -573,13 +666,24 @@ final class V23FirstSignExecutableCompensationTests: XCTestCase {
 
     @MainActor
     private func reversalRequest(writer: WorkspaceWriterV1, payload: FirstSignCompensationV1,
-                                 mutationID: MutationIDV1) throws -> WorkspaceMutationRequestV1 {
+                                 mutationID: MutationIDV1,
+                                 requireEligiblePreview: Bool = true) throws -> WorkspaceMutationRequestV1 {
+        if requireEligiblePreview {
+            let plan = try writer.firstSignReversalPlan(targetMutationID: payload.targetMutationID)
+            XCTAssertEqual(plan.firstSignCompensation, payload)
+            return .init(mutationID: mutationID, expectedRevision: plan.expectedRevision,
+                         command: try payload.compensatingCommand())
+        }
+        // Hostile fixtures must reach the execution refusal, not fail during preview.
         let current = try writer.currentRevision()
-        let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID)
+        let targets = try [
+            WorkspaceEntityIdentityV1(kind: .asset, id: payload.assetID),
+            WorkspaceEntityIdentityV1(kind: .deletionLedgerEntry, id: payload.assetID),
+        ].sorted { $0.stableKey < $1.stableKey }
         let values = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
         let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID, generationID: current.generationID,
             writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision,
-            entityRevisions: [.init(identity: identity, revision: values[identity, default: 0])])
+            entityRevisions: targets.map { .init(identity: $0, revision: values[$0, default: 0]) })
         return .init(mutationID: mutationID, expectedRevision: expected, command: try payload.compensatingCommand())
     }
 }

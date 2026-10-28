@@ -1,3 +1,34 @@
+# Current verification due — verified corrections proposal, October 28, 2026
+
+Current checkpoint: worktrees/firstsign-journal-checkpoint-20261028 on published23467a6a52539b9d1299ccd7083778bb2007585d. Exact three-path functional carrier d8743a8f9a67f1eb0d4ddae52ca23f19b09cbee63d772efd5c836cc4f777fac5/23943B;38 pins match compile27. This author adds only the four coordination documents, with full preservation in recovery/firstsign-journal-checkpoint-20261028/docs-author. No execution is selected here.
+
+## Closed at exact local scope
+
+- CAS/imported source reviews and final valid-zone/real-journal fixture review are adopted under recovery/compensation-actor-corrections-20261028 and recovery/dot-firstsign-metadata-journal-fixture-20261028.
+- Compile25/tests35=13PASS/2metadataFAIL:12 other FirstSign+imported representative passed. Compile26/tests36=1PASS/1FAIL. Both DATA adoptions retain their actual source, failures and limits.
+- Compile27=0errors/299.782s; tests37=2PASS/0FAIL/0skip/8.435s. Complete independent Astra/high DATA is now adopted in recovery/compile27-tests37-data-20261028/ROOT_ADOPTION.json (report SHA256f8ceaee1510cf17cfcd569ddee25d76eeaa5d06701ce7a48616f29b19f290d62). Both full positive compensation and strengthened healthy-before-dependency/no-effect oracles passed. Compile27/tests37 jobs are closed; warnings and no during-method resource observations remain.
+- Prior12+imported successes retain tests35 source/Products and reviewed body-only applicability. They were not reexecuted on compile27; no single-source14-method/class/full-suite PASS or unique historical cause is claimed.
+
+The3823-method/48-partition census is unchanged: Scripts/v23-coverage-partitions.json SHA256fa0b862a90b3c2b92ee19e7d396ff136385a6b5d9e81ed6b8ca99999c4864557. Final high source review10e8599a243bb7df566f35a9c2b83b7b6a52c8db463e8d724655b616ce38a130 preserves three current-reader prior scopes (P02-C02, C44 and coverage) plus CI07 applicability. CI07 remains720 successes/3 optional-baseline skips/0 failures or errors at its original source:399 native-CI+45 selection+276 dispatcher successes, with3 dispatcher skips. These are reviewed unchanged-input/declaration bridges, not new execution or rebinding; existing resource-sample limitations remain. See recovery/compensation-actor-corrections-20261028/ROOT_TOOLING_ADOPTION.json and the final journal-fixture source adoption.
+
+## Still due; Root owns execution and publication
+
+1. Review this exact functional+four-document candidate, bind final afterimages, then perform any explicit owned-path Git/publication with truthful actual commit/tree. Component source and DATA approval is not final candidate approval. No automatic second sweep follows publication.
+2. Continue existing hosted original40764773857 under its unchanged source, question, sole collection, retention and review controls. Collect complete actual results and independent DATA before claiming current coverage. Choose any later full DEVELOPMENT sweep only at meaningful stabilization, with its real candidate and ordinary admission; do not relabel this existing run for the correction.
+3. Triage actual current failed/interrupted/unstarted methods without broad family inference, erasing old failures or weakening tests/guards. Full current3823/48 feedback remains required. Keep prior source-specific passes and all historical failures/HOLDs/partials/NO_CAPTURE records at their exact scopes.
+4. Cold-entry diagnostics remain separate and excluded from this checkpoint; actual execution/results are recorded under separate bound diagnostic attempts. Root selected compile28 on the separately reviewed23467 diagnostic source on October28 at17:31:51 EDT (21:31:51 UTC); no completed result is claimed as of that selection. The interpretation map is an aid, not a gate or another prerequisite; no blanket fix is inferred. Cold persistence/restore, ownership/cancellation and broader unresolved obligations in the retained ledger remain due.
+5. Complete cold shared-build qualification and all five same-head phase gates: full units, qualified UI, independent integration review, genuine owner visual review and main fast-forward/exact-main verification. Owner-review checklist preparation is not human approval. Preserve full V23/S10 scope, existing physical/minimum-runtime limits, privacy sign-off and owner-only release actions.
+
+Root's last provider query, October 28 at 17:26 EDT (21:26 UTC), records existing run40764773857 on published23467: shared producer123086427859 SUCCESS, S02/S43 in_progress, S44/S01/S42 queued, overall queued/nonterminal. This is a dated Root observation, not a fresh query or a consumer outcome. The run stays fixed to23467; it does not execute this uncommitted correction. No second sweep is selected here. Root chooses any subsequent full DEVELOPMENT sweep only at meaningful stabilization; current full3823/48 feedback and its complete collection/review remain due. Historical87ae's269 failures are not current totals.
+
+All five Phase 1 same-head gates remain OPEN (0/5); SourceReady=false; releaseReady=false; accepted exceptions EMPTY. Main remains b1d04ae5e684aa9c6807af655089efa1df8a7ed6. Full V23 incorporating accepted S10 remains one app, one project/scheme and one writer/store/renderer, with S10 look/brand preserved. Phase 1 is the four-tab platform/shell; unfinished features remain hidden behind V23PhaseGateV1. Physical/minimum-runtime limits remain deferred at their existing scope and release-blocking. No product scope, privacy obligation, owner review or gate is waived.
+
+## Preserved historical records
+
+Everything below is the exact prior file, retained verbatim. Older headings saying “current”, pending-publication states, census counts and run states are dated history; the current checkpoint summary above supersedes only their status wording. No unique historical record, failure, HOLD or consumed attempt is removed.
+
+---
+
 # Current import CAS verification due — 2026-10-28
 
 Published predecessor69481aeb3319df322bbbc11cf11277f21ad4b74c remains an INCOMPLETE DEVELOPMENT checkpoint (publication receipt in recovery/current31-checkpoint-application-20261028). Proposed worktree is worktrees/import-cas-checkpoint-20261028. Its three functional paths are ImportBulkCoordinatorV1.swift, V9_72ImportBulkEngineTests.swift and Scripts/v23-coverage-partitions.json:22504-byte delta SHA2560eae5dea1a05f9ceb9d37c19e45aefedec18fb33c1dcab8b3694884875700a93 from69481. All33 tested source pins match compile21/tests30 composition7aa73f35de1a459084de9e1b19113d328231391efec44e4b40e713d93340f477. Final exact source/records review and prospective commit/tree/publication remain PENDING.
