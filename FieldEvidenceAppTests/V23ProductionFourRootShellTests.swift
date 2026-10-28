@@ -41,7 +41,8 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
     @MainActor
     func makeReadyReport(
         in fixture: V23ProductionMyDayPresentationHarness,
-        label: String = "ready"
+        label: String = "ready",
+        observedAt: Date = Date(timeIntervalSince1970: 1_800_500_000)
     ) async throws -> (reportID: UUID, assetID: UUID) {
         let access = try XCTUnwrap(fixture.presentation.renderAccess)
         let workflow = try access.withRead {
@@ -69,7 +70,7 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
             isTimeZoneConfirmed: true,
             afterDarkAccepted: true,
             safePositionAccepted: true,
-            observedAt: Date(timeIntervalSince1970: 1_800_500_000)
+            observedAt: observedAt
         )
         let result = try await workflow.checkRunner.finalize(
             assetID: sign.assetID,
@@ -77,8 +78,8 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
                 reasonKey: "required_view_obstructed",
                 note: nil
             ),
-            completedAt: Date(timeIntervalSince1970: 1_800_500_010),
-            snapshotCreatedAt: Date(timeIntervalSince1970: 1_800_500_011),
+            completedAt: observedAt.addingTimeInterval(10),
+            snapshotCreatedAt: observedAt.addingTimeInterval(11),
             sourceApp: SourceAppSnapshotV1(
                 build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0",
                 version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"

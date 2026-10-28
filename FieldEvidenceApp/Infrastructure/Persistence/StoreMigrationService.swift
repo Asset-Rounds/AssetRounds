@@ -4,6 +4,26 @@ import Foundation
 /// Closed diagnostic vocabulary only. No Error descriptions, associated values,
 /// names, paths, bytes or owner identities enter this output.
 private enum C25TargetClosedErrorDiagnosticV1 {
+    fileprivate enum OriginalWriterEntryPredicate: String {
+        case preparationUnused = "allocation.preparation-unused"
+        case acquisitionUnused = "allocation.acquisition-unused"
+        case restoreUnused = "allocation.restore-unused"
+        case open = "allocation.open"
+        case unsealed = "allocation.unsealed"
+        case tokenAbsent = "allocation.token-absent"
+        case handleAbsent = "allocation.handle-absent"
+    }
+    fileprivate static func originalWriterEntry(_ accepted: Bool,
+        predicate: OriginalWriterEntryPredicate) -> Bool {
+        let diagnosticSavedErrno = errno
+        defer { errno = diagnosticSavedErrno }
+        if !accepted {
+            emit(owner: "original-writer",
+                stage: "acquire-entry.refused." + predicate.rawValue,
+                error: GenerationLeaseRegistryFailureV1.uncertainOwner)
+        }
+        return accepted
+    }
     static func category(_ error: any Error) -> String {
         if let value = error as? ScratchDataLeaseStoreFailureV1 {
             switch value {
@@ -27,7 +47,19 @@ private enum C25TargetClosedErrorDiagnosticV1 {
             case .canonicalDecodingFailed: return "migration.canonicalDecodingFailed"
             case .digestMismatch: return "migration.digestMismatch"
             case .injectedFault(_): return "migration.injectedFault"
-            case .maintenanceRequired(_): return "migration.maintenanceRequired"
+            case .maintenanceRequired(let reason):
+                switch reason {
+                case .futureVersion: return "migration.maintenanceRequired.futureVersion"
+                case .invalidJournal: return "migration.maintenanceRequired.invalidJournal"
+                case .invalidPointer: return "migration.maintenanceRequired.invalidPointer"
+                case .sourceUnavailable: return "migration.maintenanceRequired.sourceUnavailable"
+                case .sourceMismatch: return "migration.maintenanceRequired.sourceMismatch"
+                case .targetUnavailable: return "migration.maintenanceRequired.targetUnavailable"
+                case .targetMismatch: return "migration.maintenanceRequired.targetMismatch"
+                case .protectedDataUnavailable: return "migration.maintenanceRequired.protectedDataUnavailable"
+                case .insufficientStorage: return "migration.maintenanceRequired.insufficientStorage"
+                case .forwardFixRequired: return "migration.maintenanceRequired.forwardFixRequired"
+                }
             }
         }
         if let value = error as? StoreGenerationFailure {
@@ -16305,7 +16337,8 @@ final class StoreMigrationJournalStoreV1 {
         )
     }
 
-    private func requireEraseManifest(_ data: Data, pointer: CurrentPointerEnvelopeV1) throws {
+    @discardableResult
+    private func requireEraseManifest(_ data: Data, pointer: CurrentPointerEnvelopeV1) throws -> StoreGenerationManifestV1 {
         let digest: String
         let schema: Int
         switch pointer {
@@ -16324,6 +16357,7 @@ final class StoreMigrationJournalStoreV1 {
               StoreMigrationCanonicalJSONV1.sha256(data) == digest else {
             throw StoreMigrationFailure.digestMismatch
         }
+        return manifest
     }
 
     private func openEraseDataDirectory() throws -> (descriptor: Int32, identity: Identity)? {
@@ -17380,7 +17414,7 @@ final class StoreMigrationJournalStoreV1 {
             let bytes = try observe(file, parent: dataDescriptor, name: StoreMigrationJournalStoreV1.eraseManifestName,
                 url: store.applicationSupportURL.appendingPathComponent("FieldEvidenceData/" + StoreMigrationJournalStoreV1.eraseManifestName),
                 kind: .journal, allowRenameMetadata: true)
-            try store.requireEraseManifest(bytes, pointer: pointerValue)
+            let manifest = try store.requireEraseManifest(bytes, pointer: pointerValue)
             var named = stat()
             if Darwin.fstatat(store.applicationSupportDescriptor, StoreMigrationJournalStoreV1.operationsName,
                 &named, AT_SYMLINK_NOFOLLOW) == 0 {
@@ -17407,7 +17441,7 @@ final class StoreMigrationJournalStoreV1 {
             } else { guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity } }
             try requireSupportAndData()
             try retirement.requireManifestNamespaceRetirementOwnership(exclusion: exclusion, attempt: self)
-            return try StoreGenerationManifestV1.decodeCanonical(from: bytes)
+            return manifest
         }
         func requireCurrentManifest(binding expected: EraseRetirementBindingV1,
             exclusion expectedExclusion: EraseRetirementExclusionV1) throws -> StoreGenerationManifestV1 {
@@ -30495,16 +30529,33 @@ final class GenerationWriterAllocationAttemptV1 {
         oldWriter: GenerationLeaseHandleV1
     ) throws -> GenerationLeaseHandleV1 {
         try requireNotCompletedStartupOrigin()
-        guard !preparationAcquisitionStarted, !acquisitionStarted,
-              !restoreAcquisitionStarted, !closed, !sealedForRetirement,
-              token == nil, handle == nil else {
 #if DEBUG
+        guard C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  !preparationAcquisitionStarted, predicate: .preparationUnused),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  !acquisitionStarted, predicate: .acquisitionUnused),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  !restoreAcquisitionStarted, predicate: .restoreUnused),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  !closed, predicate: .open),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  !sealedForRetirement, predicate: .unsealed),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  token == nil, predicate: .tokenAbsent),
+              C25TargetClosedErrorDiagnosticV1.originalWriterEntry(
+                  handle == nil, predicate: .handleAbsent) else {
             C25TargetClosedErrorDiagnosticV1.emit(owner: "original-writer",
                 stage: "acquire-entry",
                 error: GenerationLeaseRegistryFailureV1.uncertainOwner)
-#endif
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#else
+        guard !preparationAcquisitionStarted, !acquisitionStarted,
+              !restoreAcquisitionStarted, !closed, !sealedForRetirement,
+              token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+#endif
         try expected.requirePreparationWriterAllocation(self,
             registry: registry)
         preparationAcquisitionStarted = true

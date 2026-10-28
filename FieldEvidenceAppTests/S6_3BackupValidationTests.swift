@@ -334,6 +334,38 @@ final class S6_3BackupValidationTests: XCTestCase {
     private let fileManager = FileManager.default
 
     @MainActor
+    func testRawArchivePublicationCleansOwnedStagingOnSuccessAndPostPublicationFailure() async throws {
+        let harness = try await makeHarness("raw-publication-cleanup", stopAfterWorkDraft: true)
+        var successfulPublicationReached = false
+        let archive = try await exportCurrentArchive(harness, name: "raw-success") { archive in
+            successfulPublicationReached = true
+            let extraction = try StreamingArchiveService(pathProfile: .backupV5).extract(archive,
+                to: harness.supportURL.appendingPathComponent("raw-success-members", isDirectory: true))
+            XCTAssertTrue(extraction.index.entries.contains { $0.path == BackupRawDataWireV1.rawPath })
+        }
+        XCTAssertTrue(successfulPublicationReached)
+        XCTAssertTrue(try StreamingArchiveService.hasFormatMagic(at: archive))
+
+        var failingPublicationReached = false
+        do {
+            _ = try await exportCurrentArchive(harness, name: "raw-failure") { archive in
+                failingPublicationReached = true
+                let extraction = try StreamingArchiveService(pathProfile: .backupV5).extract(archive,
+                    to: harness.supportURL.appendingPathComponent("raw-failure-members", isDirectory: true))
+                XCTAssertTrue(extraction.index.entries.contains { $0.path == BackupRawDataWireV1.rawPath })
+                throw BackupExportServiceError.cancelled
+            }
+            XCTFail("Injected post-publication failure must be returned")
+        } catch {
+            XCTAssertEqual(error as? BackupExportServiceError, .cancelled)
+        }
+        XCTAssertTrue(failingPublicationReached)
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath:
+            harness.supportURL.appendingPathComponent("raw-failure", isDirectory: true).path), [])
+        XCTAssertTrue(try StreamingArchiveService.hasFormatMagic(at: archive))
+    }
+
+    @MainActor
     func testGoldenMixedPackageStagesValidatesAndRecomputesSummary() async throws {
         let draftHarness = try await makeHarness(
             "active-work-draft",
@@ -1253,7 +1285,8 @@ private extension S6_3BackupValidationTests {
     }
 
     @MainActor
-    func exportCurrentArchive(_ harness: Harness, name: String) async throws -> URL {
+    func exportCurrentArchive(_ harness: Harness, name: String,
+        afterPublication: (@MainActor (URL) throws -> Void)? = nil) async throws -> URL {
         try assertFixtureLayout(ownedRoot: harness.lifetime.ownedRoot,
             support: harness.supportURL, phase: "before-startup-\(name)")
         let suite = "S6_3BackupValidationTests.access.\(UUID().uuidString)"
@@ -1297,9 +1330,25 @@ private extension S6_3BackupValidationTests {
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
                 now: { Date(timeIntervalSince1970: 1_786_708_800) },
                 makeUUID: { self.uuid(99) }, appVersion: { "4.0" }, appBuild: { "42" })
+            let staging = try StoreGenerationFactory.backupImportStagingDirectory(
+                containing: coordinator.generationRootURL)
+            let stagingBefore = try fileManager.contentsOfDirectory(atPath: staging.path).sorted()
             let preview = try access.withRead { try service.prepare() }
-            let archive = try await service.export(previewID: preview.id, to: destination,
-                contentAccess: access)
+            service.afterArchivePublicationForTesting = {
+                // This seam runs only after real publication and staging cleanup.
+                XCTAssertEqual(try self.fileManager.contentsOfDirectory(atPath: staging.path).sorted(),
+                    stagingBefore)
+                try afterPublication?(destination.appendingPathComponent("AssetRounds.fieldrecordbackup"))
+            }
+            let archive: URL
+            do {
+                archive = try await service.export(previewID: preview.id, to: destination,
+                    contentAccess: access)
+            } catch {
+                XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: staging.path).sorted(), stagingBefore)
+                throw error
+            }
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: staging.path).sorted(), stagingBefore)
             harness.lifetime.exporterDrained = await presentation.terminateAndDrainForTesting()
             guard harness.lifetime.exporterDrained else {
                 XCTFail("S6_3 backup owner did not drain; fixture retained")
@@ -1484,7 +1533,12 @@ private extension S6_3BackupValidationTests {
             case "pdf": mime = "application/pdf"
             case "json": mime = "application/json"
             case "bin":
-                // Independent closed raw-photo role, not the production MIME accessor.
+                // Independent exact envelope-5 raw-record role, not the production MIME accessor.
+                if path == "records-data.bin" {
+                    mime = "application/octet-stream"
+                    break
+                }
+                // All other binary members retain the closed raw-photo role.
                 let parts = path.split(separator: "/").map(String.init)
                 guard parts.count == 3, parts[0] == "draft-staging",
                       let child = UUID(uuidString: parts[1]), child.uuidString.lowercased() == parts[1],

@@ -205,8 +205,33 @@ struct V23ProductionMyDayPresentationHarness {
             withIntermediateDirectories: true)
         let router = StartupRouter(applicationSupportURL: support)
 #if DEBUG
+        if name == "sig1-journey-cancel" {
+            router.originalOpenFixedDiagnosticsForTesting = true
+        }
         if name == "round-publication-revocation" {
             router.originalOpenFixedDiagnosticsForTesting = true
+            var didReportStartupFailure = false
+            router.startupFailureDiagnosticForTesting = { diagnostic in
+                guard !didReportStartupFailure else { return }
+                didReportStartupFailure = true
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                print("V23 production-startup first-failure \(diagnostic)")
+            }
+        }
+        if name == "sig1-journey-revoked" {
+            let coldOpen = router.recordOriginalOpenFailureForTesting()
+            var didReportStartupFailure = false
+            router.startupFailureDiagnosticForTesting = { diagnostic in
+                guard !didReportStartupFailure else { return }
+                didReportStartupFailure = true
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                let attribution = coldOpen.takeFailureSummary() ?? "coldOpenStage=already-reported"
+                print("V23 production-startup first-failure \(diagnostic) \(attribution)")
+            }
+        }
+        if name == "sig1-subject-unavailable" {
             var didReportStartupFailure = false
             router.startupFailureDiagnosticForTesting = { diagnostic in
                 guard !didReportStartupFailure else { return }
@@ -236,6 +261,28 @@ struct V23ProductionMyDayPresentationHarness {
             startupRouter: router,
             sessionFactory: { session }
         )
+#if DEBUG
+        var lastPublicationBoundary = "none"
+        if name == "sig1-subject-unavailable" {
+            presentation.eraseRecoveryDiagnosticForTesting = { diagnostic in
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                switch diagnostic {
+                case "phase=publish.begin category=none": lastPublicationBoundary = "begin"
+                case "phase=publish.restore-pending category=none": lastPublicationBoundary = "restore-pending"
+                case "phase=publish.router-not-ready-first category=none": lastPublicationBoundary = "router-not-ready-first"
+                case "phase=publish.router-not-ready-final category=none": lastPublicationBoundary = "router-not-ready-final"
+                case "phase=publish.action-ineligible category=none": lastPublicationBoundary = "action-ineligible"
+                case "phase=publish.ready category=none": lastPublicationBoundary = "ready"
+                case "phase=publish.catch category=app-access": lastPublicationBoundary = "catch.app-access"
+                case "phase=publish.catch category=erase-service": lastPublicationBoundary = "catch.erase-service"
+                case "phase=publish.catch category=file-policy": lastPublicationBoundary = "catch.file-policy"
+                case "phase=publish.catch category=other": lastPublicationBoundary = "catch.other"
+                default: break
+                }
+            }
+        }
+#endif
         XCTAssertNil(presentation.myDayAccess)
         let published = testCase.expectation(
             description: "Production startup publishes My Day access"
@@ -248,6 +295,41 @@ struct V23ProductionMyDayPresentationHarness {
         observation.cancel()
         logUnpublishedStartup(presentation, router: router, phase: "after-publication-wait", startedAt: startedAt)
         XCTAssertTrue(presentation.permitsContentPresentation)
+#if DEBUG
+        if name == "sig1-subject-unavailable", !presentation.permitsContentPresentation {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            let routeCategory: String
+            switch router.route {
+            case .checking: routeCategory = "checking"
+            case .awaitingIndependentValidation: routeCategory = "awaiting-independent-validation"
+            case .ready: routeCategory = "ready"
+            case .eraseCleanupPending: routeCategory = "erase-cleanup-pending"
+            case .maintenance: routeCategory = "maintenance"
+            }
+            let accessCategory: String
+            switch presentation.accessState {
+            case .none: accessCategory = "none"
+            case .some(.disabled): accessCategory = "disabled"
+            case .some(.locked): accessCategory = "locked"
+            case .some(.authenticating): accessCategory = "authenticating"
+            case .some(.unlockedForeground): accessCategory = "unlocked-foreground"
+            case .some(.interruptedLocked): accessCategory = "interrupted-locked"
+            case .some(.configurationUnknownLocked): accessCategory = "configuration-unknown-locked"
+            }
+            let accessFailureCategory: String
+            if let accessFailure = router.lastStartupAccessFailure {
+                switch accessFailure {
+                case is AppAccessContractFailureV1: accessFailureCategory = "app-access-contract"
+                case is AppAccessContentReadFailureV1: accessFailureCategory = "content-read"
+                case is ProtectedFilePolicyError: accessFailureCategory = "file-policy"
+                case is StartupMaintenanceReason: accessFailureCategory = "startup-maintenance"
+                default: accessFailureCategory = "other"
+                }
+            } else { accessFailureCategory = "none" }
+            print("V23 production-startup selected-unpublished route=\(routeCategory) access=\(accessCategory) accessFailure=\(accessFailureCategory) publicationBoundary=\(lastPublicationBoundary)")
+        }
+#endif
         guard case .ready(let coordinator, let diagnostics, _) = router.route else {
             throw AppAccessContractFailureV1.configurationUnknown
         }

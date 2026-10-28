@@ -2800,15 +2800,17 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
    'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
-  '    private static func preIntentFailureCaseForTesting(_ error: Error) -> String {',
-  ('@MainActor\nfinal class EraseAllService {',),
-  1,
-  1311,
-  '23b5bb3fc080ee07232e5fc782616890a37625df5a6bbe50b2ee673ede48bf8f',
-  ('if DEBUG',),
-  (),
-  ('case .uncertainOwner: return "registry.uncertain-owner"',),
-  ('Closed typed pre-intent failure labels',)),
+ '    private static func preIntentFailureCaseForTesting(_ error: Error) -> String {',
+ ('@MainActor\nfinal class EraseAllService {',),
+ 1,
+ 1511,
+ '5b133c1afdf5f68a60db135b8dd3bee6e449d4354dd98f05d48f06fc1ac40a9c',
+ ('if DEBUG',),
+ (),
+ ('case .uncertainOwner: return "registry.uncertain-owner"',
+  'case StoreGenerationFailure.dataPointerInvalid: return "generation.data-pointer-invalid"',
+  'case StoreGenerationFailure.dataGenerationMissing: return "generation.data-generation-missing"'),
+ ('Closed typed pre-intent failure labels',)),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
   '    static func reportPreIntentRefusalForTesting(\n'
   '        site: PreIntentRefusalSiteForTesting, error: Error\n'
@@ -2872,59 +2874,63 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
    'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
-  '    private func erase(\n'
-  '        confirmation: String,\n'
-  '        coordinator: StoreSessionCoordinator,\n'
-  '        diagnosticsStore: DiagnosticsStore,\n'
-  '        activate: @escaping @MainActor (StoreGenerationSession) async -> Void,\n'
-  '        operation: EraseRouterOperationV1,\n'
-  '        lifecycleRoute: EraseAllLifecycleRouteV1\n'
-  '    ) async throws -> EraseAllOutcome {',
-  ('@MainActor\nfinal class EraseAllService {',),
-  1,
-  44725,
-  'bf804dd02f53ce9dae46ade5f1a9921f2002a97b9e03bd130ddd3d1ed73661d2',
-  (),
-  (('optionalTry', 8722, ('if DEBUG',)),
-   ('optionalTry', 12683, ('if DEBUG',)),
-   ('print', 37591, ('if DEBUG',))),
-  ('guard !originalEraseFrameActive, !postRetiredServiceAbandoned,',
-   'throw EraseAllServiceError.invalidAuthority',
-   'guard confirmation == Self.requiredConfirmation else {',
-   'throw EraseAllServiceError.invalidConfirmation',
-   'guard !coordinator.modelContext.hasChanges else {',
-   'throw EraseAllServiceError.contextHasChanges',
-   'guard sceneNavigationStatePort == nil,',
-   'guard let physicalOwner = discovery',
-   'guard discoveryAfterActorHop == discoveryBeforeFirstAwait else {',
-   'guard !reportedFirstSourceStage else { return }',
-   'guard let originalSourceTreeForStages else {',
-   'guard observed == originalSourceTreeForStages else {',
-   '} catch {',
-   'guard newGenerationID != eraseID,',
-   'traceErasePhase("authority.failure.line.\\(#line)"); throw EraseAllServiceError.invalidAuthority',
-   'guard let originalC05TransientWitness else {',
-   'guard try await operation.requireOriginalC05ObservationFence(',
-   'throw originalFailure',
-   'guard try store.load() == nil,',
-   'throw EraseAllServiceError.recoveryRequired',
-   'guard afterParentRemoval.directories.isEmpty,',
-   'guard try sourceLedgerFactory',
-   'guard created.ledgerProof == expectedEmptyLedger,',
-   'guard EraseIntentCodecV1.valid(intent) else {',
-   'guard let intentStore else {',
-   'guard coordinator.generationID == session.generationID,',
-   'guard expected != nil else {',
-   'guard let originalDiscovery = privateSystemDiscoveryIndex',
-   'else { throw EraseAllServiceError.invalidAuthority }',
-   'print("V23_ERASE_PREINTENT_REFUSAL_V1 site=service.pre-intent-catch '
-   'last-fixed-phase=\\(eraseFixedPhaseForTesting) actual-throw-site=unattributed '
-   'case=\\(Self.preIntentFailureCaseForTesting(error))")',
-   'guard let frozenIntent,',
-   'guard preparation == frozenPreparation',
-   'throw error'),
-  ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
-   'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
+ '    private func erase(\n'
+ '        confirmation: String,\n'
+ '        coordinator: StoreSessionCoordinator,\n'
+ '        diagnosticsStore: DiagnosticsStore,\n'
+ '        activate: @escaping @MainActor (StoreGenerationSession) async -> Void,\n'
+ '        operation: EraseRouterOperationV1,\n'
+ '        lifecycleRoute: EraseAllLifecycleRouteV1\n'
+ '    ) async throws -> EraseAllOutcome {',
+ ('@MainActor\nfinal class EraseAllService {',),
+ 1,
+ 45033,
+ '6160da915d961615382a0b7af55f02413b1d4b0aaf827b18f315f4efcb243827',
+ (),
+ (('optionalTry', 8722, ('if DEBUG',)),
+  ('optionalTry', 12683, ('if DEBUG',)),
+  ('print', 37899, ('if DEBUG',))),
+ ('guard !originalEraseFrameActive, !postRetiredServiceAbandoned,',
+  'throw EraseAllServiceError.invalidAuthority',
+  'guard confirmation == Self.requiredConfirmation else {',
+  'throw EraseAllServiceError.invalidConfirmation',
+  'guard !coordinator.modelContext.hasChanges else {',
+  'throw EraseAllServiceError.contextHasChanges',
+  'guard sceneNavigationStatePort == nil,',
+  'guard let physicalOwner = discovery',
+  'guard discoveryAfterActorHop == discoveryBeforeFirstAwait else {',
+  'guard !reportedFirstSourceStage else { return }',
+  'guard let originalSourceTreeForStages else {',
+  'guard observed == originalSourceTreeForStages else {',
+  '} catch {',
+  'guard newGenerationID != eraseID,',
+  'traceErasePhase("authority.failure.line.\\(#line)"); throw EraseAllServiceError.invalidAuthority',
+  'guard let originalC05TransientWitness else {',
+  'guard try await operation.requireOriginalC05ObservationFence(',
+  'throw originalFailure',
+  'guard try store.load() == nil,',
+  'throw EraseAllServiceError.recoveryRequired',
+  'guard afterParentRemoval.directories.isEmpty,',
+  'guard try sourceLedgerFactory',
+  'guard created.ledgerProof == expectedEmptyLedger,',
+  'guard EraseIntentCodecV1.valid(intent) else {',
+  'guard let intentStore else {',
+  'guard coordinator.generationID == session.generationID,',
+  'guard expected != nil else {',
+  'guard let originalDiscovery = privateSystemDiscoveryIndex',
+  'else { throw EraseAllServiceError.invalidAuthority }',
+  'print("V23_ERASE_PREINTENT_REFUSAL_V1 site=service.pre-intent-catch '
+  'last-fixed-phase=\\(eraseFixedPhaseForTesting) actual-throw-site=unattributed '
+  'case=\\(Self.preIntentFailureCaseForTesting(error))")',
+  'guard let frozenIntent,',
+  'guard preparation == frozenPreparation',
+  'throw error',
+  'let emptyGenerationDiagnostic = eraseEmptyGenerationPhaseDiagnostic',
+  'emptyGenerationDiagnostic?("prepare.empty-target.route-retained")',
+  'emptyGenerationDiagnostic?("prepare.empty-target.route-ordinary")',
+  'diagnosticPhase: emptyGenerationDiagnostic'),
+ ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
+  'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
   '    func validateOriginalRecoverySourceAcrossAdmission(\n'
   '        coordinator: StoreSessionCoordinator,\n'
@@ -3008,73 +3014,81 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
   ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
    'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
-  '    func advance() async throws -> Bool {',
-  ('@MainActor\nfinal class EraseCleanupAfterRetirementV1 {',),
-  1,
-  16891,
-  '84ee74e7a60a11ee31cce368f145a37c88a4b9a9746669daa3cd941931db3056',
-  (),
-  (('print', 569, ('if DEBUG',)),
-   ('print', 888, ('if DEBUG',)),
-   ('print', 1092, ('if DEBUG',)),
-   ('print', 1848, ('if DEBUG',)),
-   ('print', 2193, ('if DEBUG',)),
-   ('print', 2279, ('if DEBUG',)),
-   ('print', 2746, ('if DEBUG',)),
-   ('print', 3669, ('if DEBUG',)),
-   ('print', 4685, ('if DEBUG',)),
-   ('print', 5316, ('if DEBUG',)),
-   ('print', 5452, ('if DEBUG',)),
-   ('print', 5663, ('if DEBUG',)),
-   ('print', 5959, ('if DEBUG',)),
-   ('print', 8816, ('if DEBUG',)),
-   ('print', 9514, ('if DEBUG',)),
-   ('print', 9846, ('if DEBUG',)),
-   ('print', 10046, ('if DEBUG',)),
-   ('print', 10786, ('if DEBUG',)),
-   ('print', 12718, ('if DEBUG',)),
-   ('print', 13219, ('if DEBUG',)),
-   ('print', 13798, ('if DEBUG',)),
-   ('print', 14363, ('if DEBUG',)),
-   ('print', 14987, ('if DEBUG',)),
-   ('print', 15733, ('if DEBUG',)),
-   ('print', 16325, ('if DEBUG',)),
-   ('print', 16540, ('if DEBUG',))),
-  ('guard !running, let retirement else { throw EraseAllServiceError.invalidAuthority }',
-   'guard phase != .closeUncertain else { throw EraseAllServiceError.invalidAuthority }',
-   'guard phase != .abandonmentPending, phase != .abandoned,',
-   'throw EraseAllServiceError.invalidAuthority',
-   'guard let actual = try await retirement.validateAndAdvance(factory: factory,',
-   'authority: authority, targetReader: targetReader, manifestScope: manifestScope) else { return false }',
-   'guard let proof, retirement.ownsProof(proof) else { throw EraseAllServiceError.invalidAuthority }',
-   '} catch {',
-   'phase = .closeUncertain',
-   'throw error',
-   'guard try factory.currentGenerationIDForEraseRetirement(authority: authority,',
-   'guard retired == intent.generationIDsToDelete || retired.isEmpty else {',
-   'guard actual.isSubset(of: allowed), actual.contains(intent.newGenerationID.uuidString.lowercased()) else '
-   '{',
-   'guard actual == [intent.newGenerationID.uuidString.lowercased()] else {',
-   'guard Set(try authority.installedGenerationNames()) == [intent.newGenerationID.uuidString.lowercased()] '
-   'else {',
-   'guard try factory.retiredGenerationIDsForEraseRetirement(',
-   'if authority.eraseRetirementTerminalCloseAttempted {',
-   'guard terminalAuthorityClose?.matches(proof: proof,',
-   'guard try notificationControl.loadControl() == nil,',
-   'throw EraseAllServiceError.recoveryRequired',
-   'if closeStarted { phase = .closeUncertain }',
-   'guard let originalNotificationTerminalClose else {',
-   'guard case .current(let ledger) = try await ratingStore.load(), ledger.attempts.isEmpty,',
-   'result.receipt.stateSHA256 == ledger.stateSHA256 else { throw EraseAllServiceError.invalidAuthority }',
-   'guard zero.schemaVersion == DeviceOperationalSupportStoreSchemaV2.version,',
-   'zero.counters == .zero, zero.health.failures.isEmpty else { throw EraseAllServiceError.invalidAuthority '
-   '}',
-   'guard feedback.state == .empty, feedback.draft == nil, !feedback.safeCopyAvailable else {',
-   'guard await diagnosticsStore.isExactlyZero() else { throw EraseAllServiceError.invalidAuthority }',
-   'guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }',
-   'guard reservation.subject == binding.subject else { throw EraseAllServiceError.invalidAuthority }'),
-  ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
-   'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
+ '    func advance() async throws -> Bool {',
+ ('@MainActor\nfinal class EraseCleanupAfterRetirementV1 {',),
+ 1,
+ 18841,
+ '3bdc41243d43b009691daef05077ffeb8655401e5786228d03874df7eaf08b01',
+ (),
+ (('print', 569, ('if DEBUG',)),
+  ('print', 888, ('if DEBUG',)),
+  ('print', 1092, ('if DEBUG',)),
+  ('print', 1848, ('if DEBUG',)),
+  ('print', 2193, ('if DEBUG',)),
+  ('print', 2279, ('if DEBUG',)),
+  ('print', 2746, ('if DEBUG',)),
+  ('print', 3669, ('if DEBUG',)),
+  ('print', 4685, ('if DEBUG',)),
+  ('print', 5316, ('if DEBUG',)),
+  ('print', 5452, ('if DEBUG',)),
+  ('print', 5663, ('if DEBUG',)),
+  ('print', 5959, ('if DEBUG',)),
+  ('print', 8816, ('if DEBUG',)),
+  ('print', 9514, ('if DEBUG',)),
+  ('print', 9846, ('if DEBUG',)),
+  ('print', 10046, ('if DEBUG',)),
+  ('print', 10786, ('if DEBUG',)),
+  ('print', 12718, ('if DEBUG',)),
+  ('print', 13219, ('if DEBUG',)),
+  ('print', 13798, ('if DEBUG',)),
+  ('print', 14000, ('if DEBUG',)),
+  ('print', 14291, ('if DEBUG',)),
+  ('print', 14627, ('if DEBUG',)),
+  ('print', 14935, ('if DEBUG',)),
+  ('print', 15178, ('if DEBUG',)),
+  ('print', 15499, ('if DEBUG',)),
+  ('print', 15746, ('if DEBUG',)),
+  ('print', 16158, ('if DEBUG',)),
+  ('print', 16313, ('if DEBUG',)),
+  ('print', 16937, ('if DEBUG',)),
+  ('print', 17683, ('if DEBUG',)),
+  ('print', 18275, ('if DEBUG',)),
+  ('print', 18490, ('if DEBUG',))),
+ ('guard !running, let retirement else { throw EraseAllServiceError.invalidAuthority }',
+  'guard phase != .closeUncertain else { throw EraseAllServiceError.invalidAuthority }',
+  'guard phase != .abandonmentPending, phase != .abandoned,',
+  'throw EraseAllServiceError.invalidAuthority',
+  'guard let actual = try await retirement.validateAndAdvance(factory: factory,',
+  'authority: authority, targetReader: targetReader, manifestScope: manifestScope) else { return false }',
+  'guard let proof, retirement.ownsProof(proof) else { throw EraseAllServiceError.invalidAuthority }',
+  '} catch {',
+  'phase = .closeUncertain',
+  'throw error',
+  'guard try factory.currentGenerationIDForEraseRetirement(authority: authority,',
+  'guard retired == intent.generationIDsToDelete || retired.isEmpty else {',
+  'guard actual.isSubset(of: allowed), actual.contains(intent.newGenerationID.uuidString.lowercased()) '
+  'else {',
+  'guard actual == [intent.newGenerationID.uuidString.lowercased()] else {',
+  'guard Set(try authority.installedGenerationNames()) == [intent.newGenerationID.uuidString.lowercased()] '
+  'else {',
+  'guard try factory.retiredGenerationIDsForEraseRetirement(',
+  'if authority.eraseRetirementTerminalCloseAttempted {',
+  'guard terminalAuthorityClose?.matches(proof: proof,',
+  'guard try notificationControl.loadControl() == nil,',
+  'throw EraseAllServiceError.recoveryRequired',
+  'if closeStarted { phase = .closeUncertain }',
+  'guard let originalNotificationTerminalClose else {',
+  'guard case .current(let ledger) = try await ratingStore.load(), ledger.attempts.isEmpty,',
+  'result.receipt.stateSHA256 == ledger.stateSHA256 else { throw EraseAllServiceError.invalidAuthority }',
+  'guard zero.schemaVersion == DeviceOperationalSupportStoreSchemaV2.version,',
+  'zero.counters == .zero, zero.health.failures.isEmpty else { throw EraseAllServiceError.invalidAuthority '
+  '}',
+  'guard feedback.state == .empty, feedback.draft == nil, !feedback.safeCopyAvailable else {',
+  'guard await diagnosticsStore.isExactlyZero() else { throw EraseAllServiceError.invalidAuthority }',
+  'guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }',
+  'guard reservation.subject == binding.subject else { throw EraseAllServiceError.invalidAuthority }'),
+ ('Original checked owner retained; DEBUG classification is diagnostic only; abort observations cannot '
+  'authorize; cleanup poisons/rethrows; fixed enum/literal stages.',)),
  ('FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift',
   '    private static func invalidInventoryFailure(line: UInt = #line) -> '
   'CurrentSyncClassificationCatalogFailureV1 {',
@@ -4094,7 +4108,42 @@ CURRENT_C08_HARDENING_DECLARATIONS = (('FieldEvidenceApp/Infrastructure/Diagnost
  ('C326 V3 reviewed retained original-operation/coordinator overload; complete checked '
   'declaration, mandatory original owner/source-ledger reproof, DEBUG-only fixed refusal reporting '
   'and exact original-error rethrow. Generic recovery overload remains independently pinned and '
-  'unchanged.',)))
+  'unchanged.',)),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ '    private var eraseEmptyGenerationPhaseDiagnostic: (@MainActor (String) -> Void)? {',
+ ('@MainActor\nfinal class EraseAllService {',),
+ 1,
+ 1643,
+ 'c39f0ee2afc6416f04e7d14c673b36be7732f6c4d051f7a7baf409e5ee4a7de6',
+ (),
+ (('print', 1538, ('if DEBUG',)),),
+ ('guard erasePhaseDiagnosticForTesting != nil else { return nil }',
+  'let savedErrno = errno',
+  'defer { errno = savedErrno }',
+  'guard fixed.hasPrefix("prepare.empty-target."),',
+  'Self.eraseFixedPhaseLabelsForTesting.contains(fixed) else { return }',
+  'traceErasePhase(fixed)',
+  'print("V23_ERASE_EMPTY_CREATION_PHASE_V1 stage=\\(fixed)")',
+  '#else\n        return nil\n#endif'),
+ ('Opt-in fixed-label DEBUG output; errno preserved; exact allowlist and sole use separately bound; '
+  'Release nil.',)),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ '    private func traceErasePhase(_ phase: String) {',
+ ('@MainActor\nfinal class EraseAllService {',),
+ 1,
+ 811,
+ 'a2b7bfbef92a9d1027e44c9b2584ffc749aba1c1b24b00c87531d1533ee66dc3',
+ (),
+ (),
+ ('if Self.eraseFixedPhaseLabelsForTesting.contains(phase) {',
+  'eraseFixedPhaseForTesting = phase',
+  'schema2ColdFixedStageForTesting?(phase)',
+  'if eraseFixedPhaseHistoryForTesting.count > 32 {',
+  'eraseFixedPhaseHistoryForTesting.removeFirst()',
+  'guard let diagnostic = erasePhaseDiagnosticForTesting else { return }',
+  'diagnostic(phase)'),
+ ('Unchanged actual trace helper closes the fixed-label field reference and preserves bounded '
+  'history/callback behavior.',)))
 
 CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift',
   'OriginalEraseScratchFirstErrorDiagnosticV1.emit(',
@@ -4409,22 +4458,22 @@ CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/Owned
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 39336,
+ 39644,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 40536,
+ 40844,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 42897,
+ 43205,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting(',
  96,
- 43582,
+ 43890,
  ('if DEBUG',)),
 ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift',
  'OriginalEraseScratchFirstErrorDiagnosticV1.emitNotificationTiming(',
@@ -4515,7 +4564,17 @@ CURRENT_C08_HARDENING_CALLERS = (('FieldEvidenceApp/Infrastructure/Storage/Owned
  'reportPreIntentCallRefusalForTesting(',
  168,
  1603,
- ('if DEBUG',)))
+ ('if DEBUG',)),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseEmptyGenerationPhaseDiagnostic',
+ 169,
+ 16,
+ ()),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseEmptyGenerationPhaseDiagnostic',
+ 96,
+ 23542,
+ ()))
 
 
 CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS = ('emit',
@@ -4537,7 +4596,9 @@ CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS = ('emit',
 'reportExistingLeavesForTesting',
  'reportPreIntentCallRefusalForTesting',
  'reportPreIntentRollbackRefusalForTesting',
-'emitNotificationTiming')
+'emitNotificationTiming',
+ 'eraseEmptyGenerationPhaseDiagnostic',
+ 'eraseFixedPhaseLabelsForTesting')
 
 CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift', 'print', 0, 427, None),
  ('FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift', 'print', 3, 12216, None),
@@ -4785,7 +4846,7 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 58, 139, None),
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 58, 249, None),
  ('FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift', 'print', 61, 1099, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'emit', 96, 38100, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'emit', 96, 38408, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 88, 753, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 88, 1161, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 91, 193, None),
@@ -4793,7 +4854,7 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 94, 369, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 95, 1271, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 95, 2043, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 96, 37591, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 96, 37899, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
   'print',
   None,
@@ -4820,11 +4881,11 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 12718, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 13219, None),
  ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 13798, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14363, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14987, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 15733, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 16325, None),
- ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 16540, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 16313, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 16937, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 17683, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 18275, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 18490, None),
  ('FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift',
   'print',
   102,
@@ -4964,22 +5025,22 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 39336,
+ 39644,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 40536,
+ 40844,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 42897,
+ 43205,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
  'reportPreIntentRollbackRefusalForTesting',
  96,
- 43582,
+ 43890,
  None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 158, 202, None),
 ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 159, 226, None),
@@ -5054,6 +5115,459 @@ CURRENT_C08_HARDENING_REFERENCES = (('FieldEvidenceApp/Infrastructure/Diagnostic
  'reportPreIntentCallRefusalForTesting',
  168,
  1603,
+ None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14000, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14291, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14627, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 14935, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 15178, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 15499, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 15746, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 101, 16158, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift', 'print', 169, 1538, None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseEmptyGenerationPhaseDiagnostic',
+ 169,
+ 16,
+ None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseEmptyGenerationPhaseDiagnostic',
+ 96,
+ 23542,
+ None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseFixedPhaseLabelsForTesting',
+ None,
+ 23,
+ ('    private static let eraseFixedPhaseLabelsForTesting: Set<String> = [\n'
+  '        "cleanup.empty-ledger",\n'
+  '        "cleanup.final-control-removal",\n'
+  '        "cleanup.final-roots-verified",\n'
+  '        "cleanup.generations",\n'
+  '        "cleanup.intent-observation.complete",\n'
+  '        "cleanup.intent-observation.enter",\n'
+  '        "cleanup.manifest.complete",\n'
+  '        "cleanup.manifest.enter",\n'
+  '        "cleanup.notification-control",\n'
+  '        "cleanup.notification-drain",\n'
+  '        "cleanup.prepare.complete",\n'
+  '        "cleanup.prepare.enter",\n'
+  '        "cleanup.binding.enter",\n'
+  '        "cleanup.empty-graph.enter",\n'
+  '        "cleanup.notification.enter",\n'
+  '        "cleanup.notification.complete",\n'
+  '        "original.failure.erase.context-has-changes",\n'
+  '        "original.failure.erase.invalid-authority",\n'
+  '        "original.failure.erase.invalid-confirmation",\n'
+  '        "original.failure.erase.recovery-required",\n'
+  '        "original.failure.erase.injected-failure",\n'
+  '        "cleanup.notification.constructor.enter",\n'
+  '        "cleanup.notification.constructor.complete",\n'
+  '        "cleanup.notification.root-policy.enter",\n'
+  '        "cleanup.notification.root-policy.complete",\n'
+  '        "cleanup.notification.publisher.enter",\n'
+  '        "cleanup.notification.publisher.complete",\n'
+  '        "cleanup.notification.before-begin.enter",\n'
+  '        "cleanup.notification.before-begin.complete",\n'
+  '        "cleanup.notification.marker.enter",\n'
+  '        "cleanup.notification.marker.complete",\n'
+  '        "cleanup.notification.after-begin.enter",\n'
+  '        "cleanup.notification.after-begin.complete",\n'
+  '        "cleanup.notification.drain.enter",\n'
+  '        "cleanup.notification.drain.complete",\n'
+  '        "cleanup.notification.storage-before.enter",\n'
+  '        "cleanup.notification.storage-before.complete",\n'
+  '        "cleanup.notification.mapping.enter",\n'
+  '        "cleanup.notification.mapping.complete",\n'
+  '        "cleanup.notification.journal.enter",\n'
+  '        "cleanup.notification.journal.complete",\n'
+  '        "cleanup.notification.system-remove.enter",\n'
+  '        "cleanup.notification.system-remove.complete",\n'
+  '        "cleanup.notification.storage-after-remove.enter",\n'
+  '        "cleanup.notification.storage-after-remove.complete",\n'
+  '        "cleanup.notification.system-readback.enter",\n'
+  '        "cleanup.notification.system-readback.complete",\n'
+  '        "cleanup.notification.storage-after-readback.enter",\n'
+  '        "cleanup.notification.storage-after-readback.complete",\n'
+  '        "cleanup.notification.owned-settlement.enter",\n'
+  '        "cleanup.notification.owned-settlement.complete",\n'
+  '        "cleanup.notification.record-removal.enter",\n'
+  '        "cleanup.notification.record-removal.complete",\n'
+  '        "cleanup.notification.after-success.enter",\n'
+  '        "cleanup.notification.after-success.complete",\n'
+  '        "original.failure.app-access.invalid-value",\n'
+  '        "original.failure.app-access.invalid-transition",\n'
+  '        "original.failure.app-access.stale-attempt",\n'
+  '        "original.failure.app-access.access-denied",\n'
+  '        "original.failure.app-access.configuration-unknown",\n'
+  '        "original.failure.app-access.ingress-limit-exceeded",\n'
+  '        "original.failure.app-access.ingress-not-found",\n'
+  '        "original.failure.app-access.ingress-already-terminal",\n'
+  '        "original.failure.app-access.notification-reconciliation-required",\n'
+  '        "original.failure.app-access.effect-mismatch",\n'
+  '        "original.search.canonical-binding.enter",\n'
+  '        "original.search.checked-publication.enter",\n'
+  '        "original.search.checked-publication.reproved",\n'
+  '        "original.search.checked-publication.complete",\n'
+  '        "cleanup.scratch-construction.enter",\n'
+  '        "cleanup.original-scratch-loan.enter",\n'
+  '        "cleanup.original-scratch-loan.complete",\n'
+  '        "cleanup.scratch-erase.enter",\n'
+  '        "cleanup.presence",\n'
+  '        "cleanup.session-and-content",\n'
+  '        "cleanup.target-reader.complete",\n'
+  '        "cleanup.target-reader.enter",\n'
+  '        "current.frozen-generation",\n'
+  '        "current.installed-inventory",\n'
+  '        "current.pointer-and-roots",\n'
+  '        "current.retired-generations",\n'
+  '        "empty.identity-policy",\n'
+  '        "empty.ledger",\n'
+  '        "empty.open",\n'
+  '        "prepare.empty-target.route-retained",\n'
+  '        "prepare.empty-target.route-ordinary",\n'
+  '        "prepare.empty-target.pointer-before",\n'
+  '        "prepare.empty-target.installed-create",\n'
+  '        "prepare.empty-target.installed-model",\n'
+  '        "prepare.empty-target.installed-protect",\n'
+  '        "prepare.empty-target.installed-regular",\n'
+  '        "prepare.empty-target.installed-complete",\n'
+  '        "prepare.empty-target.proof-open",\n'
+  '        "prepare.empty-target.open.begin",\n'
+  '        "prepare.empty-target.open.accepted",\n'
+  '        "prepare.empty-target.open.lease",\n'
+  '        "prepare.empty-target.open.pre-protection",\n'
+  '        "prepare.empty-target.open.container",\n'
+  '        "prepare.empty-target.open.marker",\n'
+  '        "prepare.empty-target.open.marker-complete",\n'
+  '        "prepare.empty-target.open.container-or-marker-refused",\n'
+  '        "prepare.empty-target.open.post-protection",\n'
+  '        "prepare.empty-target.journal-clear",\n'
+  '        "prepare.empty-target.ledger-proof",\n'
+  '        "prepare.empty-target.manifest-pointer",\n'
+  '        "prepare.empty-target.manifest-current",\n'
+  '        "prepare.empty-target.manifest-marker",\n'
+  '        "prepare.empty-target.manifest-store",\n'
+  '        "prepare.empty-target.manifest-existing-check",\n'
+  '        "prepare.empty-target.manifest-semantic",\n'
+  '        "prepare.empty-target.manifest-protect",\n'
+  '        "prepare.empty-target.manifest-frozen",\n'
+  '        "prepare.empty-target.manifest-files",\n'
+  '        "prepare.empty-target.manifest-write",\n'
+  '        "prepare.empty-target.manifest-pointer-return",\n'
+  '        "prepare.empty-target.pointer-envelope",\n'
+  '        "prepare.empty-target.pointer-final-check",\n'
+  '        "prepare.empty-target.pointer-identity",\n'
+  '        "empty.policy.AccessibleDocumentEraseAllPolicyV1",\n'
+  '        "empty.policy.AssetLocatorEraseAllPolicyV1",\n'
+  '        "empty.policy.AssetServiceReliabilityEraseAllPolicyV1",\n'
+  '        "empty.policy.C04ShopReportProfileEraseAllPolicyV1",\n'
+  '        "empty.policy.C05RoundSessionEraseAllPolicyV1",\n'
+  '        "empty.policy.C57MyDayEraseAllPolicyV1",\n'
+  '        "empty.policy.ClientCapabilityEraseAllPolicyV1",\n'
+  '        "empty.policy.EntityIdentityResolutionEraseAllPolicyV1",\n'
+  '        "empty.policy.EvidenceAssuranceEraseAllPolicyV1",\n'
+  '        "empty.policy.EvidenceMetadataEraseAllPolicyV1",\n'
+  '        "empty.policy.EvidenceQualityEraseAllPolicyV1",\n'
+  '        "empty.policy.FastSurveyInboxEraseAllPolicyV1",\n'
+  '        "empty.policy.FieldDraftEraseAllPolicyV1",\n'
+  '        "empty.policy.FieldReferenceEraseAllPolicyV1",\n'
+  '        "empty.policy.InspectionReviewEraseAllPolicyV1",\n'
+  '        "empty.policy.LightingDayInventoryEraseAllPolicyV1",\n'
+  '        "empty.policy.LightingNightWorkflowEraseAllPolicyV1",\n'
+  '        "empty.policy.MeasurementIntegrityEraseAllPolicyV1",\n'
+  '        "empty.policy.PackageEvolutionEraseAllPolicyV1",\n'
+  '        "empty.policy.PlacementPoseEraseAllPolicyV1",\n'
+  '        "empty.policy.PlanEraseAllPolicyV1",\n'
+  '        "empty.policy.PracticeWorkspaceProvenanceEraseAllPolicyV1",\n'
+  '        "empty.policy.PrivacyTransformEraseAllPolicyV1",\n'
+  '        "empty.policy.ReinspectionExceptionEraseAllPolicyV1",\n'
+  '        "empty.policy.ScheduleEraseAllPolicyV1",\n'
+  '        "empty.policy.ServiceRequestEraseAllPolicyV1",\n'
+  '        "empty.policy.SurveyDefinitionEraseAllPolicyV1",\n'
+  '        "empty.policy.SurveySessionEraseAllPolicyV1",\n'
+  '        "empty.policy.WorkPacketEraseAllPolicyV1",\n'
+  '        "empty.rows-and-tree",\n'
+  '        "empty.tree",\n'
+  '        "entry.admit",\n'
+  '        "entry.auxiliary",\n'
+  '        "entry.auxiliary-reverify",\n'
+  '        "entry.current-authority",\n'
+  '        "entry.fresh-identity",\n'
+  '        "entry.frozen-pointer",\n'
+  '        "entry.generation-authority",\n'
+  '        "entry.integration-projections",\n'
+  '        "entry.kernel-mappings",\n'
+  '        "entry.lifecycle-route",\n'
+  '        "entry.package-lifecycle",\n'
+  '        "entry.retired-inventory",\n'
+  '        "entry.revalidate-admission",\n'
+  '        "entry.scene-navigation",\n'
+  '        "entry.source-ledger",\n'
+  '        "frozen.context-and-root",\n'
+  '        "frozen.installed-tree",\n'
+  '        "frozen.inventory-predicate",\n'
+  '        "frozen.label-inventory",\n'
+  '        "frozen.model-fetches",\n'
+  '        "frozen.summary",\n'
+  '        "lifecycle.current-revision",\n'
+  '        "lifecycle.dependencies",\n'
+  '        "lifecycle.query",\n'
+  '        "lifecycle.request",\n'
+  '        "lifecycle.result",\n'
+  '        "prepare.bind",\n'
+  '        "prepare.create",\n'
+  '        "prepare.empty-generation",\n'
+  '        "prepare.empty-generation.factory-returned",\n'
+  '        "prepare.empty-generation.original-bind-returned",\n'
+  '        "prepare.empty-ledger",\n'
+  '        "prepare.intent-store",\n'
+  '        "prepare.revalidate-empty",\n'
+  '        "prepare.validate-empty",\n'
+  '        "prepare.original-aux.capture.begin",\n'
+  '        "prepare.original-aux.capture.complete",\n'
+  '        "prepare.original-aux.physical.begin",\n'
+  '        "prepare.original-aux.physical.complete",\n'
+  '        "prepare.original-aux.seal.begin",\n'
+  '        "prepare.original-aux.seal.complete",\n'
+  '        "prepare.original-aux.publish.begin",\n'
+  '        "prepare.original-aux.publish.complete",\n'
+  '        "prepare.original-aux.bind.begin",\n'
+  '        "prepare.original-aux.bind.complete",\n'
+  '        "prepare.original-aux.activate.begin",\n'
+  '        "prepare.original-aux.activate.complete",\n'
+  '        "original.exclusion.acquired",\n'
+  '        "original.exclusion.post-router",\n'
+  '        "original.exclusion.post-controls",\n'
+  '        "original.exclusion.revalidated",\n'
+  '        "original.aux.capture.enter",\n'
+  '        "original.aux.exclusion-returned",\n'
+  '        "original.aux.first-state-guard-passed",\n'
+  '        "original.aux.source-binding-guard-passed",\n'
+  '        "original.aux.phase-activity-returned",\n'
+  '        "original.aux.first-guard-passed",\n'
+  '        "original.aux.owner-created",\n'
+  '        "original.aux.snapshot-captured",\n'
+  '        "original.normalize.current-observed",\n'
+  '        "original.normalize.current-effect-complete",\n'
+  '        "original.normalize.retired-observed",\n'
+  '        "original.normalize.retired-effect-complete",\n'
+  '        "projection.local-purge.begin",\n'
+  '        "projection.local-purge.end",\n'
+  '        "projection.private-discovery.begin",\n'
+  '        "projection.private-discovery.end",\n'
+  '        "recovery.activated-current",\n'
+  '        "recovery.original.frame-enter",\n'
+  '        "recovery.original.frame-complete",\n'
+  '        "recovery.original.preflight-enter",\n'
+  '        "recovery.original.preflight-complete",\n'
+  '        "recovery.original.first.owner-enter",\n'
+  '        "recovery.original.first.owner-held",\n'
+  '        "recovery.original.first.controls-enter",\n'
+  '        "recovery.original.first.controls-read",\n'
+  '        "recovery.original.first.intent-classified",\n'
+  '        "recovery.original.first.authority-enter",\n'
+  '        "recovery.original.first.authority-held",\n'
+  '        "recovery.original.first.aux-enter",\n'
+  '        "recovery.original.first.aux-owner-retained",\n'
+  '        "recovery.original.first.aux-captured",\n'
+  '        "recovery.original.first.old-enter",\n'
+  '        "recovery.original.first.old-valid",\n'
+  '        "recovery.original.first.target-enter",\n'
+  '        "recovery.original.first.target-valid",\n'
+  '        "recovery.original.first.prior-enter",\n'
+  '        "recovery.original.first.prior-valid",\n'
+  '        "recovery.original.first.namespace-enter",\n'
+  '        "recovery.original.first.namespace-captured",\n'
+  '        "recovery.original.first.aux-reproof-enter",\n'
+  '        "recovery.original.first.aux-reproof-complete",\n'
+  '        "recovery.original.first.close-enter",\n'
+  '        "recovery.original.first.authority-closed",\n'
+  '        "recovery.original.first.closed",\n'
+  '        "recovery.original.first.admit-enter",\n'
+  '        "recovery.original.first.admit-returned",\n'
+  '        "recovery.original.old.owner-pre-enter",\n'
+  '        "recovery.original.old.owner-pre-complete",\n'
+  '        "recovery.original.old.aux-pre-enter",\n'
+  '        "recovery.original.old.aux-pre-complete",\n'
+  '        "recovery.original.old.digest-enter",\n'
+  '        "recovery.original.old.digest-complete",\n'
+  '        "recovery.original.old.external-enter",\n'
+  '        "recovery.original.old.external-complete",\n'
+  '        "recovery.original.old.manifest-enter",\n'
+  '        "recovery.original.old.manifest-complete",\n'
+  '        "recovery.original.old.private-copy-enter",\n'
+  '        "recovery.original.old.private-copy-complete",\n'
+  '        "recovery.original.old.callback-enter",\n'
+  '        "recovery.original.old.validation-enter",\n'
+  '        "recovery.original.old.validation-complete",\n'
+  '        "recovery.original.old.frozen-enter",\n'
+  '        "recovery.original.old.frozen-complete",\n'
+  '        "recovery.original.old.reads-enter",\n'
+  '        "recovery.original.old.reads-complete",\n'
+  '        "recovery.original.old.callback-complete",\n'
+  '        "recovery.original.old.aux-post-enter",\n'
+  '        "recovery.original.old.aux-post-complete",\n'
+  '        "recovery.original.old.owner-post-enter",\n'
+  '        "recovery.original.old.owner-post-complete",\n'
+  '        "recovery.original.old.digest-post-enter",\n'
+  '        "recovery.original.old.digest-post-complete",\n'
+  '        "recovery.original.old.external-post-enter",\n'
+  '        "recovery.original.old.external-post-complete",\n'
+  '        "recovery.original.old.policy-enter",\n'
+  '        "recovery.original.old.policy-complete",\n'
+  '        "recovery.original.old.factory.owner-enter",\n'
+  '        "recovery.original.old.factory.owner-complete",\n'
+  '        "recovery.original.old.factory.files-enter",\n'
+  '        "recovery.original.old.factory.files-complete",\n'
+  '        "recovery.original.old.factory.request-enter",\n'
+  '        "recovery.original.old.factory.request-complete",\n'
+  '        "recovery.original.old.factory.scratch-enter",\n'
+  '        "recovery.original.old.factory.scratch-complete",\n'
+  '        "recovery.original.old.factory.read-enter",\n'
+  '        "recovery.original.old.factory.copy-enter",\n'
+  '        "recovery.original.old.factory.copy-complete",\n'
+  '        "recovery.original.old.factory.input-proofs-enter",\n'
+  '        "recovery.original.old.factory.input-proofs-complete",\n'
+  '        "recovery.original.old.factory.shm-integrity-enter",\n'
+  '        "recovery.original.old.factory.shm-integrity-complete",\n'
+  '        "recovery.original.old.factory.container-enter",\n'
+  '        "recovery.original.old.factory.container-complete",\n'
+  '        "recovery.original.old.factory.callback-enter",\n'
+  '        "recovery.original.old.factory.callback-complete",\n'
+  '        "recovery.original.old.factory.postinput-enter",\n'
+  '        "recovery.original.old.factory.postinput-complete",\n'
+  '        "recovery.original.old.factory.final-owner-enter",\n'
+  '        "recovery.original.old.factory.final-owner-complete",\n'
+  '        "recovery.original.old.factory.final-files-enter",\n'
+  '        "recovery.original.old.factory.final-files-complete",\n'
+  '        "recovery.original.old.scratch.permit-enter",\n'
+  '        "recovery.original.old.scratch.permit-complete",\n'
+  '        "recovery.original.old.scratch.ingress-enter",\n'
+  '        "recovery.original.old.scratch.ingress-complete",\n'
+  '        "recovery.original.old.scratch.store-enter",\n'
+  '        "recovery.original.old.scratch.store-complete",\n'
+  '        "recovery.original.old.scratch.lock-enter",\n'
+  '        "recovery.original.old.scratch.lock-complete",\n'
+  '        "recovery.original.old.scratch.first-cut-enter",\n'
+  '        "recovery.original.old.scratch.first-cut-complete",\n'
+  '        "recovery.original.old.scratch.lease-enter",\n'
+  '        "recovery.original.old.scratch.lease-complete",\n'
+  '        "recovery.original.old.scratch.directory-enter",\n'
+  '        "recovery.original.old.scratch.directory-complete",\n'
+  '        "recovery.original.old.scratch.metadata-enter",\n'
+  '        "recovery.original.old.scratch.metadata-complete",\n'
+  '        "recovery.original.old.scratch.callback-enter",\n'
+  '        "recovery.original.old.scratch.callback-returned",\n'
+  '        "recovery.original.old.scratch.callback-failed",\n'
+  '        "recovery.original.old.scratch.drain-enter",\n'
+  '        "recovery.original.old.scratch.drain-complete",\n'
+  '        "recovery.original.old.scratch.reader-close-enter",\n'
+  '        "recovery.original.old.scratch.reader-close-complete",\n'
+  '        "recovery.original.old.scratch.release-enter",\n'
+  '        "recovery.original.old.scratch.release-complete",\n'
+  '        "recovery.original.old.scratch.final-cut-enter",\n'
+  '        "recovery.original.old.scratch.final-cut-complete",\n'
+  '        "recovery.original.old.scratch.authority-close-enter",\n'
+  '        "recovery.original.old.scratch.authority-close-complete",\n'
+  '        "recovery.original.old.scratch.io-settle-enter",\n'
+  '        "recovery.original.old.scratch.io-settle-complete",\n'
+  '        "recovery.original.old.scratch.final-ingress-enter",\n'
+  '        "recovery.original.old.scratch.final-ingress-complete",\n'
+  '        "recovery.original.old.scratch.receipt-enter",\n'
+  '        "recovery.original.old.scratch.receipt-complete",\n'
+  '        "recovery.original.old.failure.scratch-invalid-root",\n'
+  '        "recovery.original.old.failure.scratch-invalid-lease",\n'
+  '        "recovery.original.old.failure.scratch-lease-collision",\n'
+  '        "recovery.original.old.failure.scratch-lease-expired",\n'
+  '        "recovery.original.old.failure.scratch-size-limit",\n'
+  '        "recovery.original.old.failure.scratch-protected-data",\n'
+  '        "recovery.original.old.failure.scratch-capacity",\n'
+  '        "recovery.original.old.failure.generation-pointer",\n'
+  '        "recovery.original.old.failure.generation-missing",\n'
+  '        "recovery.original.old.failure.registry",\n'
+  '        "recovery.original.old.failure.policy",\n'
+  '        "recovery.original.old.failure.erase",\n'
+  '        "recovery.original.old.failure.other",\n'
+  '        "recovery.admission",\n'
+  '        "recovery.admission-revalidation",\n'
+  '        "recovery.authority",\n'
+  '        "recovery.auxiliary",\n'
+  '        "recovery.cleanup-presence",\n'
+  '        "recovery.intent",\n'
+  '        "recovery.intent-contract",\n'
+  '        "recovery.presence.current",\n'
+  '        "recovery.presence.inventory",\n'
+  '        "recovery.presence.preexisting-retired",\n'
+  '        "recovery.presence.published-empty",\n'
+  '        "recovery.presence.transferred-prior-enter",\n'
+  '        "recovery.presence.retained-source",\n'
+  '        "recovery.retained.acquire.complete",\n'
+  '        "recovery.retained.acquire.enter",\n'
+  '        "recovery.retained.open.complete",\n'
+  '        "recovery.retained.open.enter",\n'
+  '        "recovery.retained.readback.complete",\n'
+  '        "recovery.retained.readback.enter",\n'
+  '        "recovery.retained.validate.complete",\n'
+  '        "recovery.retained.validate.enter",\n'
+  '        "recovery.schema2.store-retained",\n'
+  '        "recovery.schema2.manifest-open",\n'
+  '        "recovery.schema2.target-snapshot",\n'
+  '        "recovery.schema2.operations-captured",\n'
+  '        "recovery.schema2.late-controls-captured",\n'
+  '        "recovery.schema2.registry-census",\n'
+  '        "recovery.schema2.phase-cut",\n'
+  '        "recovery.schema2.source-admission",\n'
+  '        "recovery.schema2.old-valid",\n'
+  '        "recovery.schema2.target-private-valid",\n'
+  '        "recovery.schema2.target-live-session",\n'
+  '        "recovery.schema2.p-forward.enter",\n'
+  '        "recovery.schema2.p-forward.before-cas",\n'
+  '        "recovery.schema2.p-forward.cas-settled",\n'
+  '        "recovery.schema2.p-forward.router-proof",\n'
+  '        "recovery.schema2.p-forward.manifest-projected",\n'
+  '        "recovery.schema2.p-forward.method-complete",\n'
+  '        "recovery.schema2.p-forward.explicit-refusal",\n'
+  '        "recovery.schema2.r-forward.enter",\n'
+  '        "recovery.schema2.r-forward.continuation",\n'
+  '        "recovery.schema2.r-forward.private-reproof",\n'
+  '        "recovery.schema2.r-forward.final-pointer",\n'
+  '        "recovery.schema2.r-forward.live-open",\n'
+  '        "recovery.schema2.r-forward.session-bound",\n'
+  '        "recovery.schema2.r-forward.temp-settled",\n'
+  '        "recovery.schema2.r-forward.entry-complete",\n'
+  '        "recovery.schema2.r-forward.roster-enter",\n'
+  '        "recovery.schema2.r-forward.roster-published",\n'
+  '        "recovery.schema2.r-forward.notification-enter",\n'
+  '        "recovery.schema2.r-forward.notification-controls",\n'
+  '        "recovery.schema2.r-forward.notification-owner",\n'
+  '        "recovery.schema2.r-forward.notification-system",\n'
+  '        "recovery.schema2.r-forward.notification-drained",\n'
+  '        "recovery.schema2.post-generation-seal-complete",\n'
+  '        "recovery.schema2.post-generation-terminal-owner-due",\n'
+  '        "recovery.schema2.post-generation.scratch-enter",\n'
+  '        "recovery.schema2.post-generation.scratch-settled",\n'
+  '        "recovery.schema2.post-generation.target-drained",\n'
+  '        "recovery.schema2.post-generation.reader-retired",\n'
+  '        "recovery.schema2.post-content-auxiliary-owner-due",\n'
+  '        "recovery.support",\n'
+  '        "recovery.targets",\n'
+  '        "retirement.binding.complete",\n'
+  '        "retirement.binding.enter",\n'
+  '        "retirement.detach.complete",\n'
+  '        "retirement.detach.enter",\n'
+  '    ]\n'
+  '    private var interruptedOriginalPreparationFault: EraseAllFailurePoint?',
+  ('@MainActor\nfinal class EraseAllService {',))),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseFixedPhaseLabelsForTesting',
+ 170,
+ 222,
+ None),
+ ('FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift',
+ 'eraseFixedPhaseLabelsForTesting',
+ 169,
+ 1427,
  None))
 
 
@@ -5194,11 +5708,12 @@ def _current_c08_hardening_callers(
         "reportPreIntentCallRefusalForTesting",
         "reportPreIntentRollbackRefusalForTesting",
     
-'emitNotificationTiming')
+'emitNotificationTiming', 'eraseEmptyGenerationPhaseDiagnostic',
+        'eraseFixedPhaseLabelsForTesting')
     require(type(CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS) is tuple and
             CURRENT_C08_HARDENING_PROTECTED_IDENTIFIERS == symbols and
             type(CURRENT_C08_HARDENING_REFERENCES) is tuple and
-            len(CURRENT_C08_HARDENING_REFERENCES) == 151,
+            len(CURRENT_C08_HARDENING_REFERENCES) == 165,
             "current C08 hardening: protected reference policy census differs")
     primary = tuple(path for path in EXISTING_PATHS + NEW_SOURCE_PATHS
                     if path.endswith(".swift"))
@@ -5231,7 +5746,7 @@ def _current_c08_hardening_callers(
             start, end = matches[0], matches[0] + len(literal)
             position = start + offset
             if owners:
-                # The two genuine private fields remain direct members of
+                # The genuine private fields remain direct members of
                 # their actual named types, never a moved extension/property
                 # or a literal containing a purported field declaration.
                 require(_current_c08_code_matches(source, literal, code) == [start] and
@@ -5282,7 +5797,7 @@ def verify_current_source_hardening() -> None:
  '\n'
  '    Scope is the original fourteen whole Swift inputs and all fifteen presence\n'
  '    bindings, plus five exact supporting Source inputs. The 107 optional-try\n'
- '    and 49 print sites have complete declaration/owner/conditional/caller\n'
+ '    and 58 print sites have complete declaration/owner/conditional/caller\n'
  '    bindings; there are no file, DEBUG or callee-name exceptions. Preexisting\n'
  '    non-try stderr emissions were outside the historical output predicate and\n'
  '    remain UNVERIFIED, with no additional exemption or privacy claim here.\n'
@@ -5303,9 +5818,9 @@ def verify_current_source_hardening() -> None:
             len(set(paths + support)) == 20,
             "current C08 hardening: complete supporting-input closure differs")
     require(type(CURRENT_C08_HARDENING_DECLARATIONS) is tuple and
-            len(CURRENT_C08_HARDENING_DECLARATIONS) == 169 and
+            len(CURRENT_C08_HARDENING_DECLARATIONS) == 171 and
             type(CURRENT_C08_HARDENING_CALLERS) is tuple and
-            len(CURRENT_C08_HARDENING_CALLERS) == 84,
+            len(CURRENT_C08_HARDENING_CALLERS) == 86,
             "current C08 hardening: closed declaration/caller policy census differs")
     texts: dict[str, str] = {}
     codes: dict[str, str] = {}
@@ -5403,8 +5918,8 @@ def verify_current_source_hardening() -> None:
     require(sum(len(value) for (relative, kind), value in expected.items()
                 if kind == "optionalTry") == 107 and
             sum(len(value) for (relative, kind), value in expected.items()
-                if kind == "print") == 49,
-            'current C08 hardening: complete current 107/49 event census differs')
+                if kind == "print") == 58,
+            'current C08 hardening: complete current 107/58 event census differs')
     _current_c08_hardening_callers(texts, codes, frames)
 
 

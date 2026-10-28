@@ -349,8 +349,8 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         }
     }
 
-    /// Explicit DEFER_AND_NEXT or KEEP_OPEN_AND_NEXT after a forced flush. The
-    /// parent draft is retained; a lost step acknowledgement resumes the original.
+    /// New DEFER_AND_NEXT or KEEP_OPEN_AND_NEXT actions force a field flush.
+    /// An exact saved action resumes its original step without reopening field edits.
     func advance(_ action: RepetitiveCaptureProgressActionV2, recordedByName: String) async throws
         -> AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2 {
         guard action == .defer || action == .keepOpenAndNext else {
@@ -370,21 +370,25 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         }
         isPerformingAction = true
         defer { isPerformingAction = false }
+        let itemID = source.originalItem.itemID
+        let sourceDraftID = source.sourceCheckpoint.draftID
+        let saved = try access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID)
+        if saved.chain.nodes.last?.step.itemID == itemID,
+           saved.chain.nodes.last?.step.action == action {
+            return try await resumeSavedAdvance(saved, action: action, authorizing: operation)
+        }
         if let editor {
             let proof = try await editor.forceFlushAndReadBack(reason: action == .defer ? .deferItem : .keepOpen)
             try editor.validateForPublication(proof)
         }
         try requireActive()
-        let itemID = source.originalItem.itemID
-        let sourceDraftID = source.sourceCheckpoint.draftID
+        // A new action's flush may have changed the revision across its awaits.
         let read = try access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID)
         guard let tip = read.chain.nodes.last, tip.step.itemID == itemID else {
             throw ScanToWorkFailureV1.stale
         }
         if tip.step.action == action {
-            // The original step was saved; settle or reread it without a new step.
-            return try await access.resumeRepetitiveCaptureProgress(sourceDraftID: sourceDraftID,
-                stepDraftID: tip.checkpoint.draftID, validateIntent: validateIntent)
+            return try await resumeSavedAdvance(read, action: action, authorizing: operation)
         }
         guard tip.step.action == .enter, !tip.isPendingRoundEffect else { throw ScanToWorkFailureV1.stale }
         let readiness = try await access.rebuildReadiness(for: read.chain.currentRound, previous: nil)
@@ -392,6 +396,44 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         let step = try access.prepareRepetitiveCaptureStep(read: read, readiness: readiness, action: action,
             focus: .facts, recordedByName: recordedByName)
         return try await access.executeRepetitiveCaptureStep(step, validateIntent: validateIntent)
+    }
+
+    private func resumeSavedAdvance(_ read: ProductionRepetitiveCaptureReadV2,
+        action: RepetitiveCaptureProgressActionV2,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws
+        -> AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2 {
+        guard let tip = read.chain.nodes.last, tip.step.action == action,
+              tip.step.itemID == source.originalItem.itemID,
+              tip.step.source == source.sourceCheckpoint,
+              tip.step.prior == source.entryProgressCheckpoint else {
+            throw ScanToWorkFailureV1.stale
+        }
+        let savedEditor = editor
+        let savedParent = checkpoint
+        let validateReplay: @MainActor () throws -> Void = {
+            try operation.withAuthorization {
+                try self.requireActive()
+                guard self.editor === savedEditor, self.checkpoint == savedParent,
+                      savedEditor?.hasUnacknowledgedEdits != true,
+                      try self.service.readCurrentDraft(source: self.source) == savedParent else {
+                    throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint
+                }
+                if let savedEditor {
+                    // Refresh observational revision after the saved step. This
+                    // authenticates the same parent without new field-edit authority.
+                    let current = try self.service.readEditableFields(
+                        draftID: savedEditor.acknowledgement.checkpoint.draftID)
+                    guard current.checkpoint == savedParent, current.values == savedEditor.values else {
+                        throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint
+                    }
+                    try self.service.validateForPublication(current)
+                }
+            }
+        }
+        try validateReplay()
+        return try await access.resumeRepetitiveCaptureProgress(
+            sourceDraftID: source.sourceCheckpoint.draftID,
+            stepDraftID: tip.checkpoint.draftID, validateIntent: validateReplay)
     }
 
     /// The actual synchronous navigation effect shares the original operation

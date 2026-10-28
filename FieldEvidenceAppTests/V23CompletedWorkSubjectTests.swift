@@ -229,8 +229,11 @@ final class V23CompletedWorkSubjectTests: V23ProductionFourRootShellTestSupport 
     func testDeletedTamperedMissingAndTypedFamilySubjectsAreUnavailableNotSubstituted() async throws {
         let fixture = try await makeFixture("sig1-subject-unavailable")
         defer { fixture.cleanUp() }
-        let first = try await makeReadyReport(in: fixture, label: "sig1-first")
-        let second = try await makeReadyReport(in: fixture, label: "sig1-second")
+        // Use the deletion service's clock so finalized packets predate deletion.
+        let observedAt = try fixture.coordinator.packageLifecycleDependencies()
+            .clock.now().addingTimeInterval(-60)
+        let first = try await makeReadyReport(in: fixture, label: "sig1-first", observedAt: observedAt)
+        let second = try await makeReadyReport(in: fixture, label: "sig1-second", observedAt: observedAt)
         let workflow = try makeCompletedWorkWorkflow(in: fixture)
         let service = workflow.completedWorkResponses
         let resolver = completedWorkResolver(in: fixture)

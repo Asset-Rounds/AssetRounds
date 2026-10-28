@@ -127,43 +127,106 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
 
     @MainActor
     func testDeferAndKeepOpenRetainParentsAndAdvanceOnce() async throws {
+        func trace(_ phase: StaticString) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            print("V23_ROUND_ADVANCE_PHASE_V1 phase=\(phase)")
+        }
+        trace("fixture.begin")
         let fixture = try await makeFixture("round-item-advance")
+        trace("fixture.end")
         defer { fixture.cleanUp() }
+        trace("seed.begin")
         let seed = try await V23RoundRouteHarness.make(in: fixture, label: "round-item-advance")
+        trace("seed.end")
+        trace("draft-items.begin")
         let context = try await seed.addingDraftItems(2)
+        trace("draft-items.end")
+        trace("round-start.begin")
         let active = try await startActualRound(in: context, recorder: "Advance start")
+        trace("round-start.end")
         let ordered = active.items.sorted { $0.order < $1.order }
+        trace("target.begin")
         let target = try context.target(for: active, mode: .resume)
+        trace("target.end")
+        trace("scene-open.begin")
         try context.work.scene.open(target)
+        trace("scene-open.end")
 
+        trace("first-begin.begin")
         let (state, first) = try await openBegunItem(in: context, itemID: ordered[0].itemID, target: target)
+        trace("first-begin.end")
+        trace("first-checkpoint.begin")
         let firstParent = try XCTUnwrap(first.checkpoint)
+        trace("first-checkpoint.end")
+        trace("first-defer.begin")
         let deferred = try await first.advance(.defer, recordedByName: "Advance recorder")
+        trace("first-defer.end")
         XCTAssertEqual(deferred.progress.chain.nodes.map { $0.step.action }, [.enter, .defer])
         XCTAssertEqual(deferred.progress.chain.nodes.last?.step.navigationItemID, ordered[1].itemID)
         XCTAssertEqual(deferred.progress.chain.currentRound.items.first { $0.itemID == ordered[0].itemID }?.disposition,
                        .deferred)
         // The deferred item's durable parent is retained, not discarded or finalized.
+        trace("first-retained-read.begin")
         let retained = try XCTUnwrap(first.service.readCurrentDraft(source: first.source))
+        trace("first-retained-read.end")
         XCTAssertEqual(retained.draftID, firstParent.draftID)
         XCTAssertEqual(retained.state, .active)
+        let afterDefer = try context.work.store.workspaceWriter.currentRevision()
+        let deferReplay = try await first.advance(.defer, recordedByName: "Advance recorder")
+        XCTAssertEqual(deferReplay.progress.chain, deferred.progress.chain)
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterDefer)
+        XCTAssertEqual(try first.service.readCurrentDraft(source: first.source), retained)
         state.acceptCaptureProgress(deferred)
         XCTAssertNil(state.captureHost)
         XCTAssertEqual(state.session, deferred.progress.chain.currentRound)
         await first.retire()
 
+        trace("second-begin.begin")
         let (_, second) = try await openBegunItem(in: context, itemID: ordered[1].itemID, target: target,
                                                   state: state)
+        trace("second-begin.end")
+        trace("second-keep-open.begin")
         let kept = try await second.advance(.keepOpenAndNext, recordedByName: "Advance recorder")
+        trace("second-keep-open.end")
         let chain = kept.progress.chain
         XCTAssertEqual(chain.nodes.map { $0.step.action }, [.enter, .defer, .enter, .keepOpenAndNext])
         XCTAssertEqual(chain.nodes.last?.step.navigationItemID, ordered[2].itemID)
         XCTAssertEqual(chain.currentRound.items.first { $0.itemID == ordered[1].itemID }?.disposition, .visited)
+        trace("second-retained-read.begin")
         XCTAssertEqual(try second.service.readCurrentDraft(source: second.source)?.state, .active)
+        trace("second-retained-read.end")
         // A repeated request reuses the saved step instead of writing another.
+        trace("revision-before-replay.begin")
         let afterKeep = try context.work.store.workspaceWriter.currentRevision()
+        trace("revision-before-replay.end")
+        trace("keep-open-replay.begin")
         let replay = try await second.advance(.keepOpenAndNext, recordedByName: "Advance recorder")
+        trace("keep-open-replay.end")
         XCTAssertEqual(replay.progress.chain, chain)
+        trace("revision-after-replay.begin")
+        XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterKeep)
+        trace("revision-after-replay.end")
+        // Recovery never treats newer RAM input as already saved or writes it
+        // through the historical ENTRY whose action has already advanced.
+        let savedParent = try second.service.readCurrentDraft(source: second.source)
+        let editor = try XCTUnwrap(second.editor)
+        var changedOutcome = editor.values.outcome
+        changedOutcome.couldNotVerifyNote += "New unsaved input after advance"
+        let unsaved = CheckRunnerEditableItemValuesV1(preflight: editor.values.preflight,
+            outcome: changedOutcome, semanticAnchor: editor.values.semanticAnchor)
+        try second.replaceEditableValues(unsaved)
+        do {
+            _ = try await second.advance(.keepOpenAndNext, recordedByName: "Advance recorder")
+            XCTFail("Saved-action replay must not consume newer unsaved input")
+        } catch {
+            XCTAssertEqual(error as? CheckRunnerItemEditingSessionFailureV1, .changedCheckpoint)
+        }
+        XCTAssertTrue(editor.hasUnacknowledgedEdits)
+        XCTAssertEqual(editor.values, unsaved)
+        XCTAssertEqual(try second.service.readCurrentDraft(source: second.source), savedParent)
+        XCTAssertEqual(try context.access.readRepetitiveCaptureProgress(
+            sourceDraftID: second.source.sourceCheckpoint.draftID).chain, chain)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterKeep)
         state.acceptCaptureProgress(kept)
         XCTAssertEqual(state.session, chain.currentRound)

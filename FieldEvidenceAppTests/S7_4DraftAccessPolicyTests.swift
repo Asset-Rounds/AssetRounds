@@ -46,15 +46,29 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
     @MainActor
     func testPaidAccessCreatesMultipleSignsAcrossExistingAndNewSites() async throws {
         let root = try makeApplicationSupport()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
         let session = try StoreGenerationFactory(applicationSupportURL: root)
             .openOrBootstrapCurrent()
         let diagnostics = DiagnosticsStore(applicationSupportURL: root)
         var access = DraftAccessNormalizedStateV1.neverPaid
-        let coordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let coordinator = try FirstSignCoordinator(
             modelContext: session.modelContext,
             diagnosticsStore: diagnostics,
-            signPack: .illuminatedSignV1,
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile,
             accessState: { access }
         )
 
@@ -94,10 +108,11 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
         let diagnosticsAfterPaidCreation = await diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterPaidCreation.firstSignCreated, 1)
 
-        let reopened = FirstSignCoordinator(
+        let reopened = try FirstSignCoordinator(
             modelContext: session.modelContext,
             diagnosticsStore: diagnostics,
-            signPack: .illuminatedSignV1,
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile,
             accessState: { access }
         )
         XCTAssertEqual(try reopened.loadAll().count, 3)
@@ -107,15 +122,29 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
     @MainActor
     func testDeletionFreesOnlyLiveSlotWhileCountedRootsRemain() async throws {
         let root = try makeApplicationSupport()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
         let session = try StoreGenerationFactory(applicationSupportURL: root)
             .openOrBootstrapCurrent()
         let context = session.modelContext
         let diagnostics = DiagnosticsStore(applicationSupportURL: root)
-        let coordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let coordinator = try FirstSignCoordinator(
             modelContext: context,
             diagnosticsStore: diagnostics,
-            signPack: .illuminatedSignV1,
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile,
             accessState: { .neverPaid }
         )
         let createdAt = Date(timeIntervalSince1970: 1_800_100_000)
@@ -126,7 +155,7 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
             siteLabel: "North Campus",
             signLabel: "Monument Sign"
         ))
-        try deleteSignRows(first, in: context)
+        try await deleteSignRows(first, in: context, dependencies: firstSignDependencies, owner: firstSignOwner)
         let replacement = try await coordinator.create(FirstSignInput(
             siteLabel: "Replacement Site",
             signLabel: "Replacement Sign"
@@ -134,7 +163,7 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
         let diagnosticsAfterReplacement = await diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterReplacement.firstSignCreated, 1)
 
-        try deleteSignRows(replacement, in: context)
+        try await deleteSignRows(replacement, in: context, dependencies: firstSignDependencies, owner: firstSignOwner)
         insertTombstones(1, into: context, createdAt: createdAt.addingTimeInterval(10))
         try context.save()
         do {
@@ -154,15 +183,29 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
     @MainActor
     func testSharedCoordinatorGateBlocksBeforeMutationAndContinuesOnlyExactDraft() async throws {
         let root = try makeApplicationSupport()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
         let session = try StoreGenerationFactory(applicationSupportURL: root)
             .openOrBootstrapCurrent()
         let context = session.modelContext
         let diagnostics = DiagnosticsStore(applicationSupportURL: root)
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
         let sign = try await FirstSignCoordinator(
             modelContext: context,
             diagnosticsStore: diagnostics,
-            signPack: .illuminatedSignV1
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile
         ).create(FirstSignInput(
             siteLabel: "North Campus",
             signLabel: "Monument Sign",
@@ -170,9 +213,10 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
             isTimeZoneConfirmed: true
         ))
         var access = DraftAccessNormalizedStateV1.neverPaid
-        let runner = CheckRunnerCoordinator(
+        let runner = try CheckRunnerCoordinator(
             modelContext: context,
-            signPack: .illuminatedSignV1,
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile,
             draftAccessState: { access }
         )
         let createdAt = Date(timeIntervalSince1970: 1_800_200_000)
@@ -288,8 +332,10 @@ private extension S7_4DraftAccessPolicyTests {
     @MainActor
     func deleteSignRows(
         _ snapshot: FirstSignSnapshot,
-        in context: ModelContext
-    ) throws {
+        in context: ModelContext,
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        owner: StoreSessionCoordinator
+    ) async throws {
         let assets = try context.fetch(FetchDescriptor<Asset>()).filter {
             $0.id == snapshot.assetID
         }
@@ -298,9 +344,15 @@ private extension S7_4DraftAccessPolicyTests {
         }
         XCTAssertEqual(assets.count, 1)
         XCTAssertEqual(sites.count, 1)
-        context.delete(try XCTUnwrap(assets.first))
-        context.delete(try XCTUnwrap(sites.first))
-        try context.save()
+        let asset = try XCTUnwrap(assets.first)
+        let site = try XCTUnwrap(sites.first)
+        let assetID = asset.id
+        let siteID = site.id
+        let deletion = try WholeSignDeletionService(modelContext: context,
+            lifecycleDependencies: dependencies, storeSession: owner)
+        _ = try await deletion.delete(assetID: assetID)
+        let sitePreview = try deletion.previewSiteDeletion(siteID: siteID)
+        _ = try await deletion.deleteSite(preview: sitePreview)
     }
 
     func checkSubmission(

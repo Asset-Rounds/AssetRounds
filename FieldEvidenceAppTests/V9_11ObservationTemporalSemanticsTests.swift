@@ -163,9 +163,27 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             utcOffsetSeconds: temporal.utcOffsetSeconds,
             ianaTimeZoneIdentifier: temporal.ianaTimeZoneIdentifier,
             localTimeDisposition: temporal.localTimeDisposition)
+        var sameProjectionDifferentTime = snapshot
+        let finerRecordedAt = temporal.recordedAtUTC.addingTimeInterval(0.0001)
+        XCTAssertNotEqual(finerRecordedAt, temporal.recordedAtUTC)
+        XCTAssertEqual(CanonicalJSONV1.optionalDate(finerRecordedAt),
+                       CanonicalJSONV1.optionalDate(temporal.recordedAtUTC))
+        let substitutedTemporal = try TemporalContextV1(
+            occurredAtUTC: temporal.occurredAtUTC, recordedAtUTC: finerRecordedAt,
+            localDate: temporal.localDate, localTime: temporal.localTime,
+            utcOffsetSeconds: temporal.utcOffsetSeconds,
+            ianaTimeZoneIdentifier: temporal.ianaTimeZoneIdentifier,
+            localTimeDisposition: temporal.localTimeDisposition)
+        let substitutedBytes = try ObservationAndTimeCodecV1.encode(substitutedTemporal)
+        let decodedSubstitution = try ObservationAndTimeCodecV1.decodeTemporalContext(substitutedBytes)
+        XCTAssertNotEqual(substitutedBytes, temporalData)
+        XCTAssertNotEqual(decodedSubstitution.recordedAtUTC, temporal.recordedAtUTC)
+        XCTAssertEqual(CanonicalJSONV1.optionalDate(decodedSubstitution.recordedAtUTC),
+                       CanonicalJSONV1.optionalDate(temporal.recordedAtUTC))
+        sameProjectionDifferentTime.temporalContext = decodedSubstitution
         var missingPair = snapshot
         missingPair.observationBasis = nil; missingPair.temporalContext = nil
-        for candidate in [differentBasis, differentTime, missingPair] {
+        for candidate in [differentBasis, differentTime, sameProjectionDifferentTime, missingPair] {
             XCTAssertThrowsError(try ReportCorrectionRule().makePlan(
                 source: source(candidate, observation: basisData, time: temporalData), request: request)) {
                 XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
@@ -178,6 +196,76 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             }
         }
         XCTAssertEqual(try ReportSnapshotEncoderV1().encode(snapshot), originalBytes)
+    }
+
+    func testBackupLegacyTemporalProjectionPreservesTypedBytesAndRejectsContradictions() throws {
+        let corpus = try Self.loadCorpus()
+        let golden = try Self.goldenTemporal(corpus)
+        let basisBytes = try ObservationAndTimeCodecV1.encode(
+            Self.basis(kind: .directlyObserved, corpus: corpus))
+        let exactMillisecond = Date(timeIntervalSince1970: 1_768_496_400)
+        XCTAssertEqual(golden.occurredAtUTC, exactMillisecond)
+        let fractional = exactMillisecond.addingTimeInterval(0.0001)
+        let nextMillisecond = exactMillisecond.addingTimeInterval(0.001)
+        XCTAssertNotEqual(fractional, exactMillisecond)
+        XCTAssertEqual(CanonicalJSONV1.optionalDate(fractional),
+                       CanonicalJSONV1.optionalDate(exactMillisecond))
+        XCTAssertNotEqual(CanonicalJSONV1.optionalDate(nextMillisecond),
+                          CanonicalJSONV1.optionalDate(exactMillisecond))
+        let fractionalTemporal = try TemporalContextV1(
+            occurredAtUTC: fractional, recordedAtUTC: golden.recordedAtUTC,
+            localDate: golden.localDate, localTime: golden.localTime,
+            utcOffsetSeconds: golden.utcOffsetSeconds,
+            ianaTimeZoneIdentifier: golden.ianaTimeZoneIdentifier,
+            localTimeDisposition: golden.localTimeDisposition)
+        let absentTemporal = try TemporalContextV1(
+            occurredAtUTC: nil, recordedAtUTC: golden.recordedAtUTC,
+            localDate: golden.localDate, localTime: golden.localTime,
+            utcOffsetSeconds: golden.utcOffsetSeconds,
+            ianaTimeZoneIdentifier: golden.ianaTimeZoneIdentifier,
+            localTimeDisposition: .unknown)
+        let goldenBytes = try ObservationAndTimeCodecV1.encode(golden)
+        let fractionalBytes = try ObservationAndTimeCodecV1.encode(fractionalTemporal)
+        let absentBytes = try ObservationAndTimeCodecV1.encode(absentTemporal)
+        let decodedFractional = try ObservationAndTimeCodecV1.decodeTemporalContext(fractionalBytes)
+        XCTAssertNotEqual(decodedFractional.occurredAtUTC, exactMillisecond)
+        XCTAssertEqual(CanonicalJSONV1.optionalDate(decodedFractional.occurredAtUTC),
+                       CanonicalJSONV1.optionalDate(exactMillisecond))
+
+        let valid: [(name: String, typed: Data, scalar: Date?)] = [
+            ("identical finite", goldenBytes, exactMillisecond),
+            ("fractional scalar same projection", goldenBytes, fractional),
+            ("fractional typed same projection", fractionalBytes, exactMillisecond),
+            ("absent pair", absentBytes, nil)
+        ]
+        for value in valid {
+            let record = Self.backupRecord(basisData: basisBytes, temporalData: value.typed,
+                                          observedAtUTC: value.scalar)
+            let encoded = try BackupCanonicalEncoderV1().encodeRecords(Self.backupRecords(record: record)).data
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)
+            let restored = try XCTUnwrap(decoded.workflowRecords.first)
+            XCTAssertEqual(restored.observationBasisV1Data, basisBytes, value.name)
+            XCTAssertEqual(restored.temporalContextV1Data, value.typed, value.name)
+            XCTAssertEqual(CanonicalJSONV1.optionalDate(restored.observedAtUTC),
+                           CanonicalJSONV1.optionalDate(value.scalar), value.name)
+            XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(decoded).data, encoded, value.name)
+        }
+        let invalid: [(name: String, typed: Data, scalar: Date?)] = [
+            ("present typed absent scalar", goldenBytes, nil),
+            ("absent typed present scalar", absentBytes, exactMillisecond),
+            ("next canonical millisecond", goldenBytes, nextMillisecond),
+            ("NaN scalar", goldenBytes, Date(timeIntervalSince1970: .nan)),
+            ("positive infinity scalar", goldenBytes, Date(timeIntervalSince1970: .infinity)),
+            ("negative infinity scalar", goldenBytes, Date(timeIntervalSince1970: -.infinity))
+        ]
+        for value in invalid {
+            let record = Self.backupRecord(basisData: basisBytes, temporalData: value.typed,
+                                          observedAtUTC: value.scalar)
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(
+                Self.backupRecords(record: record)), value.name) {
+                XCTAssertEqual($0 as? BackupCanonicalEncodingErrorV1, .invalidRecords, value.name)
+            }
+        }
     }
 
     func testV9_11G01ObservationBasisRoundTripsIndependentlyFromOutcome() throws {
@@ -914,7 +1002,8 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
     nonisolated private static func backupRecord(
         basisData: Data?,
         temporalData: Data?,
-        outcomeKey: String? = nil
+        outcomeKey: String? = nil,
+        observedAtUTC: Date? = Date(timeIntervalSince1970: 1_768_496_400)
     ) -> V4BackupWorkflowRecordDTO {
         V4BackupWorkflowRecordDTO(
             id: id(101), schemaVersion: 1, assetID: id(102),
@@ -927,7 +1016,7 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
             draftStepKey: WorkflowDraftStep.wide.rawValue,
             startedAt: Date(timeIntervalSince1970: 1_768_496_400),
             completedAt: nil,
-            observedAtUTC: Date(timeIntervalSince1970: 1_768_496_400),
+            observedAtUTC: observedAtUTC,
             timeZoneID: "America/New_York", utcOffsetMinutes: -300,
             localDate: "2026-01-15", localTime: "12:00:00",
             afterDarkAcknowledgementKey: nil,

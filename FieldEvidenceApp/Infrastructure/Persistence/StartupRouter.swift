@@ -196,6 +196,11 @@ final class StartupRouter: ObservableObject {
         let policyMismatch = (error as? ProtectedFilePolicyError) == .resourceValueMismatch
         observe("phase=\(phase) type=\(errorType) resourceValueMismatch=\(policyMismatch) currentOpenBoundary=\(currentOpenBoundaryForTesting)")
     }
+    func recordOriginalOpenFailureForTesting() -> StoreColdOpenFailureDiagnosticForTestingV1 {
+        let observation = StoreColdOpenFailureDiagnosticForTestingV1()
+        generationFactory.coldOpenFailureDiagnosticForTesting = observation
+        return observation
+    }
 #endif
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
     private(set) var maintenanceEraseSession: StoreGenerationSession?

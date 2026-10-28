@@ -944,7 +944,8 @@ private extension BackupCanonicalEncoderV1 {
                 }
                 return try ObservationAndTimeCodecV1.encode(basis) == basisData
                     && ObservationAndTimeCodecV1.encode(temporal) == temporalData
-                    && temporal.occurredAtUTC == record.observedAtUTC
+                    && (record.observedAtUTC?.timeIntervalSinceReferenceDate.isFinite ?? true)
+                    && CanonicalJSONV1.optionalDate(temporal.occurredAtUTC) == CanonicalJSONV1.optionalDate(record.observedAtUTC)
                     && temporal.localDate == record.localDate
                     && temporal.localTime == record.localTime
                     && temporal.ianaTimeZoneIdentifier == record.timeZoneID

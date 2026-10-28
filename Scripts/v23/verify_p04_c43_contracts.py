@@ -20,6 +20,102 @@ def _tokens(text, label, tokens, failures):
  for token in tokens:
   if token not in text:failures.append(f"{label} missing structural token: {token}")
 
+# Exact current observer body, extracted by the existing active-source parser.
+# Structural clauses below explain the contract; this frame also closes early
+# returns/unreachable-token shortcuts and preserves diagnostic literal privacy.
+CURRENT_MORE_MENU_OBSERVER_SOURCE_SHA256 = "36cf0345fdfe479d4d4aca70646a22bd89af1b5a0f99f41b0abd74a15a6082b6"
+
+
+def _current_more_menu_observer_frame(inputs, reader, failures):
+    observer = reader.current_source_block(inputs,
+        "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift",
+        r"func\s+waitForCompletedWorkMoreMenu", "More functional menu observer")
+    if re.sub(r"\s+", "", observer["declarationPrefix"]) != "@MainActorprivate":
+        failures.append("More observer actor/visibility declaration differs")
+    if c.sha(observer["source"].encode("utf-8")) != CURRENT_MORE_MENU_OBSERVER_SOURCE_SHA256:
+        failures.append("complete More observer source frame differs")
+
+
+def _current_more_menu_observer_contract(inputs, reader, failures):
+    """Bind the real control/menu handshake, not a renamed success helper."""
+    owner = "FieldEvidenceAppTests/V23ProductionSignoffResponseJourneyTests.swift"
+    observer = reader.current_source_block(inputs, owner,
+        r"func\s+waitForCompletedWorkMoreMenu", "More functional menu observer")
+    label = "More functional menu observer"
+    reader.current_source_require(observer, (
+        "guard #available(iOS 17.4, *) else { return false }",
+        "guard let root = host.viewIfLoaded, let window = root.window else { return false }",
+        "var remainingWaits = 200",
+        "guard root.window === window, nativeScreenObservation(SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host).found else {",
+        "let controls = findControls()",
+        "guard !controls.truncated, controls.buttons.count <= 1 else {",
+        "if let button = controls.buttons.first { selected = button break }",
+        "guard let button = selected, !Task.isCancelled, button.isContextMenuInteractionEnabled, let interaction = button.contextMenuInteraction else {",
+        "var initiallyVisible = false interaction.updateVisibleMenu { menu in initiallyVisible = true return menu } guard !initiallyVisible else { return false } button.performPrimaryAction()",
+        "var callbacks = 0", "var expectedActionVisible = false",
+        "interaction.updateVisibleMenu { menu in callbacks += 1",
+        "if menu.children.count == 1, let action = menu.children.first as? UIAction {",
+        "expectedActionVisible = action.title == SignoffEnrollmentManifestV1.actionTitle && !action.attributes.contains(.disabled) && !action.attributes.contains(.hidden)",
+        "else { expectedActionVisible = false",
+        "if callbacks > 0 { break }",
+        "interaction.dismissMenu() var consecutiveAbsentSamples = 0 var dismissed = false repeat { var stillVisible = false interaction.updateVisibleMenu { menu in stillVisible = true return menu } consecutiveAbsentSamples = stillVisible ? 0 : consecutiveAbsentSamples + 1 if consecutiveAbsentSamples == 2 { dismissed = true break } } while await nextSample()",
+        "let finalControls = findControls()",
+        "let sameMountedControl = !finalControls.truncated && finalControls.buttons.count == 1 && finalControls.buttons.first === button && root.window === window && nativeScreenObservation(SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host).found",
+        "let observed = callbacks == 1 && expectedActionVisible && dismissed && sameMountedControl && !Task.isCancelled",
+        "return observed",
+    ), label, failures)
+    reader.current_source_order(observer, (
+        "var remainingWaits = 200", "var selected: UIButton?", "let controls = findControls()",
+        "guard let button = selected", "var initiallyVisible = false",
+        "guard !initiallyVisible else { return false }", "button.performPrimaryAction()",
+        "var callbacks = 0", "interaction.updateVisibleMenu { menu in callbacks += 1",
+        "if callbacks > 0 { break }", "interaction.dismissMenu()",
+        "var consecutiveAbsentSamples = 0", "if consecutiveAbsentSamples == 2",
+        "let finalControls = findControls()", "let observed =", "return observed",
+    ), "More functional observation order", failures)
+    wait = reader.current_source_block(inputs, owner, r"func\s+nextSample", "More shared wait")
+    reader.current_source_require(wait, (
+        "guard remainingWaits > 0, !Task.isCancelled else { return false }",
+        "remainingWaits -= 1", "try await Task.sleep(nanoseconds: 25_000_000)",
+        "return !Task.isCancelled", "catch { return false }",
+    ), "More shared wait", failures)
+    visible = reader.current_source_block(inputs, owner, r"func\s+visiblyAttached", "More visible control")
+    reader.current_source_require(visible, (
+        "guard button.window === window, button.isDescendant(of: root), button.isEnabled, !button.bounds.isEmpty else { return false }",
+        "var visible = button.convert(button.bounds, to: window)",
+        "guard !visible.isNull, !visible.isInfinite, !visible.isEmpty else { return false }",
+        "guard seen.count < 64, seen.insert(ObjectIdentifier(current)).inserted, (current === window || current.window === window), !current.isHidden, current.alpha > 0, current.isUserInteractionEnabled else { return false }",
+        "if current.clipsToBounds || current === window { visible = visible.intersection(current.convert(current.bounds, to: window)) guard !visible.isNull, !visible.isInfinite, !visible.isEmpty else { return false } }",
+        "if current === window { return true }", "ancestor = current.superview", "return false",
+    ), "More visible control", failures)
+    controls = reader.current_source_block(inputs, owner, r"func\s+findControls", "More complete control census")
+    reader.current_source_require(controls, (
+        "var seenViews = Set<ObjectIdentifier>()", "var candidates: [UIButton] = []", "var truncated = false",
+        "guard depth <= 32, seenViews.count < 256 else { truncated = true; return }",
+        "guard seenViews.insert(ObjectIdentifier(view)).inserted else { return }",
+        "if let button = view as? UIButton, button.menu != nil, button.showsMenuAsPrimaryAction, visiblyAttached(button) { candidates.append(button) }",
+        "if view.subviews.count > 64 { truncated = true }",
+        "for child in view.subviews.prefix(64) { visit(child, depth: depth + 1) }",
+        "visit(root, depth: 0)", "return (candidates, truncated)",
+    ), "More complete control census", failures)
+    compact = re.sub(r"\s+", "", observer["code"])
+    for expression, count in (
+        ("button.performPrimaryAction()", 1), ("interaction.dismissMenu()", 1),
+        ("interaction.updateVisibleMenu{", 3), ("whileawaitnextSample()", 3),
+        ("Task.sleep(", 1), ("returnobserved", 1), ("returntrue", 1),
+        ("callbacks+=1", 1), ("remainingWaits-=1", 1),
+    ):
+        if compact.count(expression) != count:
+            failures.append(label + " operation count differs: " + expression)
+    for name, count in (("remainingWaits", 2), ("initiallyVisible", 2),
+                        ("callbacks", 2), ("expectedActionVisible", 3),
+                        ("consecutiveAbsentSamples", 2), ("dismissed", 2),
+                        ("stillVisible", 2)):
+        if len(re.findall(r"\b" + name + r"\s*[+*/-]?=(?!=)", observer["code"])) != count:
+            failures.append(label + " state write count differs: " + name)
+    if re.search(r"\b(?:isHeld|menuAppearance)\b|\b(?:requestRecord|submit|sendAction|sendActions|performSelector|accessibilityActivate)\s*\(", observer["code"]):
+        failures.append(label + " unsupported visibility oracle or action dispatch")
+
 def _current_hosted_unit_fixture_result():
  """Current Source structure only, separate from the original card artifacts."""
  import p04_c41_contracts as reader
@@ -133,7 +229,7 @@ def _current_hosted_unit_fixture_result():
    "let presentation = try XCTUnwrap(provider(),","return items.contains { $0.key == key }","XCTAssertTrue(listed,",
    "XCTAssertEqual(item.eligibility, .eligible)","XCTAssertEqual(item.responseCount, 0)","presentation.open(item)",
    "waitForMountedScreen(SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host)","XCTAssertTrue(detailMounted,",
-   "waitForAccessibilityIdentifier(SignoffEnrollmentView.moreAccessibilityIdentifier, in: host.view)",
+   "let moreVisible = await waitForCompletedWorkMoreMenu(from: host)",
    "XCTAssertEqual(detail.key, key)","XCTAssertEqual(detail.eligibility, .eligible)","XCTAssertNotNil(detail.proof)",
    "presentation.requestRecord()","waitForMountedScreen(SignoffEnrollmentView.screenAccessibilityIdentifier, from: host)",
    "XCTAssertTrue(editorMounted,","XCTAssertNotNil(presentation.editorRoute)","return presentation",
@@ -157,9 +253,8 @@ def _current_hosted_unit_fixture_result():
   wait=reader.current_source_block(inputs,support,r"func\s+waitForMountedScreen","bounded mounted observer")
   reader.current_source_require(wait,("for _ in 0..<200","nativeScreenObservation(identifier, from: host).found",
    "Task.sleep(nanoseconds: 25_000_000)","return false"),"bounded mounted observer",failures)
-  wait=reader.current_source_block(inputs,support,r"func\s+waitForAccessibilityIdentifier","bounded More observer")
-  reader.current_source_require(wait,("for _ in 0..<200","containsAccessibilityIdentifier(identifiedBy: identifier, in: view)",
-   "Task.sleep(nanoseconds: 25_000_000)","return false"),"bounded More observer",failures)
+  _current_more_menu_observer_contract(inputs,reader,failures)
+  _current_more_menu_observer_frame(inputs,reader,failures)
   menu=reader.current_source_block(inputs,"FieldEvidenceApp/Features/Accountability/CompletedWorkDetailViewV1.swift",r"var\s+moreMenu","production More menu")
   reader.current_source_require(menu,("Menu {","presentation.requestRecord()","Text(verbatim: SignoffEnrollmentManifestV1.actionTitle)",
    ".disabled(!canRecord)",".accessibilityIdentifier(SignoffEnrollmentView.recordResponseAccessibilityIdentifier)",

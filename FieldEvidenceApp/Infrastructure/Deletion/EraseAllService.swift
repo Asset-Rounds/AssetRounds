@@ -1499,6 +1499,40 @@ final class EraseAllService {
         "empty.identity-policy",
         "empty.ledger",
         "empty.open",
+        "prepare.empty-target.route-retained",
+        "prepare.empty-target.route-ordinary",
+        "prepare.empty-target.pointer-before",
+        "prepare.empty-target.installed-create",
+        "prepare.empty-target.installed-model",
+        "prepare.empty-target.installed-protect",
+        "prepare.empty-target.installed-regular",
+        "prepare.empty-target.installed-complete",
+        "prepare.empty-target.proof-open",
+        "prepare.empty-target.open.begin",
+        "prepare.empty-target.open.accepted",
+        "prepare.empty-target.open.lease",
+        "prepare.empty-target.open.pre-protection",
+        "prepare.empty-target.open.container",
+        "prepare.empty-target.open.marker",
+        "prepare.empty-target.open.marker-complete",
+        "prepare.empty-target.open.container-or-marker-refused",
+        "prepare.empty-target.open.post-protection",
+        "prepare.empty-target.journal-clear",
+        "prepare.empty-target.ledger-proof",
+        "prepare.empty-target.manifest-pointer",
+        "prepare.empty-target.manifest-current",
+        "prepare.empty-target.manifest-marker",
+        "prepare.empty-target.manifest-store",
+        "prepare.empty-target.manifest-existing-check",
+        "prepare.empty-target.manifest-semantic",
+        "prepare.empty-target.manifest-protect",
+        "prepare.empty-target.manifest-frozen",
+        "prepare.empty-target.manifest-files",
+        "prepare.empty-target.manifest-write",
+        "prepare.empty-target.manifest-pointer-return",
+        "prepare.empty-target.pointer-envelope",
+        "prepare.empty-target.pointer-final-check",
+        "prepare.empty-target.pointer-identity",
         "empty.policy.AccessibleDocumentEraseAllPolicyV1",
         "empty.policy.AssetLocatorEraseAllPolicyV1",
         "empty.policy.AssetServiceReliabilityEraseAllPolicyV1",
@@ -2684,6 +2718,8 @@ final class EraseAllService {
             }
         }
         switch error {
+        case StoreGenerationFailure.dataPointerInvalid: return "generation.data-pointer-invalid"
+        case StoreGenerationFailure.dataGenerationMissing: return "generation.data-generation-missing"
         case AppAccessContractFailureV1.staleAttempt: return "app-access.stale-attempt"
         case EraseAllServiceError.injectedFailure: return "erase.injected-failure"
         case EraseAllServiceError.recoveryRequired: return "erase.recovery-required"
@@ -2813,6 +2849,36 @@ final class EraseAllService {
             } else {
                 traceErasePhase(phase)
             }
+        }
+#else
+        return nil
+#endif
+    }
+
+    private var eraseEmptyGenerationPhaseDiagnostic: (@MainActor (String) -> Void)? {
+#if DEBUG
+        guard erasePhaseDiagnosticForTesting != nil else { return nil }
+        return { [self] phase in
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            let fixed: String
+            switch phase {
+            case "generation-open.begin": fixed = "prepare.empty-target.open.begin"
+            case "generation-open.accepted-check.done": fixed = "prepare.empty-target.open.accepted"
+            case "generation-open.lease.done": fixed = "prepare.empty-target.open.lease"
+            case "generation-open.pre-protection.done": fixed = "prepare.empty-target.open.pre-protection"
+            case "reviews.staging.container.begin": fixed = "prepare.empty-target.open.container"
+            case "reviews.staging.marker.begin": fixed = "prepare.empty-target.open.marker"
+            case "reviews.staging.marker.end": fixed = "prepare.empty-target.open.marker-complete"
+            case "generation-open.post-protection.done": fixed = "prepare.empty-target.open.post-protection"
+            case let value where value.hasPrefix("generation-open.container-or-marker.failed.type."):
+                fixed = "prepare.empty-target.open.container-or-marker-refused"
+            default: fixed = phase
+            }
+            guard fixed.hasPrefix("prepare.empty-target."),
+                  Self.eraseFixedPhaseLabelsForTesting.contains(fixed) else { return }
+            traceErasePhase(fixed)
+            print("V23_ERASE_EMPTY_CREATION_PHASE_V1 stage=\(fixed)")
         }
 #else
         return nil
@@ -3683,17 +3749,21 @@ final class EraseAllService {
                 throw EraseAllServiceError.recoveryRequired
             }
             traceErasePhase("prepare.empty-generation")
+            let emptyGenerationDiagnostic = eraseEmptyGenerationPhaseDiagnostic
             let created: (pointer: RestorePointerIdentityV1, ledgerProof: DeletionLedgerProofV2)
             if try operation.completedSessionTargetGenerationCreationSourceOwnerIfRetained(factory: generationFactory) != nil {
+                emptyGenerationDiagnostic?("prepare.empty-target.route-retained")
                 created = try generationFactory.createEmptyEraseGenerationForOriginalCurrentCreation(
                     id: newGenerationID, expectedOldPointer: oldPointer, identity: targetIdentity,
                     authority: generationAuthority, operation: operation)
             } else {
+                emptyGenerationDiagnostic?("prepare.empty-target.route-ordinary")
                 created = try generationFactory.createEmptyEraseGeneration(
                     id: newGenerationID,
                     expectedOldPointer: oldPointer,
                     identity: targetIdentity,
-                    authority: generationAuthority
+                    authority: generationAuthority,
+                    diagnosticPhase: emptyGenerationDiagnostic
                 )
             }
 #if DEBUG
@@ -15444,12 +15514,68 @@ final class EraseCleanupAfterRetirementV1 {
             }
             print("ORIGINAL_AUX_RETIREMENT_V1 stage=entry")
 #endif
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=namespace-enter")
+            }
+#endif
             try proof.requireNamespaceAbsent()
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=namespace-return")
+            }
+#endif
             guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=targets-enter")
+            }
+#endif
             try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=targets-return")
+            }
+#endif
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=diagnostics-enter")
+            }
+#endif
             try auxiliary.verifyDiagnostics(expectedData: diagnosticsZero)
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=diagnostics-return")
+            }
+#endif
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=remove-enter")
+            }
+#endif
             try intentStore.removeOriginalAuxiliaryAfterRegistryRetirement(
                 expected: completed, retirement: proof, data: originalAuxiliaryRetirementData)
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=phase-written stage=remove-return")
+            }
+#endif
             phase = .auxiliaryRemoved
 #if DEBUG
             print("ORIGINAL_AUX_RETIREMENT_V1 stage=complete")

@@ -1645,6 +1645,13 @@ final class StoreSessionCoordinator: ObservableObject {
                 .acquireWriterForOriginalEraseUnderRetainedExclusion(
                     operation: operation, activity: exclusion.activity,
                     oldWriter: oldWriter)
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_ACTIVATION_V1 stage=writer-acquire-return")
+            }
+#endif
             guard let writerProjection = allocation
                     .originalEraseRetainedWriterPublicationProjection else {
 #if DEBUG
@@ -1654,6 +1661,13 @@ final class StoreSessionCoordinator: ObservableObject {
 #endif
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_ACTIVATION_V1 stage=writer-projection-retain-enter")
+            }
+#endif
             try operation.retainOriginalEraseWriterPublicationProjection(
                 writerProjection, targetAllocation: allocation,
                 targetHandle: targetHandle)

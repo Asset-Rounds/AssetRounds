@@ -5909,7 +5909,7 @@ private extension BackupExportService {
             let name = value.lastPathComponent
             guard value.deletingLastPathComponent() == root,
                   name.hasPrefix(".backup-export-"),
-                  name.hasSuffix(".json") else {
+                  (name.hasSuffix(".json") || name.hasSuffix("-records-data.bin")) else {
                 throw BackupExportServiceError.cleanupFailed
             }
             var information = stat()

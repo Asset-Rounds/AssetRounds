@@ -10890,8 +10890,10 @@ private extension StoreGenerationFactory {
         expectedOldID: UUID,
         newID: UUID,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
-        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> CurrentGenerationPointerV3 {
+        diagnosticPhase?("prepare.empty-target.manifest-current")
         guard try currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -10908,6 +10910,7 @@ private extension StoreGenerationFactory {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
+        diagnosticPhase?("prepare.empty-target.manifest-marker")
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
             let container = try makeV53Container(at: modelStoreURL, migrate: false)
             let marker = try requireV53Marker(
@@ -10919,12 +10922,14 @@ private extension StoreGenerationFactory {
             }
             return value
         }
+        diagnosticPhase?("prepare.empty-target.manifest-store")
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
         if let existing = try store.loadManifestIfPresent(
             targetGenerationID: newID
         ) {
+            diagnosticPhase?("prepare.empty-target.manifest-existing-check")
             guard existing.manifest.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
                   existing.manifest.migrationID == markerMigrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
@@ -10938,17 +10943,20 @@ private extension StoreGenerationFactory {
                 restoreProof: restoreProof,
                 restoreFileSnapshot: restoreFileSnapshot
             )
+            diagnosticPhase?("prepare.empty-target.manifest-pointer-return")
             return try restorePointerV3(
                 generationID: newID,
                 manifestDigest: existing.digest
             )
         }
+        diagnosticPhase?("prepare.empty-target.manifest-semantic")
         let semantic = try framedSemanticDigest(
             at: modelStoreURL,
             release: PersistentSchemaReleaseRegistryV1.activeRelease,
             markerMigrationID: markerMigrationID
         )
         if restoreProof == nil {
+            diagnosticPhase?("prepare.empty-target.manifest-protect")
             try protectGeneration(at: root, staging: false, requireModel: true)
         }
         let manifest = try StoreGenerationManifestV1(
@@ -10959,20 +10967,28 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             semanticSHA256: semantic,
             semanticDigestAlgorithm: .framedLayersV1,
-            frozenIdentityDigest: try frozenIdentityDigest(
-                for: root,
-                restoreProof: restoreProof,
-                restoreFileSnapshot: restoreFileSnapshot
-            ),
-            files: try generationFileDigests(
-                at: root,
-                durable: true,
-                restoreProof: restoreProof,
-                restoreFileSnapshot: restoreFileSnapshot
-            ),
+            frozenIdentityDigest: try {
+                diagnosticPhase?("prepare.empty-target.manifest-frozen")
+                return try frozenIdentityDigest(
+                    for: root,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                )
+            }(),
+            files: try {
+                diagnosticPhase?("prepare.empty-target.manifest-files")
+                return try generationFileDigests(
+                    at: root,
+                    durable: true,
+                    restoreProof: restoreProof,
+                    restoreFileSnapshot: restoreFileSnapshot
+                )
+            }(),
             restoreProof: restoreProof
         )
+        diagnosticPhase?("prepare.empty-target.manifest-write")
         let digest = try store.writeManifest(manifest)
+        diagnosticPhase?("prepare.empty-target.manifest-pointer-return")
         return try restorePointerV3(generationID: newID, manifestDigest: digest)
     }
 
@@ -12226,6 +12242,19 @@ fileprivate final class EraseSessionWeakObservationV1 {
     var constructorStarted = false
     private var returnedContainerObserved = false
 
+#if DEBUG
+    // Scalars from the one existing target journal-proof construction. Nil
+    // means that boundary was not sampled; no model alias is retained here.
+    var emptyTargetJournalProofForTesting = false
+    var proofContextMatchesSessionForTesting: Bool?
+    var proofAutosaveBeforeJournalForTesting: Bool?
+    var proofAutosaveAfterClearForTesting: Bool?
+    var proofHasChangesAfterClearForTesting: Bool?
+    var proofPostPoolSessionLiveForTesting: Bool?
+    var proofPostPoolContextLiveForTesting: Bool?
+    var proofPostPoolContainerLiveForTesting: Bool?
+#endif
+
     init(_ session: StoreGenerationSession) {
         self.session = session
         context = session.modelContext
@@ -12461,6 +12490,46 @@ final class EraseReaderRetirementInventoryV1 {
 #if DEBUG
     private(set) var lastAbortResourceCensusForTesting = "not-checked"
 
+    fileprivate var nextConstructionIndexForTesting: Int { observations.count }
+
+    fileprivate func recordEmptyTargetJournalProofForTesting(
+        at index: Int, session: StoreGenerationSession
+    ) {
+        let diagnosticSavedErrno = errno
+        defer { errno = diagnosticSavedErrno }
+        guard index >= originalObservationCount, observations.indices.contains(index),
+              observations.count == index + 1,
+              observations[index].session === session else { return }
+        let observation = observations[index]
+        observation.emptyTargetJournalProofForTesting = true
+        observation.proofContextMatchesSessionForTesting = observation.context === session.modelContext
+        observation.proofAutosaveBeforeJournalForTesting = session.modelContext.autosaveEnabled
+    }
+
+    fileprivate func recordEmptyTargetJournalClearForTesting(
+        at index: Int, session: StoreGenerationSession
+    ) {
+        let diagnosticSavedErrno = errno
+        defer { errno = diagnosticSavedErrno }
+        guard observations.indices.contains(index),
+              observations[index].emptyTargetJournalProofForTesting,
+              observations[index].session === session else { return }
+        let observation = observations[index]
+        observation.proofAutosaveAfterClearForTesting = session.modelContext.autosaveEnabled
+        observation.proofHasChangesAfterClearForTesting = session.modelContext.hasChanges
+    }
+
+    fileprivate func recordEmptyTargetProofPostPoolForTesting(at index: Int) {
+        let diagnosticSavedErrno = errno
+        defer { errno = diagnosticSavedErrno }
+        guard observations.indices.contains(index),
+              observations[index].emptyTargetJournalProofForTesting else { return }
+        let observation = observations[index]
+        observation.proofPostPoolSessionLiveForTesting = observation.session != nil
+        observation.proofPostPoolContextLiveForTesting = observation.context != nil
+        observation.proofPostPoolContainerLiveForTesting = observation.container != nil
+    }
+
     private func abortResourceCensusForTesting() -> String {
         let original = observations.prefix(originalObservationCount)
         let preparation = observations.dropFirst(originalObservationCount)
@@ -12474,6 +12543,50 @@ final class EraseReaderRetirementInventoryV1 {
             + " liveContext=\(observations.filter { $0.context != nil }.count)"
             + " liveContainer=\(observations.filter { $0.container != nil }.count)"
             + " allocations=\(allocations.count) readers=\(readers.count)"
+    }
+
+    /// A bounded snapshot after the drain guard has already refused. Weak
+    /// aliases may change after that decision; these scalars grant no authority.
+    private func reportNonOriginalDrainRefusalForTesting() {
+        let diagnosticSavedErrno = errno
+        defer { errno = diagnosticSavedErrno }
+        let preparation = observations.dropFirst(originalObservationCount)
+        let rowLimit = 16
+        let shown = min(preparation.count, rowLimit)
+        print("V23_ERASE_PREINTENT_DRAIN_CENSUS_V1 timing=after-refusal "
+            + abortResourceCensusForTesting()
+            + " shown=\(shown) omitted=\(preparation.count - shown)")
+        for (ordinal, observation) in preparation.prefix(rowLimit).enumerated() {
+            let inProgress = observation.constructionInProgress
+            let started = observation.constructorStarted
+            let unobservedReturn = observation.constructorReturnUnobservedForTesting
+            let liveSession = observation.session != nil
+            let liveContext = observation.context != nil
+            let liveContainer = observation.container != nil
+            print("V23_ERASE_PREINTENT_DRAIN_ROW_V1 timing=after-refusal"
+                + " preparationOrdinal=\(ordinal) inProgress=\(inProgress)"
+                + " started=\(started) unobservedReturn=\(unobservedReturn)"
+                + " liveSession=\(liveSession) liveContext=\(liveContext)"
+                + " liveContainer=\(liveContainer)")
+            if observation.emptyTargetJournalProofForTesting {
+                func scalar(_ value: Bool?) -> String {
+                    switch value {
+                    case true?: return "true"
+                    case false?: return "false"
+                    case nil: return "not-sampled"
+                    }
+                }
+                print("V23_ERASE_EMPTY_PROOF_LIFETIME_V1 timing=after-refusal"
+                    + " preparationOrdinal=\(ordinal) origin=empty-target-journal-proof"
+                    + " contextMatchesSession=\(scalar(observation.proofContextMatchesSessionForTesting))"
+                    + " autosaveBeforeJournal=\(scalar(observation.proofAutosaveBeforeJournalForTesting))"
+                    + " autosaveAfterClear=\(scalar(observation.proofAutosaveAfterClearForTesting))"
+                    + " hasChangesAfterClear=\(scalar(observation.proofHasChangesAfterClearForTesting))"
+                    + " postPoolSessionLive=\(scalar(observation.proofPostPoolSessionLiveForTesting))"
+                    + " postPoolContextLive=\(scalar(observation.proofPostPoolContextLiveForTesting))"
+                    + " postPoolContainerLive=\(scalar(observation.proofPostPoolContainerLiveForTesting))")
+            }
+        }
     }
 #endif
 
@@ -13066,8 +13179,8 @@ final class EraseReaderRetirementInventoryV1 {
             throw error
         }
         // These are the same short-circuited operands, evaluated once in
-        // incumbent order. Emit only after the actual first operand refuses;
-        // do not re-read a weak alias or manufacture a drain observation.
+        // incumbent order. Emit only after the actual first operand refuses.
+        // Any later diagnostic snapshot cannot replace that drain decision.
         guard preparationWasBound else {
             EraseAllService.reportPreIntentRefusalForTesting(
                 site: .inventoryPreparationBound, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
@@ -13084,6 +13197,7 @@ final class EraseReaderRetirementInventoryV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         guard observations.dropFirst(originalObservationCount).allSatisfy({ $0.isDrained }) else {
+            reportNonOriginalDrainRefusalForTesting()
             EraseAllService.reportPreIntentRefusalForTesting(
                 site: .inventoryNonOriginalDrain, error: GenerationLeaseRegistryFailureV1.uncertainOwner)
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -16632,6 +16746,27 @@ final class StoreRestoreGenerationAuthority {
     /// depth-first, then reacquire verified parent chains for each operation.
     /// URL spellings never discover descendants or grant deletion authority.
     fileprivate final class GenerationInventory {
+#if DEBUG
+        var coldOpenFailureDiagnosticForTesting: StoreColdOpenFailureDiagnosticForTestingV1?
+
+        private func observedSnapshot(_ actual: RegularFileSnapshot,
+            matches expected: RegularFileSnapshot, path: String,
+            predicate: StoreColdOpenFailureDiagnosticForTestingV1.Predicate) -> Bool {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+            let matches = actual == expected
+            if !matches {
+                coldOpenFailureDiagnosticForTesting?.recordLeaf(path)
+                coldOpenFailureDiagnosticForTesting?.refuseSnapshot(predicate,
+                    deviceSame: actual.device == expected.device,
+                    inodeSame: actual.inode == expected.inode,
+                    linkCountSame: actual.linkCount == expected.linkCount,
+                    typeSame: actual.type == expected.type,
+                    byteCountSame: actual.byteCount == expected.byteCount)
+            }
+            return matches
+        }
+#endif
         struct Directory {
             let descriptor: Int32
             let identity: Identity
@@ -16975,6 +17110,10 @@ final class StoreRestoreGenerationAuthority {
                 try withDirectory(path) { chain in
                     guard Set(try retainedNames(StoreRestoreGenerationAuthority.names(in: chain.descriptor),
                                                 in: path)) == expected else {
+#if DEBUG
+                        coldOpenFailureDiagnosticForTesting?.recordLeaf(path, isDirectory: true)
+                        coldOpenFailureDiagnosticForTesting?.refuse(.directoryMembership)
+#endif
                         throw StoreGenerationFailure.dataPointerInvalid
                     }
                 }
@@ -17107,25 +17246,55 @@ final class StoreRestoreGenerationAuthority {
         /// O_NONBLOCK prevents a regular-file -> FIFO replacement from
         /// blocking before fstat. Parent descriptors live through the body.
         func withFile<T>(_ path: String, _ body: (Int32, RegularFileSnapshot) throws -> T) throws -> T {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.recordLeaf(path)
+#endif
             guard let file = files[path] else { throw StoreGenerationFailure.dataPointerInvalid }
             return try withDirectory(Self.parentPath(path)) { chain in
                 let name = Self.basename(path)
                 let descriptor = Darwin.openat(chain.descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
-                guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                guard descriptor >= 0 else {
+#if DEBUG
+                    let failedOpenErrno = errno
+                    coldOpenFailureDiagnosticForTesting?.recordLeaf(path)
+                    coldOpenFailureDiagnosticForTesting?.refuse(.fileOpen, syscallErrno: failedOpenErrno)
+#endif
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
                 defer { _ = Darwin.close(descriptor) }
+#if DEBUG
+                guard try observedSnapshot(StoreRestoreGenerationAuthority.regularFileSnapshot(
+                    descriptor: descriptor, mismatchReason: .sourceMismatch
+                ), matches: file.snapshot, path: path, predicate: .descriptorBefore),
+                      try observedSnapshot(StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                        parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
+                      ), matches: file.snapshot, path: path, predicate: .namedBefore)
+                else { throw StoreGenerationFailure.dataPointerInvalid }
+#else
                 guard try StoreRestoreGenerationAuthority.regularFileSnapshot(
                     descriptor: descriptor, mismatchReason: .sourceMismatch
                 ) == file.snapshot,
                       try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
                         parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
                       ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+#endif
                 let value = try body(descriptor, file.snapshot)
+#if DEBUG
+                guard try observedSnapshot(StoreRestoreGenerationAuthority.regularFileSnapshot(
+                    descriptor: descriptor, mismatchReason: .sourceMismatch
+                ), matches: file.snapshot, path: path, predicate: .descriptorAfter),
+                      try observedSnapshot(StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                        parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
+                      ), matches: file.snapshot, path: path, predicate: .namedAfter)
+                else { throw StoreGenerationFailure.dataPointerInvalid }
+#else
                 guard try StoreRestoreGenerationAuthority.regularFileSnapshot(
                     descriptor: descriptor, mismatchReason: .sourceMismatch
                 ) == file.snapshot,
                       try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
                         parent: chain.descriptor, name: name, mismatchReason: .sourceMismatch
                       ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+#endif
                 return value
             }
         }
@@ -17370,13 +17539,25 @@ final class StoreRestoreGenerationAuthority {
                     let check = {
                         try chain.verify()
                         guard try StoreRestoreGenerationAuthority.directoryIdentity(at: rootURL) == self.root.identity else {
+#if DEBUG
+                            self.coldOpenFailureDiagnosticForTesting?.recordLeaf(path, isDirectory: isDirectory)
+                            self.coldOpenFailureDiagnosticForTesting?.refuse(.leafRootIdentity)
+#endif
                             throw StoreGenerationFailure.dataPointerInvalid
                         }
                         if !isDirectory {
+#if DEBUG
+                            guard let file = self.files[path],
+                                  try self.observedSnapshot(StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
+                                    parent: chain.descriptor, name: Self.basename(path), mismatchReason: .sourceMismatch
+                                  ), matches: file.snapshot, path: path, predicate: .leafNamedIdentity)
+                            else { throw StoreGenerationFailure.dataPointerInvalid }
+#else
                             guard let file = self.files[path],
                                   try StoreRestoreGenerationAuthority.namedRegularFileSnapshot(
                                     parent: chain.descriptor, name: Self.basename(path), mismatchReason: .sourceMismatch
                                   ) == file.snapshot else { throw StoreGenerationFailure.dataPointerInvalid }
+#endif
                         }
                     }
                     try apply(kind, rootURL.appendingPathComponent(path, isDirectory: isDirectory), check)
@@ -24166,6 +24347,162 @@ final class StoreGenerationPruneFailureInjectionV1 {
 }
 #endif
 
+#if DEBUG
+/// One selected startup's failure attribution. Holds closed labels and scalar
+/// comparisons only; it never owns a source, context, session or filesystem fact.
+final class StoreColdOpenFailureDiagnosticForTestingV1 {
+    enum ProtectionStage: String {
+        case none, rootOpen, rootReprove, inventoryBuild, rootPolicy, leafPolicy, finalRootReprove
+    }
+    enum Predicate: String {
+        case ownedDirectoryURL, ownedDirectoryComponents, ownedDirectoryOpen, ownedDirectoryChildOpen
+        case ownedDirectoryDescriptor, ownedDirectoryNamedIdentity, inventoryClassification
+        case directoryMembership, fileOpen, descriptorBefore, namedBefore, descriptorAfter, namedAfter
+        case rootPolicyIdentity, leafRootIdentity, leafNamedIdentity, policyErrorMapped
+    }
+    enum Leaf: String { case model, wal, shm, directory, other }
+    private var stage = "unobserved"
+    private var protection: ProtectionStage = .none
+    private var leaf: Leaf = .other
+    private var predicate: Predicate?
+    private var comparisons = "none"
+    private var syscallErrno: Int32?
+    private var delivered = false
+
+    func recordStage(_ phase: String) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard !delivered, predicate == nil else { return }
+        switch phase {
+        case "bootstrap.current-pointer-publication",
+             "bootstrap.directory-preflight",
+             "bootstrap.empty-container",
+             "bootstrap.frozen-identity",
+             "bootstrap.generation-directories",
+             "bootstrap.generation-protection",
+             "bootstrap.journal-initialize",
+             "bootstrap.lease-registry",
+             "bootstrap.manifest-store",
+             "bootstrap.manifest-value",
+             "bootstrap.manifest-write",
+             "bootstrap.migration-reservation",
+             "bootstrap.model-presence",
+             "bootstrap.physical-files",
+             "bootstrap.pointer-values",
+             "bootstrap.prepublication-protection",
+             "bootstrap.published-root-protection",
+             "bootstrap.recovery-authority-initial",
+             "bootstrap.recovery-authority-reserved",
+             "bootstrap.retired-pointer-publication",
+             "bootstrap.root-publication",
+             "bootstrap.semantic-digest",
+             "bootstrap.staging-protection",
+             "bootstrap.stale-staging",
+             "bootstrap.support-authority",
+             "bootstrap.support-directory",
+             "current-inventory-after",
+             "current-inventory-before",
+             "current-ledger.open-complete",
+             "current-ledger.pointer-after",
+             "current-ledger.pointer-before",
+             "current-ledger.proof-complete",
+             "current-manifest-after",
+             "current-manifest-before",
+             "current-pointer-decode-after",
+             "current-pointer-decode-before",
+             "current-reader-allocation-after",
+             "current-reader-g-after",
+             "current-reader-lease-after",
+             "current-reader-lease-before",
+             "current-reader-registration-after",
+             "current-reader-registry-after",
+             "current-reader-registry-before",
+             "current-reader-retain-after",
+             "lease-registry-after",
+             "lease-registry-before",
+             "migration-journal-load-after-absent",
+             "migration-journal-load-after-present",
+             "migration-journal-load-before",
+             "migration-journal-store-after",
+             "migration-journal-store-before",
+             "open-current-after",
+             "open-current-before",
+             "pointer-authority-after",
+             "pointer-authority-before",
+             "protect-failed",
+             "prune-intent-after-present",
+             "prune-intent-before",
+             "prune-intent-check-after",
+             "prune-reconcile-after",
+             "prune-reconcile-before",
+             "retired-pointer-decode-after",
+             "retired-pointer-decode-before",
+             "schema-after",
+             "schema-before",
+             "v53-container-after",
+             "v53-container-before",
+             "v53-marker-after",
+             "v53-marker-before",
+             "validated-current-after",
+             "validated-current-before":
+            stage = phase
+        default: stage = "other"
+        }
+        protection = .none
+        leaf = .other
+    }
+
+    func recordProtection(_ value: ProtectionStage) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard !delivered, predicate == nil else { return }
+        protection = value
+        leaf = .directory
+    }
+
+    func recordLeaf(_ path: String, isDirectory: Bool = false) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard !delivered, predicate == nil else { return }
+        if isDirectory { leaf = .directory; return }
+        switch path {
+        case "model.sqlite": leaf = .model
+        case "model.sqlite-wal": leaf = .wal
+        case "model.sqlite-shm": leaf = .shm
+        default: leaf = .other
+        }
+    }
+
+    func refuse(_ value: Predicate, syscallErrno: Int32? = nil) {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard !delivered, predicate == nil else { return }
+        predicate = value
+        self.syscallErrno = syscallErrno
+    }
+
+    func refuseSnapshot(_ value: Predicate, deviceSame: Bool, inodeSame: Bool,
+                        linkCountSame: Bool, typeSame: Bool, byteCountSame: Bool) {
+                            let savedErrno = errno
+                            defer { errno = savedErrno }
+        guard !delivered, predicate == nil else { return }
+        refuse(value)
+        comparisons = "deviceSame=\(deviceSame) inodeSame=\(inodeSame)"
+            + " linkCountSame=\(linkCountSame) typeSame=\(typeSame) byteCountSame=\(byteCountSame)"
+    }
+
+    func takeFailureSummary() -> String? {
+        let savedErrno = errno
+        defer { errno = savedErrno }
+        guard !delivered else { return nil }
+        delivered = true
+        return "coldOpenStage=\(stage) protectionStage=\(protection.rawValue)"
+            + " predicate=\(predicate?.rawValue ?? "unattributed") leaf=\(leaf.rawValue)"
+            + " comparisons=\(comparisons) syscallErrno=\(syscallErrno.map(String.init) ?? "none")"
+    }
+}
+#endif
+
 struct StoreGenerationFactory {
 #if DEBUG
     enum OriginalErasePointerTestStageV1 {
@@ -24380,6 +24717,7 @@ struct StoreGenerationFactory {
         pruneFailureInjection = source.pruneFailureInjection
         coldOpenDiagnosticForTesting = source.coldOpenDiagnosticForTesting
         coldOpenFixedDiagnosticsForTesting = source.coldOpenFixedDiagnosticsForTesting
+        coldOpenFailureDiagnosticForTesting = source.coldOpenFailureDiagnosticForTesting
 #endif
     }
 
@@ -24443,6 +24781,7 @@ struct StoreGenerationFactory {
     private let pruneFailureInjection: StoreGenerationPruneFailureInjectionV1?
     var coldOpenDiagnosticForTesting = false
     var coldOpenFixedDiagnosticsForTesting = false
+    var coldOpenFailureDiagnosticForTesting: StoreColdOpenFailureDiagnosticForTestingV1?
 #endif
 
     init(
@@ -24552,6 +24891,7 @@ struct StoreGenerationFactory {
         var copy = self
         copy.coldOpenDiagnosticForTesting = false
         copy.coldOpenFixedDiagnosticsForTesting = false
+        copy.coldOpenFailureDiagnosticForTesting = nil
         return copy
 #else
         return self
@@ -24562,6 +24902,7 @@ struct StoreGenerationFactory {
     private static let coldOpenDiagnosticOrigin = SuspendingClock.now
 
     private func coldOpenDiagnostic(_ phase: String) {
+        coldOpenFailureDiagnosticForTesting?.recordStage(phase)
         guard coldOpenDiagnosticForTesting || coldOpenFixedDiagnosticsForTesting else { return }
         let savedErrno = errno
         defer { errno = savedErrno }
@@ -25422,20 +25763,37 @@ struct StoreGenerationFactory {
         id: UUID,
         expectedOldPointer: RestorePointerIdentityV1,
         identity: WorkspaceReplicaIdentityV1,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> (pointer: RestorePointerIdentityV1, ledgerProof: DeletionLedgerProofV2) {
+        diagnosticPhase?("prepare.empty-target.pointer-before")
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
-        try createEmptyInstalledGeneration(id: id, authority: authority)
+        try createEmptyInstalledGeneration(id: id, authority: authority,
+            diagnosticPhase: diagnosticPhase)
         // Finish the empty store's connection lifetime before sealing physical
         // database/WAL/SHM bytes. Closing a live connection can change those bytes.
+#if DEBUG
+        let proofObservationIndexForTesting = eraseReaderRetirementInventory?.nextConstructionIndexForTesting
+#endif
         let proof: DeletionLedgerProofV2 = try autoreleasepool {
+            diagnosticPhase?("prepare.empty-target.proof-open")
             let session = try openGeneration(
                 id: id,
                 at: installedGenerationURL(id: id),
-                identity: identity
+                identity: identity,
+                diagnosticPhase: diagnosticPhase
             )
+            // Journal initialization and reset own every save in this unpublished context.
+            session.modelContext.autosaveEnabled = false
+#if DEBUG
+            if let proofObservationIndexForTesting {
+                eraseReaderRetirementInventory?.recordEmptyTargetJournalProofForTesting(
+                    at: proofObservationIndexForTesting, session: session)
+            }
+#endif
             // Finalize journal state before sealing the physical database files.
             // Even a logically empty reset can write SQLite pages.
+            diagnosticPhase?("prepare.empty-target.journal-clear")
             try MutationJournalStoreV1(
                 modelContext: session.modelContext,
                 identity: identity,
@@ -25444,16 +25802,32 @@ struct StoreGenerationFactory {
                 expectedWorkspaceID: identity.workspaceID,
                 expectedGenerationID: id
             )
+#if DEBUG
+            if let proofObservationIndexForTesting {
+                eraseReaderRetirementInventory?.recordEmptyTargetJournalClearForTesting(
+                    at: proofObservationIndexForTesting, session: session)
+            }
+#endif
+            diagnosticPhase?("prepare.empty-target.ledger-proof")
             let proof = try deletionLedgerProof(in: session.modelContext)
             guard proof.entryCount == 0 else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
             return proof
         }
+#if DEBUG
+        if let proofObservationIndexForTesting {
+            eraseReaderRetirementInventory?.recordEmptyTargetProofPostPoolForTesting(
+                at: proofObservationIndexForTesting)
+        }
+#endif
+        diagnosticPhase?("prepare.empty-target.manifest-pointer")
         let prepared = try makeRestoreCurrentPointer(
             expectedOldID: expectedOldPointer.generationID,
-            newID: id
+            newID: id,
+            diagnosticPhase: diagnosticPhase
         )
+        diagnosticPhase?("prepare.empty-target.pointer-envelope")
         let pointer = try CurrentGenerationPointerV3(
             generationID: id,
             generationManifestSHA256: prepared.generationManifestSHA256,
@@ -25462,7 +25836,9 @@ struct StoreGenerationFactory {
             knownReplicaIDs: [identity.replicaID],
             storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
+        diagnosticPhase?("prepare.empty-target.pointer-final-check")
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        diagnosticPhase?("prepare.empty-target.pointer-identity")
         return (try restorePointerIdentity(pointer), proof)
     }
 
@@ -27595,13 +27971,16 @@ struct StoreGenerationFactory {
     func createEmptyInstalledGeneration(
         id: UUID,
         authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil,
         beforeStoreCreate: () throws -> Void = {}
     ) throws {
         var handle: StoreRestoreGenerationAuthority.InstalledGenerationHandle?
         do {
+            diagnosticPhase?("prepare.empty-target.installed-create")
             let created = try authority.createInstalledGeneration(id: id)
             handle = created
             try beforeStoreCreate()
+            diagnosticPhase?("prepare.empty-target.installed-model")
             try createAndReleaseEmptyContainer(
                 at: try authority.modelStoreURL(
                     for: created,
@@ -27609,11 +27988,14 @@ struct StoreGenerationFactory {
                 ),
                 markerMigrationID: id
             )
+            diagnosticPhase?("prepare.empty-target.installed-protect")
             try authority.protectInstalledGeneration(id: id)
+            diagnosticPhase?("prepare.empty-target.installed-regular")
             try authority.requireRegularFile(
                 named: Self.modelStoreName,
                 in: created
             )
+            diagnosticPhase?("prepare.empty-target.installed-complete")
         } catch {
             if let handle {
                 try? authority.removeCreatedInstalledGeneration(handle)
@@ -29420,6 +29802,9 @@ struct StoreGenerationFactory {
                 ? target.path.hasPrefix("/")
                 : target.path.hasPrefix(root.path + "/"))
         guard root.isFileURL, target.isFileURL, insideRoot else {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryURL)
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
 
@@ -29429,6 +29814,9 @@ struct StoreGenerationFactory {
             ? []
             : relativePath.split(separator: "/").map(String.init)
         guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryComponents)
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
 
@@ -29437,6 +29825,9 @@ struct StoreGenerationFactory {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard descriptor >= 0 else {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryOpen, syscallErrno: errno)
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
         for component in components {
@@ -29446,6 +29837,9 @@ struct StoreGenerationFactory {
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             guard next >= 0 else {
+#if DEBUG
+                coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryChildOpen, syscallErrno: errno)
+#endif
                 _ = Darwin.close(descriptor)
                 throw StoreGenerationFailure.dataPointerInvalid
             }
@@ -29462,6 +29856,9 @@ struct StoreGenerationFactory {
         var expected = stat()
         guard Darwin.fstat(descriptor, &expected) == 0,
               (expected.st_mode & S_IFMT) == S_IFDIR else {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryDescriptor)
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
         let reopened = try openOwnedDirectory(at: url)
@@ -29471,6 +29868,9 @@ struct StoreGenerationFactory {
               (actual.st_mode & S_IFMT) == S_IFDIR,
               actual.st_dev == expected.st_dev,
               actual.st_ino == expected.st_ino else {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.ownedDirectoryNamedIdentity)
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
@@ -29565,6 +29965,13 @@ struct StoreGenerationFactory {
             throw error
         } catch {
 #if DEBUG
+            do {
+                let savedAttributionErrno = errno
+                defer { errno = savedAttributionErrno }
+                coldOpenFailureDiagnosticForTesting?.recordLeaf(url.lastPathComponent,
+                    isDirectory: kind == .durableDirectory || kind == .stagingDirectory || kind == .restoreStaging)
+                coldOpenFailureDiagnosticForTesting?.refuse(.policyErrorMapped)
+            }
             if coldOpenFixedDiagnosticsForTesting {
                 coldOpenDiagnostic("protect-failed")
             } else if coldOpenDiagnosticForTesting {
@@ -29660,23 +30067,37 @@ struct StoreGenerationFactory {
         requireModel: Bool,
         diagnoseSourceProtection: Bool = false
     ) throws {
+#if DEBUG
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.rootOpen)
+#endif
         let descriptor = try openOwnedDirectory(at: root)
         defer { _ = Darwin.close(descriptor) }
+#if DEBUG
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.rootReprove)
+#endif
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
         // Installed generations defer reserved private preparation to startup
         // retirement; restore staging keeps its exact closed membership.
         let inventory: StoreRestoreGenerationAuthority.GenerationInventory
+#if DEBUG
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.inventoryBuild)
+#endif
         do {
             inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
                 parent: descriptor, requireModel: requireModel, defersLivePrivatePreparation: !staging
             )
         } catch StoreMigrationFailure.invalidPath {
+#if DEBUG
+            coldOpenFailureDiagnosticForTesting?.refuse(.inventoryClassification)
+#endif
             // Closed-membership rejection has the same public generation failure
             // as the protection boundary below. Other errors retain their type.
             throw StoreGenerationFailure.dataPointerInvalid
         }
         let generationIdentity = inventory.root.identity
 #if DEBUG
+        inventory.coldOpenFailureDiagnosticForTesting = coldOpenFailureDiagnosticForTesting
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.rootPolicy)
         // This diagnostic uses the already opened generation descriptor and
         // the operation-retained checked-close walker. It never mints authority.
         let diagnosticIO = diagnoseSourceProtection
@@ -29691,9 +30112,16 @@ struct StoreGenerationFactory {
         try protect(staging ? .restoreStaging : .durableDirectory, at: root, authorityCheck: {
             try inventory.revalidate()
             guard try StoreRestoreGenerationAuthority.directoryIdentity(at: root) == generationIdentity else {
+#if DEBUG
+                coldOpenFailureDiagnosticForTesting?.recordLeaf("", isDirectory: true)
+                coldOpenFailureDiagnosticForTesting?.refuse(.rootPolicyIdentity)
+#endif
                 throw StoreGenerationFailure.dataPointerInvalid
             }
         })
+#if DEBUG
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.leafPolicy)
+#endif
         try inventory.protect(rootURL: root, staging: staging) { kind, url, check in
             try self.protect(kind, at: url, authorityCheck: check)
         }
@@ -29724,6 +30152,9 @@ struct StoreGenerationFactory {
                     "ERASE_PROTECT_METADATA_V1 kind=none fields=none\n".utf8))
             }
         }
+#endif
+#if DEBUG
+        coldOpenFailureDiagnosticForTesting?.recordProtection(.finalRootReprove)
 #endif
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
     }

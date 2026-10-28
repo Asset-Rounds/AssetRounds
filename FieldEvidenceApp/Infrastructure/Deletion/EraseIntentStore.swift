@@ -40849,8 +40849,29 @@ final class EraseIntentStore {
             }
             return witness
         }
+#if DEBUG
+        do {
+            let diagnosticSavedErrno = errno
+            defer { errno = diagnosticSavedErrno }
+            print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=entry")
+        }
+#endif
         try currentRetirement()
+#if DEBUG
+        do {
+            let diagnosticSavedErrno = errno
+            defer { errno = diagnosticSavedErrno }
+            print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=retirement-checked")
+        }
+#endif
         guard let data else {
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=no-original-data")
+            }
+#endif
             guard !originalAuxiliaryPublicationStarted,
                   originalAuxiliaryPublishedReceipt == nil,
                   originalAuxiliaryRetirementIO == nil,
@@ -40995,22 +41016,64 @@ final class EraseIntentStore {
         let beforeNames = [Self.intentName, Self.preparationName, Self.auxiliaryRosterName].sorted()
         let afterNames = [Self.intentName, Self.preparationName].sorted()
         do {
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try bound()
             stage = "completed-intent"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             let intentWitness = try completedIntent()
             try bound()
             stage = "namespace-before"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try namespace(beforeNames)
             stage = "leaf-open"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try bound()
             let descriptor = try io.openAt(eraseDescriptor, name: Self.auxiliaryRosterName,
                 flags: O_RDONLY | O_NONBLOCK)
             try bound()
             stage = "leaf-fact-bytes"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             let first = try witness(descriptor)
             let url = applicationSupportURL.appendingPathComponent(Self.directoryName)
                 .appendingPathComponent(Self.auxiliaryRosterName)
             stage = "leaf-policy"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try bound()
             let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(.journal,
                 at: url, retainUncertainDescriptor: { io.retainUncertainDescriptor($0) })
@@ -41029,13 +41092,34 @@ final class EraseIntentStore {
             try bound()
             guard try witness(descriptor) == first else { throw EraseIntentStoreError.intentMismatch }
             stage = "leaf-close"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try bound(); try io.closeOwnedOnce(descriptor); try bound()
             try io.requireSettled()
             stage = "completed-intent-before-unlink"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             guard try completedIntent() == intentWitness else {
                 throw EraseIntentStoreError.intentMismatch
             }
             stage = "namespace-unlink"
+#if DEBUG
+            do {
+                let diagnosticSavedErrno = errno
+                defer { errno = diagnosticSavedErrno }
+                print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+            }
+#endif
             try io.withEffect(name: Self.auxiliaryRosterName,
                 expectedBytes: data.canonicalBytes, replacementBytes: nil) {
                 try namespace(beforeNames)
@@ -41050,8 +41134,22 @@ final class EraseIntentStore {
                 try bound()
                 guard result == 0 else { throw EraseIntentStoreError.cleanupFailed }
                 stage = "namespace-sync"
+#if DEBUG
+                do {
+                    let diagnosticSavedErrno = errno
+                    defer { errno = diagnosticSavedErrno }
+                    print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+                }
+#endif
                 try syscall("root-fsync") { Darwin.fsync(eraseDescriptor) }
                 stage = "namespace-after"
+#if DEBUG
+                do {
+                    let diagnosticSavedErrno = errno
+                    defer { errno = diagnosticSavedErrno }
+                    print("ORIGINAL_AUX_PROGRESS_V1 scope=inner stage=\(stage)")
+                }
+#endif
                 try absent(Self.auxiliaryRosterName)
                 try namespace(afterNames)
                 try bound()

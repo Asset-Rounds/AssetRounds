@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "3930004b0790f211ad72409dbc4a967d2cce23f3",
+  "generatedAtHead": "a9267f4972dd657ab5b65406c75255583a5c7e26",
   "sweepOrder": [
     "S01",
     "S02",
@@ -815,7 +815,7 @@
     {
       "id": "S09",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1559.9,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV906DeletionRights/testC33V906DeletionRightsCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityCorpusIntegrationTests_swift_Tests/testC47V907CompatibilityCorpusIntegrationTestsOwnerCompatibilityIsTyped",
@@ -830,6 +830,7 @@
         "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests/testActiveEraseClearsLocalAuthorityThenOrdinaryRefreshRediscovers",
         "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests/testC36StagingBytesRemainOutsideBackupAndExport",
         "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests/testFormerPaidBlocksOnlyNewValueAndKeepsExactDraftAndDataServices",
+        "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests/testFractionalObservedInstantPreservesTypedAuthorityThroughLiveBackup",
         "FieldEvidenceAppTests/S7_5DataRightsIntegrationTests/testV23P03C34ProtectedDataDenialFallsBackWithoutWriter",
         "FieldEvidenceAppTests/V23FindingOwnerContractTests/testAffectedClosureRejectsCrossStreamReversePairsCyclesAndDomainAmbiguity",
         "FieldEvidenceAppTests/V23FindingOwnerContractTests/testAppendOnlyRetentionUsesExactBytesAndGroupedEventIdentity",
@@ -1898,7 +1899,7 @@
     {
       "id": "S20",
       "tier": "D50C",
-      "estimatedSeconds": 1570.6,
+      "estimatedSeconds": 1690.6,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -1945,6 +1946,7 @@
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testInvalidFamiliesAndCapacityFailClosedAndCleanStage",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests/testRawArchivePublicationCleansOwnedStagingOnSuccessAndPostPublicationFailure",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testV23P03C13BackupValidationRejectsNonCanonicalAssuranceBytes",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testV23P03C14BackupValidatorRequiresRecordsSchema13AndFiveKinds",
         "FieldEvidenceAppTests/S6_3BackupValidationTests/testV23P03C15BackupValidationUsesV15SchemaAndTypedRows",
@@ -2136,6 +2138,7 @@
         "FieldEvidenceAppTests/V9_05RestoreIdentityTests/testV9_05H01HostileIdentityCollisionAndSourceReplicaReuse",
         "FieldEvidenceAppTests/V9_05RestoreIdentityTests/testV9_05I01CrashPartialActivationCancellationAndLowStorage",
         "FieldEvidenceAppTests/V9_05RestoreIdentityTests/testV9_05R01RecoveryRelaunchAndExportReconciliation",
+        "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testBackupLegacyTemporalProjectionPreservesTypedBytesAndRejectsContradictions",
         "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testC20PrivacyTransformRegionAuthorSnapshotIsTemporalAndLocal",
         "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testC21ClientCapabilityLifecycleAnchor",
         "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues",

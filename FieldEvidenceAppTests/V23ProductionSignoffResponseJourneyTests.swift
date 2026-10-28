@@ -83,6 +83,157 @@ extension V23ProductionFourRootShellTestSupport {
         try scene.select(.work)
     }
 
+
+    /// A SwiftUI accessibility identifier need not be exported as a UIView's
+    /// accessibilityIdentifier. Observe the real mounted menu and its enabled
+    /// action instead, then dismiss without invoking the action. Discovery,
+    /// presentation and dismissal share the former 200 x 25 ms More wait budget.
+    @MainActor
+    private func waitForCompletedWorkMoreMenu(from host: UIViewController) async -> Bool {
+        guard #available(iOS 17.4, *) else { return false }
+        guard let root = host.viewIfLoaded, let window = root.window else { return false }
+        var remainingWaits = 200
+        @MainActor
+        func nextSample() async -> Bool {
+            guard remainingWaits > 0, !Task.isCancelled else { return false }
+            remainingWaits -= 1
+            do {
+                try await Task.sleep(nanoseconds: 25_000_000)
+                return !Task.isCancelled
+            } catch {
+                return false
+            }
+        }
+        @MainActor
+        func visiblyAttached(_ button: UIButton) -> Bool {
+            guard button.window === window, button.isDescendant(of: root),
+                  button.isEnabled, !button.bounds.isEmpty else { return false }
+            var visible = button.convert(button.bounds, to: window)
+            guard !visible.isNull, !visible.isInfinite, !visible.isEmpty else { return false }
+            var ancestor: UIView? = button
+            var seen = Set<ObjectIdentifier>()
+            while let current = ancestor {
+                guard seen.count < 64, seen.insert(ObjectIdentifier(current)).inserted,
+                      (current === window || current.window === window),
+                      !current.isHidden, current.alpha > 0,
+                      current.isUserInteractionEnabled else { return false }
+                if current.clipsToBounds || current === window {
+                    visible = visible.intersection(current.convert(current.bounds, to: window))
+                    guard !visible.isNull, !visible.isInfinite, !visible.isEmpty else { return false }
+                }
+                if current === window { return true }
+                ancestor = current.superview
+            }
+            return false
+        }
+        @MainActor
+        func findControls() -> (buttons: [UIButton], truncated: Bool) {
+            var seenViews = Set<ObjectIdentifier>()
+            var candidates: [UIButton] = []
+            var truncated = false
+            @MainActor
+            func visit(_ view: UIView, depth: Int) {
+                guard depth <= 32, seenViews.count < 256 else { truncated = true; return }
+                guard seenViews.insert(ObjectIdentifier(view)).inserted else { return }
+                if let button = view as? UIButton, button.menu != nil,
+                   button.showsMenuAsPrimaryAction, visiblyAttached(button) {
+                    candidates.append(button)
+                }
+                if view.subviews.count > 64 { truncated = true }
+                for child in view.subviews.prefix(64) { visit(child, depth: depth + 1) }
+            }
+            visit(root, depth: 0)
+            return (candidates, truncated)
+        }
+        var selected: UIButton?
+        repeat {
+            guard root.window === window,
+                  nativeScreenObservation(
+                    SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host).found else {
+                print("CompletedWorkMoreMenu refused=detail-not-mounted")
+                return false
+            }
+            let controls = findControls()
+            guard !controls.truncated, controls.buttons.count <= 1 else {
+                print("CompletedWorkMoreMenu refused=nonunique-or-truncated"
+                    + " candidates=\(controls.buttons.count) truncated=\(controls.truncated)")
+                return false
+            }
+            if let button = controls.buttons.first {
+                selected = button
+                break
+            }
+        } while await nextSample()
+        guard let button = selected, !Task.isCancelled,
+              button.isContextMenuInteractionEnabled,
+              let interaction = button.contextMenuInteraction else {
+            print("CompletedWorkMoreMenu refused=control-or-interaction-unavailable")
+            return false
+        }
+
+        // Refuse an already visible menu so this observation proves a new
+        // presentation by this control. Returning the menu invokes no item.
+        var initiallyVisible = false
+        interaction.updateVisibleMenu { menu in
+            initiallyVisible = true
+            return menu
+        }
+        guard !initiallyVisible else { return false }
+        button.performPrimaryAction()
+        var callbacks = 0
+        var expectedActionVisible = false
+        repeat {
+            interaction.updateVisibleMenu { menu in
+                callbacks += 1
+                if menu.children.count == 1, let action = menu.children.first as? UIAction {
+                    expectedActionVisible = action.title == SignoffEnrollmentManifestV1.actionTitle
+                        && !action.attributes.contains(.disabled)
+                        && !action.attributes.contains(.hidden)
+                    print("CompletedWorkMoreMenu event=visible-action"
+                        + " expectedTitle=\(action.title == SignoffEnrollmentManifestV1.actionTitle)"
+                        + " attributes=\(action.attributes.rawValue)")
+                } else {
+                    expectedActionVisible = false
+                    print("CompletedWorkMoreMenu refused=unexpected-menu-shape children=\(menu.children.count)")
+                }
+                return menu
+            }
+            if callbacks > 0 { break }
+        } while await nextSample()
+
+        // Always dismiss after activation, including an invalid or absent menu.
+        // isHeld is not a visibility contract for primary-action menus. Require
+        // two no-callback samples separated by a shared-budget yield instead;
+        // the earlier positive callback binds them to this actual interaction.
+        interaction.dismissMenu()
+        var consecutiveAbsentSamples = 0
+        var dismissed = false
+        repeat {
+            var stillVisible = false
+            interaction.updateVisibleMenu { menu in
+                stillVisible = true
+                return menu
+            }
+            consecutiveAbsentSamples = stillVisible ? 0 : consecutiveAbsentSamples + 1
+            if consecutiveAbsentSamples == 2 {
+                dismissed = true
+                break
+            }
+        } while await nextSample()
+        let finalControls = findControls()
+        let sameMountedControl = !finalControls.truncated && finalControls.buttons.count == 1
+            && finalControls.buttons.first === button && root.window === window
+            && nativeScreenObservation(
+                SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host).found
+        let observed = callbacks == 1 && expectedActionVisible && dismissed
+            && sameMountedControl && !Task.isCancelled
+        print("CompletedWorkMoreMenu event=observation-ended observed=\(observed)"
+            + " callbacks=\(callbacks) expectedActionVisible=\(expectedActionVisible)"
+            + " dismissed=\(dismissed) sameMountedControl=\(sameMountedControl)"
+            + " waitsUsed=\(200 - remainingWaits)")
+        return observed
+    }
+
     /// Visible journey: Work root -> Completed work section -> immutable
     /// detail -> More -> Record approval response -> editor. Each step is
     /// observed on the mounted production host; the presentation calls are the
@@ -118,9 +269,18 @@ extension V23ProductionFourRootShellTestSupport {
         let detailMounted = await waitForMountedScreen(
             SignoffEnrollmentView.immutableDetailAccessibilityIdentifier, from: host)
         XCTAssertTrue(detailMounted, "The immutable detail is pushed inside the Work stack")
-        let moreVisible = await waitForAccessibilityIdentifier(
-            SignoffEnrollmentView.moreAccessibilityIdentifier, in: host.view)
+        let moreVisible = await waitForCompletedWorkMoreMenu(from: host)
         XCTAssertTrue(moreVisible, "The detail offers More")
+        if !moreVisible {
+            if case let .loaded(detail) = presentation.detail {
+                print("CompletedWorkMoreObservation phase=OBSERVATION_FAILED state=loaded"
+                    + " keyMatchesExpected=\(detail.key == key)"
+                    + " eligible=\(detail.eligibility == .eligible) proofPresent=\(detail.proof != nil)")
+            } else {
+                print("CompletedWorkMoreObservation phase=OBSERVATION_FAILED state=notLoaded"
+                    + " keyMatchesExpected=UNKNOWN eligible=UNKNOWN proofPresent=UNKNOWN")
+            }
+        }
         guard case let .loaded(detail) = presentation.detail else {
             throw CompletedWorkResponseFailureV1.unavailable
         }

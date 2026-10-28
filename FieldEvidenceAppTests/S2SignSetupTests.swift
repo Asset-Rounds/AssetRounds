@@ -83,15 +83,29 @@ final class S2SignSetupTests: XCTestCase {
 
         for testCase in cases {
             let root = try makeTemporaryApplicationSupportURL()
-            defer { try? fileManager.removeItem(at: root) }
+            defer {
+                if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                    try? fileManager.removeItem(at: root)
+                }
+            }
 
             let session = try StoreGenerationFactory(applicationSupportURL: root)
                 .openOrBootstrapCurrent()
             let diagnosticsStore = DiagnosticsStore(applicationSupportURL: root)
-            let coordinator = FirstSignCoordinator(
+            let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+            let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+            let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+                profileRegistry: firstSignRegistry, root: root)
+            defer {
+                do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+                catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+            }
+            let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+            let coordinator = try FirstSignCoordinator(
                 modelContext: session.modelContext,
                 diagnosticsStore: diagnosticsStore,
-                signPack: .illuminatedSignV1
+                packageLifecycleDependencies: firstSignDependencies,
+                packageLifecycleProfile: firstSignProfile
             )
 
             do {
@@ -125,15 +139,29 @@ final class S2SignSetupTests: XCTestCase {
     @MainActor
     func testSecondCreateIsRejectedWithoutAnotherRowOrCounter() async throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
 
         let session = try StoreGenerationFactory(applicationSupportURL: root)
             .openOrBootstrapCurrent()
         let diagnosticsStore = DiagnosticsStore(applicationSupportURL: root)
-        let coordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let coordinator = try FirstSignCoordinator(
             modelContext: session.modelContext,
             diagnosticsStore: diagnosticsStore,
-            signPack: .illuminatedSignV1
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile
         )
 
         let first = try await coordinator.create(
@@ -164,7 +192,11 @@ final class S2SignSetupTests: XCTestCase {
     @MainActor
     func testDiagnosticsWriteFailureDoesNotGateTheCommittedFirstSign() async throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
 
         let diagnosticsURL = root
             .appendingPathComponent("FieldEvidenceDiagnostics", isDirectory: true)
@@ -177,10 +209,20 @@ final class S2SignSetupTests: XCTestCase {
         let session = try StoreGenerationFactory(applicationSupportURL: root)
             .openOrBootstrapCurrent()
         let diagnosticsStore = DiagnosticsStore(applicationSupportURL: root)
-        let coordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: .illuminatedSignV1)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let coordinator = try FirstSignCoordinator(
             modelContext: session.modelContext,
             diagnosticsStore: diagnosticsStore,
-            signPack: .illuminatedSignV1
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile
         )
 
         let created = try await coordinator.create(
@@ -210,7 +252,11 @@ final class S2SignSetupTests: XCTestCase {
         expectedTimeZoneID: String?
     ) async throws {
         let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        defer {
+            if !FirstSignFixtureWriterReleaseV1.retains(root: root) {
+                try? fileManager.removeItem(at: root)
+            }
+        }
 
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let pack = SignPack.illuminatedSignV1
@@ -218,6 +264,7 @@ final class S2SignSetupTests: XCTestCase {
         let created = try await createVerifyAndRelease(
             input: input,
             factory: factory,
+            root: root,
             diagnosticsStore: diagnosticsStore,
             pack: pack,
             expectedSiteLabel: expectedSiteLabel,
@@ -229,10 +276,20 @@ final class S2SignSetupTests: XCTestCase {
 
         let reopenedSession = try factory.openOrBootstrapCurrent()
         let reopenedDiagnosticsStore = DiagnosticsStore(applicationSupportURL: root)
-        let reopenedCoordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: reopenedSession,
+            profileRegistry: firstSignRegistry, root: root)
+        defer {
+            do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: reopenedSession, root: root) }
+            catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let reopenedCoordinator = try FirstSignCoordinator(
             modelContext: reopenedSession.modelContext,
             diagnosticsStore: reopenedDiagnosticsStore,
-            signPack: pack
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile
         )
         let reopened = try XCTUnwrap(reopenedCoordinator.load())
 
@@ -257,6 +314,7 @@ final class S2SignSetupTests: XCTestCase {
     private func createVerifyAndRelease(
         input: FirstSignInput,
         factory: StoreGenerationFactory,
+        root: URL,
         diagnosticsStore: DiagnosticsStore,
         pack: SignPack,
         expectedSiteLabel: String,
@@ -265,10 +323,23 @@ final class S2SignSetupTests: XCTestCase {
         expectedTimeZoneID: String?
     ) async throws -> FirstSignSnapshot {
         let session = try factory.openOrBootstrapCurrent()
-        let coordinator = FirstSignCoordinator(
+        let firstSignProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let firstSignRegistry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [firstSignProfile])
+        let firstSignOwner = try FirstSignFixtureWriterReleaseV1.makeOwner(session: session,
+            profileRegistry: firstSignRegistry, root: root)
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                do { try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root) }
+                catch { XCTFail("First-sign fixture writer release failed: \(error)") }
+            }
+        }
+        let firstSignDependencies = try firstSignOwner.packageLifecycleDependencies(profileRegistry: firstSignRegistry)
+        let coordinator = try FirstSignCoordinator(
             modelContext: session.modelContext,
             diagnosticsStore: diagnosticsStore,
-            signPack: pack
+            packageLifecycleDependencies: firstSignDependencies,
+            packageLifecycleProfile: firstSignProfile
         )
         let created = try await coordinator.create(input)
 
@@ -285,6 +356,8 @@ final class S2SignSetupTests: XCTestCase {
             assets: session.modelContext.fetch(FetchDescriptor<Asset>()),
             snapshot: created
         )
+        closeAttempted = true
+        try FirstSignFixtureWriterReleaseV1.close(firstSignOwner, session: session, root: root)
         return created
     }
 
@@ -354,5 +427,40 @@ final class S2SignSetupTests: XCTestCase {
             .appendingPathComponent("S2SignSetupTests-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         return root
+    }
+}
+
+// Failure retention is shared only by these three legacy fixture migrations.
+// A failed close must keep its owner graph and physical root for diagnosis.
+@MainActor
+enum FirstSignFixtureWriterReleaseV1 {
+    private static var failed: [(root: URL, session: StoreGenerationSession, owner: StoreSessionCoordinator)] = []
+    private static var failedConstruction: [(root: URL, session: StoreGenerationSession, error: any Error)] = []
+
+    static func retains(root: URL) -> Bool {
+        failed.contains { $0.root.standardizedFileURL == root.standardizedFileURL }
+            || failedConstruction.contains { $0.root.standardizedFileURL == root.standardizedFileURL }
+    }
+
+    static func makeOwner(session: StoreGenerationSession,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1, root: URL) throws -> StoreSessionCoordinator {
+        do {
+            return try StoreSessionCoordinator(validatingSession: session,
+                lifecycleProfileRegistry: profileRegistry)
+        } catch {
+            // The actual construction error may own an unclosed writer lease.
+            // Retain it with the session and physical root; never retry here.
+            failedConstruction.append((root, session, error))
+            throw error
+        }
+    }
+
+    static func close(_ owner: StoreSessionCoordinator, session: StoreGenerationSession, root: URL) throws {
+        do {
+            try owner.invalidateAndReleaseWriter()
+        } catch {
+            failed.append((root, session, owner))
+            throw error
+        }
     }
 }
