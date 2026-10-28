@@ -47,6 +47,109 @@ final class V9_26FunctionalRelationshipTests: XCTestCase {
         try assertCanonicalRoundTrip(snapshot)
     }
 
+    func testC41SnapshotRebindPreservesMultipleDescriptorHistories() throws {
+        let first = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 43_000)
+        let second = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 43_100)
+        let secondDescriptor = try second.descriptor.rebound(to: first.workspaceID)
+        func secondEvent(_ event: AssetFunctionalRelationshipEventV1) throws -> AssetFunctionalRelationshipEventV1 {
+            try C41FunctionalRelationshipTestSupportV1.makeEvent(
+                eventID: event.eventID, relationshipID: event.relationshipID,
+                workspaceID: first.workspaceID, action: event.action,
+                sourceAssetID: event.sourceAssetID, targetAssetID: event.targetAssetID,
+                descriptor: secondDescriptor, actor: first.actor,
+                predecessorEventID: event.predecessorEventID,
+                expectedRelationshipRevision: event.expectedRelationshipRevision,
+                revision: event.revision, mutationID: event.mutationID,
+                recordedAt: event.recordedAt
+            )
+        }
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(43_200),
+            workspaceID: first.workspaceID,
+            capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate.addingTimeInterval(2),
+            descriptorReleases: [first.descriptor, secondDescriptor],
+            relationships: [first.added, first.ended, try secondEvent(second.added),
+                            try secondEvent(second.superseded)]
+        )
+        let originalBytes = try FunctionalRelationshipCanonicalCodecV1.encode(snapshot)
+        let destination = C41FunctionalRelationshipTestSupportV1.workspace(43_300)
+        let rebound = try snapshot.rebound(to: destination)
+        try rebound.validate()
+        XCTAssertEqual(rebound.relationships.count, 4)
+        XCTAssertEqual(rebound.descriptorReleases.count, 2)
+        XCTAssertTrue(rebound.relationships.allSatisfy {
+            $0.workspaceID == destination && $0.actor.workspaceID == destination
+        })
+        XCTAssertTrue(rebound.descriptorReleases.allSatisfy { $0.workspaceID == destination })
+        XCTAssertEqual(rebound.frozenReferences.map(\.relationshipID), [second.relationshipID])
+        let projection = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: destination, events: rebound.relationships,
+            descriptors: rebound.descriptorReleases
+        )
+        XCTAssertEqual(projection.currentRelationships.map(\.action), [.superseded])
+        XCTAssertNotEqual(rebound.snapshotSHA256, snapshot.snapshotSHA256)
+        // Round-trip equality covers every retained identity, revision, timestamp and provenance field.
+        XCTAssertEqual(try rebound.rebound(to: first.workspaceID), snapshot)
+        XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(snapshot), originalBytes)
+        try assertCanonicalRoundTrip(rebound)
+    }
+
+    func testC41SnapshotSameWorkspaceRebindIsExactIdentity() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 43_400)
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(43_490),
+            workspaceID: fixture.workspaceID, capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor], relationships: [fixture.added]
+        )
+        let rebound = try snapshot.rebound(to: fixture.workspaceID)
+        XCTAssertEqual(rebound, snapshot)
+        XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(rebound),
+                       try FunctionalRelationshipCanonicalCodecV1.encode(snapshot))
+    }
+
+    func testC41SnapshotRebindRejectsInvalidSourceBeforeRepair() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 43_500)
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(43_590),
+            workspaceID: fixture.workspaceID, capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor], relationships: [fixture.added]
+        )
+        let bytes = try FunctionalRelationshipCanonicalCodecV1.encode(snapshot)
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        let destination = C41FunctionalRelationshipTestSupportV1.workspace(43_600)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        func reject(_ object: [String: Any], file: StaticString = #filePath, line: UInt = #line) throws {
+            // Deliberately decode without the validated canonical codec to exercise the API's own admission.
+            let candidate = try decoder.decode(CompletedFunctionalRelationshipSnapshotV1.self,
+                                               from: JSONSerialization.data(withJSONObject: object))
+            XCTAssertThrowsError(try candidate.rebound(to: destination), file: file, line: line)
+        }
+        var forged = original
+        forged["snapshotSHA256"] = String(repeating: "0", count: 64)
+        try reject(forged)
+        var missing = original
+        missing["descriptorReleases"] = [] as [Any]
+        try reject(missing)
+        for field in ["descriptorSHA256", "revision"] {
+            var mismatch = original
+            var events = try XCTUnwrap(mismatch["relationships"] as? [[String: Any]])
+            var reference = try XCTUnwrap(events[0]["descriptor"] as? [String: Any])
+            if field == "revision" { reference[field] = 2 }
+            else { reference[field] = String(repeating: "0", count: 64) }
+            events[0]["descriptor"] = reference
+            mismatch["relationships"] = events
+            try reject(mismatch)
+        }
+        var crossWorkspace = original
+        let foreignEvent = try fixture.added.rebound(to: destination)
+        crossWorkspace["relationships"] = [try JSONSerialization.jsonObject(
+            with: FunctionalRelationshipCanonicalCodecV1.encode(foreignEvent)
+        )]
+        try reject(crossWorkspace)
+        XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(snapshot), bytes)
+    }
+
     func testV23P03C41AlternateMinimumsAreNamedReadinessBoundaries() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(
             seed: 41_100,

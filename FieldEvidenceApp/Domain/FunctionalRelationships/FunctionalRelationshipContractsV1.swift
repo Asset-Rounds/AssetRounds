@@ -696,10 +696,40 @@ struct CompletedFunctionalRelationshipSnapshotV1: Codable, Equatable, Hashable, 
 }
 
 extension CompletedFunctionalRelationshipSnapshotV1 {
-    func rebound(to workspaceID:WorkspaceID)throws->Self {
-        try Self(snapshotID:snapshotID,workspaceID:workspaceID,capturedAt:capturedAt,
-            descriptorReleases:try descriptorReleases.map{try $0.rebound(to:workspaceID)},
-            relationships:try relationships.map{try $0.rebound(to:workspaceID)})
+    func rebound(to workspaceID: WorkspaceID) throws -> Self {
+        // Reject invalid source joins before any destination reference can replace them.
+        try validate()
+        let reboundDescriptors = try descriptorReleases.map { try $0.rebound(to: workspaceID) }
+        let descriptorPairs = Dictionary(uniqueKeysWithValues:
+            zip(descriptorReleases, reboundDescriptors).map { ($0.0.descriptorReleaseID, $0) }
+        )
+        let reboundEvents = try relationships.map { event in
+            guard let (source, destination) = descriptorPairs[event.descriptor.descriptorReleaseID],
+                  event.workspaceID == source.workspaceID,
+                  event.descriptor == FunctionalRelationshipDescriptorReferenceV1(source) else {
+                throw FunctionalRelationshipFailureV1.unknownDescriptor
+            }
+            let actor = try LocalActorReferenceV1(
+                actorReferenceID: event.actor.actorReferenceID, workspaceID: workspaceID,
+                partyID: event.actor.partyID, displayName: event.actor.displayName
+            )
+            return try AssetFunctionalRelationshipEventV1(
+                eventID: event.eventID, relationshipID: event.relationshipID,
+                workspaceID: workspaceID, action: event.action,
+                sourceAssetID: event.sourceAssetID, targetAssetID: event.targetAssetID,
+                sourceAssetRevision: event.sourceAssetRevision, targetAssetRevision: event.targetAssetRevision,
+                descriptor: FunctionalRelationshipDescriptorReferenceV1(destination),
+                effectiveAt: event.effectiveAt, recordedAt: event.recordedAt,
+                actor: actor, provenance: event.provenance,
+                predecessorEventID: event.predecessorEventID,
+                expectedRelationshipRevision: event.expectedRelationshipRevision,
+                revision: event.revision, mutationID: event.mutationID
+            )
+        }
+        return try Self(
+            snapshotID: snapshotID, workspaceID: workspaceID, capturedAt: capturedAt,
+            descriptorReleases: reboundDescriptors, relationships: reboundEvents
+        )
     }
 }
 

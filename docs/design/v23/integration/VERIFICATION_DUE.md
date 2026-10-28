@@ -1,3 +1,17 @@
+# Current obligations — C41 correction, October28,2026
+
+C41 relationship snapshot rebinding now validates the source before transformation, maps each original descriptor to its exact destination descriptor, and rebuilds all events against that map while preserving ended and superseded history. Invalid source digests, missing/foreign descriptors and invalid event ownership remain refusals. Three new regressions bring the census to 3826 unique methods in48 partitions; only S44 gains those methods.
+
+Local compile30 passed with0 compiler errors and1529 warning occurrences in610.820s. Tests40 completed8PASS/2FAIL/0skip: all7 selected C41 affected checks passed, plus a separate retired-pointer pre-rename restore. The C41 atomic-restore-named control is a value-transform test, not physical archive-restore qualification. Cold deletion and interrupted shared-original clip recovery still fail; this checkpoint does not contain their diagnostic edits or claim their correction. Exact DATA adoption: recovery/compile30-tests40-data-20261028/ROOT_ADOPTION.json. Actual tested source includes separately reviewed DEBUG diagnostics; standalone applicability is recorded separately, never relabelled as a new execution.
+
+CI09/10 on the exact standalone C41 source passed720 non-skipped cases with3 optional-baseline dispatcher skips and0 failures/errors. Census3826/48 and all tools are reconciled. CI09 has one incomplete resource sample; success does not imply continuous peak coverage. Exact adoption: recovery/ci09-ci10-data-20261028/root-adoption/ROOT_ADOPTION.json. Current source-reader applicability and final candidate review remain separately recorded.
+
+All five same-head Phase1 gates remainOPEN (0/5); SourceReady=false; releaseReady=false; accepted exceptionsEMPTY. Main remainsb1d04ae5e684aa9c6807af655089efa1df8a7ed6. Full V23 incorporating accepted S10 stays one app/project/scheme and one writer/store/renderer. Phase1 is intermediate; no feature, safety, privacy, human review or release obligation is waived.
+
+Remaining: exact standalone reader/applicability and candidate review; complete hosted23467 collection/DATA; cold deletion parent-link correction verification; interrupted clip cold invalidIdentity diagnosis; remaining hosted failures; meaningful stabilized full DEVELOPMENT sweep and all five frozen-candidate gates. Keep physical/minimum-runtime and release obligations at their existing deferred scope.
+
+# Historical record — preserved verbatim below
+
 # Current verification due — verified corrections proposal, October 28, 2026
 
 Current checkpoint: worktrees/firstsign-journal-checkpoint-20261028 on published23467a6a52539b9d1299ccd7083778bb2007585d. Exact three-path functional carrier d8743a8f9a67f1eb0d4ddae52ca23f19b09cbee63d772efd5c836cc4f777fac5/23943B;38 pins match compile27. This author adds only the four coordination documents, with full preservation in recovery/firstsign-journal-checkpoint-20261028/docs-author. No execution is selected here.

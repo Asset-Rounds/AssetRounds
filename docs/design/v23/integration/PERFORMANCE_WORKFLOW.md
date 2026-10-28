@@ -1,3 +1,20 @@
+# Current workflow — owner-authorized efficiency, October 28, 2026
+
+This section governs the current workflow; dated material below retains its historical scope. Use current source/evidence bindings and fresh physical admission, not old narrative as present state.
+
+- Batch compatible, independently reviewed corrections into one compile and affected-test cycle. Do not wait for unrelated unfinished work merely to enlarge a batch. Consequential data-safety, persistence, backup/restore, security and tooling changes retain independent review; routine fixture reviews may close together at a coherent milestone.
+- While a local build runs, prepare the next exact selectors, command, review references and resource envelope, and continue disjoint source authoring/review. Root launches only after actual build closure, Products/source binding and current resource/holder checks. Never mutate source or Products held by an active consumer.
+- Reuse exact applicable evidence and reviewed mechanisms. Review changed logic and its dependency closure, then final composition; do not repeat unchanged suite/method audits or add intermediate review tiers for bookkeeping. Keep earlier failures, limitations and attribution visible. A prior execution never becomes a new-source execution.
+- After owned processes positively close and complete conservation is retained with no unresolved safety condition, proceed with separately bound work while retrospective DATA review finishes. The prior outcome stays unadopted until review completes. Root remains sole integrator/operator; no duplicate courier, collector or runner framework.
+- Publish coherent correction checkpoints and use the required full DEVELOPMENT sweep at meaningful stabilization under existing cadence/admission authority. A minor local correction does not itself demand another full sweep; this does not defer an already-required sweep or waive affected verification, cold qualification or same-head gates.
+- Keep operational records concise: current result, remaining failure, next decision, exact retained paths/hashes and material deltas. Preserve full archival records by reference rather than reciting them in every handoff. Measure elapsed time, failure-family reduction and verified outcomes, not artifact/review counts. Track build, test and handoff time separately.
+- Current chat routing is Astra low/medium/high with up to ten helpers; it supersedes stale historical xhigh routing below. On this 24 GiB machine, concurrency follows measured contention and owned budgets, not an obligation to occupy every helper slot or run ten native jobs. Prepare independent work in parallel while keeping actual local execution within its admitted limits.
+- A separately budgeted mutable local diagnostic cache is already permitted but is not yet selected or proved by this section. Implement a bounded owned-path/single-writer proposal with compatible source/toolchain/settings, real dependency tracking, invalidation, consumer lifetimes and required review. Retain immutable per-attempt source/patch, commands, logs/results and required Products outside mutable storage; never repoint a consumed attempt or rebuild held Products. Measure benefit before claiming it. Required cold builds remain.
+
+All originals, drafts, partials, failures, consumed questions, guards, watchdogs, full V23 scope, S10 quality, genuine owner review, five same-head gates and exact-main/release boundaries remain. This is operational use of existing authority, not a new policy tier or acceptance exception.
+
+# Historical workflow record — preserved verbatim below
+
 Latest owner routing: decision48 uses Sol6.1/xhigh for future assignments on both Macs, after active bounded Astra work finishes safely. Keep completed reviews and their genuine attribution.
 
 ## Immediate scheduling — October22 bottleneck audit

@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "7331b451a397bda69c79d211bb0eae58775e4bd8",
+  "generatedAtHead": "6e88f5acea655d61ada9c34c7b1e9f0aeedef866",
   "sweepOrder": [
     "S01",
     "S02",
@@ -4065,8 +4065,11 @@
     {
       "id": "S44",
       "tier": "D50C",
-      "estimatedSeconds": 97.6,
+      "estimatedSeconds": 277.6,
       "selectors": [
+        "FieldEvidenceAppTests/V9_26FunctionalRelationshipTests/testC41SnapshotRebindPreservesMultipleDescriptorHistories",
+        "FieldEvidenceAppTests/V9_26FunctionalRelationshipTests/testC41SnapshotRebindRejectsInvalidSourceBeforeRepair",
+        "FieldEvidenceAppTests/V9_26FunctionalRelationshipTests/testC41SnapshotSameWorkspaceRebindIsExactIdentity",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact",
         "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests/testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
         "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests/testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",

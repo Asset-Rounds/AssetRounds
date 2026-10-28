@@ -1,3 +1,17 @@
+# Current C41 correction checkpoint — October28,2026
+
+C41 relationship snapshot rebinding now validates the source before transformation, maps each original descriptor to its exact destination descriptor, and rebuilds all events against that map while preserving ended and superseded history. Invalid source digests, missing/foreign descriptors and invalid event ownership remain refusals. Three new regressions bring the census to 3826 unique methods in48 partitions; only S44 gains those methods.
+
+Local compile30 passed with0 compiler errors and1529 warning occurrences in610.820s. Tests40 completed8PASS/2FAIL/0skip: all7 selected C41 affected checks passed, plus a separate retired-pointer pre-rename restore. The C41 atomic-restore-named control is a value-transform test, not physical archive-restore qualification. Cold deletion and interrupted shared-original clip recovery still fail; this checkpoint does not contain their diagnostic edits or claim their correction. Exact DATA adoption: recovery/compile30-tests40-data-20261028/ROOT_ADOPTION.json. Actual tested source includes separately reviewed DEBUG diagnostics; standalone applicability is recorded separately, never relabelled as a new execution.
+
+CI09/10 on the exact standalone C41 source passed720 non-skipped cases with3 optional-baseline dispatcher skips and0 failures/errors. Census3826/48 and all tools are reconciled. CI09 has one incomplete resource sample; success does not imply continuous peak coverage. Exact adoption: recovery/ci09-ci10-data-20261028/root-adoption/ROOT_ADOPTION.json. Current source-reader applicability and final candidate review remain separately recorded.
+
+All five same-head Phase1 gates remainOPEN (0/5); SourceReady=false; releaseReady=false; accepted exceptionsEMPTY. Main remainsb1d04ae5e684aa9c6807af655089efa1df8a7ed6. Full V23 incorporating accepted S10 stays one app/project/scheme and one writer/store/renderer. Phase1 is intermediate; no feature, safety, privacy, human review or release obligation is waived.
+
+Exact candidate source/review/command records are under recovery/c41-checkpoint-20261028. The current PERFORMANCE_WORKFLOW prefix records owner-authorized batching, concise handoffs, actual-resource scheduling and evidence reuse; no additional gate or policy exception is introduced.
+
+# Historical record — preserved verbatim below
+
 # Current verified corrections checkpoint proposal — October 28, 2026
 
 Status: INCOMPLETE DEVELOPMENT; final candidate review/publication PENDING. Author scope is only four coordination documents. Root selection: recovery/firstsign-journal-checkpoint-20261028/ROOT_SELECTION.json. Worktree worktrees/firstsign-journal-checkpoint-20261028 starts at23467a6a52539b9d1299ccd7083778bb2007585d; base tree5ecf36a71ec7484b7fd27e7b407f207d855b414e. Its exact tested functional carrier is23943B SHA256d8743a8f9a67f1eb0d4ddae52ca23f19b09cbee63d772efd5c836cc4f777fac5, not a new commit/tree. All38 functional pins match compile27. Complete composition is /Users/palatis/AssetRounds-Diagnostics/dot-firstsign-metadata-journal-fixture-20261028/COMPOSITION.json.
