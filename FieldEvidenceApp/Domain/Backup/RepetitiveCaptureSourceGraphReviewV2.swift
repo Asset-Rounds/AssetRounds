@@ -322,6 +322,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
 
     struct History: Equatable, Sendable {
         let records: [String: RepetitiveCaptureSourceHistoryRecordV2]
+        // Only init(snapshot:) creates these facts, after canonical decoding
+        // proves that each immutable envelope encodes to its original bytes.
+        private let canonicalEnvelopeSHA256ByRecordKey: [String: String]
         let quarantinedKeys: Set<String>
         let checkpointsByDraft: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]]
         let fieldDraftRecordsByDraft: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]]
@@ -329,6 +332,7 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
 
         init(snapshot: MutationHistorySnapshotV1) throws {
             var values: [String: RepetitiveCaptureSourceHistoryRecordV2] = [:]
+            var canonicalEnvelopeSHA256ByRecordKey: [String: String] = [:]
             var checkpoints: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
             var fieldDrafts: [WorkspaceObjectKey: [RepetitiveCaptureSourceHistoryRecordV2]] = [:]
             var rounds: [WorkspaceObjectKey: [RoundSessionV1]] = [:]
@@ -339,6 +343,8 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                     original: original, envelope: envelope, receipt: receipt)
                 guard values.updateValue(record, forKey: RepetitiveCaptureSourceGraphReviewV2.key(envelope)) == nil
                 else { throw RepetitiveCaptureSourceGraphReviewV2.invalid() }
+                canonicalEnvelopeSHA256ByRecordKey[RepetitiveCaptureSourceGraphReviewV2.key(envelope)] =
+                    SHA256.hash(data: original.envelopeData).map { String(format: "%02x", $0) }.joined()
                 switch envelope.command {
                 case let .applyFieldDraft(mutation):
                     let draftID = RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)
@@ -355,6 +361,7 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 }
             }
             records = values
+            self.canonicalEnvelopeSHA256ByRecordKey = canonicalEnvelopeSHA256ByRecordKey
             checkpointsByDraft = checkpoints
             fieldDraftRecordsByDraft = fieldDrafts
             roundsBySession = rounds
@@ -383,7 +390,11 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 throw RepetitiveCaptureSourceGraphReviewV2.invalid()
             }
             diagnosticPhase?("anchor.authentication.envelope-digest")
-            guard receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
+            // Keep validation at the incumbent authentication boundary. The
+            // already-canonical immutable bytes supply only its digest.
+            try envelope.validate()
+            guard let canonicalEnvelopeSHA256 = canonicalEnvelopeSHA256ByRecordKey[recordKey],
+                  receipt.envelopeSHA256 == canonicalEnvelopeSHA256 else {
                 throw RepetitiveCaptureSourceGraphReviewV2.invalid()
             }
             diagnosticPhase?("anchor.authentication.command-digest")

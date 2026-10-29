@@ -4698,11 +4698,37 @@ extension S6_4AtomicRestoreTests {
             let target = try makeHarness("non-clone-draft-\(mode.rawValue)")
 
             let validated = try importPackage(draft.package, into: target.session)
+#if DEBUG
+            let restored = try await {
+                let service = try BackupRestoreService(applicationSupportURL: target.support)
+                service.restorePhaseDiagnosticForTesting = { phase in
+                    let diagnosticSavedErrno = errno
+                    defer { errno = diagnosticSavedErrno }
+                    print("V23_RESTORE_RECORD_EQUALITY_TEST_V1 mode=\(mode.rawValue) step=restore phase=\(phase)")
+                }
+                do {
+                    let diagnosticSavedErrno = errno
+                    defer { errno = diagnosticSavedErrno }
+                    print("V23_RESTORE_RECORD_EQUALITY_TEST_V1 mode=\(mode.rawValue) step=restore-enter")
+                }
+                let result = try await service.restore(validatedPackage: validated,
+                    currentModelContext: target.session.modelContext,
+                    currentGenerationID: target.session.generationID,
+                    currentGenerationRootURL: target.session.generationRootURL, mode: mode).recordingFixtureLifetime(in: self.fixtureLifetime)
+                do {
+                    let diagnosticSavedErrno = errno
+                    defer { errno = diagnosticSavedErrno }
+                    print("V23_RESTORE_RECORD_EQUALITY_TEST_V1 mode=\(mode.rawValue) step=restore-return")
+                }
+                return result
+            }()
+#else
             let restored = try await BackupRestoreService(applicationSupportURL: target.support)
                 .restore(validatedPackage: validated,
                     currentModelContext: target.session.modelContext,
                     currentGenerationID: target.session.generationID,
                     currentGenerationRootURL: target.session.generationRootURL, mode: mode).recordingFixtureLifetime(in: self.fixtureLifetime)
+#endif
             let checkpoints = try restored.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
             let stages = try restored.modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>())
             XCTAssertEqual(checkpoints.count, 1)

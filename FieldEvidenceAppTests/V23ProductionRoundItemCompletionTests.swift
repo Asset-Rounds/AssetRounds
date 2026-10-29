@@ -269,23 +269,74 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
 
     @MainActor
     func testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes() async throws {
+#if DEBUG
+        func recordRoundPhotoPhase(_ phase: StaticString, event: StaticString) {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            print("V23_ROUND_PHOTO_PHASE_V1 phase=\(phase) event=\(event)")
+        }
+        var roundPhotoPhase: StaticString = "fixture"
+        defer { recordRoundPhotoPhase(roundPhotoPhase, event: "scope-exit") }
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let fixture = try await makeFixture("round-item-photos")
         defer { fixture.cleanUp() }
+#if DEBUG
+        roundPhotoPhase = "seed"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let seed = try await V23RoundRouteHarness.make(in: fixture, label: "round-item-photos")
+#if DEBUG
+        roundPhotoPhase = "draft-items"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let context = try await seed.addingDraftItems(1)
+#if DEBUG
+        roundPhotoPhase = "round-start"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let active = try await startActualRound(in: context, recorder: "Photo start")
         let ordered = active.items.sorted { $0.order < $1.order }
+#if DEBUG
+        roundPhotoPhase = "navigation-target"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let target = try context.target(for: active, mode: .resume)
+#if DEBUG
+        roundPhotoPhase = "scene-open"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         try context.work.scene.open(target)
+#if DEBUG
+        roundPhotoPhase = "open-item"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let (state, host) = try await openBegunItem(in: context, itemID: ordered[0].itemID, target: target)
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(host.stage, .capture(.wide))
         XCTAssertEqual(host.capturePreparation?.step, .wide)
 
         // Selection stages only through the normalized pair; nothing commits.
+#if DEBUG
+        roundPhotoPhase = "wide-image"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let wide = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 211)
+#if DEBUG
+        roundPhotoPhase = "wide-stage"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         try await host.stagePhoto(wide, origin: .localImport)
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(host.stage, .pendingPhoto(.wide))
         guard case .pairReady? = host.pendingPhoto?.phase else {
+#if DEBUG
+            recordRoundPhotoPhase("normalized-wide-pair-missing", event: "assertion-return")
+#endif
             return XCTFail("Selection must stop at the normalized pair")
         }
         XCTAssertEqual(host.selectedPhotoPreview, wide)
@@ -296,64 +347,174 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
             throw CompletionInjectedFailure.lostAcknowledgement
         }
         do {
+#if DEBUG
+            roundPhotoPhase = "wide-use-injected"
+            recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
             try await host.usePhoto()
+#if DEBUG
+            recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
             XCTFail("The photo commit must reach its lost acknowledgement boundary")
         } catch {
+#if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                let family: StaticString
+                if error is CompletionInjectedFailure {
+                    family = "completion-injected"
+                } else if error is ProductionCheckRunnerItemCaptureFailureV1 {
+                    family = "capture-presentation"
+                } else if error is FieldDraftFailureV1 {
+                    family = "field-draft"
+                } else {
+                    family = "other"
+                }
+                print("V23_ROUND_PHOTO_PHASE_V1 phase=wide-use-injected event=caught family=\(family)")
+            }
+#endif
             XCTAssertEqual(error as? CompletionInjectedFailure, .lostAcknowledgement)
         }
         host.service.beforePhotoTargetAcknowledgementForTesting = nil
         XCTAssertEqual(host.stage, .pendingPhoto(.wide))
         guard case let .preparedCommit(_, attempt)? = host.pendingPhoto?.phase else {
+#if DEBUG
+            recordRoundPhotoPhase("saved-wide-attempt-missing", event: "assertion-return")
+#endif
             return XCTFail("Expected the saved commit attempt")
         }
+#if DEBUG
+        roundPhotoPhase = "wide-use-retry"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         try await host.usePhoto()
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(host.stage, .capture(.close))
+#if DEBUG
+        roundPhotoPhase = "wide-checkpoint"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let adopted = try CheckRunnerItemDraftCodecV1.validateCheckpoint(try XCTUnwrap(host.checkpoint))
         guard case let .committed(_, _, _, _, _, _, _, _, targetMutationID, _)? = adopted.field.wideContext else {
+#if DEBUG
+            recordRoundPhotoPhase("committed-wide-context-missing", event: "assertion-return")
+#endif
             return XCTFail("The wide slot must adopt its committed child")
         }
         XCTAssertEqual(targetMutationID, attempt.targetMutationID)
 
         // A cold reopen at the saved close pair offers Use Photo without a
         // preview, the camera or any write.
+#if DEBUG
+        roundPhotoPhase = "close-image"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let close = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: 212)
+#if DEBUG
+        roundPhotoPhase = "close-stage"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         try await host.stagePhoto(close, origin: .humanCapture)
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(host.stage, .pendingPhoto(.close))
+#if DEBUG
+        roundPhotoPhase = "original-dismiss-retire"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         state.dismissCapture()
         await host.retire()
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
+#if DEBUG
+        roundPhotoPhase = "revision-before-reopen"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let afterStage = try context.work.store.workspaceWriter.currentRevision()
+#if DEBUG
+        roundPhotoPhase = "reopen-create-refresh"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let reopened = ProductionRoundSessionPresentationV1(target: target,
             scene: context.work.scene, access: context.access)
         await reopened.refresh()
+#if DEBUG
+        roundPhotoPhase = "reopen-request-confirm"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         reopened.requestCapture(itemID: ordered[0].itemID)
         let reopenedOpen = await reopened.confirmCapture(recordedByName: "Photo recorder")
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertTrue(reopenedOpen, reopened.lastCaptureFailureForTesting ?? "")
+#if DEBUG
+        roundPhotoPhase = "resumed-state"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let resumed = try XCTUnwrap(reopened.captureHost)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterStage)
         XCTAssertEqual(resumed.stage, .pendingPhoto(.close))
         XCTAssertNil(resumed.selectedPhotoPreview)
+#if DEBUG
+        roundPhotoPhase = "close-use"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         try await resumed.usePhoto()
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(resumed.stage, .outcome(photosIncomplete: false))
 
         // Outcome, review over both committed photos, and one finish.
+#if DEBUG
+        roundPhotoPhase = "outcome-edit"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let editor = try XCTUnwrap(resumed.editor)
         var outcome = editor.values.outcome
         outcome.selectNoVisibleIssue()
         try resumed.replaceEditableValues(.init(preflight: editor.values.preflight, outcome: outcome,
             semanticAnchor: editor.values.semanticAnchor))
+#if DEBUG
+        roundPhotoPhase = "review"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let review = try await resumed.readReview()
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertNotNil(review.wideEvidence)
         XCTAssertNotNil(review.closeEvidence)
         XCTAssertTrue(review.missingPurposeDisplays.isEmpty)
+#if DEBUG
+        roundPhotoPhase = "finish"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         let result = try await resumed.finish(recordedByName: "Photo recorder",
             sourceApp: SourceAppSnapshotV1(build: "round-photos", version: "1.0"))
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
         XCTAssertEqual(resumed.stage, .completed)
         XCTAssertEqual(result.progress.chain.nodes.map { $0.step.action }, [.enter, .complete])
         XCTAssertEqual(result.progress.chain.currentRound.items.first { $0.itemID == ordered[0].itemID }?.disposition,
                        .completed)
+#if DEBUG
+        roundPhotoPhase = "accept-progress-retire"
+        recordRoundPhotoPhase(roundPhotoPhase, event: "enter")
+#endif
         reopened.acceptCaptureProgress(result)
         XCTAssertEqual(reopened.session, result.progress.chain.currentRound)
         await resumed.retire()
+#if DEBUG
+        recordRoundPhotoPhase(roundPhotoPhase, event: "returned")
+#endif
     }
 
     /// Audited original36075174540: every Round readiness rebuild rejected at

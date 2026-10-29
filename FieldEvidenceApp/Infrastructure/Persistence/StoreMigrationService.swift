@@ -11872,7 +11872,6 @@ final class EraseSchema2ColdManifestOwnerV1 {
               receipt.afterDeletedCount == completedDeletionSteps + 1,
               receipt.beforeGenerationsFact == beforeFact,
               receipt.beforeNames == beforeNames,
-              receipt.afterNames == (try namesChecked(in: generations)),
               StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
                 receipt.beforeSurvivorSHA256),
               StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
@@ -11935,6 +11934,10 @@ final class EraseSchema2ColdManifestOwnerV1 {
         let projected = Opened(descriptor: generations.descriptor,
             parent: generations.parent, name: generations.name,
             path: generations.path, fact: Fact(afterStat))
+        // Enumerate the receipt-authenticated post-effect fact before adopting it.
+        guard receipt.afterNames == (try namesChecked(in: projected)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
         held[index] = projected
         self.generations = projected
         deletionProjectedGenerationNames = receipt.afterNames

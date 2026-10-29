@@ -381,8 +381,10 @@ final class EraseSchema2ColdCheckedDeletionExecutorV1 {
             }
             tokens.append("\(generation.generationID)|\(cut.deletedCount)|\(cut.observedSHA256)")
         }
-        let names = try io.names(in: generationsFD)
-        guard names == expectedNames.sorted(),
+        let names = try io.names(in: generationsFD, requiringDotEntries: true)
+        guard names.count <= Int.max - 2,
+              nlink_t(exactly: names.count + 2) == first.st_nlink,
+              names == expectedNames.sorted(),
               Darwin.fstat(generationsFD, &last) == 0,
               EraseColdControlLeafFactV1(first)
                 == EraseColdControlLeafFactV1(last),
@@ -562,6 +564,22 @@ final class EraseSchema2ColdCheckedDeletionExecutorV1 {
                         AT_SYMLINK_NOFOLLOW) == 0 else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
+                let parentNamesBefore = try io.names(in: parentFD, requiringDotEntries: true)
+                var parentBeforeSettled = stat()
+                guard parentNamesBefore.contains(child), parentNamesBefore.count <= Int.max - 2,
+                      nlink_t(exactly: parentNamesBefore.count + 2) == parentBefore.st_nlink,
+                      Darwin.fstat(parentFD, &parentBeforeSettled) == 0,
+                      parentBeforeSettled.st_dev == parentBefore.st_dev,
+                      parentBeforeSettled.st_ino == parentBefore.st_ino,
+                      parentBeforeSettled.st_mode == parentBefore.st_mode,
+                      parentBeforeSettled.st_nlink == parentBefore.st_nlink,
+                      parentBeforeSettled.st_size == parentBefore.st_size,
+                      parentBeforeSettled.st_mtimespec.tv_sec == parentBefore.st_mtimespec.tv_sec,
+                      parentBeforeSettled.st_mtimespec.tv_nsec == parentBefore.st_mtimespec.tv_nsec,
+                      parentBeforeSettled.st_ctimespec.tv_sec == parentBefore.st_ctimespec.tv_sec,
+                      parentBeforeSettled.st_ctimespec.tv_nsec == parentBefore.st_ctimespec.tv_nsec else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
                 try requireStepNode(named, step: step)
                 let isDirectory = step.expected.kind == "directory"
                 if isDirectory {
@@ -586,9 +604,24 @@ final class EraseSchema2ColdCheckedDeletionExecutorV1 {
                       parentAfter.st_dev == parentBefore.st_dev,
                       parentAfter.st_ino == parentBefore.st_ino,
                       parentAfter.st_mode == parentBefore.st_mode,
-                      parentAfter.st_nlink
-                        == parentBefore.st_nlink
-                            - (isDirectory ? 1 : 0) else {
+                      parentAfter.st_nlink == parentBefore.st_nlink - 1 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let parentNamesAfter = try io.names(in: parentFD, requiringDotEntries: true)
+                var parentSettled = stat()
+                guard parentNamesAfter == parentNamesBefore.filter({ $0 != child }),
+                      parentNamesAfter.count <= Int.max - 2,
+                      nlink_t(exactly: parentNamesAfter.count + 2) == parentAfter.st_nlink,
+                      Darwin.fstat(parentFD, &parentSettled) == 0,
+                      parentSettled.st_dev == parentAfter.st_dev,
+                      parentSettled.st_ino == parentAfter.st_ino,
+                      parentSettled.st_mode == parentAfter.st_mode,
+                      parentSettled.st_nlink == parentAfter.st_nlink,
+                      parentSettled.st_size == parentAfter.st_size,
+                      parentSettled.st_mtimespec.tv_sec == parentAfter.st_mtimespec.tv_sec,
+                      parentSettled.st_mtimespec.tv_nsec == parentAfter.st_mtimespec.tv_nsec,
+                      parentSettled.st_ctimespec.tv_sec == parentAfter.st_ctimespec.tv_sec,
+                      parentSettled.st_ctimespec.tv_nsec == parentAfter.st_ctimespec.tv_nsec else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
             }
@@ -1040,8 +1073,13 @@ final class EraseAbortCheckedSnapshotIOV1 {
         }
     }
 
-    func names(in parent: Int32) throws -> [String] {
+    func names(in parent: Int32, requiringDotEntries: Bool = false) throws -> [String] {
         try requireSettled()
+        if requiringDotEntries {
+            guard activeOriginalPointerPublication == nil, selectedControlOwnerV1 == nil else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
         if let actual = activeOriginalPointerPublication {
             guard actual.storage.snapshotIO === self else { throw StoreGenerationFailure.dataPointerInvalid }
             return try actual.names(in: parent)
@@ -1056,15 +1094,27 @@ final class EraseAbortCheckedSnapshotIOV1 {
         var closeAttempted = false
         do {
             var result = [String]()
+            var sawDot = false, sawDotDot = false
             errno = 0
             while let entry = Darwin.readdir(directory) {
                 guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
-                if name != "." && name != ".." { result.append(name) }
+                if requiringDotEntries && name == "." {
+                    guard !sawDot else { throw StoreGenerationFailure.dataPointerInvalid }
+                    sawDot = true
+                } else if requiringDotEntries && name == ".." {
+                    guard !sawDotDot else { throw StoreGenerationFailure.dataPointerInvalid }
+                    sawDotDot = true
+                } else if name != "." && name != ".." { result.append(name) }
                 errno = 0
             }
             guard errno == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            if requiringDotEntries {
+                guard sawDot, sawDotDot, Set(result).count == result.count else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
             closeAttempted = true
             guard Darwin.closedir(directory) == 0 else {
                 uncertainDirectories.append(directory)
@@ -1549,7 +1599,11 @@ final class EraseAbortCheckedSnapshotIOV1 {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
                 observed[path] = (before, nil)
-                let children = try names(in: directory)
+                let children = try names(in: directory, requiringDotEntries: true)
+                guard children.count <= Int.max - 2,
+                      nlink_t(exactly: children.count + 2) == before.st_nlink else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
                 for child in children {
                     guard !child.isEmpty, child != ".", child != "..",
                           !child.contains("/") else {
@@ -1647,12 +1701,16 @@ final class EraseAbortCheckedSnapshotIOV1 {
                     return !suffix.isEmpty && !suffix.contains("/")
                         ? candidate : nil
                 }
-                let removedDirectories = removedDirect.filter {
-                    expected[$0]?.kind == "directory"
+                let originalDirectCount = expected.keys.filter { candidate in
+                    guard candidate.hasPrefix(prefix), candidate != path else { return false }
+                    let suffix = candidate.dropFirst(prefix.count)
+                    return !suffix.isEmpty && !suffix.contains("/")
                 }.count
-                guard node.links >= UInt64(removedDirectories),
+                guard originalDirectCount <= Int.max - 2,
+                      node.links == UInt64(originalDirectCount + 2),
+                      node.links >= UInt64(removedDirect.count),
                       fact.st_nlink == nlink_t(
-                        node.links - UInt64(removedDirectories)),
+                        node.links - UInt64(removedDirect.count)),
                       fact.st_size >= 0 else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }

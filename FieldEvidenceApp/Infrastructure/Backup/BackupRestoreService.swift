@@ -11174,10 +11174,22 @@ private extension BackupRestoreService {
         guard additions.count == records.count, output.count == records.count else {
             throw BackupRestoreServiceError.invalidPackage
         }
+        // Every consumed source row was validated above and replaced by a
+        // distinct destination identity absent from the original terminals.
+        // Preserve its immutable history while projecting its now-absent row
+        // exactly as destination journal import does. New targets keep their
+        // canonical row digests in additions.
+        let sourceRevisions = try history.entityRevisions.map { value in
+            guard consumedSources.contains(value.identity) else { return value }
+            return MutationHistoryEntityRevisionV1(
+                identity: value.identity, revision: value.revision,
+                externalProjectionSHA256: try MutationJournalStoreV1.restoreTombstoneSHA256(
+                    identity: value.identity, revision: value.revision))
+        }
         let mappedHistory = MutationHistorySnapshotV1(
             workspaceRevision: history.workspaceRevision, lastLocalSequence: history.lastLocalSequence,
             receipts: history.receipts, quarantines: history.quarantines,
-            entityRevisions: (history.entityRevisions + additions).sorted {
+            entityRevisions: (sourceRevisions + additions).sorted {
                 $0.identity.stableKey < $1.identity.stableKey
             }
         )

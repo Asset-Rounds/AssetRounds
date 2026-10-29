@@ -1366,7 +1366,7 @@ final class V9_40SurveySessionTests: XCTestCase {
                 ),
                 publishedAt: C26SurveySessionTestSupport.fixedDate.addingTimeInterval(30),
                 revision: 1,
-                mutationID: try C26SurveySessionTestSupport.mutation(4_223)
+                mutationID: try C26SurveySessionTestSupport.mutation(2_604)
             )
             let completed = try C26SurveySessionTestSupport.session(
                 authority: authority,

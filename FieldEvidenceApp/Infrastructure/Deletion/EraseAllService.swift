@@ -9815,22 +9815,99 @@ extension EraseAllService {
                 traceErasePhase("recovery.schema2.prepared-old-private-valid")
             }
         }
+        #if DEBUG
+        do {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.forward-reproof.enter")
+        }
+        #endif
         _ = try operation.requireSchema2ColdPreparedForward()
+        #if DEBUG
+        do {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.forward-reproof.complete")
+        }
+        #endif
         if !operation.hasSchema2ColdPreparedAuxiliaryAuthority {
+            #if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-observation.enter")
+            }
+            #endif
             let firstAuxiliary = try observer.firstObservation()
+            #if DEBUG
+            do {
+                let savedErrno = errno
+                defer { errno = savedErrno }
+                schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-observation.complete")
+            }
+            #endif
             if first.observed.opaqueAuxiliaryRosterPresent {
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.original-roster.decode.enter")
+                }
+                #endif
                 let observed = try manifest.decodeSchema2ColdObservedPreparedOriginalAuxiliaryRoster(
                     intent: first.intent, preparation: first.preparation, store: store,
                     observer: observer, snapshot: firstAuxiliary, operation: operation)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.original-roster.decode.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.original-roster.retain.enter")
+                }
+                #endif
                 try operation.retainSchema2ColdPreparedOriginalAuxiliaryObservation(
                     observed, store: store, manifest: manifest)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.original-roster.retain.complete")
+                }
+                #endif
             } else {
                 // afterPreparedWrite has no Original roster. Capture and
                 // publish its genuine first-P record with this cold owner.
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.capture-retain.enter")
+                }
+                #endif
                 let capture = EraseSchema2ColdAuxiliaryRosterCaptureV1()
                 try operation.retainSchema2ColdPreparedAuxiliaryRosterCapture(capture,
                     observer: observer, snapshot: firstAuxiliary,
                     intent: first.intent, preparation: first.preparation)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.capture-retain.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.capture.enter")
+                }
+                #endif
                 _ = try manifest.withHeldSchema2ColdAuxiliaryRosterReread(operation: operation) {
                     support, caches, temporary in
                     try capture.captureFirstPrepared(intent: first.intent,
@@ -9838,16 +9915,93 @@ extension EraseAllService {
                         snapshot: firstAuxiliary, support: support, caches: caches,
                         temporary: temporary)
                 }
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.capture.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.unchanged.enter")
+                }
+                #endif
                 try manifest.requireSchema2ColdPreparedAuxiliaryUnchanged(observer: observer,
                     operation: operation)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.unchanged.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.seal.enter")
+                }
+                #endif
                 let seal = try manifest.sealSchema2ColdPreparedAuxiliaryRoster(
                     intent: first.intent, preparation: first.preparation,
                     observer: observer, snapshot: firstAuxiliary, capture: capture,
                     operation: operation)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.seal.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.seal-retain.enter")
+                }
+                #endif
                 try operation.retainSchema2ColdPreparedAuxiliaryRosterSeal(seal, store: store)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.seal-retain.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.publish.enter")
+                }
+                #endif
                 let receipt = try store.publishSchema2ColdPreparedAuxiliaryRoster(
                     seal: seal, operation: operation)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.publish.complete")
+                }
+                #endif
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.publication-retain.enter")
+                }
+                #endif
                 try operation.retainSchema2ColdPreparedAuxiliaryPublication(receipt, store: store)
+                #if DEBUG
+                do {
+                    let savedErrno = errno
+                    defer { errno = savedErrno }
+                    schema2ColdFixedStageForTesting?("recovery.schema2.prepared-forward.first-p.publication-retain.complete")
+                }
+                #endif
             }
         }
         if first.generation.currentPointer != first.generation.pointer {

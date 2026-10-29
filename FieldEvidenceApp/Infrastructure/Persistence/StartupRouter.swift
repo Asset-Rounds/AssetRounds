@@ -28000,6 +28000,38 @@ extension StartupRouter {
         firstColdEraseFailureForTesting: (@MainActor (Error) -> Void)? = nil
     ) async throws {
         let authorization = try await startupAuthorization(accessGate)
+        let previousErasePhaseDiagnostic = service.erasePhaseDiagnosticForTesting
+        service.erasePhaseDiagnosticForTesting = { phase in
+            previousErasePhaseDiagnostic?(phase)
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            // Output only these source-literal milestones, never forwarded
+            // paths, identities, snapshots, or arbitrary diagnostic text.
+            let stage: String
+            switch phase {
+            case "recovery.schema2.prepared-target-private-valid":
+                stage = "prepared-target-private-valid"
+            case "recovery.schema2.prepared-old-private-valid":
+                stage = "prepared-old-private-valid"
+            case "recovery.schema2.prepared-forward.before-cas":
+                stage = "prepared-forward.before-cas"
+            case "recovery.schema2.prepared-forward.cas-settled":
+                stage = "prepared-forward.cas-settled"
+            case "recovery.schema2.target-live-session":
+                stage = "target-live-session"
+            case "recovery.schema2.p-forward.before-cas":
+                stage = "p-forward.before-cas"
+            case "recovery.schema2.p-forward.cas-settled":
+                stage = "p-forward.cas-settled"
+            case "recovery.schema2.p-forward.method-complete":
+                stage = "p-forward.method-complete"
+            default: return
+            }
+            let line = "V23_CLIP_COLD_RECOVERY_PHASE_V1 stage=\(stage)\n"
+            do { try FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            catch { /* Diagnostic transport never replaces the actual refusal. */ }
+        }
+        defer { service.erasePhaseDiagnosticForTesting = previousErasePhaseDiagnostic }
         pendingColdEraseFirstFailureLoanForTesting =
             firstColdEraseFailureForTesting.map {
                 ColdEraseFirstFailureLoanForTesting(service: service,

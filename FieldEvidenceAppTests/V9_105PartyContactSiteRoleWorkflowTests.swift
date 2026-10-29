@@ -327,21 +327,46 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
 
     @MainActor
     func testV23P04C42H01IdentityHostilityStalenessAndDivergenceHaveNoEffect() async throws {
+#if DEBUG
+        var c42HostilityPhase = "store-open"
+        defer {
+            let savedErrno = errno
+            defer { errno = savedErrno }
+            FileHandle.standardError.write(Data(
+                ("V23_C42_HOSTILITY_PHASE_V1 phase=" + c42HostilityPhase + "\n").utf8
+            ))
+        }
+#endif
         let store = try C42Store("hostile")
+#if DEBUG
+        c42HostilityPhase = "bundle-make"
+#endif
         let bundle = try store.make()
         let partyIDs = [C42.id(50), C42.id(51)]
         for (index, partyID) in partyIDs.enumerated() {
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "party-0-preview" : "party-1-preview"
+#endif
             let preview = try await bundle.workflow.previewCreateParty(
                 workspaceID: store.session.workspaceID, partyID: partyID, kind: .person,
                 displayName: "Equal Name", effectiveAt: C42.now,
                 expectedRevision: store.expected(bundle.writer, kind: .serviceParty,
                                                  id: partyID, revision: 0),
                 mutationID: C42.mutation(60 + index))
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "party-0-commit" : "party-1-commit"
+#endif
             _ = try await bundle.workflow.execute(.commitParty(preview))
         }
+#if DEBUG
+        c42HostilityPhase = "party-count"
+#endif
         XCTAssertEqual(try store.rows(ServicePartyRow.self).count, 2)
         let contactIDs = [C42.id(52), C42.id(53)]
         for index in 0..<2 {
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "email-0-preview" : "email-1-preview"
+#endif
             let preview = try await bundle.workflow.previewCreateContact(
                 workspaceID: store.session.workspaceID, contactPointID: contactIDs[index],
                 partyID: partyIDs[index], kind: .email, label: .work,
@@ -349,11 +374,20 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
                 expectedRevision: store.expected(bundle.writer, kind: .serviceContactPoint,
                                                  id: contactIDs[index], revision: 0),
                 mutationID: C42.mutation(62 + index))
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "email-0-commit" : "email-1-commit"
+#endif
             _ = try await bundle.workflow.execute(.commitContact(preview))
         }
+#if DEBUG
+        c42HostilityPhase = "email-count"
+#endif
         XCTAssertEqual(try store.rows(ServiceContactPointRow.self).count, 2)
         let phoneIDs = [C42.id(54), C42.id(55)]
         for index in 0..<2 {
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "phone-0-preview" : "phone-1-preview"
+#endif
             let preview = try await bundle.workflow.previewCreateContact(
                 workspaceID: store.session.workspaceID, contactPointID: phoneIDs[index],
                 partyID: partyIDs[index], kind: .phone, label: .work,
@@ -361,11 +395,20 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
                 expectedRevision: store.expected(bundle.writer, kind: .serviceContactPoint,
                                                  id: phoneIDs[index], revision: 0),
                 mutationID: C42.mutation(70 + index))
+#if DEBUG
+        c42HostilityPhase = index == 0 ? "phone-0-commit" : "phone-1-commit"
+#endif
             _ = try await bundle.workflow.execute(.commitContact(preview))
         }
         XCTAssertEqual(try store.rows(ServiceContactPointRow.self).count, 4)
+#if DEBUG
+        c42HostilityPhase = "baseline-receipts"
+#endif
         let baseline = try store.rows(MutationReceiptRow.self).count
         do {
+#if DEBUG
+        c42HostilityPhase = "stale-preview"
+#endif
             _ = try await bundle.workflow.previewEditParty(workspaceID: store.session.workspaceID,
                 partyID: partyIDs[0], displayName: "Stale",
                 expectedRevision: store.expected(bundle.writer, kind: .serviceParty,
@@ -374,6 +417,9 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
             XCTFail("stale preview")
         } catch { XCTAssertNotNil(error as? PartyAccountabilityCoordinatorFailureV1) }
         do {
+#if DEBUG
+        c42HostilityPhase = "wrong-workspace-preview"
+#endif
             _ = try await bundle.workflow.previewCreateContact(workspaceID: WorkspaceID(rawValue: C42.id(99)),
                 contactPointID: C42.id(56), partyID: partyIDs[0], kind: .phone, label: .work,
                 displayValue: "+12125550142", preferred: false, effectiveAt: C42.now,
@@ -382,19 +428,34 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
                 mutationID: C42.mutation(65))
             XCTFail("wrong workspace")
         } catch { XCTAssertEqual(error as? PartyContactSiteRoleWorkflowFailureV1, .identityMismatch) }
+#if DEBUG
+        c42HostilityPhase = "invalid-impact"
+#endif
         XCTAssertThrowsError(try PartyContactSiteRoleImpactV1(operation: .createParty,
             affectedPartyIDs: [partyIDs[0]], affectedContactPointIDs: [contactIDs[0]]))
+#if DEBUG
+        c42HostilityPhase = "accepted-preview"
+#endif
         let accepted = try await bundle.workflow.previewEditParty(workspaceID: store.session.workspaceID,
             partyID: partyIDs[0], displayName: "Accepted",
             expectedRevision: store.expected(bundle.writer, kind: .serviceParty,
                                              id: partyIDs[0], revision: 1),
             mutationID: C42.mutation(66))
         XCTAssertTrue(accepted.impact.warnings.contains(.operationalPurposeOnly))
+#if DEBUG
+        c42HostilityPhase = "invalid-preview-impact"
+#endif
         XCTAssertThrowsError(try PartyWorkflowPreviewV1(plan: accepted.plan,
             impact: .init(operation: .retireParty, affectedPartyIDs: [partyIDs[0]]))) {
             XCTAssertEqual($0 as? PartyContactSiteRoleWorkflowFailureV1, .invalidContext)
         }
+#if DEBUG
+        c42HostilityPhase = "accepted-commit"
+#endif
         _ = try await bundle.workflow.execute(.commitParty(accepted))
+#if DEBUG
+        c42HostilityPhase = "divergent-plan-prepare"
+#endif
         let current = try bundle.writer.currentRevision()
         let identity = try WorkspaceEntityIdentityV1(kind: .serviceParty, id: partyIDs[0])
         let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
@@ -411,22 +472,40 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
         let divergentPreview = try PartyWorkflowPreviewV1(plan: divergentPlan,
             impact: .init(operation: .editParty, affectedPartyIDs: [partyIDs[0]]))
         do {
+#if DEBUG
+        c42HostilityPhase = "divergent-replay"
+#endif
             _ = try await bundle.workflow.execute(.recoverParty(divergentPreview))
             XCTFail("divergent replay")
         } catch { XCTAssertNotNil(error) }
+#if DEBUG
+        c42HostilityPhase = "divergent-no-effect"
+#endif
         XCTAssertEqual(try store.rows(MutationReceiptRow.self).count, baseline + 1)
         XCTAssertEqual(try bundle.writer.currentRevision().entityRevisions.first {
             $0.identity == identity
         }?.revision, 2)
+#if DEBUG
+        c42HostilityPhase = "retire-preview"
+#endif
         let retire = try await bundle.workflow.previewRetireParty(
             workspaceID: store.session.workspaceID, partyID: partyIDs[0],
             retiredAt: C42.now.addingTimeInterval(600),
             expectedRevision: store.expected(bundle.writer, kind: .serviceParty,
                                              id: partyIDs[0], revision: 2),
             mutationID: C42.mutation(67))
+#if DEBUG
+        c42HostilityPhase = "retire-commit"
+#endif
         _ = try await bundle.workflow.execute(.commitParty(retire))
+#if DEBUG
+        c42HostilityPhase = "retire-receipts"
+#endif
         let afterRetirement = try store.rows(MutationReceiptRow.self).count
         do {
+#if DEBUG
+        c42HostilityPhase = "retired-edit-preview"
+#endif
             _ = try await bundle.workflow.previewEditParty(
                 workspaceID: store.session.workspaceID, partyID: partyIDs[0],
                 displayName: "Forbidden Reactivation",
@@ -437,8 +516,14 @@ final class V9_105PartyContactSiteRoleWorkflowTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? PartyContactSiteRoleWorkflowFailureV1, .retiredParty)
         }
+#if DEBUG
+        c42HostilityPhase = "retired-no-effect"
+#endif
         XCTAssertEqual(try store.rows(MutationReceiptRow.self).count, afterRetirement)
         XCTAssertEqual(try store.rows(ServiceContactPointRow.self).count, 4)
+#if DEBUG
+        c42HostilityPhase = "method-return"
+#endif
     }
 
     @MainActor
